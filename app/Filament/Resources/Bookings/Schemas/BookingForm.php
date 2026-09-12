@@ -63,6 +63,12 @@ class BookingForm
                     ->options(BookingSource::class)
                     ->default(BookingSource::WalkIn)
                     ->required(),
+                Select::make('sales_channel_id')
+                    ->label('کانال فروش')
+                    ->relationship('channel', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('در صورت ورود از طریق سایت واسط (OTA)، کانال را انتخاب کنید تا کمیسیون آن هنگام تسویه محاسبه شود.'),
                 Textarea::make('notes')
                     ->label('یادداشت')
                     ->columnSpanFull(),

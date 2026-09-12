@@ -8,7 +8,9 @@ use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Exceptions\RoomNotAvailableException;
 use App\Models\Concerns\HasTags;
+use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,7 +23,7 @@ class Booking extends Model
     protected $fillable = [
         'reference_code', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
-        'status', 'source', 'notes', 'created_by',
+        'status', 'source', 'sales_channel_id', 'commission_amount', 'notes', 'created_by',
     ];
 
     protected function casts(): array
@@ -33,6 +35,7 @@ class Booking extends Model
             'actual_check_out_at' => 'datetime',
             'status' => BookingStatus::class,
             'source' => BookingSource::class,
+            'commission_amount' => 'decimal:0',
         ];
     }
 
@@ -40,15 +43,51 @@ class Booking extends Model
     {
         static::creating(function (self $booking) {
             $booking->reference_code ??= static::generateReferenceCode();
+
+            // Best-effort guard for direct ::create() calls (tinker, relation
+            // managers, seeders). The authoritative, concurrency-safe check
+            // is CreateBooking::handleRecordCreation(), which wraps this in
+            // a DB transaction with a row lock on the room.
+            static::assertRoomAvailable(
+                Room::findOrFail($booking->room_id),
+                $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
+                $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+            );
         });
 
         static::created(function (self $booking) {
+            $totalForStay = $booking->room->roomType->effectivePriceForRange(
+                $booking->check_in_date,
+                $booking->check_out_date,
+            );
+
             $booking->charges()->create([
                 'title' => "اقامت {$booking->nights()} شب",
-                'quantity' => $booking->nights(),
-                'unit_amount' => $booking->room->roomType->base_price,
+                'quantity' => 1,
+                'unit_amount' => $totalForStay,
             ]);
         });
+    }
+
+    /**
+     * Overbooking prevention (doc2 "Channel Manager"): a room cannot have
+     * two overlapping, non-cancelled bookings. Date ranges overlap when one
+     * starts before the other ends on both sides (checkout day itself is
+     * free, matching nights()'s exclusive end date).
+     */
+    public static function assertRoomAvailable(Room $room, Carbon $checkIn, Carbon $checkOut, ?int $excludeBookingId = null): void
+    {
+        $overlaps = static::query()
+            ->where('room_id', $room->id)
+            ->where('status', '!=', BookingStatus::Cancelled)
+            ->when($excludeBookingId, fn ($query) => $query->whereKeyNot($excludeBookingId))
+            ->where('check_in_date', '<', $checkOut)
+            ->where('check_out_date', '>', $checkIn)
+            ->exists();
+
+        if ($overlaps) {
+            throw RoomNotAvailableException::forOverlap($room->name);
+        }
     }
 
     public static function generateReferenceCode(): string
@@ -66,6 +105,11 @@ class Booking extends Model
     public function guest(): BelongsTo
     {
         return $this->belongsTo(Guest::class);
+    }
+
+    public function channel(): BelongsTo
+    {
+        return $this->belongsTo(SalesChannel::class, 'sales_channel_id');
     }
 
     public function creator(): BelongsTo
@@ -146,9 +190,27 @@ class Booking extends Model
         }
 
         $this->creditCashback();
+        $this->calculateCommission();
         $this->requestPostCheckoutFeedback();
 
         return $task;
+    }
+
+    /**
+     * OTA commission owed on this booking, computed from the sales
+     * channel's commission_rate against the final folio total. Direct
+     * bookings (no channel, or a "direct" channel with 0% rate) owe
+     * nothing.
+     */
+    private function calculateCommission(): void
+    {
+        if (! $this->channel) {
+            return;
+        }
+
+        $this->update([
+            'commission_amount' => (int) round($this->totalAmount() * $this->channel->commission_rate / 100),
+        ]);
     }
 
     /**
