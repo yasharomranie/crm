@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -81,5 +82,21 @@ class Task extends Model
     public function workflowInstance(): MorphOne
     {
         return $this->morphOne(WorkflowInstance::class, 'subject');
+    }
+
+    protected static function booted(): void
+    {
+        static::updated(function (self $task) {
+            if (! $task->wasChanged('status') || $task->status !== TaskStatus::Done) {
+                return;
+            }
+
+            // Closing the loop: a housekeeping task spawned by a checkout
+            // (see Booking::checkOut()) frees the room back to "available"
+            // once it's actually done.
+            if ($task->task_type === TaskType::FromBooking && $task->source instanceof Booking) {
+                $task->source->room->update(['status' => RoomStatus::Available]);
+            }
+        });
     }
 }
