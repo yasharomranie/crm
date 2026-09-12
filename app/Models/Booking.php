@@ -145,6 +145,39 @@ class Booking extends Model
             ]);
         }
 
+        $this->creditCashback();
+        $this->requestPostCheckoutFeedback();
+
         return $task;
+    }
+
+    /**
+     * Loyalty cashback: a flat percentage of the folio total credited to
+     * the guest's wallet on checkout (doc2 5.3 "کیف پول و امتیاز خرید").
+     */
+    public const CASHBACK_RATE = 0.02;
+
+    private function creditCashback(): void
+    {
+        $amount = (int) round($this->totalAmount() * self::CASHBACK_RATE);
+
+        if ($amount > 0) {
+            $this->guest->creditWallet($amount, "کش‌بک رزرو {$this->reference_code}", $this);
+        }
+    }
+
+    /**
+     * Creates the CRM record for a post-checkout survey (doc2 5.4). This
+     * only marks a survey as *requested* - actually texting the guest a
+     * survey link needs an SMS gateway integration, which is out of scope
+     * here; a later phase (or wiring GuestFeedback::requested_at into an
+     * n8n/SMS workflow) is expected to consume these records.
+     */
+    private function requestPostCheckoutFeedback(): GuestFeedback
+    {
+        return $this->guest->feedbacks()->create([
+            'booking_id' => $this->id,
+            'requested_at' => now(),
+        ]);
     }
 }

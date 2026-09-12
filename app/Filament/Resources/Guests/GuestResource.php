@@ -2,13 +2,18 @@
 
 namespace App\Filament\Resources\Guests;
 
-use App\Filament\Resources\Guests\Pages\ManageGuests;
+use App\Filament\Resources\Guests\Pages\CreateGuest;
+use App\Filament\Resources\Guests\Pages\EditGuest;
+use App\Filament\Resources\Guests\Pages\ListGuests;
+use App\Filament\Resources\Guests\Pages\ViewGuest;
+use App\Filament\Resources\Guests\Schemas\GuestInfolist;
 use App\Models\Guest;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\Resource;
@@ -23,11 +28,18 @@ class GuestResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUsers;
 
-    protected static string|\UnitEnum|null $navigationGroup = 'اقامتی و هتلداری';
+    protected static string|\UnitEnum|null $navigationGroup = 'CRM و مشتریان';
 
     protected static ?string $modelLabel = 'مهمان';
 
     protected static ?string $pluralModelLabel = 'مهمانان';
+
+    protected static ?string $recordTitleAttribute = 'name';
+
+    public static function infolist(Schema $schema): Schema
+    {
+        return GuestInfolist::configure($schema);
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -60,12 +72,18 @@ class GuestResource extends Resource
                 TextColumn::make('name')->label('نام')->searchable(),
                 TextColumn::make('mobile')->label('موبایل')->placeholder('—'),
                 TextColumn::make('national_code')->label('کد ملی')->placeholder('—'),
+                TextColumn::make('loyalty_tier')
+                    ->label('سطح وفاداری')
+                    ->state(fn (Guest $record) => $record->loyaltyTier())
+                    ->badge(),
+                TextColumn::make('wallet_balance')->label('کیف پول')->numeric()->suffix(' تومان'),
                 TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings'),
             ])
             ->filters([
                 //
             ])
             ->recordActions([
+                ViewAction::make(),
                 EditAction::make(),
                 DeleteAction::make(),
             ])
@@ -76,10 +94,23 @@ class GuestResource extends Resource
             ]);
     }
 
+    public static function getRelations(): array
+    {
+        return [
+            RelationManagers\DealsRelationManager::class,
+            RelationManagers\TicketsRelationManager::class,
+            RelationManagers\FeedbacksRelationManager::class,
+            RelationManagers\WalletTransactionsRelationManager::class,
+        ];
+    }
+
     public static function getPages(): array
     {
         return [
-            'index' => ManageGuests::route('/'),
+            'index' => ListGuests::route('/'),
+            'create' => CreateGuest::route('/create'),
+            'view' => ViewGuest::route('/{record}'),
+            'edit' => EditGuest::route('/{record}/edit'),
         ];
     }
 }

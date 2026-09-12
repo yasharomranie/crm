@@ -1,0 +1,50 @@
+<?php
+
+namespace App\Filament\Resources\GuestTickets\Schemas;
+
+use App\Enums\TicketPriority;
+use App\Enums\TicketStatus;
+use App\Models\Guest;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Schema;
+
+class GuestTicketForm
+{
+    public static function configure(Schema $schema): Schema
+    {
+        return $schema
+            ->components([
+                Select::make('guest_id')
+                    ->label('مشتری')
+                    ->relationship('guest', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->required()
+                    ->createOptionForm([
+                        TextInput::make('name')->label('نام و نام خانوادگی')->required(),
+                        TextInput::make('mobile')->label('شماره موبایل')->tel(),
+                    ])
+                    ->createOptionUsing(fn (array $data) => Guest::create($data)->id),
+                TextInput::make('subject')
+                    ->label('موضوع')
+                    ->required()
+                    ->maxLength(255),
+                Textarea::make('description')
+                    ->label('شرح شکایت/درخواست')
+                    ->columnSpanFull(),
+                Select::make('priority')
+                    ->label('فوریت')
+                    ->options(TicketPriority::class)
+                    ->default(TicketPriority::Normal)
+                    ->required()
+                    ->helperText('مهلت پاسخ‌گویی (SLA) بر اساس فوریت به‌صورت خودکار تنظیم می‌شود.'),
+                Select::make('status')
+                    ->label('وضعیت')
+                    ->options(TicketStatus::class)
+                    ->default(TicketStatus::Open)
+                    ->required(),
+            ]);
+    }
+}
