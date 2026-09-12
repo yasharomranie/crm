@@ -24,6 +24,10 @@ class FieldsRelationManager extends RelationManager
 
     protected static ?string $title = 'فیلدهای فرم';
 
+    protected static ?string $modelLabel = 'فیلد فرم';
+
+    protected static ?string $pluralModelLabel = 'فیلدهای فرم';
+
     public function form(Schema $schema): Schema
     {
         return $schema

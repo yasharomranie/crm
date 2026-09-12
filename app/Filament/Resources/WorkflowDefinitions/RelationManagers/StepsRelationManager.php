@@ -21,6 +21,10 @@ class StepsRelationManager extends RelationManager
 
     protected static ?string $title = 'مراحل تأیید';
 
+    protected static ?string $modelLabel = 'مرحله تأیید';
+
+    protected static ?string $pluralModelLabel = 'مراحل تأیید';
+
     public function form(Schema $schema): Schema
     {
         return $schema
