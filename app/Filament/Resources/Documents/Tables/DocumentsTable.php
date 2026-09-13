@@ -1,0 +1,51 @@
+<?php
+
+namespace App\Filament\Resources\Documents\Tables;
+
+use App\Enums\DocumentAccessLevel;
+use Filament\Actions\Action;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Table;
+
+class DocumentsTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('title')->label('عنوان سند')->searchable(),
+                TextColumn::make('folder.name')->label('پوشه')->placeholder('—'),
+                TextColumn::make('access_level')->label('سطح دسترسی')->badge(),
+                TextColumn::make('department.name')->label('دپارتمان مجاز')->placeholder('—'),
+                TextColumn::make('tags.name')->label('برچسب‌ها')->badge()->separator(','),
+                TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
+                TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
+                TextColumn::make('created_at')->label('تاریخ بارگذاری')->date('Y/m/d'),
+            ])
+            ->filters([
+                SelectFilter::make('access_level')
+                    ->label('سطح دسترسی')
+                    ->options(DocumentAccessLevel::class),
+            ])
+            ->recordActions([
+                Action::make('download')
+                    ->label('دانلود')
+                    ->icon(Heroicon::OutlinedArrowDownTray)
+                    ->url(fn ($record) => route('documents.download', $record))
+                    ->openUrlInNewTab(),
+                EditAction::make(),
+                DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+}

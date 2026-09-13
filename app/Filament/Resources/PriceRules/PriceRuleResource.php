@@ -68,7 +68,7 @@ class PriceRuleResource extends Resource
                     ->label('مقدار تغییر')
                     ->numeric()
                     ->required()
-                    ->helperText(fn (Get $get) => $get('adjustment_type') === PriceAdjustmentType::Fixed->value
+                    ->helperText(fn (Get $get) => $get('adjustment_type') === PriceAdjustmentType::Fixed
                         ? 'مبلغ به تومان به نرخ پایه اضافه می‌شود (برای کاهش، عدد منفی وارد کنید).'
                         : 'درصدی که به نرخ پایه اضافه می‌شود (برای تخفیف، عدد منفی وارد کنید).'),
                 TextInput::make('priority')

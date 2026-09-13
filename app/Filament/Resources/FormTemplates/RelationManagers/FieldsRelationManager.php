@@ -49,8 +49,8 @@ class FieldsRelationManager extends RelationManager
                 KeyValue::make('options')
                     ->label('گزینه‌ها (برای لیست کشویی/انتخاب تکی)')
                     ->visible(fn ($get) => in_array($get('field_type'), [
-                        FormFieldType::Select->value,
-                        FormFieldType::Radio->value,
+                        FormFieldType::Select,
+                        FormFieldType::Radio,
                     ]))
                     ->columnSpanFull(),
                 Toggle::make('is_required')

@@ -48,13 +48,13 @@ class StepsRelationManager extends RelationManager
                     ->relationship('approverRole', 'name')
                     ->searchable()
                     ->preload()
-                    ->visible(fn ($get) => $get('approver_type') === ApproverType::Role->value),
+                    ->visible(fn ($get) => $get('approver_type') === ApproverType::Role),
                 Select::make('approver_user_id')
                     ->label('کاربر تأییدکننده')
                     ->relationship('approverUser', 'name')
                     ->searchable()
                     ->preload()
-                    ->visible(fn ($get) => $get('approver_type') === ApproverType::SpecificUser->value),
+                    ->visible(fn ($get) => $get('approver_type') === ApproverType::SpecificUser),
                 TextInput::make('sla_hours')
                     ->label('مهلت پاسخ‌گویی (ساعت)')
                     ->numeric(),
