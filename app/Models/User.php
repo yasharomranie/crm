@@ -70,17 +70,41 @@ class User extends Authenticatable implements FilamentUser
      * their assigned shift's start time plus its grace period; users with
      * no assigned shift are always marked on-time (there's nothing to be
      * late against).
+     *
+     * If the shift has a geofence configured, $latitude/$longitude (read
+     * from the browser's Geolocation API - see MyAttendance) are required
+     * and must fall within the shift's allowed radius. $ipAddress and
+     * $deviceFingerprint are recorded for HR to review, not enforced here;
+     * see AttendanceRecord::isDeviceUnusual().
      */
-    public function checkIn(): AttendanceRecord
-    {
+    public function checkIn(
+        ?float $latitude = null,
+        ?float $longitude = null,
+        ?string $ipAddress = null,
+        ?string $deviceFingerprint = null,
+    ): AttendanceRecord {
         $existing = $this->todaysAttendance();
 
         if ($existing?->check_in_at) {
             throw AttendanceException::alreadyCheckedInToday();
         }
 
-        $now = now();
         $shift = $this->workShift;
+
+        if ($shift?->hasGeofence()) {
+            if ($latitude === null || $longitude === null) {
+                throw AttendanceException::locationRequired();
+            }
+
+            if (! $shift->isWithinGeofence($latitude, $longitude)) {
+                throw AttendanceException::outsideAllowedLocation(
+                    (int) round($shift->distanceInMetersFrom($latitude, $longitude)),
+                    $shift->radius_meters,
+                );
+            }
+        }
+
+        $now = now();
         $lateMinutes = 0;
         $status = AttendanceStatus::OnTime;
 
@@ -98,6 +122,10 @@ class User extends Authenticatable implements FilamentUser
             [
                 'work_shift_id' => $shift?->id,
                 'check_in_at' => $now,
+                'check_in_ip' => $ipAddress,
+                'check_in_device' => $deviceFingerprint,
+                'check_in_latitude' => $latitude,
+                'check_in_longitude' => $longitude,
                 'late_minutes' => $lateMinutes,
                 'status' => $status,
             ],
@@ -107,10 +135,15 @@ class User extends Authenticatable implements FilamentUser
     /**
      * Records the user's departure for today. Early-leave is measured
      * against their shift's end time (also the shift in effect when they
-     * checked in today, not whatever they're assigned to right now).
+     * checked in today, not whatever they're assigned to right now). Uses
+     * the same geofence as check-in.
      */
-    public function checkOut(): AttendanceRecord
-    {
+    public function checkOut(
+        ?float $latitude = null,
+        ?float $longitude = null,
+        ?string $ipAddress = null,
+        ?string $deviceFingerprint = null,
+    ): AttendanceRecord {
         $record = $this->todaysAttendance();
 
         if (! $record?->check_in_at) {
@@ -121,10 +154,25 @@ class User extends Authenticatable implements FilamentUser
             throw AttendanceException::alreadyCheckedOutToday();
         }
 
+        $shift = $record->workShift;
+
+        if ($shift?->hasGeofence()) {
+            if ($latitude === null || $longitude === null) {
+                throw AttendanceException::locationRequired();
+            }
+
+            if (! $shift->isWithinGeofence($latitude, $longitude)) {
+                throw AttendanceException::outsideAllowedLocation(
+                    (int) round($shift->distanceInMetersFrom($latitude, $longitude)),
+                    $shift->radius_meters,
+                );
+            }
+        }
+
         $now = now();
         $earlyLeaveMinutes = 0;
 
-        if ($shift = $record->workShift) {
+        if ($shift) {
             $shiftEnd = today()->setTimeFrom($shift->end_time);
 
             if ($now->lessThan($shiftEnd)) {
@@ -134,6 +182,10 @@ class User extends Authenticatable implements FilamentUser
 
         $record->update([
             'check_out_at' => $now,
+            'check_out_ip' => $ipAddress,
+            'check_out_device' => $deviceFingerprint,
+            'check_out_latitude' => $latitude,
+            'check_out_longitude' => $longitude,
             'worked_minutes' => $record->check_in_at->diffInMinutes($now),
             'early_leave_minutes' => $earlyLeaveMinutes,
         ]);

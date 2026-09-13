@@ -10,6 +10,7 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Request;
 
 class MyAttendance extends Page
 {
@@ -47,10 +48,10 @@ class MyAttendance extends Page
             ->get();
     }
 
-    public function checkIn(): void
+    public function checkIn(?float $latitude = null, ?float $longitude = null, ?string $deviceFingerprint = null): void
     {
         try {
-            Auth::user()->checkIn();
+            Auth::user()->checkIn($latitude, $longitude, Request::ip(), $deviceFingerprint);
 
             Notification::make()->title('ورود شما با موفقیت ثبت شد.')->success()->send();
         } catch (AttendanceException $exception) {
@@ -58,14 +59,19 @@ class MyAttendance extends Page
         }
     }
 
-    public function checkOut(): void
+    public function checkOut(?float $latitude = null, ?float $longitude = null, ?string $deviceFingerprint = null): void
     {
         try {
-            Auth::user()->checkOut();
+            Auth::user()->checkOut($latitude, $longitude, Request::ip(), $deviceFingerprint);
 
             Notification::make()->title('خروج شما با موفقیت ثبت شد.')->success()->send();
         } catch (AttendanceException $exception) {
             Notification::make()->title($exception->getMessage())->warning()->send();
         }
+    }
+
+    public function shiftHasGeofence(): bool
+    {
+        return (bool) Auth::user()->workShift?->hasGeofence();
     }
 }

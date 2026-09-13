@@ -12,7 +12,7 @@
         };
     @endphp
 
-    <div class="space-y-6">
+    <div class="space-y-6" x-data="attendanceCard()">
         {{-- Today's status + check-in/out action --}}
         <div class="rounded-xl border border-gray-200 bg-white p-6 shadow-sm dark:border-white/10 dark:bg-gray-900">
             <div class="flex flex-wrap items-center justify-between gap-4">
@@ -29,6 +29,15 @@
                     @else
                         <p class="mt-1 text-sm text-gray-500 dark:text-gray-400">هنوز ورود خود را ثبت نکرده‌اید.</p>
                     @endif
+
+                    @if ($this->shiftHasGeofence())
+                        <p class="mt-2 flex items-center gap-1 text-xs text-warning-600 dark:text-warning-400">
+                            <x-heroicon-o-map-pin class="h-4 w-4" />
+                            این شیفت نیازمند تأیید موقعیت مکانی است.
+                        </p>
+                    @endif
+
+                    <p x-show="errorMessage" x-cloak x-text="errorMessage" class="mt-2 text-xs text-danger-600 dark:text-danger-400"></p>
                 </div>
 
                 <div class="flex items-center gap-3">
@@ -47,20 +56,24 @@
                     @if (! $today?->check_in_at)
                         <button
                             type="button"
-                            wire:click="checkIn"
-                            class="flex items-center gap-2 rounded-lg bg-success-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-success-500"
+                            x-on:click="submit('checkIn')"
+                            x-bind:disabled="isLocating"
+                            class="flex items-center gap-2 rounded-lg bg-success-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-success-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <x-heroicon-o-finger-print class="h-5 w-5" />
-                            ثبت ورود
+                            <x-heroicon-o-finger-print class="h-5 w-5" x-show="! isLocating" />
+                            <svg x-show="isLocating" x-cloak class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                            <span x-text="isLocating ? 'در حال دریافت موقعیت مکانی...' : 'ثبت ورود'"></span>
                         </button>
                     @elseif (! $today->check_out_at)
                         <button
                             type="button"
-                            wire:click="checkOut"
-                            class="flex items-center gap-2 rounded-lg bg-danger-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-danger-500"
+                            x-on:click="submit('checkOut')"
+                            x-bind:disabled="isLocating"
+                            class="flex items-center gap-2 rounded-lg bg-danger-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-danger-500 disabled:cursor-not-allowed disabled:opacity-60"
                         >
-                            <x-heroicon-o-finger-print class="h-5 w-5" />
-                            ثبت خروج
+                            <x-heroicon-o-finger-print class="h-5 w-5" x-show="! isLocating" />
+                            <svg x-show="isLocating" x-cloak class="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                            <span x-text="isLocating ? 'در حال دریافت موقعیت مکانی...' : 'ثبت خروج'"></span>
                         </button>
                     @else
                         <span class="flex items-center gap-2 rounded-lg bg-gray-100 px-5 py-2.5 text-sm font-medium text-gray-500 dark:bg-white/5 dark:text-gray-400">
@@ -139,4 +152,79 @@
             </div>
         </div>
     </div>
+
+    @script
+    <script>
+        Alpine.data('attendanceCard', () => ({
+            isLocating: false,
+            errorMessage: null,
+
+            /**
+             * Reads the browser's Geolocation API (the only location signal
+             * a web page can access - there's no way to reach GPS/Wi-Fi
+             * hardware more directly than this) and a best-effort device
+             * fingerprint, then calls the matching Livewire action. If
+             * location is denied/unavailable, we still submit with null
+             * coordinates - the server decides whether that's fatal (only
+             * shifts with a configured geofence require it).
+             */
+            submit(action) {
+                this.errorMessage = null;
+                this.isLocating = true;
+
+                const finish = (latitude, longitude) => {
+                    this.fingerprint().then((fingerprint) => {
+                        this.isLocating = false;
+                        this.$wire[action](latitude, longitude, fingerprint);
+                    });
+                };
+
+                if (! navigator.geolocation) {
+                    finish(null, null);
+
+                    return;
+                }
+
+                navigator.geolocation.getCurrentPosition(
+                    (position) => finish(position.coords.latitude, position.coords.longitude),
+                    () => {
+                        this.errorMessage = 'دسترسی به موقعیت مکانی رد شد یا در دسترس نیست؛ اگر شیفت شما نیازمند آن باشد، ثبت رد خواهد شد.';
+                        finish(null, null);
+                    },
+                    { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 },
+                );
+            },
+
+            async fingerprint() {
+                const raw = [
+                    navigator.userAgent,
+                    navigator.language,
+                    screen.width + 'x' + screen.height,
+                    Intl.DateTimeFormat().resolvedOptions().timeZone,
+                ].join('|');
+
+                if (window.crypto?.subtle) {
+                    const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(raw));
+
+                    return Array.from(new Uint8Array(digest))
+                        .map((byte) => byte.toString(16).padStart(2, '0'))
+                        .join('')
+                        .slice(0, 32);
+                }
+
+                // Fallback for non-secure contexts where SubtleCrypto is
+                // unavailable: a simple, non-cryptographic string hash is
+                // still good enough to notice "this looks like a different
+                // device than usual".
+                let hash = 0;
+                for (let i = 0; i < raw.length; i++) {
+                    hash = (hash << 5) - hash + raw.charCodeAt(i);
+                    hash |= 0;
+                }
+
+                return String(hash);
+            },
+        }));
+    </script>
+    @endscript
 </x-filament-panels::page>

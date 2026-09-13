@@ -25,4 +25,14 @@ class AttendanceException extends RuntimeException
     {
         return new self('امروز قبلاً خروج خود را ثبت کرده‌اید.');
     }
+
+    public static function locationRequired(): self
+    {
+        return new self('شیفت شما نیازمند تأیید موقعیت مکانی است. لطفاً دسترسی به موقعیت مکانی را در مرورگر خود فعال کنید.');
+    }
+
+    public static function outsideAllowedLocation(int $distanceMeters, int $radiusMeters): self
+    {
+        return new self("شما در محدودهٔ مجاز ثبت حضور نیستید (فاصلهٔ شما {$distanceMeters} متر است، حداکثر مجاز {$radiusMeters} متر).");
+    }
 }

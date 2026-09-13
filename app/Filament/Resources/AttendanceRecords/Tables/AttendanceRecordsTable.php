@@ -3,11 +3,13 @@
 namespace App\Filament\Resources\AttendanceRecords\Tables;
 
 use App\Enums\AttendanceStatus;
+use App\Models\AttendanceRecord;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DatePicker;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -26,6 +28,18 @@ class AttendanceRecordsTable
                 TextColumn::make('check_in_at')->label('ورود')->time('H:i')->placeholder('—'),
                 TextColumn::make('check_out_at')->label('خروج')->time('H:i')->placeholder('—'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
+                IconColumn::make('is_device_unusual')
+                    ->label('دستگاه')
+                    ->getStateUsing(fn (AttendanceRecord $record) => $record->isDeviceUnusual())
+                    ->boolean()
+                    ->trueIcon('heroicon-o-exclamation-triangle')
+                    ->falseIcon('heroicon-o-check')
+                    ->trueColor('danger')
+                    ->falseColor('gray')
+                    ->tooltip(fn (AttendanceRecord $record) => $record->isDeviceUnusual()
+                        ? 'ورود این بار از دستگاهی متفاوت با دفعهٔ قبل ثبت شده - احتمال ورود از دستگاه شخص دیگر را بررسی کنید.'
+                        : null),
+                TextColumn::make('check_in_ip')->label('IP ورود')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('late_minutes')->label('تأخیر')->suffix(' دقیقه')->toggleable(),
                 TextColumn::make('early_leave_minutes')->label('تعجیل در خروج')->suffix(' دقیقه')->toggleable(),
                 TextColumn::make('worked_minutes')->label('کارکرد')->formatStateUsing(function (int $state) {

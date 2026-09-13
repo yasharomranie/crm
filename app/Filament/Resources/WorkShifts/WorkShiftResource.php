@@ -66,6 +66,22 @@ class WorkShiftResource extends Resource
                 Toggle::make('is_default')
                     ->label('شیفت پیش‌فرض')
                     ->helperText('برای کاربران جدیدی که شیفت مشخصی ندارند.'),
+                TextInput::make('latitude')
+                    ->label('عرض جغرافیایی محل مجاز')
+                    ->numeric()
+                    ->step('0.0000001')
+                    ->helperText('برای گرفتن مختصات، در Google Maps روی محل دفتر/ویلا کلیک راست کنید و عدد اول را کپی کنید.'),
+                TextInput::make('longitude')
+                    ->label('طول جغرافیایی محل مجاز')
+                    ->numeric()
+                    ->step('0.0000001')
+                    ->helperText('عدد دوم مختصات Google Maps.'),
+                TextInput::make('radius_meters')
+                    ->label('شعاع مجاز (متر)')
+                    ->numeric()
+                    ->default(200)
+                    ->required()
+                    ->helperText('اگر عرض/طول جغرافیایی خالی بماند، این شیفت هیچ محدودیت مکانی ندارد.'),
             ]);
     }
 
@@ -80,6 +96,14 @@ class WorkShiftResource extends Resource
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('همه'),
                 TextColumn::make('users_count')->label('تعداد کاربر')->counts('users'),
                 IconColumn::make('is_default')->label('پیش‌فرض')->boolean(),
+                IconColumn::make('latitude')
+                    ->label('محدودیت مکانی')
+                    ->boolean()
+                    ->getStateUsing(fn (WorkShift $record) => $record->hasGeofence())
+                    ->trueIcon('heroicon-o-map-pin')
+                    ->falseIcon('heroicon-o-globe-alt')
+                    ->trueColor('warning')
+                    ->falseColor('gray'),
             ])
             ->filters([
                 //
