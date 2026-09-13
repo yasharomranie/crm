@@ -6,6 +6,7 @@ use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
+use Filament\Navigation\NavigationGroup;
 use Filament\Pages\Dashboard;
 use Filament\Panel;
 use Filament\PanelProvider;
@@ -33,6 +34,20 @@ class AdminPanelProvider extends PanelProvider
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->colors([
                 'primary' => Color::Amber,
+            ])
+            ->navigationGroups([
+                // The AI assistant is the flagship module - all-of-system
+                // reporting/insight - so it leads the sidebar regardless of
+                // the order its resources/pages happen to be discovered in.
+                NavigationGroup::make('دستیار هوشمند مدیریتی'),
+                NavigationGroup::make('زیرساخت سازمانی'),
+                NavigationGroup::make('فرم‌ساز و گردش‌کار'),
+                NavigationGroup::make('وظایف و پروژه‌ها'),
+                NavigationGroup::make('اقامتی و هتلداری'),
+                NavigationGroup::make('CRM و مشتریان'),
+                NavigationGroup::make('مدیریت اسناد'),
+                NavigationGroup::make('ارتباطات داخلی'),
+                NavigationGroup::make('حضور و غیاب'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')
             ->discoverPages(in: app_path('Filament/Pages'), for: 'App\Filament\Pages')

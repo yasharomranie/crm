@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
@@ -27,5 +28,18 @@ class DatabaseSeeder extends Seeder
         // always administer every document regardless of department or
         // sharing.
         $admin->assignRole(Role::firstOrCreate(['name' => 'admin']));
+
+        // A pre-filled (but not functional) GapGPT entry so "تنظیمات هوش
+        // مصنوعی" isn't empty on first run - the base_url is unverified
+        // (couldn't be fetched from gapgpt.app/platform-v2/docs/quickstart
+        // in this environment) and the api_key is a placeholder; the user
+        // must paste their real key and confirm the base_url before the AI
+        // assistant will actually work.
+        AiProvider::firstOrCreate(['name' => 'GapGPT'], [
+            'base_url' => 'https://api.gapgpt.app/v1',
+            'api_key' => 'REPLACE_WITH_YOUR_GAPGPT_API_KEY',
+            'default_model' => 'gpt-4o-mini',
+            'is_active' => true,
+        ]);
     }
 }
