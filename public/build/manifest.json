@@ -1,0 +1,34 @@
+{
+  "_fonts-CLCuQbeY.css": {
+    "file": "assets/fonts-CLCuQbeY.css",
+    "src": "_fonts-CLCuQbeY.css"
+  },
+  "_vazirmatn-variable-normal-Cafbb7Zc.woff2": {
+    "file": "assets/vazirmatn-variable-normal-Cafbb7Zc.woff2",
+    "src": "_vazirmatn-variable-normal-Cafbb7Zc.woff2"
+  },
+  "resources/css/app.css": {
+    "file": "assets/app-Di2qzgGd.css",
+    "name": "app",
+    "names": [
+      "app.css"
+    ],
+    "src": "resources/css/app.css",
+    "isEntry": true
+  },
+  "resources/css/filament/admin/theme.css": {
+    "file": "assets/theme-Dz3IHMCt.css",
+    "name": "theme",
+    "names": [
+      "theme.css"
+    ],
+    "src": "resources/css/filament/admin/theme.css",
+    "isEntry": true
+  },
+  "resources/js/app.js": {
+    "file": "assets/app-BvRk9kiK.js",
+    "name": "app",
+    "src": "resources/js/app.js",
+    "isEntry": true
+  }
+}
