@@ -4,6 +4,7 @@ namespace App\Filament\Resources\AiProviders;
 
 use App\Exceptions\AiProviderException;
 use App\Filament\Resources\AiProviders\Pages\ManageAiProviders;
+use App\Filament\Support\FieldHelp;
 use App\Models\AiProvider;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -46,29 +47,34 @@ class AiProviderResource extends Resource
                     ->label('نام ارائه‌دهنده')
                     ->helperText('مثلاً «GapGPT» یا «OpenAI مستقیم»')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('ai-providers.name')),
                 TextInput::make('base_url')
                     ->label('آدرس پایه (Base URL)')
                     ->url()
                     ->required()
                     ->placeholder('https://api.gapgpt.app/v1')
                     ->helperText('آدرس باید سازگار با OpenAI باشد (دارای مسیرهای /chat/completions و /models). آدرس دقیق را از مستندات ارائه‌دهندهٔ خود کپی کنید.')
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('ai-providers.base_url')),
                 TextInput::make('api_key')
                     ->label('کلید API')
                     ->password()
                     ->revealable()
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('ai-providers.api_key')),
                 TextInput::make('default_model')
                     ->label('مدل پیش‌فرض')
                     ->required()
                     ->placeholder('gpt-4o-mini')
                     ->helperText('بعد از ذخیره، از دکمهٔ «انتخاب مدل از لیست» در جدول می‌توانید مدل دقیق را از فهرست مدل‌های این ارائه‌دهنده انتخاب کنید.')
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('ai-providers.default_model')),
                 Toggle::make('is_active')
                     ->label('فعال (استفاده در دستیار هوشمند)')
-                    ->helperText('در هر لحظه فقط یک ارائه‌دهنده می‌تواند فعال باشد؛ فعال‌کردن این یکی بقیه را غیرفعال می‌کند.'),
+                    ->helperText('در هر لحظه فقط یک ارائه‌دهنده می‌تواند فعال باشد؛ فعال‌کردن این یکی بقیه را غیرفعال می‌کند.')
+                    ->hintAction(FieldHelp::make('ai-providers.is_active')),
             ]);
     }
 

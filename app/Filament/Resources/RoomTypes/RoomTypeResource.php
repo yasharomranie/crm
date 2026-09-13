@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\RoomTypes;
 
 use App\Filament\Resources\RoomTypes\Pages\ManageRoomTypes;
+use App\Filament\Support\FieldHelp;
 use App\Models\RoomType;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -39,22 +40,27 @@ class RoomTypeResource extends Resource
                     ->label('نام نوع اتاق')
                     ->helperText('مثلاً «ویلای دو نفره» یا «سوئیت خانوادگی»')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('room-types.name')),
                 TextInput::make('capacity')
                     ->label('ظرفیت نفرات')
                     ->numeric()
                     ->default(2)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('room-types.capacity')),
                 TextInput::make('base_price')
                     ->label('نرخ پایه هر شب (تومان)')
                     ->numeric()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('room-types.base_price')),
                 Textarea::make('description')
                     ->label('توضیحات')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('room-types.description')),
                 Toggle::make('is_active')
                     ->label('فعال')
-                    ->default(true),
+                    ->default(true)
+                    ->hintAction(FieldHelp::make('room-types.is_active')),
             ]);
     }
 

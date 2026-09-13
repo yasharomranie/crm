@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\WorkShifts;
 
 use App\Filament\Resources\WorkShifts\Pages\ManageWorkShifts;
+use App\Filament\Support\FieldHelp;
 use App\Models\WorkShift;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -42,46 +43,55 @@ class WorkShiftResource extends Resource
                     ->label('نام شیفت')
                     ->helperText('مثلاً «شیفت اداری» یا «شیفت صبح»')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('work-shifts.name')),
                 TimePicker::make('start_time')
                     ->label('ساعت شروع')
                     ->seconds(false)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('work-shifts.start_time')),
                 TimePicker::make('end_time')
                     ->label('ساعت پایان')
                     ->seconds(false)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('work-shifts.end_time')),
                 TextInput::make('grace_minutes')
                     ->label('مهلت تأخیر مجاز (دقیقه)')
                     ->numeric()
                     ->default(15)
                     ->required()
-                    ->helperText('ورود تا این مقدار دقیقه بعد از ساعت شروع، «به‌موقع» محسوب می‌شود.'),
+                    ->helperText('ورود تا این مقدار دقیقه بعد از ساعت شروع، «به‌موقع» محسوب می‌شود.')
+                    ->hintAction(FieldHelp::make('work-shifts.grace_minutes')),
                 Select::make('department_id')
                     ->label('دپارتمان')
                     ->relationship('department', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('اختیاری - فقط برای دسته‌بندی. اختصاص شیفت به کاربر از پروفایل خودش انجام می‌شود.'),
+                    ->helperText('اختیاری - فقط برای دسته‌بندی. اختصاص شیفت به کاربر از پروفایل خودش انجام می‌شود.')
+                    ->hintAction(FieldHelp::make('work-shifts.department_id')),
                 Toggle::make('is_default')
                     ->label('شیفت پیش‌فرض')
-                    ->helperText('برای کاربران جدیدی که شیفت مشخصی ندارند.'),
+                    ->helperText('برای کاربران جدیدی که شیفت مشخصی ندارند.')
+                    ->hintAction(FieldHelp::make('work-shifts.is_default')),
                 TextInput::make('latitude')
                     ->label('عرض جغرافیایی محل مجاز')
                     ->numeric()
                     ->step('0.0000001')
-                    ->helperText('برای گرفتن مختصات، در Google Maps روی محل دفتر/ویلا کلیک راست کنید و عدد اول را کپی کنید.'),
+                    ->helperText('برای گرفتن مختصات، در Google Maps روی محل دفتر/ویلا کلیک راست کنید و عدد اول را کپی کنید.')
+                    ->hintAction(FieldHelp::make('work-shifts.latitude')),
                 TextInput::make('longitude')
                     ->label('طول جغرافیایی محل مجاز')
                     ->numeric()
                     ->step('0.0000001')
-                    ->helperText('عدد دوم مختصات Google Maps.'),
+                    ->helperText('عدد دوم مختصات Google Maps.')
+                    ->hintAction(FieldHelp::make('work-shifts.longitude')),
                 TextInput::make('radius_meters')
                     ->label('شعاع مجاز (متر)')
                     ->numeric()
                     ->default(200)
                     ->required()
-                    ->helperText('اگر عرض/طول جغرافیایی خالی بماند، این شیفت هیچ محدودیت مکانی ندارد.'),
+                    ->helperText('اگر عرض/طول جغرافیایی خالی بماند، این شیفت هیچ محدودیت مکانی ندارد.')
+                    ->hintAction(FieldHelp::make('work-shifts.radius_meters')),
             ]);
     }
 

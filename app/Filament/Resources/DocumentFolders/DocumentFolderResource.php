@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DocumentFolders;
 
 use App\Filament\Resources\DocumentFolders\Pages\ManageDocumentFolders;
+use App\Filament\Support\FieldHelp;
 use App\Models\DocumentFolder;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -38,19 +39,22 @@ class DocumentFolderResource extends Resource
                 TextInput::make('name')
                     ->label('نام پوشه')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('document-folders.name')),
                 Select::make('parent_id')
                     ->label('پوشه والد')
                     ->relationship('parent', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('برای ساخت یک زیرپوشه، پوشهٔ والد را انتخاب کنید.'),
+                    ->helperText('برای ساخت یک زیرپوشه، پوشهٔ والد را انتخاب کنید.')
+                    ->hintAction(FieldHelp::make('document-folders.parent_id')),
                 Select::make('department_id')
                     ->label('مخصوص دپارتمان')
                     ->relationship('department', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('اختیاری - اگر خالی بماند، پوشه برای همهٔ دپارتمان‌ها قابل مشاهده است.'),
+                    ->helperText('اختیاری - اگر خالی بماند، پوشه برای همهٔ دپارتمان‌ها قابل مشاهده است.')
+                    ->hintAction(FieldHelp::make('document-folders.department_id')),
             ]);
     }
 

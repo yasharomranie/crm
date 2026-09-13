@@ -4,6 +4,7 @@ namespace App\Filament\Resources\SalesChannels;
 
 use App\Enums\SalesChannelType;
 use App\Filament\Resources\SalesChannels\Pages\ManageSalesChannels;
+use App\Filament\Support\FieldHelp;
 use App\Models\SalesChannel;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -42,22 +43,26 @@ class SalesChannelResource extends Resource
                     ->label('نام کانال')
                     ->helperText('مثلاً «بوکینگ دات کام» یا «فروش حضوری»')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('sales-channels.name')),
                 Select::make('type')
                     ->label('نوع کانال')
                     ->options(SalesChannelType::class)
                     ->default(SalesChannelType::Ota)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('sales-channels.type')),
                 TextInput::make('commission_rate')
                     ->label('درصد کمیسیون')
                     ->numeric()
                     ->default(0)
                     ->suffix('%')
                     ->required()
-                    ->helperText('کمیسیون این کانال هنگام تسویه‌حساب رزرو به‌صورت خودکار محاسبه می‌شود.'),
+                    ->helperText('کمیسیون این کانال هنگام تسویه‌حساب رزرو به‌صورت خودکار محاسبه می‌شود.')
+                    ->hintAction(FieldHelp::make('sales-channels.commission_rate')),
                 Toggle::make('is_active')
                     ->label('فعال')
-                    ->default(true),
+                    ->default(true)
+                    ->hintAction(FieldHelp::make('sales-channels.is_active')),
             ]);
     }
 

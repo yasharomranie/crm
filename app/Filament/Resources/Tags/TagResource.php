@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Tags;
 
 use App\Enums\TagVisibility;
 use App\Filament\Resources\Tags\Pages\ManageTags;
+use App\Filament\Support\FieldHelp;
 use App\Models\Tag;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -39,19 +40,23 @@ class TagResource extends Resource
                 TextInput::make('name')
                     ->label('نام برچسب')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('tags.name')),
                 Select::make('parent_id')
                     ->label('برچسب والد (خوشه)')
                     ->relationship('parent', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('tags.parent_id')),
                 Select::make('visibility')
                     ->label('نوع برچسب')
                     ->options(TagVisibility::class)
                     ->default(TagVisibility::System)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('tags.visibility')),
                 ColorPicker::make('color_hex')
-                    ->label('رنگ نشانگر'),
+                    ->label('رنگ نشانگر')
+                    ->hintAction(FieldHelp::make('tags.color_hex')),
             ]);
     }
 

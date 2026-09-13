@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Roles\Schemas;
 
 use App\Console\Commands\SyncAccessControlPermissions;
+use App\Filament\Support\FieldHelp;
 use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
@@ -21,7 +22,8 @@ class RoleForm
                     ->helperText('مثلاً: مدیر هتل، حسابدار، پذیرش، سرپرست انبار')
                     ->required()
                     ->unique(ignoreRecord: true)
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('roles.name')),
 
                 ...collect(SyncAccessControlPermissions::groupedDefinitions())
                     ->map(fn (array $modules, string $group) => static::groupSection($group, $modules))
@@ -66,6 +68,7 @@ class RoleForm
                 fn (Permission $record) => $module['permissions'][$record->name] ?? $record->name,
             )
             ->bulkToggleable()
-            ->columns(2);
+            ->columns(2)
+            ->hintAction(FieldHelp::make('roles.permissions_group'));
     }
 }

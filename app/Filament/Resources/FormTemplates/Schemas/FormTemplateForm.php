@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\FormTemplates\Schemas;
 
+use App\Filament\Support\FieldHelp;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -17,24 +18,29 @@ class FormTemplateForm
                 TextInput::make('title')
                     ->label('عنوان فرم')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('form-templates.title')),
                 Textarea::make('description')
                     ->label('توضیحات')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('form-templates.description')),
                 Select::make('department_id')
                     ->label('دپارتمان مسئول')
                     ->relationship('department', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('form-templates.department_id')),
                 Select::make('workflow_definition_id')
                     ->label('گردش‌کار تأیید (اختیاری)')
                     ->relationship('workflowDefinition', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('اگر انتخاب نشود، این فرم بدون نیاز به تأیید مستقیماً ثبت می‌شود.'),
+                    ->helperText('اگر انتخاب نشود، این فرم بدون نیاز به تأیید مستقیماً ثبت می‌شود.')
+                    ->hintAction(FieldHelp::make('form-templates.workflow_definition_id')),
                 Toggle::make('is_active')
                     ->label('فعال')
-                    ->default(true),
+                    ->default(true)
+                    ->hintAction(FieldHelp::make('form-templates.is_active')),
             ]);
     }
 }

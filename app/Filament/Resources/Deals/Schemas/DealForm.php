@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 
 use App\Enums\DealSource;
 use App\Enums\DealStage;
+use App\Filament\Support\FieldHelp;
 use App\Models\Guest;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -20,7 +21,8 @@ class DealForm
                 TextInput::make('title')
                     ->label('عنوان معامله')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('deals.title')),
                 Select::make('guest_id')
                     ->label('مشتری')
                     ->relationship('guest', 'name')
@@ -30,29 +32,36 @@ class DealForm
                         TextInput::make('name')->label('نام و نام خانوادگی')->required(),
                         TextInput::make('mobile')->label('شماره موبایل')->tel(),
                     ])
-                    ->createOptionUsing(fn (array $data) => Guest::create($data)->id),
+                    ->createOptionUsing(fn (array $data) => Guest::create($data)->id)
+                    ->hintAction(FieldHelp::make('deals.guest_id')),
                 Select::make('stage')
                     ->label('مرحله پایپ‌لاین')
                     ->options(DealStage::class)
                     ->default(DealStage::NewLead)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('deals.stage')),
                 TextInput::make('value')
                     ->label('ارزش تخمینی (تومان)')
-                    ->numeric(),
+                    ->numeric()
+                    ->hintAction(FieldHelp::make('deals.value')),
                 Select::make('assigned_to')
                     ->label('کارشناس فروش')
                     ->relationship('assignee', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('deals.assigned_to')),
                 Select::make('source')
                     ->label('منبع سرنخ')
                     ->options(DealSource::class)
-                    ->default(DealSource::Other),
+                    ->default(DealSource::Other)
+                    ->hintAction(FieldHelp::make('deals.source')),
                 DatePicker::make('expected_close_date')
-                    ->label('تاریخ تخمینی قطعی‌شدن'),
+                    ->label('تاریخ تخمینی قطعی‌شدن')
+                    ->hintAction(FieldHelp::make('deals.expected_close_date')),
                 Textarea::make('notes')
                     ->label('یادداشت')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('deals.notes')),
             ]);
     }
 }

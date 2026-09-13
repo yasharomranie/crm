@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\WorkflowDefinitions\Schemas;
 
+use App\Filament\Support\FieldHelp;
 use App\Models\FormSubmission;
 use App\Models\Task;
 use Filament\Forms\Components\Select;
@@ -18,17 +19,20 @@ class WorkflowDefinitionForm
                 TextInput::make('name')
                     ->label('نام گردش‌کار')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('workflow-definitions.name')),
                 Select::make('subject_type')
                     ->label('این گردش‌کار روی چه چیزی اعمال می‌شود؟')
                     ->options([
                         FormSubmission::class => 'ثبت فرم',
                         Task::class => 'تسک',
                     ])
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('workflow-definitions.subject_type')),
                 Toggle::make('is_active')
                     ->label('فعال')
-                    ->default(true),
+                    ->default(true)
+                    ->hintAction(FieldHelp::make('workflow-definitions.is_active')),
             ]);
     }
 }

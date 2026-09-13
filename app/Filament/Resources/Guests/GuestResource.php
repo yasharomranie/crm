@@ -7,6 +7,7 @@ use App\Filament\Resources\Guests\Pages\EditGuest;
 use App\Filament\Resources\Guests\Pages\ListGuests;
 use App\Filament\Resources\Guests\Pages\ViewGuest;
 use App\Filament\Resources\Guests\Schemas\GuestInfolist;
+use App\Filament\Support\FieldHelp;
 use App\Models\Guest;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -48,20 +49,25 @@ class GuestResource extends Resource
                 TextInput::make('name')
                     ->label('نام و نام خانوادگی')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('guests.name')),
                 TextInput::make('national_code')
                     ->label('کد ملی')
                     ->unique(ignoreRecord: true)
-                    ->maxLength(20),
+                    ->maxLength(20)
+                    ->hintAction(FieldHelp::make('guests.national_code')),
                 TextInput::make('mobile')
                     ->label('شماره موبایل')
-                    ->tel(),
+                    ->tel()
+                    ->hintAction(FieldHelp::make('guests.mobile')),
                 TextInput::make('email')
                     ->label('ایمیل')
-                    ->email(),
+                    ->email()
+                    ->hintAction(FieldHelp::make('guests.email')),
                 Textarea::make('notes')
                     ->label('یادداشت')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('guests.notes')),
             ]);
     }
 

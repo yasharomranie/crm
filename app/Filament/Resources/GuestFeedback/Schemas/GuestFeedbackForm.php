@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\GuestFeedback\Schemas;
 
+use App\Filament\Support\FieldHelp;
 use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -19,21 +20,26 @@ class GuestFeedbackForm
                     ->relationship('guest', 'name')
                     ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('guest-feedback.guest_id')),
                 Select::make('booking_id')
                     ->label('رزرو مرتبط')
                     ->relationship('booking', 'reference_code')
-                    ->searchable(),
+                    ->searchable()
+                    ->hintAction(FieldHelp::make('guest-feedback.booking_id')),
                 TextInput::make('nps_score')
                     ->label('امتیاز NPS (۰ تا ۱۰)')
                     ->numeric()
                     ->minValue(0)
-                    ->maxValue(10),
+                    ->maxValue(10)
+                    ->hintAction(FieldHelp::make('guest-feedback.nps_score')),
                 Textarea::make('comment')
                     ->label('نظر مسافر')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('guest-feedback.comment')),
                 DateTimePicker::make('submitted_at')
-                    ->label('زمان ثبت پاسخ'),
+                    ->label('زمان ثبت پاسخ')
+                    ->hintAction(FieldHelp::make('guest-feedback.submitted_at')),
             ]);
     }
 }

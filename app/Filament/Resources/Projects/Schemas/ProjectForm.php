@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Projects\Schemas;
 
 use App\Enums\ProjectStatus;
+use App\Filament\Support\FieldHelp;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
@@ -20,38 +21,47 @@ class ProjectForm
                     ->helperText('مثلاً PRJ-IT-1405')
                     ->required()
                     ->unique(ignoreRecord: true)
-                    ->maxLength(50),
+                    ->maxLength(50)
+                    ->hintAction(FieldHelp::make('projects.code')),
                 TextInput::make('title')
                     ->label('عنوان پروژه')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('projects.title')),
                 Textarea::make('description')
                     ->label('اهداف و توضیحات')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('projects.description')),
                 Select::make('department_id')
                     ->label('دپارتمان متولی')
                     ->relationship('department', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('projects.department_id')),
                 Select::make('owner_id')
                     ->label('متولی اجرایی')
                     ->relationship('owner', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('projects.owner_id')),
                 TextInput::make('budget')
                     ->label('بودجه مصوب (تومان)')
                     ->numeric()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('projects.budget')),
                 Select::make('status')
                     ->label('وضعیت')
                     ->options(ProjectStatus::class)
                     ->default(ProjectStatus::Planning)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('projects.status')),
                 DatePicker::make('start_date')
-                    ->label('تاریخ شروع'),
+                    ->label('تاریخ شروع')
+                    ->hintAction(FieldHelp::make('projects.start_date')),
                 DatePicker::make('end_date')
                     ->label('تاریخ پایان (خط زمانی مصوب)')
-                    ->afterOrEqual('start_date'),
+                    ->afterOrEqual('start_date')
+                    ->hintAction(FieldHelp::make('projects.end_date')),
             ]);
     }
 }

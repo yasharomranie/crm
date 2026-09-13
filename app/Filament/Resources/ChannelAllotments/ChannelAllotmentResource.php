@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\ChannelAllotments;
 
 use App\Filament\Resources\ChannelAllotments\Pages\ManageChannelAllotments;
+use App\Filament\Support\FieldHelp;
 use App\Models\ChannelAllotment;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -38,19 +39,22 @@ class ChannelAllotmentResource extends Resource
                     ->relationship('roomType', 'name')
                     ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('channel-allotments.room_type_id')),
                 Select::make('sales_channel_id')
                     ->label('کانال فروش')
                     ->relationship('channel', 'name')
                     ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('channel-allotments.sales_channel_id')),
                 TextInput::make('allotment_count')
                     ->label('تعداد سهمیه')
                     ->numeric()
                     ->default(0)
                     ->required()
-                    ->helperText('حداکثر تعداد واحدی که برای این کانال از این نوع اتاق کنار گذاشته می‌شود.'),
+                    ->helperText('حداکثر تعداد واحدی که برای این کانال از این نوع اتاق کنار گذاشته می‌شود.')
+                    ->hintAction(FieldHelp::make('channel-allotments.allotment_count')),
             ]);
     }
 

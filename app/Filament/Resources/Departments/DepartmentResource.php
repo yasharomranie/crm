@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Departments;
 
 use App\Filament\Resources\Departments\Pages\ManageDepartments;
+use App\Filament\Support\FieldHelp;
 use App\Models\Department;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -36,17 +37,20 @@ class DepartmentResource extends Resource
                 TextInput::make('name')
                     ->label('نام دپارتمان')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('departments.name')),
                 TextInput::make('code')
                     ->label('کد دپارتمان')
                     ->required()
                     ->unique(ignoreRecord: true)
-                    ->maxLength(50),
+                    ->maxLength(50)
+                    ->hintAction(FieldHelp::make('departments.code')),
                 Select::make('parent_id')
                     ->label('زیرمجموعه‌ی دپارتمان')
                     ->relationship('parent', 'name')
                     ->searchable()
-                    ->preload(),
+                    ->preload()
+                    ->hintAction(FieldHelp::make('departments.parent_id')),
             ]);
     }
 

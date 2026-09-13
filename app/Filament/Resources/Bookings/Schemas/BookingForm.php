@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Bookings\Schemas;
 
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Filament\Support\FieldHelp;
 use App\Models\Guest;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -22,7 +23,8 @@ class BookingForm
                     ->relationship('room', 'name')
                     ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('bookings.room_id')),
                 Select::make('guest_id')
                     ->label('مهمان')
                     ->relationship('guest', 'name')
@@ -33,45 +35,54 @@ class BookingForm
                         TextInput::make('name')->label('نام و نام خانوادگی')->required(),
                         TextInput::make('mobile')->label('شماره موبایل')->tel(),
                     ])
-                    ->createOptionUsing(fn (array $data) => Guest::create($data)->id),
+                    ->createOptionUsing(fn (array $data) => Guest::create($data)->id)
+                    ->hintAction(FieldHelp::make('bookings.guest_id')),
                 DatePicker::make('check_in_date')
                     ->label('تاریخ ورود')
                     ->required()
-                    ->default(now()),
+                    ->default(now())
+                    ->hintAction(FieldHelp::make('bookings.check_in_date')),
                 DatePicker::make('check_out_date')
                     ->label('تاریخ خروج')
                     ->required()
                     ->default(now()->addDay())
-                    ->afterOrEqual('check_in_date'),
+                    ->afterOrEqual('check_in_date')
+                    ->hintAction(FieldHelp::make('bookings.check_out_date')),
                 TextInput::make('adults_count')
                     ->label('تعداد بزرگسال')
                     ->numeric()
                     ->default(1)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('bookings.adults_count')),
                 TextInput::make('children_count')
                     ->label('تعداد کودک')
                     ->numeric()
-                    ->default(0),
+                    ->default(0)
+                    ->hintAction(FieldHelp::make('bookings.children_count')),
                 Select::make('status')
                     ->label('وضعیت رزرو')
                     ->options(BookingStatus::class)
                     ->default(BookingStatus::Pending)
                     ->required()
-                    ->helperText('برای چک‌این/چک‌اوت سریع، از دکمه‌های اختصاصی روی جدول رزروها استفاده کنید.'),
+                    ->helperText('برای چک‌این/چک‌اوت سریع، از دکمه‌های اختصاصی روی جدول رزروها استفاده کنید.')
+                    ->hintAction(FieldHelp::make('bookings.status')),
                 Select::make('source')
                     ->label('منبع رزرو')
                     ->options(BookingSource::class)
                     ->default(BookingSource::WalkIn)
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('bookings.source')),
                 Select::make('sales_channel_id')
                     ->label('کانال فروش')
                     ->relationship('channel', 'name')
                     ->searchable()
                     ->preload()
-                    ->helperText('در صورت ورود از طریق سایت واسط (OTA)، کانال را انتخاب کنید تا کمیسیون آن هنگام تسویه محاسبه شود.'),
+                    ->helperText('در صورت ورود از طریق سایت واسط (OTA)، کانال را انتخاب کنید تا کمیسیون آن هنگام تسویه محاسبه شود.')
+                    ->hintAction(FieldHelp::make('bookings.sales_channel_id')),
                 Textarea::make('notes')
                     ->label('یادداشت')
-                    ->columnSpanFull(),
+                    ->columnSpanFull()
+                    ->hintAction(FieldHelp::make('bookings.notes')),
             ]);
     }
 }

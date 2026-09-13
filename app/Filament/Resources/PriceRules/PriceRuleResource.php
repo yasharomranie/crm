@@ -4,6 +4,7 @@ namespace App\Filament\Resources\PriceRules;
 
 use App\Enums\PriceAdjustmentType;
 use App\Filament\Resources\PriceRules\Pages\ManagePriceRules;
+use App\Filament\Support\FieldHelp;
 use App\Models\PriceRule;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -45,40 +46,48 @@ class PriceRuleResource extends Resource
                     ->relationship('roomType', 'name')
                     ->searchable()
                     ->preload()
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('price-rules.room_type_id')),
                 TextInput::make('name')
                     ->label('عنوان قانون')
                     ->helperText('مثلاً «تعطیلات نوروز» یا «آخر هفته»')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    ->hintAction(FieldHelp::make('price-rules.name')),
                 DatePicker::make('start_date')
                     ->label('از تاریخ')
-                    ->required(),
+                    ->required()
+                    ->hintAction(FieldHelp::make('price-rules.start_date')),
                 DatePicker::make('end_date')
                     ->label('تا تاریخ')
                     ->required()
-                    ->afterOrEqual('start_date'),
+                    ->afterOrEqual('start_date')
+                    ->hintAction(FieldHelp::make('price-rules.end_date')),
                 Select::make('adjustment_type')
                     ->label('نوع تغییر قیمت')
                     ->options(PriceAdjustmentType::class)
                     ->default(PriceAdjustmentType::Percentage)
                     ->required()
-                    ->live(),
+                    ->live()
+                    ->hintAction(FieldHelp::make('price-rules.adjustment_type')),
                 TextInput::make('adjustment_value')
                     ->label('مقدار تغییر')
                     ->numeric()
                     ->required()
                     ->helperText(fn (Get $get) => $get('adjustment_type') === PriceAdjustmentType::Fixed
                         ? 'مبلغ به تومان به نرخ پایه اضافه می‌شود (برای کاهش، عدد منفی وارد کنید).'
-                        : 'درصدی که به نرخ پایه اضافه می‌شود (برای تخفیف، عدد منفی وارد کنید).'),
+                        : 'درصدی که به نرخ پایه اضافه می‌شود (برای تخفیف، عدد منفی وارد کنید).')
+                    ->hintAction(FieldHelp::make('price-rules.adjustment_value')),
                 TextInput::make('priority')
                     ->label('اولویت')
                     ->numeric()
                     ->default(0)
-                    ->helperText('در صورت هم‌پوشانی چند قانون روی یک تاریخ، قانون با اولویت بالاتر اعمال می‌شود.'),
+                    ->helperText('در صورت هم‌پوشانی چند قانون روی یک تاریخ، قانون با اولویت بالاتر اعمال می‌شود.')
+                    ->hintAction(FieldHelp::make('price-rules.priority')),
                 Toggle::make('is_active')
                     ->label('فعال')
-                    ->default(true),
+                    ->default(true)
+                    ->hintAction(FieldHelp::make('price-rules.is_active')),
             ]);
     }
 
