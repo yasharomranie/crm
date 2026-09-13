@@ -11,6 +11,7 @@ use App\Enums\TaskType;
 use App\Exceptions\RoomNotAvailableException;
 use App\Models\Concerns\HasTags;
 use Carbon\Carbon;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -18,7 +19,7 @@ use Illuminate\Database\Eloquent\Relations\MorphMany;
 
 class Booking extends Model
 {
-    use HasTags;
+    use HasFactory, HasTags;
 
     protected $fillable = [
         'reference_code', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
@@ -52,6 +53,32 @@ class Booking extends Model
                 Room::findOrFail($booking->room_id),
                 $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
                 $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+            );
+        });
+
+        static::updating(function (self $booking) {
+            // A booking being cancelled frees the room, so it can never
+            // conflict with anything - skip the check entirely.
+            if ($booking->status === BookingStatus::Cancelled) {
+                return;
+            }
+
+            // Only worth checking when something that affects room
+            // availability actually changed (dates, room, or a status
+            // change that re-activates a previously cancelled booking).
+            if (! $booking->isDirty(['room_id', 'check_in_date', 'check_out_date', 'status'])) {
+                return;
+            }
+
+            // Best-effort guard, mirroring the `creating` hook above. The
+            // authoritative, concurrency-safe check is
+            // EditBooking::handleRecordUpdate(), which wraps this in a DB
+            // transaction with a row lock on the room.
+            static::assertRoomAvailable(
+                Room::findOrFail($booking->room_id),
+                $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
+                $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+                $booking->id,
             );
         });
 

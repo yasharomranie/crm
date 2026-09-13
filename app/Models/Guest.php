@@ -6,12 +6,13 @@ use App\Enums\BookingStatus;
 use App\Enums\LoyaltyTier;
 use App\Enums\WalletTransactionType;
 use App\Models\Concerns\HasTags;
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Guest extends Model
 {
-    use HasTags;
+    use HasFactory, HasTags;
 
     protected $fillable = ['name', 'national_code', 'mobile', 'email', 'notes', 'wallet_balance'];
 
