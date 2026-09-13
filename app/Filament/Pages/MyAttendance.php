@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Exceptions\AttendanceException;
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AttendanceRecord;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -14,6 +15,8 @@ use Illuminate\Support\Facades\Request;
 
 class MyAttendance extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.my-attendance';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedFingerPrint;
@@ -23,6 +26,11 @@ class MyAttendance extends Page
     protected static ?string $navigationLabel = 'حضور و غیاب من';
 
     protected static ?string $title = 'حضور و غیاب من';
+
+    public static function accessControlPermission(): string
+    {
+        return 'my-attendance.access';
+    }
 
     public function getToday(): ?AttendanceRecord
     {

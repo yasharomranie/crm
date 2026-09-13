@@ -12,6 +12,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
 use App\Exceptions\AiProviderException;
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
@@ -34,6 +35,8 @@ use Illuminate\Support\Facades\Auth;
 
 class AiAssistant extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.ai-assistant';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSparkles;
@@ -43,6 +46,11 @@ class AiAssistant extends Page
     protected static ?string $navigationLabel = 'دستیار هوشمند';
 
     protected static ?string $title = 'دستیار هوشمند مدیریتی';
+
+    public static function accessControlPermission(): string
+    {
+        return 'ai-assistant.access';
+    }
 
     public ?int $conversationId = null;
 

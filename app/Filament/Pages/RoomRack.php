@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\Room;
 use BackedEnum;
 use Filament\Pages\Page;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Collection;
 
 class RoomRack extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.room-rack';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedSquares2x2;
@@ -19,6 +22,11 @@ class RoomRack extends Page
     protected static ?string $navigationLabel = 'رک اتاق (وضعیت زنده)';
 
     protected static ?string $title = 'رک اتاق - وضعیت زنده';
+
+    public static function accessControlPermission(): string
+    {
+        return 'room-rack.access';
+    }
 
     public function getRooms(): Collection
     {

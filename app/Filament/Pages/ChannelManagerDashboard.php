@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\BookingStatus;
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\SalesChannel;
 use BackedEnum;
 use Filament\Pages\Page;
@@ -12,6 +13,8 @@ use Illuminate\Support\Carbon;
 
 class ChannelManagerDashboard extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.channel-manager-dashboard';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedGlobeAlt;
@@ -21,6 +24,11 @@ class ChannelManagerDashboard extends Page
     protected static ?string $navigationLabel = 'داشبورد کانال‌های فروش';
 
     protected static ?string $title = 'کانال‌های فروش - سهمیه و کمیسیون';
+
+    public static function accessControlPermission(): string
+    {
+        return 'channel-manager-dashboard.access';
+    }
 
     /**
      * Per channel: today's allotment usage per room type (how many of the

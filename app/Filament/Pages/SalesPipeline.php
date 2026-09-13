@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\DealStage;
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\Deal;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -12,6 +13,8 @@ use Illuminate\Support\Collection;
 
 class SalesPipeline extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.sales-pipeline';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedViewColumns;
@@ -21,6 +24,11 @@ class SalesPipeline extends Page
     protected static ?string $navigationLabel = 'پایپ‌لاین فروش (کانبان)';
 
     protected static ?string $title = 'پایپ‌لاین فروش';
+
+    public static function accessControlPermission(): string
+    {
+        return 'sales-pipeline.access';
+    }
 
     /**
      * @return array<string, Collection<int, Deal>>

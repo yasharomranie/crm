@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Enums\ConversationType;
+use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
@@ -15,6 +16,8 @@ use Illuminate\Support\Facades\Auth;
 
 class Messenger extends Page
 {
+    use HasAccessControlledPage;
+
     protected string $view = 'filament.pages.messenger';
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedChatBubbleLeftRight;
@@ -24,6 +27,11 @@ class Messenger extends Page
     protected static ?string $navigationLabel = 'پیام‌رسان';
 
     protected static ?string $title = 'پیام‌رسان داخلی';
+
+    public static function accessControlPermission(): string
+    {
+        return 'messenger.access';
+    }
 
     public ?int $conversationId = null;
 

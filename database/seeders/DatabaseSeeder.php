@@ -6,6 +6,7 @@ use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Database\Console\Seeds\WithoutModelEvents;
 use Illuminate\Database\Seeder;
+use Illuminate\Support\Facades\Artisan;
 use Spatie\Permission\Models\Role;
 
 class DatabaseSeeder extends Seeder
@@ -17,6 +18,11 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
+        // Make sure every module defined in config/access-control.php has
+        // its permissions ready before any role gets configured against
+        // them (also safe to re-run after the config file changes).
+        Artisan::call('access-control:sync');
+
         $admin = User::factory()->create([
             'name' => 'مدیر سیستم',
             'email' => 'admin@example.com',
