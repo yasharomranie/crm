@@ -5,12 +5,14 @@ namespace App\Filament\Pages;
 use App\Enums\AiMessageRole;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
+use App\Enums\FormSubmissionStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
+use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AiConversation;
@@ -20,11 +22,15 @@ use App\Models\Booking;
 use App\Models\BookingCharge;
 use App\Models\Deal;
 use App\Models\Department;
+use App\Models\FormSubmission;
+use App\Models\FormTemplate;
 use App\Models\GuestTicket;
 use App\Models\Project;
 use App\Models\Room;
 use App\Models\SalesChannel;
 use App\Models\Task;
+use App\Models\User;
+use App\Models\WorkflowInstance;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -32,6 +38,7 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Morilog\Jalali\Jalalian;
 
 class AiAssistant extends Page
 {
@@ -228,6 +235,8 @@ class AiAssistant extends Page
             'get_task_summary' => $this->taskSummary(),
             'get_channel_manager_summary' => ['channels' => $this->channelManagerSummary()],
             'list_alerts' => ['alerts' => static::computeAlerts()],
+            'get_form_submissions_summary' => $this->formSubmissionsSummary(),
+            'get_daily_checklist_compliance' => $this->dailyChecklistCompliance($arguments),
             'create_task' => $this->createTaskTool($arguments),
             default => ['error' => "ابزار ناشناخته: {$name}"],
         };
@@ -248,6 +257,16 @@ class AiAssistant extends Page
             $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams),
             $this->toolSchema('get_channel_manager_summary', 'Get commission owed and active booking counts per OTA sales channel.', $noParams),
             $this->toolSchema('list_alerts', 'Get the system\'s current rule-based alerts across all modules (overdue tasks, over-budget projects, breached ticket SLAs, chronic lateness, low occupancy).', $noParams),
+            $this->toolSchema('get_form_submissions_summary', 'Get a system-wide snapshot of the dynamic form builder & approval workflow module: how many submissions are pending approval (overall and per form), this month\'s approved/rejected counts, and how many in-progress approvals have breached their step\'s SLA.', $noParams),
+            $this->toolSchema('get_daily_checklist_compliance', 'For a specific recurring/daily form template (e.g. an employee\'s daily checklist), check which days in "this_week" or "this_month" (Jalali calendar) have no submission - i.e. which days were missed. Optionally scope to one employee by name; otherwise every employee who has ever submitted that form is checked. Use this for questions like "which days did an employee not submit their daily checklist this month".', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Name (or partial name) of the form template to check'],
+                    'user_name' => ['type' => 'string', 'description' => 'Name (or partial name) of a specific employee to scope the check to - omit to check every employee who has submitted this form'],
+                    'period' => ['type' => 'string', 'enum' => ['this_week', 'this_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => ['form_template_name'],
+            ]),
             $this->toolSchema('create_task', 'Create a new task/action item and assign it to a department - use this when the user explicitly asks to create, assign, or schedule a task.', [
                 'type' => 'object',
                 'properties' => [
@@ -408,6 +427,119 @@ class AiAssistant extends Page
                 'commission_owed_toman' => (int) $channel->bookings()->sum('commission_amount'),
             ])
             ->all();
+    }
+
+    private function formSubmissionsSummary(): array
+    {
+        $pendingByTemplate = FormSubmission::query()
+            ->where('status', FormSubmissionStatus::PendingApproval)
+            ->with('formTemplate')
+            ->get()
+            ->groupBy(fn (FormSubmission $submission) => $submission->formTemplate->title)
+            ->map(fn (Collection $group) => $group->count());
+
+        $thisMonthByStatus = FormSubmission::query()
+            ->whereIn('status', [FormSubmissionStatus::Approved, FormSubmissionStatus::Rejected])
+            ->whereMonth('submitted_at', now()->month)
+            ->whereYear('submitted_at', now()->year)
+            ->selectRaw('status, count(*) as submission_count')
+            ->groupBy('status')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->status->getLabel() => (int) $row->submission_count]);
+
+        // A step's SLA is measured from when the instance last moved to it -
+        // there's no dedicated "entered current step at" column, but
+        // updated_at is bumped by the very same act() call that advances
+        // current_step_id, so it's an accurate stand-in.
+        $slaBreached = WorkflowInstance::query()
+            ->where('status', WorkflowInstanceStatus::InProgress)
+            ->with('currentStep')
+            ->get()
+            ->filter(fn (WorkflowInstance $instance) => $instance->currentStep?->sla_hours
+                && $instance->updated_at->diffInHours(now()) > $instance->currentStep->sla_hours)
+            ->count();
+
+        return [
+            'pending_total' => $pendingByTemplate->sum(),
+            'pending_by_form' => $pendingByTemplate->all(),
+            'this_month_by_status' => $thisMonthByStatus->all(),
+            'sla_breached_count' => $slaBreached,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function dailyChecklistCompliance(array $arguments): array
+    {
+        $templateName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $template = FormTemplate::query()->where('title', 'like', "%{$templateName}%")->first();
+
+        if (! $template) {
+            return ['error' => "فرمی با نام مشابه «{$templateName}» پیدا نشد."];
+        }
+
+        $period = $arguments['period'] ?? 'this_month';
+        $anchor = Jalalian::now();
+        [$start, $end] = $period === 'this_week'
+            ? [$anchor->getFirstDayOfWeek(), $anchor->getEndDayOfWeek()]
+            : [$anchor->getFirstDayOfMonth(), $anchor->getEndDayOfMonth()];
+
+        $startDate = $start->toCarbon()->startOfDay();
+        // Never flag a future day as "missed" - clamp the range's end to now.
+        $endDate = $end->toCarbon()->endOfDay()->min(now());
+
+        $usersQuery = User::query();
+        $userNameFilter = trim((string) ($arguments['user_name'] ?? ''));
+
+        if ($userNameFilter !== '') {
+            $usersQuery->where('name', 'like', "%{$userNameFilter}%");
+        } else {
+            // No employee named - fall back to everyone who has ever
+            // submitted this form, as a proxy for "who it applies to".
+            $usersQuery->whereHas('formSubmissions', fn ($query) => $query->where('form_template_id', $template->id));
+        }
+
+        $users = $usersQuery->get();
+
+        if ($users->isEmpty()) {
+            return ['error' => $userNameFilter !== ''
+                ? "کارمندی با نام مشابه «{$userNameFilter}» پیدا نشد."
+                : 'هیچ کارمندی تاکنون این فرم را ثبت نکرده است.'];
+        }
+
+        $expectedDates = collect();
+
+        for ($day = $startDate->copy(); $day->lte($endDate); $day->addDay()) {
+            $expectedDates->push($day->toDateString());
+        }
+
+        $compliance = $users->map(function (User $user) use ($template, $startDate, $endDate, $expectedDates) {
+            $submittedDates = FormSubmission::query()
+                ->where('form_template_id', $template->id)
+                ->where('submitted_by', $user->id)
+                ->whereBetween('submitted_at', [$startDate, $endDate])
+                ->pluck('submitted_at')
+                ->map(fn ($date) => $date->toDateString())
+                ->unique();
+
+            $missedDates = $expectedDates->diff($submittedDates)
+                ->map(fn (string $date) => Jalalian::fromCarbon(Carbon::parse($date))->format('%d %B'))
+                ->values();
+
+            return [
+                'user' => $user->name,
+                'expected_days' => $expectedDates->count(),
+                'submitted_days' => $submittedDates->count(),
+                'missed_days' => $missedDates->all(),
+            ];
+        });
+
+        return [
+            'form' => $template->title,
+            'period' => $period === 'this_week' ? 'این هفته' : 'این ماه',
+            'compliance' => $compliance->all(),
+        ];
     }
 
     private function createTaskTool(array $arguments): array
