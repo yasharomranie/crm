@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\ChannelManagerDashboard;
+use App\Filament\Pages\ContractAssistant;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\RoomRack;
@@ -10,6 +11,9 @@ use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
 use App\Models\ChannelAllotment;
+use App\Models\Contract;
+use App\Models\ContractCategory;
+use App\Models\ContractCompany;
 use App\Models\Deal;
 use App\Models\Department;
 use App\Models\Document;
@@ -78,6 +82,10 @@ return [
         'guest-tickets' => ['model' => GuestTicket::class, 'label' => 'تیکت‌های پشتیبانی', 'group' => 'CRM و مشتریان'],
 
         'ai-providers' => ['model' => AiProvider::class, 'label' => 'ارائه‌دهندگان هوش مصنوعی', 'group' => 'دستیار هوشمند مدیریتی'],
+
+        'contracts' => ['model' => Contract::class, 'label' => 'آرشیو قراردادها', 'group' => 'حقوقی و قرارداد'],
+        'contract-categories' => ['model' => ContractCategory::class, 'label' => 'دسته‌های قرارداد', 'group' => 'حقوقی و قرارداد'],
+        'contract-companies' => ['model' => ContractCompany::class, 'label' => 'شرکت‌های ما (طرف کارفرما)', 'group' => 'حقوقی و قرارداد'],
     ],
 
     /*
@@ -96,5 +104,6 @@ return [
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'sales-pipeline' => ['page' => SalesPipeline::class, 'label' => 'پایپ‌لاین فروش (کانبان)', 'group' => 'CRM و مشتریان'],
+        'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
     ],
 ];

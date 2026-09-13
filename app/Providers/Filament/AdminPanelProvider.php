@@ -49,6 +49,7 @@ class AdminPanelProvider extends PanelProvider
                 // reporting/insight - so it leads the sidebar regardless of
                 // the order its resources/pages happen to be discovered in.
                 NavigationGroup::make('دستیار هوشمند مدیریتی'),
+                NavigationGroup::make('حقوقی و قرارداد'),
                 NavigationGroup::make('زیرساخت سازمانی'),
                 NavigationGroup::make('فرم‌ساز و گردش‌کار'),
                 NavigationGroup::make('وظایف و پروژه‌ها'),
