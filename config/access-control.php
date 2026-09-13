@@ -18,6 +18,7 @@ use App\Models\Deal;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentFolder;
+use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\Guest;
 use App\Models\GuestFeedback;
@@ -63,6 +64,7 @@ return [
         'document-folders' => ['model' => DocumentFolder::class, 'label' => 'پوشه‌های اسناد', 'group' => 'مدیریت اسناد'],
 
         'form-templates' => ['model' => FormTemplate::class, 'label' => 'قالب‌های فرم', 'group' => 'فرم‌ساز و گردش‌کار'],
+        'form-submissions' => ['model' => FormSubmission::class, 'label' => 'فرم‌ها و کارتابل تأییدات', 'group' => 'فرم‌ساز و گردش‌کار'],
         'workflow-definitions' => ['model' => WorkflowDefinition::class, 'label' => 'گردش‌کارهای تأیید', 'group' => 'فرم‌ساز و گردش‌کار'],
 
         'tasks' => ['model' => Task::class, 'label' => 'تسک‌ها', 'group' => 'وظایف و پروژه‌ها'],

@@ -2,11 +2,14 @@
 
 namespace App\Models;
 
+use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class FormSubmissionValue extends Model
 {
+    use HasFactory;
+
     protected $fillable = [
         'form_submission_id', 'form_field_id',
         'value_text', 'value_number', 'value_date', 'value_json', 'file_path',

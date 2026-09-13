@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\DocumentDownloadController;
+use App\Http\Controllers\FormSubmissionFileController;
+use App\Http\Controllers\FormSubmissionPrintController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -15,4 +17,8 @@ Route::middleware('auth')->group(function () {
         ->name('document-versions.download');
     Route::get('/contracts/{contract}/print', [ContractPrintController::class, 'show'])
         ->name('contracts.print');
+    Route::get('/form-submissions/{submission}/print', [FormSubmissionPrintController::class, 'show'])
+        ->name('form-submissions.print');
+    Route::get('/form-submissions/{submission}/files/{value}', [FormSubmissionFileController::class, 'show'])
+        ->name('form-submissions.files.download');
 });

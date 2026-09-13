@@ -51,6 +51,13 @@ class DepartmentResource extends Resource
                     ->searchable()
                     ->preload()
                     ->hintAction(FieldHelp::make('departments.parent_id')),
+                Select::make('manager_id')
+                    ->label('مدیر دپارتمان')
+                    ->relationship('manager', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('در گردش‌کارهای تأیید، درخواست‌های این دپارتمان برای تأیید به همین شخص می‌رسد.')
+                    ->hintAction(FieldHelp::make('departments.manager_id')),
             ]);
     }
 

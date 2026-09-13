@@ -31,4 +31,18 @@ enum WorkflowInstanceStatus: string implements HasColor, HasLabel
             self::Cancelled => 'gray',
         };
     }
+
+    /**
+     * Maps a finished workflow outcome onto the matching FormSubmission
+     * status, for subjects that are form submissions.
+     */
+    public function toFormSubmissionStatus(): FormSubmissionStatus
+    {
+        return match ($this) {
+            self::Approved => FormSubmissionStatus::Approved,
+            self::Rejected => FormSubmissionStatus::Rejected,
+            self::Cancelled => FormSubmissionStatus::Cancelled,
+            self::InProgress => FormSubmissionStatus::PendingApproval,
+        };
+    }
 }

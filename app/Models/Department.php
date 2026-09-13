@@ -11,11 +11,20 @@ class Department extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['parent_id', 'name', 'code'];
+    protected $fillable = ['parent_id', 'name', 'code', 'manager_id'];
 
     public function parent(): BelongsTo
     {
         return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    /**
+     * Resolves ApproverType::DepartmentManager steps in the workflow
+     * engine: whoever is set here approves requests from this department.
+     */
+    public function manager(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'manager_id');
     }
 
     public function children(): HasMany
