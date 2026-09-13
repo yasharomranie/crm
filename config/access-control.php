@@ -12,9 +12,9 @@ use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
 use App\Models\ChannelAllotment;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
-use App\Models\ContractCompany;
 use App\Models\Deal;
 use App\Models\Department;
 use App\Models\Document;
@@ -53,6 +53,7 @@ return [
     |
     */
     'resources' => [
+        'companies' => ['model' => Company::class, 'label' => 'شرکت‌های هلدینگ', 'group' => 'زیرساخت سازمانی'],
         'departments' => ['model' => Department::class, 'label' => 'دپارتمان‌ها', 'group' => 'زیرساخت سازمانی'],
         'users' => ['model' => User::class, 'label' => 'کاربران', 'group' => 'زیرساخت سازمانی'],
         'tags' => ['model' => Tag::class, 'label' => 'برچسب‌ها (تگ‌ها)', 'group' => 'زیرساخت سازمانی'],
@@ -88,7 +89,6 @@ return [
 
         'contracts' => ['model' => Contract::class, 'label' => 'آرشیو قراردادها', 'group' => 'حقوقی و قرارداد'],
         'contract-categories' => ['model' => ContractCategory::class, 'label' => 'دسته‌های قرارداد', 'group' => 'حقوقی و قرارداد'],
-        'contract-companies' => ['model' => ContractCompany::class, 'label' => 'شرکت‌های ما (طرف کارفرما)', 'group' => 'حقوقی و قرارداد'],
     ],
 
     /*

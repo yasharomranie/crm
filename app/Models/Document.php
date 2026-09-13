@@ -37,6 +37,16 @@ class Document extends Model
         return $this->belongsTo(Department::class);
     }
 
+    /**
+     * Resolved through the document's department rather than a dedicated
+     * column - the holding company registry is the single source of
+     * truth for "which company", and a department already knows its own.
+     */
+    public function company(): ?Company
+    {
+        return $this->department?->company;
+    }
+
     public function owner(): MorphTo
     {
         return $this->morphTo();

@@ -58,6 +58,13 @@ class DepartmentResource extends Resource
                     ->preload()
                     ->helperText('در گردش‌کارهای تأیید، درخواست‌های این دپارتمان برای تأیید به همین شخص می‌رسد.')
                     ->hintAction(FieldHelp::make('departments.manager_id')),
+                Select::make('company_id')
+                    ->label('شرکت (اختیاری)')
+                    ->relationship('company', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('برای سازمان‌های هلدینگ: هر شرکت زیرمجموعه را یک‌بار اینجا انتخاب کنید تا اسناد/پروژه‌های این دپارتمان خودکار به همین شرکت نسبت داده شوند.')
+                    ->hintAction(FieldHelp::make('departments.company_id')),
             ]);
     }
 
@@ -68,6 +75,7 @@ class DepartmentResource extends Resource
                 TextColumn::make('name')->label('نام')->searchable(),
                 TextColumn::make('code')->label('کد')->badge(),
                 TextColumn::make('parent.name')->label('زیرمجموعه‌ی')->placeholder('—'),
+                TextColumn::make('company.name')->label('شرکت')->placeholder('—'),
                 TextColumn::make('users_count')->label('تعداد پرسنل')->counts('users'),
             ])
             ->filters([

@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Documents\Tables;
 
 use App\Enums\DocumentAccessLevel;
+use App\Models\Company;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -12,6 +13,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 
 class DocumentsTable
 {
@@ -23,6 +25,7 @@ class DocumentsTable
                 TextColumn::make('folder.name')->label('پوشه')->placeholder('—'),
                 TextColumn::make('access_level')->label('سطح دسترسی')->badge(),
                 TextColumn::make('department.name')->label('دپارتمان مجاز')->placeholder('—'),
+                TextColumn::make('department.company.name')->label('شرکت')->placeholder('—'),
                 TextColumn::make('tags.name')->label('برچسب‌ها')->badge()->separator(','),
                 TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
                 TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
@@ -32,6 +35,16 @@ class DocumentsTable
                 SelectFilter::make('access_level')
                     ->label('سطح دسترسی')
                     ->options(DocumentAccessLevel::class),
+                SelectFilter::make('company')
+                    ->label('شرکت')
+                    ->options(fn () => Company::query()->orderBy('name')->pluck('name', 'id'))
+                    ->query(fn (Builder $query, array $data) => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $query, $companyId) => $query->whereHas(
+                            'department',
+                            fn (Builder $query) => $query->where('company_id', $companyId),
+                        ),
+                    )),
             ])
             ->recordActions([
                 Action::make('download')

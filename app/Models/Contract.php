@@ -21,7 +21,7 @@ class Contract extends Model
 
     protected $fillable = [
         'contract_category_id',
-        'contract_company_id',
+        'company_id',
         'counterparty_name',
         'title',
         'brief',
@@ -44,7 +44,7 @@ class Contract extends Model
 
     public function company(): BelongsTo
     {
-        return $this->belongsTo(ContractCompany::class, 'contract_company_id');
+        return $this->belongsTo(Company::class);
     }
 
     public function creator(): BelongsTo

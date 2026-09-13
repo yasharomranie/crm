@@ -5,9 +5,9 @@ namespace App\Filament\Pages;
 use App\Exceptions\AiProviderException;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AiProvider;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
-use App\Models\ContractCompany;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -64,11 +64,11 @@ class ContractAssistant extends Page
     }
 
     /**
-     * @return Collection<int, ContractCompany>
+     * @return Collection<int, Company>
      */
     public function getCompanies(): Collection
     {
-        return ContractCompany::query()->orderBy('name')->get();
+        return Company::query()->orderBy('name')->get();
     }
 
     public function quickPickCategory(int $categoryId): void
@@ -103,7 +103,7 @@ class ContractAssistant extends Page
         }
 
         $category = $this->categoryId ? ContractCategory::find($this->categoryId) : null;
-        $company = $this->companyId ? ContractCompany::find($this->companyId) : null;
+        $company = $this->companyId ? Company::find($this->companyId) : null;
 
         $this->isGenerating = true;
 
@@ -180,7 +180,7 @@ class ContractAssistant extends Page
 
         $data = [
             'contract_category_id' => $this->categoryId,
-            'contract_company_id' => $this->companyId,
+            'company_id' => $this->companyId,
             'counterparty_name' => $this->counterpartyName !== '' ? $this->counterpartyName : 'نامشخص',
             'title' => $this->contractTitle !== '' ? $this->contractTitle : 'قرارداد بدون عنوان',
             'brief' => $this->brief,
@@ -231,7 +231,7 @@ class ContractAssistant extends Page
     private function requestDraft(
         AiProvider $provider,
         ?ContractCategory $category,
-        ?ContractCompany $company,
+        ?Company $company,
         string $counterparty,
         string $brief,
     ): string {

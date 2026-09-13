@@ -25,7 +25,7 @@ class ContractForm
                     ->searchable()
                     ->preload()
                     ->hintAction(FieldHelp::make('contracts.category')),
-                Select::make('contract_company_id')
+                Select::make('company_id')
                     ->label('کارفرما (شرکت ما)')
                     ->relationship('company', 'name')
                     ->searchable()

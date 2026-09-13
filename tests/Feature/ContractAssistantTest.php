@@ -4,9 +4,9 @@ namespace Tests\Feature;
 
 use App\Filament\Pages\ContractAssistant;
 use App\Models\AiProvider;
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
-use App\Models\ContractCompany;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
@@ -37,7 +37,7 @@ class ContractAssistantTest extends TestCase
     {
         AiProvider::factory()->active()->create();
         $category = ContractCategory::factory()->create();
-        $company = ContractCompany::factory()->create();
+        $company = Company::factory()->create();
 
         Http::fake([
             '*/chat/completions' => Http::response([
@@ -128,7 +128,7 @@ class ContractAssistantTest extends TestCase
     {
         AiProvider::factory()->active()->create();
         $category = ContractCategory::factory()->create();
-        $company = ContractCompany::factory()->create();
+        $company = Company::factory()->create();
 
         Http::fake([
             '*/chat/completions' => Http::response([
@@ -151,7 +151,7 @@ class ContractAssistantTest extends TestCase
 
         $this->assertDatabaseHas('contracts', [
             'contract_category_id' => $category->id,
-            'contract_company_id' => $company->id,
+            'company_id' => $company->id,
             'counterparty_name' => 'آقای برق',
             'body' => 'متن قرارداد نمونه',
             'created_by' => $user->id,

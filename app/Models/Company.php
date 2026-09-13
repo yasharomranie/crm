@@ -2,19 +2,23 @@
 
 namespace App\Models;
 
-use Database\Factories\ContractCompanyFactory;
+use Database\Factories\CompanyFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * One of the user's own legal entities/companies, usable as the "کارفرما"
- * (employer) side of a generated contract. Kept dynamic/admin-managed
- * since the organization operates more than one company.
+ * One of the holding's own legal entities/companies (e.g. "گنج‌نامه",
+ * "زاگرس", "هتل بوتیک اوا") - the organization's single central place to
+ * define "which companies do we have". Usable directly as the "کارفرما"
+ * (employer) side of a generated contract, and as the company a
+ * department belongs to; anything that already carries a department_id
+ * (documents, projects, ...) resolves its company through that
+ * department rather than needing its own company_id column.
  */
-class ContractCompany extends Model
+class Company extends Model
 {
-    /** @use HasFactory<ContractCompanyFactory> */
+    /** @use HasFactory<CompanyFactory> */
     use HasFactory;
 
     protected $fillable = [
@@ -29,6 +33,11 @@ class ContractCompany extends Model
     public function contracts(): HasMany
     {
         return $this->hasMany(Contract::class);
+    }
+
+    public function departments(): HasMany
+    {
+        return $this->hasMany(Department::class);
     }
 
     /**

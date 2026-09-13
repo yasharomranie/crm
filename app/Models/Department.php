@@ -11,7 +11,7 @@ class Department extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['parent_id', 'name', 'code', 'manager_id'];
+    protected $fillable = ['parent_id', 'name', 'code', 'manager_id', 'company_id'];
 
     public function parent(): BelongsTo
     {
@@ -25,6 +25,17 @@ class Department extends Model
     public function manager(): BelongsTo
     {
         return $this->belongsTo(User::class, 'manager_id');
+    }
+
+    /**
+     * The holding company this department belongs to (optional). Anything
+     * that already carries a department_id - documents, projects, etc. -
+     * resolves "which company" through this, rather than needing its own
+     * company_id column.
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function children(): HasMany

@@ -2,9 +2,9 @@
 
 namespace Database\Factories;
 
+use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
-use App\Models\ContractCompany;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
@@ -22,7 +22,7 @@ class ContractFactory extends Factory
     {
         return [
             'contract_category_id' => ContractCategory::factory(),
-            'contract_company_id' => ContractCompany::factory(),
+            'company_id' => Company::factory(),
             'counterparty_name' => fake()->name(),
             'title' => fake()->sentence(3),
             'brief' => fake()->paragraph(),

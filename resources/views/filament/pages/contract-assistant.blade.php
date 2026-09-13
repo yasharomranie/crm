@@ -64,7 +64,7 @@
                     @if ($this->getCompanies()->isEmpty())
                         <p class="mt-1 text-xs text-gray-500">
                             هنوز شرکتی ثبت نشده؛
-                            <a href="{{ \App\Filament\Resources\ContractCompanies\ContractCompanyResource::getUrl() }}" class="underline">از اینجا اضافه کنید</a>.
+                            <a href="{{ \App\Filament\Resources\Companies\CompanyResource::getUrl() }}" class="underline">از اینجا اضافه کنید</a>.
                         </p>
                     @endif
                 </div>
