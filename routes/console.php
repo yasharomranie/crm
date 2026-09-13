@@ -14,3 +14,10 @@ Schedule::command('checklists:generate')
     ->dailyAt('00:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// Marks everyone with an assigned shift who never checked in today as
+// absent, shortly before midnight so a late check-in still counts.
+Schedule::command('attendance:mark-absentees')
+    ->dailyAt('23:55')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
