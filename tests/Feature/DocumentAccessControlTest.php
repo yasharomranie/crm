@@ -50,6 +50,44 @@ class DocumentAccessControlTest extends TestCase
         $this->assertFalse($document->isVisibleTo($noDepartmentUser));
     }
 
+    public function test_department_only_document_restricted_to_a_parent_department_is_visible_to_its_child_departments(): void
+    {
+        $holding = Department::factory()->create(['name' => 'گنج‌نامه']);
+        $reception = Department::factory()->create(['name' => 'پذیرش گنج‌نامه', 'parent_id' => $holding->id]);
+        $unrelated = Department::factory()->create(['name' => 'زاگرس']);
+
+        $document = Document::factory()->departmentOnly($holding->id)->create();
+
+        $holdingUser = User::factory()->create(['department_id' => $holding->id]);
+        $receptionUser = User::factory()->create(['department_id' => $reception->id]);
+        $unrelatedUser = User::factory()->create(['department_id' => $unrelated->id]);
+
+        $this->assertTrue($document->isVisibleTo($holdingUser));
+        $this->assertTrue($document->isVisibleTo($receptionUser));
+        $this->assertFalse($document->isVisibleTo($unrelatedUser));
+
+        $visibleIds = Document::query()->visibleTo($receptionUser)->pluck('id')->all();
+        $this->assertContains($document->id, $visibleIds);
+
+        $hiddenIds = Document::query()->visibleTo($unrelatedUser)->pluck('id')->all();
+        $this->assertNotContains($document->id, $hiddenIds);
+    }
+
+    public function test_department_only_document_restricted_to_a_child_department_is_not_visible_to_the_parent_department(): void
+    {
+        // Access only ever cascades downward (broad department -> its sub
+        // departments) - a document scoped to a small team isn't
+        // automatically visible to the whole holding above it.
+        $holding = Department::factory()->create(['name' => 'گنج‌نامه']);
+        $reception = Department::factory()->create(['name' => 'پذیرش گنج‌نامه', 'parent_id' => $holding->id]);
+
+        $document = Document::factory()->departmentOnly($reception->id)->create();
+
+        $holdingUser = User::factory()->create(['department_id' => $holding->id]);
+
+        $this->assertFalse($document->isVisibleTo($holdingUser));
+    }
+
     public function test_restricted_document_is_only_visible_to_uploader_or_shared_users(): void
     {
         $uploader = User::factory()->create();

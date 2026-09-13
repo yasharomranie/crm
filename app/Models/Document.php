@@ -88,8 +88,12 @@ class Document extends Model
     /**
      * Access control (doc2 "مدیریت اسناد" - سطح دسترسی): an "admin" role
      * bypasses everything; otherwise PublicInternal is open to all staff,
-     * DepartmentOnly requires a matching department, and Restricted
-     * requires being the uploader or an explicitly shared user.
+     * DepartmentOnly requires the document's department to be the user's
+     * own department or an ancestor of it (so a document restricted to a
+     * holding-level department like "گنج‌نامه" is visible to everyone in
+     * any department beneath it, e.g. "پذیرش گنج‌نامه" - not just an exact
+     * department_id match), and Restricted requires being the uploader or
+     * an explicitly shared user.
      */
     public function isVisibleTo(User $user): bool
     {
@@ -100,7 +104,8 @@ class Document extends Model
         return match ($this->access_level) {
             DocumentAccessLevel::PublicInternal => true,
             DocumentAccessLevel::DepartmentOnly => $this->department_id !== null
-                && $this->department_id === $user->department_id,
+                && $user->department !== null
+                && in_array($this->department_id, $user->department->selfAndAncestorIds(), true),
             DocumentAccessLevel::Restricted => $this->uploaded_by === $user->id
                 || $this->shares()->where('user_id', $user->id)->exists(),
         };
@@ -112,12 +117,14 @@ class Document extends Model
             return $query;
         }
 
-        return $query->where(function (Builder $query) use ($user) {
+        $departmentAndAncestorIds = $user->department?->selfAndAncestorIds() ?? [];
+
+        return $query->where(function (Builder $query) use ($user, $departmentAndAncestorIds) {
             $query->where('access_level', DocumentAccessLevel::PublicInternal)
-                ->orWhere(function (Builder $query) use ($user) {
+                ->orWhere(function (Builder $query) use ($departmentAndAncestorIds) {
                     $query->where('access_level', DocumentAccessLevel::DepartmentOnly)
                         ->whereNotNull('department_id')
-                        ->where('department_id', $user->department_id);
+                        ->whereIn('department_id', $departmentAndAncestorIds);
                 })
                 ->orWhere(function (Builder $query) use ($user) {
                     $query->where('access_level', DocumentAccessLevel::Restricted)
