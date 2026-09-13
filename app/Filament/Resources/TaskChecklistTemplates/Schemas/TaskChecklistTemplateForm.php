@@ -34,6 +34,13 @@ class TaskChecklistTemplateForm
                     ->required()
                     ->helperText('روزانه یعنی هر روز یک نمونه‌ی جدید از این چک‌لیست به‌صورت خودکار ساخته می‌شود.')
                     ->hintAction(FieldHelp::make('task-checklist-templates.recurrence')),
+                Select::make('form_template_id')
+                    ->label('فرم مرتبط (اختیاری)')
+                    ->relationship('formTemplate', 'title', fn ($query) => $query->where('is_active', true))
+                    ->searchable()
+                    ->preload()
+                    ->helperText('اگر انتخاب شود، روی تسک روزانهٔ این چک‌لیست یک دکمهٔ «تکمیل با فرم» ظاهر می‌شود که مسئول را مستقیم به همین فرم می‌برد.')
+                    ->hintAction(FieldHelp::make('task-checklist-templates.form_template_id')),
                 Toggle::make('is_active')
                     ->label('فعال')
                     ->default(true)

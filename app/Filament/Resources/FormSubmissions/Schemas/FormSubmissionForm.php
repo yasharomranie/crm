@@ -18,6 +18,10 @@ class FormSubmissionForm
                 Select::make('form_template_id')
                     ->label('چه فرمی می‌خواهید ثبت کنید؟')
                     ->options(fn () => FormTemplate::query()->where('is_active', true)->pluck('title', 'id'))
+                    // Lets a "تکمیل با فرم" link (e.g. from a checklist-
+                    // generated task) land here with the right form already
+                    // selected, instead of making the user pick it again.
+                    ->default(fn () => request()->integer('form_template_id') ?: null)
                     ->required()
                     ->live()
                     ->searchable()
