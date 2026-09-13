@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Models\User;
 use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -22,6 +23,12 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Some hosts still run a MySQL/MariaDB combination where a utf8mb4
+        // varchar(255) index (255 * 4 bytes) exceeds the key-length limit -
+        // shortening the default to 191 chars keeps every unique/primary
+        // key comfortably under that limit regardless of engine or version.
+        Schema::defaultStringLength(191);
+
         $this->registerAccessControl();
     }
 

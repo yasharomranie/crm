@@ -58,7 +58,11 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // Some shared-hosting MySQL servers default new tables to
+            // MyISAM, which caps key length at 1000 bytes and has no
+            // foreign-key support at all - both fatal for this schema.
+            // Forcing InnoDB here is safe on any MySQL/MariaDB version.
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
@@ -78,7 +82,11 @@ return [
             'prefix' => '',
             'prefix_indexes' => true,
             'strict' => true,
-            'engine' => null,
+            // Some shared-hosting MySQL servers default new tables to
+            // MyISAM, which caps key length at 1000 bytes and has no
+            // foreign-key support at all - both fatal for this schema.
+            // Forcing InnoDB here is safe on any MySQL/MariaDB version.
+            'engine' => 'InnoDB',
             'options' => extension_loaded('pdo_mysql') ? array_filter([
                 Mysql::ATTR_SSL_CA => env('MYSQL_ATTR_SSL_CA'),
             ]) : [],
