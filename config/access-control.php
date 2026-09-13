@@ -5,6 +5,7 @@ use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
+use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
 use App\Models\AiProvider;
@@ -107,5 +108,6 @@ return [
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'sales-pipeline' => ['page' => SalesPipeline::class, 'label' => 'پایپ‌لاین فروش (کانبان)', 'group' => 'CRM و مشتریان'],
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
+        'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
     ],
 ];
