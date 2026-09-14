@@ -7,6 +7,8 @@ use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Filament\Resources\FormSubmissions\Pages\CreateFormSubmission;
 use App\Filament\Resources\FormSubmissions\Pages\ListFormSubmissions;
+use App\Models\Company;
+use App\Models\Department;
 use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
@@ -123,5 +125,50 @@ class FormSubmissionResourceTest extends TestCase
             ->get(route('form-submissions.print', $submission))
             ->assertOk()
             ->assertSee($submission->reference_code);
+    }
+
+    public function test_print_page_shows_the_submissions_company_letterhead_when_its_department_has_one(): void
+    {
+        $company = Company::factory()->create(['name' => 'گنج‌نامه']);
+        $department = Department::factory()->create(['company_id' => $company->id]);
+        $submitter = User::factory()->create();
+        $submission = FormSubmission::factory()->create([
+            'submitted_by' => $submitter->id,
+            'department_id' => $department->id,
+        ]);
+
+        $this->actingAs($submitter)
+            ->get(route('form-submissions.print', $submission))
+            ->assertOk()
+            ->assertSee('گنج‌نامه')
+            ->assertSee('دانلود Word');
+    }
+
+    public function test_word_export_route_is_denied_to_someone_with_no_relation_to_the_submission(): void
+    {
+        $submission = FormSubmission::factory()->create();
+
+        $stranger = User::factory()->create();
+        $stranger->assignRole(Role::create(['name' => 'بدون دسترسی فرم ۲']));
+
+        $this->actingAs($stranger)
+            ->get(route('form-submissions.export-word', $submission))
+            ->assertForbidden();
+    }
+
+    public function test_word_export_route_downloads_an_ms_word_document_for_the_submitter(): void
+    {
+        $submitter = User::factory()->create();
+        $submission = FormSubmission::factory()->create(['submitted_by' => $submitter->id]);
+
+        $response = $this->actingAs($submitter)
+            ->get(route('form-submissions.export-word', $submission));
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.ms-word; charset=UTF-8')
+            ->assertSee($submission->reference_code);
+
+        $this->assertStringContainsString('attachment;', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.doc', $response->headers->get('Content-Disposition'));
     }
 }

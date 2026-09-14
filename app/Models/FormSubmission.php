@@ -60,6 +60,15 @@ class FormSubmission extends Model
         return $this->belongsTo(Department::class);
     }
 
+    /**
+     * Resolved through the submission's department rather than a
+     * dedicated column - see Document::company() for the same reasoning.
+     */
+    public function company(): ?Company
+    {
+        return $this->department?->company;
+    }
+
     public function values(): HasMany
     {
         return $this->hasMany(FormSubmissionValue::class);

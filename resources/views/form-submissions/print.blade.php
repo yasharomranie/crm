@@ -4,45 +4,117 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $submission->formTemplate->title }} — {{ $submission->reference_code }}</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
-        :root { color-scheme: light; }
-        * { box-sizing: border-box; }
+        :root {
+            color-scheme: light;
+            --ink: #1c1917;
+            --ink-soft: #57534e;
+            --ink-faint: #a8a29e;
+            --line: #e7e5e4;
+            --gold: #9c6b1f;
+            --paper: #f4f4f3;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
 
         body {
             margin: 0;
             padding: 2rem 1.25rem;
-            background: #f4f4f5;
+            background: var(--paper);
             font-family: 'Vazirmatn', Tahoma, 'B Nazanin', Arial, sans-serif;
-            color: #18181b;
+            color: var(--ink);
         }
 
-        .toolbar { max-width: 48rem; margin: 0 auto 1rem; display: flex; justify-content: flex-end; }
+        .toolbar {
+            max-width: 50rem;
+            margin: 0 auto 1rem;
+            display: flex;
+            justify-content: flex-end;
+            gap: .5rem;
+        }
 
-        .toolbar button {
+        .toolbar button, .toolbar a {
             font-family: inherit;
             font-size: .875rem;
+            font-weight: 500;
             border-radius: .5rem;
-            padding: .5rem 1rem;
-            border: 1px solid #18181b;
-            background: #18181b;
-            color: #fff;
+            padding: .55rem 1.1rem;
+            border: 1px solid #d6d3d1;
+            background: #fff;
+            color: var(--ink);
             cursor: pointer;
+            text-decoration: none;
+        }
+
+        .toolbar button.primary {
+            background: var(--gold);
+            color: #fff;
+            border-color: var(--gold);
         }
 
         .sheet {
-            max-width: 48rem;
+            max-width: 50rem;
             margin: 0 auto;
             background: #fff;
             border-radius: .75rem;
             box-shadow: 0 1px 3px rgb(0 0 0 / .1);
-            padding: 2.5rem 3rem;
+            padding: 3rem 3.5rem;
         }
 
-        .head { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; margin-bottom: 1.5rem; border-bottom: 1px solid #e4e4e7; padding-bottom: 1.25rem; }
-        .head h1 { font-size: 1.15rem; margin: 0 0 .25rem; }
-        .head .ref { font-family: monospace; font-size: .8rem; color: #71717a; }
-        .head .meta { font-size: .78rem; color: #71717a; margin-top: .3rem; }
-        #qrcode { flex-shrink: 0; }
+        /* ---------- Letterhead ---------- */
+
+        .letterhead {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 1rem;
+            padding-bottom: 1.25rem;
+            border-bottom: 2px solid var(--ink);
+            margin-bottom: 1.5rem;
+        }
+
+        .letterhead .company-name {
+            font-size: 1.25rem;
+            font-weight: 800;
+            margin: 0 0 .3rem;
+        }
+
+        .letterhead .company-meta {
+            font-size: .78rem;
+            color: var(--ink-soft);
+        }
+
+        .letterhead .doc-tag {
+            flex-shrink: 0;
+            text-align: left;
+            font-size: .72rem;
+            color: var(--ink-faint);
+            line-height: 1.8;
+            white-space: nowrap;
+        }
+
+        h1.form-title {
+            font-size: 1.15rem;
+            font-weight: 800;
+            margin: 0 0 .35rem;
+        }
+
+        .sub-meta {
+            font-size: .8rem;
+            color: var(--ink-soft);
+            margin-bottom: 1rem;
+        }
+
+        #qrcode {
+            display: flex;
+            justify-content: flex-end;
+            margin-bottom: 1rem;
+        }
 
         .status {
             display: inline-block;
@@ -53,50 +125,173 @@
             margin-bottom: 1.5rem;
         }
 
-        dl.fields { margin: 0 0 1.75rem; }
-        dl.fields > div { padding-block: .55rem; border-bottom: 1px solid #f0f0f1; }
-        dl.fields dt { font-size: .74rem; color: #71717a; }
-        dl.fields dd { margin: .15rem 0 0; font-size: .92rem; }
-        dl.fields img.signature { height: 64px; border: 1px solid #e4e4e7; border-radius: .35rem; }
+        /* ---------- Fields ---------- */
 
-        h2.section { font-size: .95rem; margin: 0 0 .75rem; }
+        dl.fields {
+            margin: 0 0 1.75rem;
+        }
 
-        ol.steps { list-style: none; padding: 0; margin: 0 0 1rem; display: flex; flex-wrap: wrap; gap: .4rem; }
-        ol.steps li { font-size: .72rem; padding: .25rem .65rem; border-radius: 999px; background: #f0f0f1; color: #52525b; }
-        ol.steps li.done { background: #dcfce7; color: #166534; }
-        ol.steps li.current { background: #fef3c7; color: #92400e; }
+        dl.fields > div {
+            padding-block: .6rem;
+            border-bottom: 1px solid var(--line);
+        }
 
-        ul.actions { list-style: none; padding: 0; margin: 0; }
-        ul.actions li { font-size: .85rem; padding-block: .4rem; border-bottom: 1px solid #f0f0f1; }
-        ul.actions li:last-child { border-bottom: none; }
-        ul.actions .comment { font-size: .78rem; color: #52525b; margin-top: .15rem; }
-        ul.actions .when { font-size: .72rem; color: #a1a1aa; }
+        dl.fields dt {
+            font-size: .76rem;
+            color: var(--ink-soft);
+        }
+
+        dl.fields dd {
+            margin: .2rem 0 0;
+            font-size: .92rem;
+        }
+
+        dl.fields img.signature {
+            height: 64px;
+            border: 1px solid var(--line);
+            border-radius: .35rem;
+        }
+
+        h2.section {
+            font-size: .95rem;
+            font-weight: 700;
+            margin: 0 0 .75rem;
+        }
+
+        ol.steps {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 1rem;
+            display: flex;
+            flex-wrap: wrap;
+            gap: .4rem;
+        }
+
+        ol.steps li {
+            font-size: .72rem;
+            padding: .25rem .65rem;
+            border-radius: 999px;
+            background: #f0f0f1;
+            color: #52525b;
+        }
+
+        ol.steps li.done {
+            background: #dcfce7;
+            color: #166534;
+        }
+
+        ol.steps li.current {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        ul.actions {
+            list-style: none;
+            padding: 0;
+            margin: 0 0 2rem;
+        }
+
+        ul.actions li {
+            font-size: .85rem;
+            padding-block: .4rem;
+            border-bottom: 1px solid var(--line);
+        }
+
+        ul.actions li:last-child {
+            border-bottom: none;
+        }
+
+        ul.actions .comment {
+            font-size: .78rem;
+            color: #52525b;
+            margin-top: .15rem;
+        }
+
+        ul.actions .when {
+            font-size: .72rem;
+            color: var(--ink-faint);
+        }
+
+        footer.doc-footer {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px solid var(--line);
+            font-size: .7rem;
+            color: var(--ink-faint);
+            text-align: center;
+        }
+
+        @media (max-width: 640px) {
+            .sheet {
+                padding: 1.75rem 1.25rem;
+            }
+
+            .letterhead {
+                flex-direction: column;
+            }
+
+            .letterhead .doc-tag {
+                text-align: right;
+            }
+        }
 
         @media print {
-            body { background: #fff; padding: 0; }
-            .toolbar { display: none; }
-            .sheet { box-shadow: none; border-radius: 0; padding: 0; max-width: none; }
+            body {
+                background: #fff;
+                padding: 0;
+            }
+
+            .toolbar {
+                display: none;
+            }
+
+            .sheet {
+                box-shadow: none;
+                border-radius: 0;
+                padding: 0;
+                max-width: none;
+            }
         }
     </style>
 </head>
 <body>
     <div class="toolbar">
-        <button type="button" onclick="window.print()">چاپ / ذخیرهٔ PDF</button>
+        <a href="{{ route('form-submissions.export-word', $submission) }}">دانلود Word</a>
+        <button type="button" class="primary" onclick="window.print()">چاپ / دانلود PDF</button>
     </div>
 
     <div class="sheet">
-        <div class="head">
-            <div>
-                <h1>{{ $submission->formTemplate->title }}</h1>
-                <div class="ref">{{ $submission->reference_code }}</div>
-                <div class="meta">
-                    {{ $submission->department?->name ?? 'بدون دپارتمان' }} ·
-                    ثبت‌کننده: {{ $submission->submitter?->name ?? '—' }} ·
-                    {{ $submission->submitted_at?->format('Y/m/d H:i') }}
+        <div class="letterhead">
+            @if ($company = $submission->company())
+                <div>
+                    <p class="company-name">{{ $company->name }}</p>
+                    @if ($company->national_id || $company->address)
+                        <p class="company-meta">
+                            @if ($company->national_id)
+                                شناسه ملی: {{ $company->national_id }}
+                            @endif
+                            @if ($company->address)
+                                <br>{{ $company->address }}
+                            @endif
+                        </p>
+                    @endif
                 </div>
+            @else
+                <div></div>
+            @endif
+            <div class="doc-tag">
+                شمارهٔ پیگیری: {{ $submission->reference_code }}<br>
+                {{ $submission->submitted_at?->format('Y/m/d H:i') }}
             </div>
-            <div id="qrcode"></div>
         </div>
+
+        <div id="qrcode"></div>
+
+        <h1 class="form-title">{{ $submission->formTemplate->title }}</h1>
+        <p class="sub-meta">
+            {{ $submission->department?->name ?? 'بدون دپارتمان' }} ·
+            ثبت‌کننده: {{ $submission->submitter?->name ?? '—' }}
+        </p>
 
         @php
             $statusColors = ['draft' => '#e4e4e7;color:#3f3f46', 'pending_approval' => '#fef3c7;color:#92400e', 'approved' => '#dcfce7;color:#166534', 'rejected' => '#fee2e2;color:#991b1b', 'cancelled' => '#e4e4e7;color:#52525b'];
@@ -155,6 +350,10 @@
                 </ul>
             @endif
         @endif
+
+        <footer class="doc-footer">
+            این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->format('Y/m/d H:i') }}
+        </footer>
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>

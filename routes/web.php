@@ -21,6 +21,8 @@ Route::middleware('auth')->group(function () {
         ->name('contracts.export-word');
     Route::get('/form-submissions/{submission}/print', [FormSubmissionPrintController::class, 'show'])
         ->name('form-submissions.print');
+    Route::get('/form-submissions/{submission}/export-word', [FormSubmissionPrintController::class, 'exportWord'])
+        ->name('form-submissions.export-word');
     Route::get('/form-submissions/{submission}/files/{value}', [FormSubmissionFileController::class, 'show'])
         ->name('form-submissions.files.download');
 });
