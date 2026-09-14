@@ -4,6 +4,12 @@ namespace App\Filament\Pages;
 
 use App\Enums\DealStage;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Filament\Widgets\DealSourceChart;
+use App\Filament\Widgets\DealWinLossTrendChart;
+use App\Filament\Widgets\SalesFunnelChart;
+use App\Filament\Widgets\SalesPipelineStatsOverview;
+use App\Filament\Widgets\StaleDealsWidget;
+use App\Filament\Widgets\TopSalesRepsWidget;
 use App\Models\Deal;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -28,6 +34,26 @@ class SalesPipeline extends Page
     public static function accessControlPermission(): string
     {
         return 'sales-pipeline.access';
+    }
+
+    /**
+     * The pipeline's own report row - KPIs, stage distribution, source
+     * breakdown, win/loss trend, a leaderboard, and a stale-deals list -
+     * kept off the main dashboard via OnlyVisibleOnSalesPipeline::canView()
+     * on each widget.
+     *
+     * @return array<class-string>
+     */
+    protected function getHeaderWidgets(): array
+    {
+        return [
+            SalesPipelineStatsOverview::class,
+            SalesFunnelChart::class,
+            DealSourceChart::class,
+            DealWinLossTrendChart::class,
+            TopSalesRepsWidget::class,
+            StaleDealsWidget::class,
+        ];
     }
 
     /**
