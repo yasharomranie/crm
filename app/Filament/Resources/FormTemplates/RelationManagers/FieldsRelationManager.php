@@ -73,6 +73,23 @@ class FieldsRelationManager extends RelationManager
                     ->label('ترتیب نمایش')
                     ->numeric()
                     ->default(0),
+                Select::make('workflow_step_id')
+                    ->label('این فیلد مخصوص کدام مرحله از تأیید است؟ (اختیاری)')
+                    ->relationship(
+                        'workflowStep',
+                        'name',
+                        modifyQueryUsing: fn ($query) => $query->where(
+                            'workflow_definition_id',
+                            $this->getOwnerRecord()->workflow_definition_id,
+                        ),
+                    )
+                    ->searchable()
+                    ->preload()
+                    // Only makes sense once the form has a workflow to pick
+                    // a step from - see WorkflowDefinitionForm/FormTemplateForm.
+                    ->visible(fn () => filled($this->getOwnerRecord()->workflow_definition_id))
+                    ->helperText('اگر انتخاب کنید، این فیلد موقع ثبت اولیهٔ فرم نمایش داده نمی‌شود؛ به‌جایش، هر کسی که در همان مرحله اقدام (تأیید/رد) می‌کند، آن را پر می‌کند - مثلاً «نظر دفتر فنی» که فقط موقع تأیید در مرحلهٔ دفتر فنی پر می‌شود. اگر خالی بماند، مثل قبل موقع ثبت اولیه پر خواهد شد.')
+                    ->columnSpanFull(),
             ]);
     }
 
@@ -86,6 +103,7 @@ class FieldsRelationManager extends RelationManager
                 TextColumn::make('label')->label('برچسب')->searchable(),
                 TextColumn::make('field_key')->label('کلید فنی')->fontFamily('mono'),
                 TextColumn::make('field_type')->label('نوع'),
+                TextColumn::make('workflowStep.name')->label('مرحلهٔ مخصوص')->placeholder('عمومی (ثبت اولیه)'),
                 IconColumn::make('is_required')->label('اجباری')->boolean(),
             ])
             ->filters([

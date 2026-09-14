@@ -6,8 +6,11 @@ use App\Enums\WorkflowActionType;
 use App\Exceptions\WorkflowException;
 use App\Filament\Resources\FormSubmissions\FormSubmissionResource;
 use App\Filament\Resources\FormSubmissions\Schemas\FormSubmissionInfolist;
+use App\Filament\Support\DynamicFormFieldBuilder;
 use App\Models\User;
+use App\Models\WorkflowStep;
 use Filament\Actions\Action;
+use Filament\Forms\Components\Field;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Notifications\Notification;
@@ -37,10 +40,17 @@ class ViewFormSubmission extends ViewRecord
                 ->icon('heroicon-o-check-circle')
                 ->color('success')
                 ->visible(fn () => $canAct)
-                ->schema([
+                ->schema(fn () => [
                     Textarea::make('comment')->label('نظر (اختیاری)'),
+                    ...$this->currentStepFieldSchema($instance?->currentStep),
                 ])
-                ->action(fn (array $data) => $this->act(WorkflowActionType::Approve, $data['comment'] ?? null)),
+                ->action(function (array $data) use ($instance) {
+                    $step = $instance?->currentStep;
+
+                    if ($this->act(WorkflowActionType::Approve, $data['comment'] ?? null)) {
+                        $this->saveStepFieldValues($step, $data);
+                    }
+                }),
 
             Action::make('reject')
                 ->label('رد')
@@ -48,10 +58,17 @@ class ViewFormSubmission extends ViewRecord
                 ->color('danger')
                 ->requiresConfirmation()
                 ->visible(fn () => $canAct)
-                ->schema([
+                ->schema(fn () => [
                     Textarea::make('comment')->label('دلیل رد')->required(),
+                    ...$this->currentStepFieldSchema($instance?->currentStep),
                 ])
-                ->action(fn (array $data) => $this->act(WorkflowActionType::Reject, $data['comment'])),
+                ->action(function (array $data) use ($instance) {
+                    $step = $instance?->currentStep;
+
+                    if ($this->act(WorkflowActionType::Reject, $data['comment'])) {
+                        $this->saveStepFieldValues($step, $data);
+                    }
+                }),
 
             Action::make('refer')
                 ->label('ارجاع موازی')
@@ -98,14 +115,59 @@ class ViewFormSubmission extends ViewRecord
         ];
     }
 
-    protected function act(WorkflowActionType $type, ?string $comment): void
+    protected function act(WorkflowActionType $type, ?string $comment): bool
     {
         try {
             $this->record->workflowInstance->act(Auth::user(), $type, $comment);
 
             Notification::make()->title('اقدام شما با موفقیت ثبت شد.')->success()->send();
+
+            return true;
         } catch (WorkflowException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
+
+            return false;
+        }
+    }
+
+    /**
+     * Builds the extra form fields (if any) that belong specifically to
+     * $step - e.g. "نظر دفتر فنی" only appearing while acting at the
+     * "تأیید دفتر فنی" step - so whoever approves/rejects here fills them
+     * in as part of that same action, instead of the original submitter.
+     *
+     * @return array<int, Field>
+     */
+    protected function currentStepFieldSchema(?WorkflowStep $step): array
+    {
+        return $step?->fields->map(fn ($field) => DynamicFormFieldBuilder::make($field))->all() ?? [];
+    }
+
+    /**
+     * Saves whichever of $step's own fields were included in $data - the
+     * mirror image of CreateFormSubmission::handleRecordCreation()'s loop,
+     * but for a step's fields being filled in later during the approval
+     * cycle instead of at initial submission. updateOrCreate() (not
+     * create()) since the same step could plausibly be acted on more than
+     * once (e.g. after a referral back).
+     */
+    protected function saveStepFieldValues(?WorkflowStep $step, array $data): void
+    {
+        foreach ($step?->fields ?? [] as $field) {
+            if (! array_key_exists($field->field_key, $data)) {
+                continue;
+            }
+
+            $value = $data[$field->field_key];
+
+            if ($value === null || $value === '') {
+                continue;
+            }
+
+            $this->record->values()->updateOrCreate(
+                ['form_field_id' => $field->id],
+                DynamicFormFieldBuilder::valueColumns($field, $value),
+            );
         }
     }
 }

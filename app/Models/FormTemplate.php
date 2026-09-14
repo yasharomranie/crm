@@ -48,6 +48,17 @@ class FormTemplate extends Model
         return $this->hasMany(FormField::class)->orderBy('sort_order');
     }
 
+    /**
+     * Just the fields filled in at initial submission - excludes fields
+     * scoped to a specific workflow step (e.g. "نظر دفتر فنی"), which are
+     * filled in later by whoever acts at that step instead. See
+     * FormField::workflowStep() and FormSubmissionForm.
+     */
+    public function generalFields(): HasMany
+    {
+        return $this->fields()->whereNull('workflow_step_id');
+    }
+
     public function submissions(): HasMany
     {
         return $this->hasMany(FormSubmission::class);

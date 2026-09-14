@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 use Spatie\Permission\Models\Role;
 
 class WorkflowStep extends Model
@@ -39,6 +40,16 @@ class WorkflowStep extends Model
     public function approverUser(): BelongsTo
     {
         return $this->belongsTo(User::class, 'approver_user_id');
+    }
+
+    /**
+     * Form fields that are only filled in by whoever acts at this step
+     * (e.g. "نظر دفتر فنی"), not by the original submitter - see
+     * FormField::workflowStep().
+     */
+    public function fields(): HasMany
+    {
+        return $this->hasMany(FormField::class)->orderBy('sort_order');
     }
 
     /**

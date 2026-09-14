@@ -46,14 +46,18 @@ class FormSubmissionForm
                             return;
                         }
 
-                        FormTemplate::find($state)?->fields->each(
+                        FormTemplate::find($state)?->generalFields->each(
                             fn (FormField $field) => $set($field->field_key, null)
                         );
                     }),
 
-                // The template's own fields, rebuilt on every render from
-                // the selection above - this is what makes any form an
-                // admin designs in FormTemplateResource actually fillable.
+                // The template's own general fields (workflow_step_id is
+                // null), rebuilt on every render from the selection above -
+                // this is what makes any form an admin designs in
+                // FormTemplateResource actually fillable. Fields scoped to
+                // a specific workflow step (e.g. "نظر دفتر فنی") are
+                // deliberately excluded here - they're filled in later, by
+                // whoever acts at that step (see ViewFormSubmission).
                 // No ->live() here: the closure already re-evaluates on
                 // every request regardless, and marking the group itself
                 // live caused an extra round-trip on every field
@@ -70,7 +74,7 @@ class FormSubmissionForm
 
                         return FormTemplate::query()
                             ->find($templateId)
-                            ?->fields
+                            ?->generalFields
                             ->map(fn ($field) => DynamicFormFieldBuilder::make($field))
                             ->all() ?? [];
                     }),

@@ -37,7 +37,7 @@ class CreateFormSubmission extends CreateRecord
                 'submitted_at' => now(),
             ]);
 
-            foreach ($template->fields as $field) {
+            foreach ($template->generalFields as $field) {
                 if (! array_key_exists($field->field_key, $data)) {
                     continue;
                 }

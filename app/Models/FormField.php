@@ -14,7 +14,7 @@ class FormField extends Model
     use HasFactory, SoftDeletes;
 
     protected $fillable = [
-        'form_template_id', 'field_key', 'label', 'field_type',
+        'form_template_id', 'workflow_step_id', 'field_key', 'label', 'field_type',
         'options', 'validation_rules', 'conditional_logic', 'sort_order', 'is_required',
     ];
 
@@ -32,6 +32,18 @@ class FormField extends Model
     public function formTemplate(): BelongsTo
     {
         return $this->belongsTo(FormTemplate::class);
+    }
+
+    /**
+     * When set, this field isn't filled in at initial submission - it's
+     * filled in by whoever acts (approves/rejects) at this specific step,
+     * e.g. "نظر دفتر فنی" only appearing on the "تأیید دفتر فنی" step's
+     * own action form. Null (the default) means "filled at submission",
+     * like every field before this existed.
+     */
+    public function workflowStep(): BelongsTo
+    {
+        return $this->belongsTo(WorkflowStep::class);
     }
 
     /**
