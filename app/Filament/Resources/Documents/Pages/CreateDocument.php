@@ -13,8 +13,8 @@ class CreateDocument extends CreateRecord
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['uploaded_by'] = auth()->id();
-        $data['mime_type'] = Storage::disk('local')->mimeType($data['file_path']);
-        $data['size_kb'] = (int) ceil(Storage::disk('local')->size($data['file_path']) / 1024);
+        $data['mime_type'] = Storage::disk()->mimeType($data['file_path']);
+        $data['size_kb'] = (int) ceil(Storage::disk()->size($data['file_path']) / 1024);
 
         return $data;
     }

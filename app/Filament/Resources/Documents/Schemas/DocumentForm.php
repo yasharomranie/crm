@@ -30,9 +30,11 @@ class DocumentForm
                     ->hintAction(FieldHelp::make('documents.folder_id')),
                 FileUpload::make('file_path')
                     ->label('فایل')
-                    ->disk('local')
+                    // No ->disk()/->visibility(): stores through the app's
+                    // default disk (see FormSubmissionFileController for
+                    // why hardcoding a disk name here breaks downloads in
+                    // production).
                     ->directory('documents')
-                    ->visibility('private')
                     ->previewable(false)
                     ->openable(false)
                     ->downloadable(false)

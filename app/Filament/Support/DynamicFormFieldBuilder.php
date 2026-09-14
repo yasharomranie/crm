@@ -37,10 +37,15 @@ class DynamicFormFieldBuilder
                 ->native(false),
             FormFieldType::Radio => Radio::make($field->field_key)->options($field->options ?? []),
             FormFieldType::Checkbox => Checkbox::make($field->field_key),
+            // No ->disk()/->visibility() here: this stores through the
+            // app's default disk (config/filesystems.php - 'local' in dev,
+            // a private Cloud Object Storage bucket in production), which
+            // is required for uploads to actually survive a deploy/scale
+            // event there. Passing an explicit disk name defeats that -
+            // see FormSubmissionFileController for the download side of
+            // this same fix.
             FormFieldType::File => FileUpload::make($field->field_key)
-                ->disk('local')
-                ->directory('form-submissions')
-                ->visibility('private'),
+                ->directory('form-submissions'),
             FormFieldType::Signature => ViewField::make($field->field_key)
                 ->view('filament.forms.signature-pad'),
             FormFieldType::Gps => ViewField::make($field->field_key)

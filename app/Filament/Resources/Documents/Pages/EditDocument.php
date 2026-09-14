@@ -33,8 +33,8 @@ class EditDocument extends EditRecord
         if ($newPath && $newPath !== $record->file_path) {
             $record->replaceFile(
                 $newPath,
-                Storage::disk('local')->mimeType($newPath),
-                (int) ceil(Storage::disk('local')->size($newPath) / 1024),
+                Storage::disk()->mimeType($newPath),
+                (int) ceil(Storage::disk()->size($newPath) / 1024),
                 auth()->user(),
             );
 
