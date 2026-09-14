@@ -63,17 +63,23 @@
             </div>
         @endif
 
-        <div class="flex h-[calc(100vh-14rem)] min-h-[30rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm dark:border-white/10 dark:bg-gray-900">
-            {{-- Conversation list --}}
-            <div class="flex w-full max-w-xs shrink-0 flex-col border-s border-gray-200 dark:border-white/10 sm:max-w-sm">
+        <div class="flex h-[calc(100dvh-12rem)] min-h-[26rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:h-[calc(100dvh-14rem)] md:min-h-[30rem] dark:border-white/10 dark:bg-gray-900">
+            {{-- Conversation list: full-width "screen" on mobile (hidden while
+                a thread is open), a fixed-width sidebar from md: up, always
+                visible alongside the thread. --}}
+            <div
+                class="w-full shrink-0 flex-col border-gray-200 md:flex md:w-auto md:max-w-xs md:border-e lg:max-w-sm dark:border-white/10"
+                :class="mobileView === 'thread' ? 'hidden md:flex' : 'flex'"
+            >
                 <div class="flex items-center justify-between gap-2 border-b border-gray-200 p-3 dark:border-white/10">
                     <span class="text-sm font-semibold text-gray-950 dark:text-white">گفتگوها</span>
                     <button
                         type="button"
                         wire:click="newConversation"
+                        x-on:click="mobileView = 'thread'"
                         aria-label="گفتگوی جدید"
                         title="گفتگوی جدید"
-                        class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-primary-600 text-white transition hover:bg-primary-500"
+                        class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-lg bg-primary-600 text-white transition hover:bg-primary-500"
                     >
                         <x-heroicon-o-plus-circle class="h-5 w-5" />
                     </button>
@@ -85,7 +91,8 @@
                         <button
                             type="button"
                             wire:click="selectConversation({{ $conversation->id }})"
-                            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-2.5 text-start text-sm transition hover:bg-gray-50 dark:hover:bg-white/5 {{ $isActive ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
+                            x-on:click="mobileView = 'thread'"
+                            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-3 text-start text-sm transition hover:bg-gray-50 md:py-2.5 dark:hover:bg-white/5 {{ $isActive ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
                         >
                             <x-heroicon-o-chat-bubble-left-right class="h-4 w-4 shrink-0" />
                             <span class="truncate">{{ $conversation->title ?: 'گفتگوی جدید' }}</span>
@@ -99,8 +106,39 @@
                 </div>
             </div>
 
-            {{-- Thread --}}
-            <div class="flex min-w-0 flex-1 flex-col">
+            {{-- Thread: full-width "screen" on mobile (hidden while the list
+                is open), the remaining flexible column from md: up. --}}
+            <div
+                class="min-w-0 flex-1 flex-col md:flex"
+                :class="mobileView === 'list' ? 'hidden' : 'flex'"
+            >
+                {{-- Mobile-only header: the sidebar is off-screen here, so this
+                    is the only way back to it (and the only place a title/new-
+                    conversation button can live) below md:. --}}
+                <div class="flex items-center gap-1 border-b border-gray-200 p-2 md:hidden dark:border-white/10">
+                    <button
+                        type="button"
+                        x-on:click="mobileView = 'list'"
+                        aria-label="بازگشت به فهرست گفتگوها"
+                        title="بازگشت به فهرست گفتگوها"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+                    >
+                        <x-heroicon-o-chevron-right class="h-5 w-5" />
+                    </button>
+                    <span class="min-w-0 flex-1 truncate text-sm font-semibold text-gray-950 dark:text-white">
+                        {{ $selected?->title ?: 'گفتگوی جدید' }}
+                    </span>
+                    <button
+                        type="button"
+                        wire:click="newConversation"
+                        aria-label="گفتگوی جدید"
+                        title="گفتگوی جدید"
+                        class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-gray-500 transition hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+                    >
+                        <x-heroicon-o-plus-circle class="h-5 w-5" />
+                    </button>
+                </div>
+
                 <div x-ref="messages" class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                     @forelse ($visibleMessages as $message)
                         @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
@@ -152,7 +190,7 @@
                     @endif
                 </div>
 
-                <form wire:submit.prevent="send" class="flex items-end gap-2 border-t border-gray-200 p-3 dark:border-white/10">
+                <form wire:submit.prevent="send" class="flex items-end gap-2 border-t border-gray-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/10">
                     <textarea
                         wire:model="body"
                         x-on:input="autoGrow($event.target)"
@@ -183,6 +221,14 @@
         Alpine.data('aiAssistantThread', () => ({
             wasNearBottom: true,
             observer: null,
+            // Below md:, the conversation list and the thread are two full-
+            // width "screens" that swap in and out (an app-style master/
+            // detail collapse) instead of the cramped side-by-side layout
+            // that never fit a phone. 'thread' first: a conversation is
+            // already auto-selected on mount (see AiAssistant::mount()), so
+            // landing straight on it matches how chat apps open to your
+            // last conversation, not an intermediate list screen.
+            mobileView: 'thread',
 
             init() {
                 this.scrollToBottom(true);
