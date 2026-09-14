@@ -149,7 +149,7 @@
         @endif
         <p class="doc-tag">
             شمارهٔ داخلی: #{{ str_pad($contract->id, 5, '0', STR_PAD_LEFT) }} —
-            تاریخ تنظیم: {{ $contract->created_at?->format('Y/m/d') }}
+            تاریخ تنظیم: {{ $contract->created_at?->toJalali('Y/m/d') }}
         </p>
     </div>
 
@@ -187,7 +187,7 @@
         </tr>
     </table>
 
-    <p class="doc-footer">این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->format('Y/m/d H:i') }}</p>
+    <p class="doc-footer">این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->toJalali('Y/m/d H:i') }}</p>
 </div>
 </body>
 </html>

@@ -102,7 +102,7 @@
                                 <div
                                     class="absolute top-0 h-5 rounded {{ $typeColors[$phase->type->value] ?? 'bg-gray-300' }} {{ $isCritical ? 'ring-2 ring-danger-500' : '' }}"
                                     style="left: {{ $offsetPercent }}%; width: {{ $widthPercent }}%;"
-                                    title="{{ $phase->start_date->format('Y/m/d') }} - {{ $phase->end_date->format('Y/m/d') }}"
+                                    title="{{ $phase->start_date->toJalali('Y/m/d') }} - {{ $phase->end_date->toJalali('Y/m/d') }}"
                                 >
                                     <div class="h-full rounded bg-success-500/70" style="width: {{ $phase->progress_percent }}%"></div>
                                 </div>

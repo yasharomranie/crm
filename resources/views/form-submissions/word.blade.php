@@ -150,7 +150,7 @@
         @endif
         <p class="doc-tag">
             شمارهٔ پیگیری: {{ $submission->reference_code }} —
-            {{ $submission->submitted_at?->format('Y/m/d H:i') }}
+            {{ $submission->submitted_at?->toJalali('Y/m/d H:i') }}
         </p>
     </div>
 
@@ -192,7 +192,7 @@
                 <tr>
                     <td>
                         <strong>{{ $action->action->getLabel() }}</strong> — {{ $action->actor->name }}
-                        ({{ $action->acted_at->format('Y/m/d H:i') }})
+                        ({{ $action->acted_at->toJalali('Y/m/d H:i') }})
                         @if ($action->comment)
                             <br><span style="color:#57534e;font-size:9.5pt;">{{ $action->comment }}</span>
                         @endif
@@ -204,7 +204,7 @@
         </table>
     @endif
 
-    <p class="doc-footer">این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->format('Y/m/d H:i') }}</p>
+    <p class="doc-footer">این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->toJalali('Y/m/d H:i') }}</p>
 </div>
 </body>
 </html>

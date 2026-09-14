@@ -21,7 +21,7 @@ class ContractsTable
                 TextColumn::make('company.name')->label('کارفرما')->placeholder('—'),
                 TextColumn::make('counterparty_name')->label('طرف مقابل')->searchable(),
                 TextColumn::make('creator.name')->label('تهیه‌کننده')->placeholder('—'),
-                TextColumn::make('created_at')->label('تاریخ ایجاد')->dateTime('Y/m/d H:i')->sortable(),
+                TextColumn::make('created_at')->label('تاریخ ایجاد')->jalaliDateTime('Y/m/d H:i')->sortable(),
             ])
             ->defaultSort('created_at', 'desc')
             ->recordActions([

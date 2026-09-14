@@ -29,7 +29,7 @@ class DocumentsTable
                 TextColumn::make('tags.name')->label('برچسب‌ها')->badge()->separator(','),
                 TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
                 TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
-                TextColumn::make('created_at')->label('تاریخ بارگذاری')->date('Y/m/d'),
+                TextColumn::make('created_at')->label('تاریخ بارگذاری')->jalaliDate('Y/m/d'),
             ])
             ->filters([
                 SelectFilter::make('access_level')

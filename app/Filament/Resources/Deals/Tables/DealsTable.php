@@ -22,7 +22,7 @@ class DealsTable
                 TextColumn::make('stage')->label('مرحله')->badge(),
                 TextColumn::make('value')->label('ارزش')->numeric()->suffix(' تومان')->placeholder('—'),
                 TextColumn::make('assignee.name')->label('کارشناس')->placeholder('—'),
-                TextColumn::make('expected_close_date')->label('تخمین قطعی‌شدن')->date('Y/m/d')->placeholder('—'),
+                TextColumn::make('expected_close_date')->label('تخمین قطعی‌شدن')->jalaliDate('Y/m/d')->placeholder('—'),
             ])
             ->filters([
                 SelectFilter::make('stage')->label('مرحله')->options(DealStage::class),

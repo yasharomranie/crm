@@ -55,10 +55,14 @@ class PriceRuleResource extends Resource
                     ->maxLength(255)
                     ->hintAction(FieldHelp::make('price-rules.name')),
                 DatePicker::make('start_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('از تاریخ')
                     ->required()
                     ->hintAction(FieldHelp::make('price-rules.start_date')),
                 DatePicker::make('end_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تا تاریخ')
                     ->required()
                     ->afterOrEqual('start_date')
@@ -97,8 +101,8 @@ class PriceRuleResource extends Resource
             ->columns([
                 TextColumn::make('roomType.name')->label('نوع اتاق/ویلا'),
                 TextColumn::make('name')->label('عنوان قانون')->searchable(),
-                TextColumn::make('start_date')->label('از تاریخ')->date('Y/m/d'),
-                TextColumn::make('end_date')->label('تا تاریخ')->date('Y/m/d'),
+                TextColumn::make('start_date')->label('از تاریخ')->jalaliDate('Y/m/d'),
+                TextColumn::make('end_date')->label('تا تاریخ')->jalaliDate('Y/m/d'),
                 TextColumn::make('adjustment_type')->label('نوع'),
                 TextColumn::make('adjustment_value')->label('مقدار'),
                 TextColumn::make('priority')->label('اولویت'),

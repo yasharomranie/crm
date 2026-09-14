@@ -31,7 +31,7 @@ class VersionsRelationManager extends RelationManager
                 TextColumn::make('version_number')->label('نسخه')->prefix('نسخهٔ '),
                 TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
                 TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
-                TextColumn::make('created_at')->label('تاریخ بایگانی')->dateTime('Y/m/d H:i'),
+                TextColumn::make('created_at')->label('تاریخ بایگانی')->jalaliDateTime('Y/m/d H:i'),
             ])
             ->headerActions([
                 //

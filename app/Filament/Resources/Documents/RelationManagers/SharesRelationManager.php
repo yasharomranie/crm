@@ -44,7 +44,7 @@ class SharesRelationManager extends RelationManager
             ->recordTitleAttribute('user.name')
             ->columns([
                 TextColumn::make('user.name')->label('کاربر')->searchable(),
-                TextColumn::make('created_at')->label('تاریخ اشتراک‌گذاری')->date('Y/m/d'),
+                TextColumn::make('created_at')->label('تاریخ اشتراک‌گذاری')->jalaliDate('Y/m/d'),
             ])
             ->headerActions([
                 CreateAction::make(),

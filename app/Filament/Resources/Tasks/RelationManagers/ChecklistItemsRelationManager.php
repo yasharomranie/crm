@@ -39,7 +39,7 @@ class ChecklistItemsRelationManager extends RelationManager
                         ]);
                     }),
                 TextColumn::make('checkedBy.name')->label('تیک‌زده توسط')->placeholder('—'),
-                TextColumn::make('checked_at')->label('زمان انجام')->dateTime('Y/m/d H:i')->placeholder('—'),
+                TextColumn::make('checked_at')->label('زمان انجام')->jalaliDateTime('Y/m/d H:i')->placeholder('—'),
             ])
             ->filters([
                 //

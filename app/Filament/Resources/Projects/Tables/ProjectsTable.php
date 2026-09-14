@@ -33,7 +33,7 @@ class ProjectsTable
                 TextColumn::make('progress')
                     ->label('پیشرفت فیزیکی')
                     ->state(fn (Project $record) => round($record->earnedValuePercent()).'٪'),
-                TextColumn::make('end_date')->label('پایان مصوب')->date('Y/m/d')->placeholder('—'),
+                TextColumn::make('end_date')->label('پایان مصوب')->jalaliDate('Y/m/d')->placeholder('—'),
             ])
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(ProjectStatus::class),

@@ -42,6 +42,8 @@ class FeedbacksRelationManager extends RelationManager
                     ->label('نظر مسافر')
                     ->columnSpanFull(),
                 DateTimePicker::make('submitted_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d H:i')
                     ->label('زمان ثبت پاسخ')
                     ->default(now()),
             ]);
@@ -53,10 +55,10 @@ class FeedbacksRelationManager extends RelationManager
             ->recordTitleAttribute('comment')
             ->defaultSort('requested_at', 'desc')
             ->columns([
-                TextColumn::make('requested_at')->label('زمان درخواست')->dateTime('Y/m/d')->placeholder('—'),
+                TextColumn::make('requested_at')->label('زمان درخواست')->jalaliDateTime('Y/m/d')->placeholder('—'),
                 TextColumn::make('nps_score')->label('امتیاز')->placeholder('در انتظار پاسخ'),
                 TextColumn::make('comment')->label('نظر')->limit(40)->placeholder('—'),
-                TextColumn::make('submitted_at')->label('زمان پاسخ')->dateTime('Y/m/d')->placeholder('—'),
+                TextColumn::make('submitted_at')->label('زمان پاسخ')->jalaliDateTime('Y/m/d')->placeholder('—'),
             ])
             ->filters([
                 //

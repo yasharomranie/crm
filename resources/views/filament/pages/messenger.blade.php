@@ -17,7 +17,7 @@
                 return 'دیروز';
             }
 
-            return $date->format('Y/m/d');
+            return $date->toJalali('Y/m/d');
         };
     @endphp
 

@@ -24,7 +24,7 @@ class AttendanceRecordsTable
             ->columns([
                 TextColumn::make('user.name')->label('کاربر')->searchable(),
                 TextColumn::make('user.department.name')->label('دپارتمان')->placeholder('—'),
-                TextColumn::make('date')->label('تاریخ')->date('Y/m/d')->sortable(),
+                TextColumn::make('date')->label('تاریخ')->jalaliDate('Y/m/d')->sortable(),
                 TextColumn::make('check_in_at')->label('ورود')->time('H:i')->placeholder('—'),
                 TextColumn::make('check_out_at')->label('خروج')->time('H:i')->placeholder('—'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
@@ -60,8 +60,8 @@ class AttendanceRecordsTable
                     ->searchable(),
                 Filter::make('date')
                     ->schema([
-                        DatePicker::make('from')->label('از تاریخ'),
-                        DatePicker::make('until')->label('تا تاریخ'),
+                        DatePicker::make('from')->jalali()->displayFormat('Y/m/d')->label('از تاریخ'),
+                        DatePicker::make('until')->jalali()->displayFormat('Y/m/d')->label('تا تاریخ'),
                     ])
                     ->query(function (Builder $query, array $data): Builder {
                         return $query

@@ -83,7 +83,7 @@
                         <div>
                             <span class="font-medium">{{ $booking->room->name }}</span>
                             <span class="text-gray-500 dark:text-gray-400">
-                                ({{ $booking->check_in_date->format('Y/m/d') }} تا {{ $booking->check_out_date->format('Y/m/d') }})
+                                ({{ $booking->check_in_date->toJalali('Y/m/d') }} تا {{ $booking->check_out_date->toJalali('Y/m/d') }})
                             </span>
                         </div>
                         <x-filament::badge :color="$booking->status->getColor()">

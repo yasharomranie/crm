@@ -124,7 +124,7 @@
                     <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                         @forelse ($history as $record)
                             <tr>
-                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->date->format('Y/m/d') }}</td>
+                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->date->toJalali('Y/m/d') }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_in_at?->format('H:i') ?? '—' }}</td>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_out_at?->format('H:i') ?? '—' }}</td>
                                 <td class="px-4 py-2.5">

@@ -10,6 +10,7 @@
         "filament/filament": "^5.8",
         "laravel/framework": "^13.17",
         "laravel/tinker": "^3.0",
+        "mokhosh/filament-jalali": "^6.0",
         "morilog/jalali": "^3.5",
         "spatie/laravel-activitylog": "^5.1",
         "spatie/laravel-medialibrary": "^11.23",

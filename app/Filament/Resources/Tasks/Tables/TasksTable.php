@@ -29,7 +29,7 @@ class TasksTable
                 TextColumn::make('assignee.name')->label('مسئول')->placeholder('—'),
                 TextColumn::make('priority')->label('اولویت')->badge(),
                 TextColumn::make('status')->label('وضعیت')->badge(),
-                TextColumn::make('due_at')->label('مهلت')->dateTime('Y/m/d H:i')->placeholder('—'),
+                TextColumn::make('due_at')->label('مهلت')->jalaliDateTime('Y/m/d H:i')->placeholder('—'),
                 TextColumn::make('tags.name')->label('برچسب‌ها')->badge()->separator(','),
             ])
             ->defaultSort('due_at')

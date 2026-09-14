@@ -56,9 +56,13 @@ class ProjectForm
                     ->required()
                     ->hintAction(FieldHelp::make('projects.status')),
                 DatePicker::make('start_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ شروع')
                     ->hintAction(FieldHelp::make('projects.start_date')),
                 DatePicker::make('end_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ پایان (خط زمانی مصوب)')
                     ->afterOrEqual('start_date')
                     ->hintAction(FieldHelp::make('projects.end_date')),

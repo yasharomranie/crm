@@ -31,7 +31,7 @@ class RoleTable
                     ->color('gray'),
                 TextColumn::make('created_at')
                     ->label('تاریخ ایجاد')
-                    ->dateTime('Y/m/d')
+                    ->jalaliDateTime('Y/m/d')
                     ->sortable(),
             ])
             ->recordActions([

@@ -60,7 +60,7 @@ class TicketsRelationManager extends RelationManager
                 TextColumn::make('subject')->label('موضوع'),
                 TextColumn::make('priority')->label('فوریت')->badge(),
                 TextColumn::make('status')->label('وضعیت')->badge(),
-                TextColumn::make('sla_due_at')->label('مهلت پاسخ')->dateTime('Y/m/d H:i')->placeholder('—'),
+                TextColumn::make('sla_due_at')->label('مهلت پاسخ')->jalaliDateTime('Y/m/d H:i')->placeholder('—'),
             ])
             ->filters([
                 //

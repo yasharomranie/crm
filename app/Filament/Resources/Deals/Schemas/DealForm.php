@@ -56,6 +56,8 @@ class DealForm
                     ->default(DealSource::Other)
                     ->hintAction(FieldHelp::make('deals.source')),
                 DatePicker::make('expected_close_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ تخمینی قطعی‌شدن')
                     ->hintAction(FieldHelp::make('deals.expected_close_date')),
                 Textarea::make('notes')

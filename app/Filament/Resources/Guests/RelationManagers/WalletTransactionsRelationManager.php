@@ -52,7 +52,7 @@ class WalletTransactionsRelationManager extends RelationManager
             ->recordTitleAttribute('reason')
             ->defaultSort('created_at', 'desc')
             ->columns([
-                TextColumn::make('created_at')->label('تاریخ')->dateTime('Y/m/d H:i'),
+                TextColumn::make('created_at')->label('تاریخ')->jalaliDateTime('Y/m/d H:i'),
                 TextColumn::make('type')->label('نوع')->badge(),
                 TextColumn::make('amount')->label('مبلغ')->numeric()->suffix(' تومان'),
                 TextColumn::make('reason')->label('بابت'),

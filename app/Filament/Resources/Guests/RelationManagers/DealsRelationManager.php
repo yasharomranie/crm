@@ -54,6 +54,8 @@ class DealsRelationManager extends RelationManager
                     ->options(DealSource::class)
                     ->default(DealSource::Other),
                 DatePicker::make('expected_close_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ تخمینی قطعی‌شدن'),
                 Textarea::make('notes')
                     ->label('یادداشت')

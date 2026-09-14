@@ -29,7 +29,9 @@ class DynamicFormFieldBuilder
             FormFieldType::Text => TextInput::make($field->field_key),
             FormFieldType::Textarea => Textarea::make($field->field_key),
             FormFieldType::Number => TextInput::make($field->field_key)->numeric(),
-            FormFieldType::DateJalali => DatePicker::make($field->field_key),
+            FormFieldType::DateJalali => DatePicker::make($field->field_key)
+                ->jalali()
+                ->displayFormat('Y/m/d'),
             FormFieldType::Select => Select::make($field->field_key)
                 ->options($field->options ?? [])
                 ->native(false),

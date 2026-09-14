@@ -30,15 +30,21 @@ class AttendanceRecordForm
                     ->preload()
                     ->hintAction(FieldHelp::make('attendance-records.work_shift_id')),
                 DatePicker::make('date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ')
                     ->required()
                     ->default(now())
                     ->hintAction(FieldHelp::make('attendance-records.date')),
                 DateTimePicker::make('check_in_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d H:i')
                     ->label('زمان ورود')
                     ->seconds(false)
                     ->hintAction(FieldHelp::make('attendance-records.check_in_at')),
                 DateTimePicker::make('check_out_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d H:i')
                     ->label('زمان خروج')
                     ->seconds(false)
                     ->hintAction(FieldHelp::make('attendance-records.check_out_at')),

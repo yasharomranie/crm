@@ -4,9 +4,12 @@ namespace App\Providers;
 
 use App\Models\User;
 use App\Policies\DynamicPermissionPolicy;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use Morilog\Jalali\CalendarUtils;
+use Morilog\Jalali\Jalalian;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -30,6 +33,23 @@ class AppServiceProvider extends ServiceProvider
         Schema::defaultStringLength(191);
 
         $this->registerAccessControl();
+        $this->registerJalaliDateMacro();
+    }
+
+    /**
+     * The whole application shows dates in the Jalali (Shamsi) calendar -
+     * Filament tables/pickers get this via mokhosh/filament-jalali, but
+     * plain Blade views (print/export documents, chat replies, etc.) just
+     * format a Carbon instance directly. This macro is the one place that
+     * conversion lives, so every view can write `$date?->toJalali()`
+     * instead of repeating the Jalalian::fromCarbon(...) dance.
+     */
+    protected function registerJalaliDateMacro(): void
+    {
+        Carbon::macro('toJalali', function (string $format = 'Y/m/d H:i'): string {
+            /** @var Carbon $this */
+            return CalendarUtils::convertNumbers(Jalalian::fromCarbon($this)->format($format));
+        });
     }
 
     /**

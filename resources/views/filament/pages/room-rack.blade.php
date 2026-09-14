@@ -30,14 +30,14 @@
                             مهمان مقیم: <span class="font-medium">{{ $current->guest->name }}</span>
                         </div>
                         <div class="text-gray-500 dark:text-gray-400">
-                            تا {{ $current->check_out_date->format('Y/m/d') }}
+                            تا {{ $current->check_out_date->toJalali('Y/m/d') }}
                         </div>
                     @elseif ($upcoming)
                         <div class="text-gray-700 dark:text-gray-300">
                             رزرو بعدی: <span class="font-medium">{{ $upcoming->guest->name }}</span>
                         </div>
                         <div class="text-gray-500 dark:text-gray-400">
-                            از {{ $upcoming->check_in_date->format('Y/m/d') }}
+                            از {{ $upcoming->check_in_date->toJalali('Y/m/d') }}
                         </div>
                     @else
                         <div class="text-gray-400 dark:text-gray-500">رزروی ثبت نشده</div>

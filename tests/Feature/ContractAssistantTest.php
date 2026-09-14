@@ -192,7 +192,11 @@ class ContractAssistantTest extends TestCase
     public function test_the_print_page_shows_the_companys_letterhead_and_signature_block(): void
     {
         $company = Company::factory()->create(['name' => 'گنج‌نامه', 'representative_name' => 'آقای محمدی']);
-        $contract = Contract::factory()->create(['company_id' => $company->id, 'counterparty_name' => 'شرکت تست']);
+        $contract = Contract::factory()->create([
+            'company_id' => $company->id,
+            'counterparty_name' => 'شرکت تست',
+            'created_at' => '2026-09-14',
+        ]);
 
         $this->actingAs(User::factory()->create())
             ->get(route('contracts.print', $contract))
@@ -200,7 +204,11 @@ class ContractAssistantTest extends TestCase
             ->assertSee('گنج‌نامه')
             ->assertSee('آقای محمدی')
             ->assertSee('شرکت تست')
-            ->assertSee('دانلود Word');
+            ->assertSee('دانلود Word')
+            // The whole app shows Jalali dates, never Gregorian - "1405/06/23" is
+            // the Jalali equivalent of the Gregorian creation date set above.
+            ->assertSee('۱۴۰۵/۰۶/۲۳')
+            ->assertDontSee('2026/09/14');
     }
 
     public function test_the_word_export_route_is_forbidden_for_a_user_who_cannot_see_the_contract(): void

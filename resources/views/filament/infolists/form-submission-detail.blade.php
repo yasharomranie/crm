@@ -42,7 +42,7 @@
             </div>
             <div>
                 <dt class="text-xs text-gray-500 dark:text-gray-400">تاریخ ثبت</dt>
-                <dd class="font-medium text-gray-950 dark:text-white">{{ $submission->submitted_at?->format('Y/m/d H:i') }}</dd>
+                <dd class="font-medium text-gray-950 dark:text-white">{{ $submission->submitted_at?->toJalali('Y/m/d H:i') }}</dd>
             </div>
         </dl>
     </div>
@@ -103,7 +103,7 @@
                         <li class="text-sm">
                             <span class="font-medium {{ $actionColors[$action->action->value] ?? '' }}">{{ $action->action->getLabel() }}</span>
                             توسط <span class="font-medium text-gray-900 dark:text-gray-100">{{ $action->actor->name }}</span>
-                            <span class="text-xs text-gray-400">— {{ $action->acted_at->format('Y/m/d H:i') }}</span>
+                            <span class="text-xs text-gray-400">— {{ $action->acted_at->toJalali('Y/m/d H:i') }}</span>
                             @if ($action->comment)
                                 <div class="mt-0.5 text-xs text-gray-600 dark:text-gray-400">{{ $action->comment }}</div>
                             @endif

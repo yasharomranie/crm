@@ -42,6 +42,8 @@ class ExpensesRelationManager extends RelationManager
                     ->numeric()
                     ->required(),
                 DatePicker::make('spent_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ هزینه')
                     ->default(now())
                     ->required(),
@@ -57,7 +59,7 @@ class ExpensesRelationManager extends RelationManager
                 TextColumn::make('title')->label('شرح'),
                 TextColumn::make('phase.title')->label('آیتم WBS')->placeholder('—'),
                 TextColumn::make('amount')->label('مبلغ')->numeric()->suffix(' تومان'),
-                TextColumn::make('spent_at')->label('تاریخ')->date('Y/m/d'),
+                TextColumn::make('spent_at')->label('تاریخ')->jalaliDate('Y/m/d'),
             ])
             ->filters([
                 //

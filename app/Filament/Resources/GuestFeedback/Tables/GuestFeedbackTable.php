@@ -16,7 +16,7 @@ class GuestFeedbackTable
         return $table
             ->columns([
                 TextColumn::make('guest.name')->label('مشتری')->searchable(),
-                TextColumn::make('requested_at')->label('تاریخ درخواست')->dateTime('Y/m/d')->placeholder('—'),
+                TextColumn::make('requested_at')->label('تاریخ درخواست')->jalaliDateTime('Y/m/d')->placeholder('—'),
                 TextColumn::make('nps_score')->label('امتیاز NPS')->placeholder('در انتظار پاسخ'),
                 TextColumn::make('comment')->label('نظر')->limit(50)->placeholder('—'),
             ])

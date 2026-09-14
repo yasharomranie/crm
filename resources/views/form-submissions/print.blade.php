@@ -281,7 +281,7 @@
             @endif
             <div class="doc-tag">
                 شمارهٔ پیگیری: {{ $submission->reference_code }}<br>
-                {{ $submission->submitted_at?->format('Y/m/d H:i') }}
+                {{ $submission->submitted_at?->toJalali('Y/m/d H:i') }}
             </div>
         </div>
 
@@ -341,7 +341,7 @@
                     @foreach ($instance->actions as $action)
                         <li>
                             <strong>{{ $action->action->getLabel() }}</strong> — {{ $action->actor->name }}
-                            <span class="when">({{ $action->acted_at->format('Y/m/d H:i') }})</span>
+                            <span class="when">({{ $action->acted_at->toJalali('Y/m/d H:i') }})</span>
                             @if ($action->comment)
                                 <div class="comment">{{ $action->comment }}</div>
                             @endif
@@ -352,7 +352,7 @@
         @endif
 
         <footer class="doc-footer">
-            این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->format('Y/m/d H:i') }}
+            این سند توسط سامانهٔ گنج‌نامه تولید شده است — {{ now()->toJalali('Y/m/d H:i') }}
         </footer>
     </div>
 

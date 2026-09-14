@@ -53,6 +53,8 @@ class TaskForm
                     ->required()
                     ->hintAction(FieldHelp::make('tasks.status')),
                 DateTimePicker::make('due_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d H:i')
                     ->label('مهلت انجام')
                     ->hintAction(FieldHelp::make('tasks.due_at')),
                 Select::make('tags')

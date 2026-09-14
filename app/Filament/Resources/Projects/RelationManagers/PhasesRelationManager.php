@@ -74,8 +74,12 @@ class PhasesRelationManager extends RelationManager
                     ->maxValue(100)
                     ->default(0),
                 DatePicker::make('start_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ شروع'),
                 DatePicker::make('end_date')
+                    ->jalali()
+                    ->displayFormat('Y/m/d')
                     ->label('تاریخ پایان')
                     ->afterOrEqual('start_date'),
                 TextInput::make('sort_order')
@@ -97,8 +101,8 @@ class PhasesRelationManager extends RelationManager
                 TextColumn::make('predecessor.title')->label('وابسته به')->placeholder('—'),
                 TextColumn::make('weight')->label('وزن')->suffix('٪'),
                 TextColumn::make('progress_percent')->label('پیشرفت')->suffix('٪'),
-                TextColumn::make('start_date')->label('شروع')->date('Y/m/d')->placeholder('—'),
-                TextColumn::make('end_date')->label('پایان')->date('Y/m/d')->placeholder('—'),
+                TextColumn::make('start_date')->label('شروع')->jalaliDate('Y/m/d')->placeholder('—'),
+                TextColumn::make('end_date')->label('پایان')->jalaliDate('Y/m/d')->placeholder('—'),
             ])
             ->filters([
                 //

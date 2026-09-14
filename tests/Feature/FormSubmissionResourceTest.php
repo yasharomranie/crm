@@ -135,13 +135,17 @@ class FormSubmissionResourceTest extends TestCase
         $submission = FormSubmission::factory()->create([
             'submitted_by' => $submitter->id,
             'department_id' => $department->id,
+            'submitted_at' => '2026-09-14 08:05:00',
         ]);
 
         $this->actingAs($submitter)
             ->get(route('form-submissions.print', $submission))
             ->assertOk()
             ->assertSee('گنج‌نامه')
-            ->assertSee('دانلود Word');
+            ->assertSee('دانلود Word')
+            // The whole app shows Jalali dates, never Gregorian.
+            ->assertSee('۱۴۰۵/۰۶/۲۳')
+            ->assertDontSee('2026/09/14');
     }
 
     public function test_word_export_route_is_denied_to_someone_with_no_relation_to_the_submission(): void

@@ -20,7 +20,7 @@ class FormSubmissionsTable
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('—'),
                 TextColumn::make('submitter.name')->label('ثبت‌کننده'),
                 TextColumn::make('workflowInstance.currentStep.name')->label('در انتظار')->placeholder('—'),
-                TextColumn::make('submitted_at')->label('تاریخ ثبت')->dateTime('Y/m/d H:i')->sortable(),
+                TextColumn::make('submitted_at')->label('تاریخ ثبت')->jalaliDateTime('Y/m/d H:i')->sortable(),
             ])
             ->defaultSort('submitted_at', 'desc')
             ->filters([

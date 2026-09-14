@@ -24,8 +24,8 @@ class BookingsTable
                 TextColumn::make('reference_code')->label('کد رزرو')->fontFamily('mono')->searchable(),
                 TextColumn::make('room.name')->label('اتاق/ویلا'),
                 TextColumn::make('guest.name')->label('مهمان')->searchable(),
-                TextColumn::make('check_in_date')->label('ورود')->date('Y/m/d'),
-                TextColumn::make('check_out_date')->label('خروج')->date('Y/m/d'),
+                TextColumn::make('check_in_date')->label('ورود')->jalaliDate('Y/m/d'),
+                TextColumn::make('check_out_date')->label('خروج')->jalaliDate('Y/m/d'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
                 TextColumn::make('source')->label('منبع'),
             ])
