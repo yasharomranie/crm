@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\AiMessageRole;
+use App\Enums\ApproverType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\AiAssistant;
@@ -13,6 +14,7 @@ use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -29,17 +31,23 @@ class AiAssistantTest extends TestCase
     use RefreshDatabase;
 
     /**
-     * Logs in a user granted both "ai-assistant.report" and
-     * "ai-assistant.act" - the full-access role most of these tests need,
-     * since they exercise both the reporting tools and create_task. Tests
-     * for the permission gating itself build their own narrower roles.
+     * Logs in a user granted "ai-assistant.report", "ai-assistant.act", and
+     * the two normal resource permissions that design_workflow_draft /
+     * design_form_template_draft additionally require (see executeTool()'s
+     * "never grant more power than the user already has" check) - the
+     * full-access role most of these tests need, since they exercise
+     * reporting, create_task, and the design tools. Tests for the
+     * permission gating itself build their own narrower roles.
      */
     private function actingAsFullyPermittedAiUser(): User
     {
         $this->artisan('access-control:sync');
 
         $role = Role::create(['name' => 'مدیر کامل هوش مصنوعی']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', [
+            'ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act',
+            'workflow-definitions.create', 'form-templates.create',
+        ])->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);
@@ -386,6 +394,289 @@ class AiAssistantTest extends TestCase
 
             return str_contains($systemMessage['content'], now()->format('Y-m-d'));
         });
+    }
+
+    public function test_design_workflow_draft_creates_an_inactive_workflow_with_ordered_steps(): void
+    {
+        AiProvider::factory()->active()->create();
+        $techOfficer = User::factory()->create(['name' => 'زهرا احمدی']);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_workflow_draft',
+                                'arguments' => json_encode([
+                                    'name' => 'گردش‌کار درخواست مرخصی',
+                                    'steps' => [
+                                        ['name' => 'تأیید دفتر فنی', 'approver_type' => 'specific_user', 'approver_user_name' => 'زهرا احمدی'],
+                                        ['name' => 'تأیید مدیر دپارتمان', 'approver_type' => 'department_manager'],
+                                    ],
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'گردش‌کار به‌صورت پیش‌نویس ساخته شد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه گردش‌کار برای درخواست مرخصی بساز')
+            ->call('send');
+
+        $workflow = WorkflowDefinition::sole();
+        $this->assertSame('گردش‌کار درخواست مرخصی', $workflow->name);
+        $this->assertFalse($workflow->is_active);
+        $this->assertSame(2, $workflow->steps()->count());
+
+        $firstStep = $workflow->steps()->where('step_order', 1)->sole();
+        $this->assertSame($techOfficer->id, $firstStep->approver_user_id);
+
+        $secondStep = $workflow->steps()->where('step_order', 2)->sole();
+        $this->assertSame(ApproverType::DepartmentManager, $secondStep->approver_type);
+    }
+
+    public function test_design_workflow_draft_refuses_instead_of_creating_anything_when_an_approver_user_is_unmatched(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_workflow_draft',
+                                'arguments' => json_encode([
+                                    'name' => 'گردش‌کار درخواست مرخصی',
+                                    'steps' => [
+                                        ['name' => 'تأیید دفتر فنی', 'approver_type' => 'specific_user', 'approver_user_name' => 'کاربری که وجود ندارد'],
+                                    ],
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'چنین کاربری پیدا نشد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه گردش‌کار برای درخواست مرخصی بساز')
+            ->call('send');
+
+        $this->assertSame(0, WorkflowDefinition::count());
+
+        $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
+        $payload = json_decode($toolMessage->content, true);
+        $this->assertArrayHasKey('error', $payload);
+    }
+
+    public function test_design_form_template_draft_creates_an_inactive_form_with_a_step_scoped_field(): void
+    {
+        AiProvider::factory()->active()->create();
+        $workflow = WorkflowDefinition::factory()->create();
+        $step = WorkflowStep::factory()->create(['workflow_definition_id' => $workflow->id, 'name' => 'تأیید دفتر فنی']);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_form_template_draft',
+                                'arguments' => json_encode([
+                                    'title' => 'فرم درخواست مرخصی',
+                                    'workflow_definition_id' => $workflow->id,
+                                    'fields' => [
+                                        ['field_key' => 'reason', 'label' => 'دلیل مرخصی', 'field_type' => 'textarea', 'is_required' => true],
+                                        ['field_key' => 'tech_note', 'label' => 'نظر دفتر فنی', 'field_type' => 'text', 'workflow_step_name' => 'تأیید دفتر فنی'],
+                                    ],
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'فرم به‌صورت پیش‌نویس ساخته شد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه فرم درخواست مرخصی با نظر دفتر فنی بساز')
+            ->call('send');
+
+        $template = FormTemplate::sole();
+        $this->assertSame('فرم درخواست مرخصی', $template->title);
+        $this->assertFalse($template->is_active);
+        $this->assertSame($workflow->id, $template->workflow_definition_id);
+        $this->assertSame(['reason'], $template->generalFields->pluck('field_key')->all());
+
+        $techNoteField = $template->fields()->where('field_key', 'tech_note')->sole();
+        $this->assertSame($step->id, $techNoteField->workflow_step_id);
+    }
+
+    public function test_design_form_template_draft_refuses_an_invalid_field_key_instead_of_creating_a_broken_form(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_form_template_draft',
+                                'arguments' => json_encode([
+                                    'title' => 'فرم تست',
+                                    'fields' => [
+                                        ['field_key' => 'دلیل مرخصی', 'label' => 'دلیل مرخصی', 'field_type' => 'text'],
+                                    ],
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'کلید فیلد نامعتبر بود.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه فرم تست بساز')
+            ->call('send');
+
+        $this->assertSame(0, FormTemplate::count());
+    }
+
+    public function test_a_report_only_user_cannot_get_design_workflow_draft_to_execute(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_workflow_draft',
+                                'arguments' => json_encode(['name' => 'گردش‌کار تست', 'steps' => [
+                                    ['name' => 'مرحلهٔ ۱', 'approver_type' => 'department_manager'],
+                                ]]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'شما اجازهٔ این کار را ندارید.'],
+                ]],
+            ]);
+
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'گزارش‌گیر دستیار هوشمند دوم']);
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه گردش‌کار تست بساز')
+            ->call('send');
+
+        $this->assertSame(0, WorkflowDefinition::count());
+    }
+
+    /**
+     * Even with "ai-assistant.act" granted, design_workflow_draft must
+     * still refuse a user who lacks the normal "workflow-definitions.create"
+     * resource permission - the AI must never let someone build through
+     * chat what they couldn't build through the regular panel.
+     */
+    public function test_ai_assistant_act_alone_is_not_enough_to_design_a_workflow_without_the_underlying_resource_permission(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'design_workflow_draft',
+                                'arguments' => json_encode(['name' => 'گردش‌کار تست', 'steps' => [
+                                    ['name' => 'مرحلهٔ ۱', 'approver_type' => 'department_manager'],
+                                ]]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'شما اجازهٔ این کار را ندارید.'],
+                ]],
+            ]);
+
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'اقدام‌گر بدون دسترسی گردش‌کار']);
+        // "ai-assistant.act" without "workflow-definitions.create".
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.act'])->get());
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه گردش‌کار تست بساز')
+            ->call('send');
+
+        $this->assertSame(0, WorkflowDefinition::count());
     }
 
     public function test_alerts_flag_overdue_tasks(): void

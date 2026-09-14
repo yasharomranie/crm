@@ -3,8 +3,10 @@
 namespace App\Filament\Pages;
 
 use App\Enums\AiMessageRole;
+use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
+use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\ProjectStatus;
 use App\Enums\RoomStatus;
@@ -30,6 +32,7 @@ use App\Models\Room;
 use App\Models\SalesChannel;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use BackedEnum;
 use Filament\Notifications\Notification;
@@ -38,7 +41,9 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 use Morilog\Jalali\Jalalian;
+use Spatie\Permission\Models\Role;
 
 class AiAssistant extends Page
 {
@@ -218,6 +223,11 @@ class AiAssistant extends Page
             وقتی داده‌های عددی داری، آن‌ها را در قالب جدول Markdown نمایش بده. بعد از هر گزارش، در صورت لزوم یک جمع‌بندی کوتاه و یک پیشنهاد/هشدار عملی اضافه کن.
             اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن و نتیجه را به‌وضوح تأیید کن.
             مبالغ همیشه به تومان هستند.
+
+            دربارهٔ طراحی گردش‌کار و قالب فرم (design_workflow_draft و design_form_template_draft):
+            - اگر فرم درخواستی نیاز به چرخهٔ تأیید چندمرحله‌ای دارد، اول با design_workflow_draft گردش‌کار را بساز و بعد workflow_definition_id برگشتی را به design_form_template_draft بده. اگر فرم ساده است و نیاز به تأیید ندارد، فقط design_form_template_draft کافی است.
+            - هیچ‌وقت نام دپارتمان، کاربر یا نقش سازمانی را حدس نزن یا با نام مشابه/نزدیک جایگزین نکن؛ همیشه از لیستی که در همین پیام سیستم به تو داده شده استفاده کن. اگر چیزی که کاربر گفته دقیقاً در لیست نبود، اسم ندادنش را به کاربر بگو و از او بخواه دقیق‌تر مشخص کند یا نام‌های نزدیک موجود را پیشنهاد بده - هرگز آن را حدسی نساز.
+            - هر گردش‌کار و فرمی که با این ابزارها ساخته می‌شود، همیشه و بدون استثنا به‌صورت «غیرفعال» (پیش‌نویس) ذخیره می‌شود و تا وقتی یک انسان آن را از پنل بررسی و فعال نکند، در هیچ ثبت واقعی‌ای استفاده نخواهد شد - این محدودیت را همیشه صریح به کاربر یادآوری کن تا غافلگیر نشود.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -240,10 +250,24 @@ class AiAssistant extends Page
         // guessing one.
         $departments = Department::query()->orderBy('name')->pluck('name');
         $departmentNote = $departments->isNotEmpty()
-            ? 'دپارتمان‌های موجود در سیستم (برای پارامتر department_name در ابزار create_task دقیقاً از یکی از همین نام‌ها استفاده کن، نه نام حدسی یا مشابه): '.$departments->implode('، ').'.'
+            ? 'دپارتمان‌های موجود در سیستم (برای پارامتر department_name دقیقاً از یکی از همین نام‌ها استفاده کن، نه نام حدسی یا مشابه): '.$departments->implode('، ').'.'
             : null;
 
-        return collect([$base, $dateNote, $departmentNote])->filter()->implode("\n\n");
+        // design_workflow_draft needs real, exact user/role names to
+        // resolve approver_user_name/approver_role_name - same guessing
+        // problem as departments above, just for workflow steps instead of
+        // tasks.
+        $users = User::query()->orderBy('name')->pluck('name');
+        $userNote = $users->isNotEmpty()
+            ? 'کاربران موجود در سیستم (برای approver_user_name دقیقاً از یکی از همین نام‌ها استفاده کن): '.$users->implode('، ').'.'
+            : null;
+
+        $roles = Role::query()->orderBy('name')->pluck('name');
+        $roleNote = $roles->isNotEmpty()
+            ? 'نقش‌های سازمانی موجود در سیستم (برای approver_role_name دقیقاً از یکی از همین نام‌ها استفاده کن): '.$roles->implode('، ').'.'
+            : null;
+
+        return collect([$base, $dateNote, $departmentNote, $userNote, $roleNote])->filter()->implode("\n\n");
     }
 
     /**
@@ -259,7 +283,7 @@ class AiAssistant extends Page
      */
     private function executeTool(string $name, array $arguments): array
     {
-        $actionTools = ['create_task'];
+        $actionTools = ['create_task', 'design_workflow_draft', 'design_form_template_draft'];
 
         if (in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.act')) {
             return ['error' => 'شما اجازهٔ استفاده از این ابزار (اقدام) را ندارید.'];
@@ -267,6 +291,22 @@ class AiAssistant extends Page
 
         if (! in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.report')) {
             return ['error' => 'شما اجازهٔ استفاده از این ابزار (گزارش‌گیری) را ندارید.'];
+        }
+
+        // design_workflow_draft / design_form_template_draft create real
+        // structural records (even though always as an inactive draft), so
+        // beyond the general "ai-assistant.act" gate above, each also
+        // requires the acting user's own normal resource permission - the
+        // AI must never let someone create through chat what they couldn't
+        // create through the regular panel.
+        $requiredResourcePermission = match ($name) {
+            'design_workflow_draft' => 'workflow-definitions.create',
+            'design_form_template_draft' => 'form-templates.create',
+            default => null,
+        };
+
+        if ($requiredResourcePermission && ! Auth::user()?->can($requiredResourcePermission)) {
+            return ['error' => 'شما اجازهٔ ایجاد این نوع رکورد را در سیستم ندارید.'];
         }
 
         return match ($name) {
@@ -280,6 +320,8 @@ class AiAssistant extends Page
             'get_form_submissions_summary' => $this->formSubmissionsSummary(),
             'get_daily_checklist_compliance' => $this->dailyChecklistCompliance($arguments),
             'create_task' => $this->createTaskTool($arguments),
+            'design_workflow_draft' => $this->designWorkflowDraftTool($arguments),
+            'design_form_template_draft' => $this->designFormTemplateDraftTool($arguments),
             default => ['error' => "ابزار ناشناخته: {$name}"],
         };
     }
@@ -324,6 +366,63 @@ class AiAssistant extends Page
                 ],
                 'required' => ['title'],
             ]);
+
+            if ($user->can('workflow-definitions.create')) {
+                $tools[] = $this->toolSchema('design_workflow_draft', 'Design a new multi-step approval workflow as an INACTIVE draft - use when the manager asks to create/design a گردش‌کار (workflow) for form approvals. Always created disabled; a human must review and activate it manually in the panel before any form can use it. Call this before design_form_template_draft when the form needs an approval cycle.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'name' => ['type' => 'string', 'description' => 'Workflow name'],
+                        'steps' => [
+                            'type' => 'array',
+                            'description' => 'Ordered list of approval steps, in the order they happen',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'name' => ['type' => 'string', 'description' => 'Step name, e.g. "تأیید دفتر فنی"'],
+                                    'approver_type' => [
+                                        'type' => 'string',
+                                        'enum' => ['specific_user', 'department_manager', 'role'],
+                                        'description' => 'department_manager = the manager of whichever department submitted the form (no name needed); specific_user = one named person (requires approver_user_name, an exact name from the system prompt); role = anyone holding a named organizational role (requires approver_role_name, an exact name from the system prompt)',
+                                    ],
+                                    'approver_user_name' => ['type' => 'string', 'description' => 'Required when approver_type is specific_user - must exactly match a name given to you in the system prompt'],
+                                    'approver_role_name' => ['type' => 'string', 'description' => 'Required when approver_type is role - must exactly match a name given to you in the system prompt'],
+                                    'sla_hours' => ['type' => 'integer', 'description' => 'Optional response deadline in hours for this step'],
+                                ],
+                                'required' => ['name', 'approver_type'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['name', 'steps'],
+                ]);
+            }
+
+            if ($user->can('form-templates.create')) {
+                $tools[] = $this->toolSchema('design_form_template_draft', 'Design a new form template with its fields as an INACTIVE draft - use when the manager asks to create/design a فرم (form). Always created disabled; a human must review, adjust if needed, and activate it manually in the panel before employees can submit it. If the form needs an approval cycle, call design_workflow_draft first and pass its returned workflow_definition_id here.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'title' => ['type' => 'string'],
+                        'description' => ['type' => 'string', 'description' => 'Optional short description of what this form is for'],
+                        'department_name' => ['type' => 'string', 'description' => 'Optional - exact name of an existing department this form belongs to, from the system prompt'],
+                        'workflow_definition_id' => ['type' => 'integer', 'description' => 'Optional - the id returned by a design_workflow_draft call made earlier in this same conversation'],
+                        'fields' => [
+                            'type' => 'array',
+                            'items' => [
+                                'type' => 'object',
+                                'properties' => [
+                                    'field_key' => ['type' => 'string', 'description' => 'English snake_case technical key, unique within the form, e.g. subject or requested_amount'],
+                                    'label' => ['type' => 'string', 'description' => 'Persian display label'],
+                                    'field_type' => ['type' => 'string', 'enum' => ['text', 'textarea', 'number', 'date_jalali', 'select', 'radio', 'checkbox', 'file', 'signature', 'gps']],
+                                    'is_required' => ['type' => 'boolean'],
+                                    'options' => ['type' => 'object', 'description' => 'Required only for select/radio fields - a map of stored value to Persian label, e.g. {"low": "کم", "high": "زیاد"}'],
+                                    'workflow_step_name' => ['type' => 'string', 'description' => 'Optional - if set, this field is only filled in by whoever acts at that named step of the linked workflow (e.g. "نظر دفتر فنی"), instead of by the original submitter. Must exactly match a step name passed to design_workflow_draft.'],
+                                ],
+                                'required' => ['field_key', 'label', 'field_type'],
+                            ],
+                        ],
+                    ],
+                    'required' => ['title', 'fields'],
+                ]);
+            }
         }
 
         return $tools;
@@ -663,6 +762,287 @@ class AiAssistant extends Page
 
         return Department::query()->where('name', $name)->first()
             ?? Department::query()->where('name', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * Exact match first, then partial - same lookup shape as
+     * findDepartmentByName(), used for approver_user_name.
+     */
+    private function findUserByName(string $name): ?User
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return User::query()->where('name', $name)->first()
+            ?? User::query()->where('name', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * Exact match first, then partial - same lookup shape as
+     * findDepartmentByName(), used for approver_role_name.
+     */
+    private function findRoleByName(string $name): ?Role
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Role::query()->where('name', $name)->first()
+            ?? Role::query()->where('name', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * Creates a new approval workflow (name + ordered steps) as an
+     * INACTIVE draft - see the "never auto-activate" and "never guess a
+     * missing department/user/role" principles explained in
+     * getToolDefinitions()'s design_workflow_draft description. Every
+     * approver is resolved and validated BEFORE anything is written to the
+     * database: either the whole workflow is created correctly, or nothing
+     * is created at all - never a half-built workflow with a broken step.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function designWorkflowDraftTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['name'] ?? ''));
+        $stepsInput = $arguments['steps'] ?? [];
+
+        if ($name === '') {
+            return ['error' => 'نام گردش‌کار الزامی است. هیچ گردش‌کاری ساخته نشد.'];
+        }
+
+        if (! is_array($stepsInput) || count($stepsInput) === 0) {
+            return ['error' => 'حداقل یک مرحلهٔ تأیید لازم است. هیچ گردش‌کاری ساخته نشد.'];
+        }
+
+        $resolvedSteps = [];
+
+        foreach (array_values($stepsInput) as $index => $step) {
+            $stepNumber = $index + 1;
+            $stepName = trim((string) ($step['name'] ?? ''));
+            $approverType = ApproverType::tryFrom((string) ($step['approver_type'] ?? ''));
+
+            if ($stepName === '' || ! $approverType) {
+                return ['error' => "مرحلهٔ شمارهٔ {$stepNumber} نام یا نوع تأییدکنندهٔ معتبر ندارد. هیچ گردش‌کاری ساخته نشد."];
+            }
+
+            $approverUserId = null;
+            $approverRoleId = null;
+
+            if ($approverType === ApproverType::SpecificUser) {
+                $approverName = (string) ($step['approver_user_name'] ?? '');
+                $approverUser = $this->findUserByName($approverName);
+
+                if (! $approverUser) {
+                    return [
+                        'error' => "کاربری با نام «{$approverName}» برای مرحلهٔ «{$stepName}» پیدا نشد. هیچ گردش‌کاری ساخته نشد.",
+                        'available_users' => User::query()->orderBy('name')->pluck('name')->all(),
+                    ];
+                }
+
+                $approverUserId = $approverUser->id;
+            } elseif ($approverType === ApproverType::Role) {
+                $approverName = (string) ($step['approver_role_name'] ?? '');
+                $approverRole = $this->findRoleByName($approverName);
+
+                if (! $approverRole) {
+                    return [
+                        'error' => "نقشی با نام «{$approverName}» برای مرحلهٔ «{$stepName}» پیدا نشد. هیچ گردش‌کاری ساخته نشد.",
+                        'available_roles' => Role::query()->orderBy('name')->pluck('name')->all(),
+                    ];
+                }
+
+                $approverRoleId = $approverRole->id;
+            }
+            // ApproverType::DepartmentManager needs no lookup here - it's
+            // resolved dynamically per submission from the submitter's own
+            // department (see WorkflowStep::resolveApprovers()).
+
+            $resolvedSteps[] = [
+                'name' => $stepName,
+                'approver_type' => $approverType,
+                'approver_user_id' => $approverUserId,
+                'approver_role_id' => $approverRoleId,
+                'sla_hours' => filled($step['sla_hours'] ?? null) ? (int) $step['sla_hours'] : null,
+            ];
+        }
+
+        $workflow = DB::transaction(function () use ($name, $resolvedSteps) {
+            $workflow = WorkflowDefinition::create([
+                'name' => $name,
+                'subject_type' => FormSubmission::class,
+                // Always a draft - a human must review and activate this
+                // manually before any form can use it. Never exposed as a
+                // tool parameter the model could set to true.
+                'is_active' => false,
+            ]);
+
+            foreach ($resolvedSteps as $order => $step) {
+                $workflow->steps()->create([
+                    'step_order' => $order + 1,
+                    'name' => $step['name'],
+                    'approver_type' => $step['approver_type'],
+                    'approver_user_id' => $step['approver_user_id'],
+                    'approver_role_id' => $step['approver_role_id'],
+                    'sla_hours' => $step['sla_hours'],
+                ]);
+            }
+
+            return $workflow;
+        });
+
+        return [
+            'success' => true,
+            'workflow_definition_id' => $workflow->id,
+            'name' => $workflow->name,
+            'steps' => $workflow->steps()->orderBy('step_order')->pluck('name')->all(),
+            'message' => "گردش‌کار «{$workflow->name}» با ".count($resolvedSteps).' مرحله به‌صورت پیش‌نویس (غیرفعال) ساخته شد. تا وقتی یک مدیر آن را از بخش «فرم‌ساز و گردش‌کار ← گردش‌کارهای تأیید» بررسی و فعال نکند، در هیچ فرمی قابل استفاده نیست.',
+        ];
+    }
+
+    /**
+     * Creates a new form template (+ its fields) as an INACTIVE draft -
+     * mirrors designWorkflowDraftTool()'s "resolve everything first, write
+     * nothing until it's all valid" shape. See getToolDefinitions()'s
+     * design_form_template_draft description for the safety principles.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function designFormTemplateDraftTool(array $arguments): array
+    {
+        $title = trim((string) ($arguments['title'] ?? ''));
+        $fieldsInput = $arguments['fields'] ?? [];
+
+        if ($title === '') {
+            return ['error' => 'عنوان قالب فرم الزامی است. هیچ فرمی ساخته نشد.'];
+        }
+
+        if (! is_array($fieldsInput) || count($fieldsInput) === 0) {
+            return ['error' => 'حداقل یک فیلد برای فرم لازم است. هیچ فرمی ساخته نشد.'];
+        }
+
+        $workflow = null;
+
+        if (filled($arguments['workflow_definition_id'] ?? null)) {
+            $workflow = WorkflowDefinition::find($arguments['workflow_definition_id']);
+
+            if (! $workflow) {
+                return ['error' => "گردش‌کاری با شناسهٔ «{$arguments['workflow_definition_id']}» پیدا نشد. هیچ فرمی ساخته نشد."];
+            }
+        }
+
+        $department = null;
+
+        if (filled($arguments['department_name'] ?? null)) {
+            $department = $this->findDepartmentByName($arguments['department_name']);
+
+            if (! $department) {
+                return [
+                    'error' => "دپارتمانی با نام «{$arguments['department_name']}» پیدا نشد. هیچ فرمی ساخته نشد.",
+                    'available_departments' => Department::query()->orderBy('name')->pluck('name')->all(),
+                ];
+            }
+        }
+
+        // Step names -> ids, scoped to the linked workflow only - a field
+        // can never be scoped to some other workflow's step.
+        $stepIdsByName = $workflow ? $workflow->steps()->pluck('id', 'name') : collect();
+
+        $resolvedFields = [];
+        $seenKeys = [];
+
+        foreach (array_values($fieldsInput) as $index => $field) {
+            $fieldNumber = $index + 1;
+            $fieldKey = trim((string) ($field['field_key'] ?? ''));
+            $label = trim((string) ($field['label'] ?? ''));
+            $fieldType = FormFieldType::tryFrom((string) ($field['field_type'] ?? ''));
+
+            if ($fieldKey === '' || ! preg_match('/^[a-z][a-z0-9_]*$/', $fieldKey)) {
+                return ['error' => "کلید فیلد شمارهٔ {$fieldNumber} («{$fieldKey}») نامعتبر است - باید فقط شامل حروف انگلیسی کوچک، عدد و زیرخط باشد و با یک حرف شروع شود. هیچ فرمی ساخته نشد."];
+            }
+
+            if (isset($seenKeys[$fieldKey])) {
+                return ['error' => "کلید فیلد «{$fieldKey}» بیش از یک‌بار استفاده شده است. هیچ فرمی ساخته نشد."];
+            }
+
+            $seenKeys[$fieldKey] = true;
+
+            if ($label === '' || ! $fieldType) {
+                return ['error' => "فیلد شمارهٔ {$fieldNumber} برچسب یا نوع معتبر ندارد. هیچ فرمی ساخته نشد."];
+            }
+
+            $workflowStepId = null;
+
+            if (filled($field['workflow_step_name'] ?? null)) {
+                $stepName = (string) $field['workflow_step_name'];
+
+                if (! $stepIdsByName->has($stepName)) {
+                    return [
+                        'error' => "مرحلهٔ «{$stepName}» در گردش‌کار انتخابی پیدا نشد. هیچ فرمی ساخته نشد.",
+                        'available_steps' => $stepIdsByName->keys()->all(),
+                    ];
+                }
+
+                $workflowStepId = $stepIdsByName[$stepName];
+            }
+
+            $options = null;
+
+            if (in_array($fieldType, [FormFieldType::Select, FormFieldType::Radio], true)) {
+                $options = is_array($field['options'] ?? null) && count($field['options']) > 0
+                    ? $field['options']
+                    : null;
+
+                if (! $options) {
+                    return ['error' => "فیلد «{$label}» از نوع لیست کشویی/انتخاب تکی است ولی هیچ گزینه‌ای برایش مشخص نشده. هیچ فرمی ساخته نشد."];
+                }
+            }
+
+            $resolvedFields[] = [
+                'field_key' => $fieldKey,
+                'label' => $label,
+                'field_type' => $fieldType,
+                'is_required' => (bool) ($field['is_required'] ?? false),
+                'options' => $options,
+                'workflow_step_id' => $workflowStepId,
+                'sort_order' => $index,
+            ];
+        }
+
+        $template = DB::transaction(function () use ($title, $arguments, $workflow, $department, $resolvedFields) {
+            $template = FormTemplate::create([
+                'title' => $title,
+                'description' => filled($arguments['description'] ?? null) ? $arguments['description'] : null,
+                'department_id' => $department?->id,
+                'workflow_definition_id' => $workflow?->id,
+                // Always a draft - see designWorkflowDraftTool()'s note.
+                'is_active' => false,
+                'created_by' => Auth::id(),
+            ]);
+
+            foreach ($resolvedFields as $field) {
+                $template->fields()->create($field);
+            }
+
+            return $template;
+        });
+
+        return [
+            'success' => true,
+            'form_template_id' => $template->id,
+            'title' => $template->title,
+            'fields_count' => count($resolvedFields),
+            'department' => $department?->name,
+            'workflow' => $workflow?->name,
+            'message' => "قالب فرم «{$template->title}» با ".count($resolvedFields).' فیلد به‌صورت پیش‌نویس (غیرفعال) ساخته شد. تا وقتی یک مدیر آن را از بخش «فرم‌ساز و گردش‌کار ← قالب‌های فرم» بررسی، در صورت نیاز ویرایش و فعال نکند، هیچ کارمندی نمی‌تواند آن را ثبت کند.',
+        ];
     }
 
     /**
