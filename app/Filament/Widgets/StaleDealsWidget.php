@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
+use App\Filament\Support\TableExports;
 use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Actions\EditAction;
@@ -33,6 +34,10 @@ class StaleDealsWidget extends TableWidget
                     ->with(['guest', 'assignee'])
             )
             ->defaultSort('updated_at')
+            ->headerActions([
+                TableExports::excel('معاملات-راکد', static::exportColumns()),
+                TableExports::pdf('گزارش معاملات راکد', static::exportColumns()),
+            ])
             ->columns([
                 TextColumn::make('title')->label('عنوان'),
                 TextColumn::make('guest.name')->label('مشتری')->placeholder('—'),
@@ -54,5 +59,21 @@ class StaleDealsWidget extends TableWidget
             ->emptyStateDescription('همهٔ معاملات باز اخیراً به‌روزرسانی شده‌اند.')
             ->emptyStateIcon('heroicon-o-check-circle')
             ->paginated([5, 10, 25]);
+    }
+
+    /**
+     * @return array<string, \Closure(Deal): mixed>
+     */
+    private static function exportColumns(): array
+    {
+        return [
+            'عنوان' => fn (Deal $deal) => $deal->title,
+            'مشتری' => fn (Deal $deal) => $deal->guest?->name,
+            'مرحله' => fn (Deal $deal) => $deal->stage->getLabel(),
+            'کارشناس' => fn (Deal $deal) => $deal->assignee?->name,
+            'ارزش (تومان)' => fn (Deal $deal) => $deal->value ? number_format($deal->value) : null,
+            'آخرین به‌روزرسانی' => fn (Deal $deal) => $deal->updated_at->toJalali('Y/m/d'),
+            'روز بدون پیگیری' => fn (Deal $deal) => (int) $deal->updated_at->diffInDays(now()),
+        ];
     }
 }

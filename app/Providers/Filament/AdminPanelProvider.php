@@ -14,11 +14,13 @@ use Filament\Panel;
 use Filament\PanelProvider;
 use Filament\Support\Colors\Color;
 use Filament\Support\Icons\Heroicon;
+use Filament\View\PanelsRenderHook;
 use Illuminate\Cookie\Middleware\AddQueuedCookiesToResponse;
 use Illuminate\Cookie\Middleware\EncryptCookies;
 use Illuminate\Foundation\Http\Middleware\PreventRequestForgery;
 use Illuminate\Routing\Middleware\SubstituteBindings;
 use Illuminate\Session\Middleware\StartSession;
+use Illuminate\Support\HtmlString;
 use Illuminate\View\Middleware\ShareErrorsFromSession;
 
 class AdminPanelProvider extends PanelProvider
@@ -81,6 +83,22 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->authMiddleware([
                 Authenticate::class,
-            ]);
+            ])
+            // TableExports::pdf() (app/Filament/Support/TableExports.php) needs
+            // to open the rendered report in a new tab *after* it finishes
+            // building the file server-side - a plain link action can't do
+            // that (its url() is fixed at render time), so it dispatches this
+            // Livewire browser event instead and this one small listener
+            // handles it panel-wide.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): HtmlString => new HtmlString(<<<'HTML'
+                    <script>
+                        document.addEventListener('livewire:init', () => {
+                            Livewire.on('open-in-new-tab', ({ url }) => window.open(url, '_blank'));
+                        });
+                    </script>
+                    HTML),
+            );
     }
 }

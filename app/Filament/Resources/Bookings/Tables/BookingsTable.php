@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
+use App\Filament\Support\TableExports;
 use App\Models\Booking;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -32,6 +33,10 @@ class BookingsTable
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
+            ])
+            ->headerActions([
+                TableExports::excel('رزروها', static::exportColumns()),
+                TableExports::pdf('گزارش رزروها', static::exportColumns()),
             ])
             ->recordActions([
                 Action::make('checkIn')
@@ -71,5 +76,21 @@ class BookingsTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, \Closure(Booking): mixed>
+     */
+    private static function exportColumns(): array
+    {
+        return [
+            'کد رزرو' => fn (Booking $booking) => $booking->reference_code,
+            'اتاق/ویلا' => fn (Booking $booking) => $booking->room?->name,
+            'مهمان' => fn (Booking $booking) => $booking->guest?->name,
+            'ورود' => fn (Booking $booking) => $booking->check_in_date?->toJalali('Y/m/d'),
+            'خروج' => fn (Booking $booking) => $booking->check_out_date?->toJalali('Y/m/d'),
+            'وضعیت' => fn (Booking $booking) => $booking->status->getLabel(),
+            'منبع' => fn (Booking $booking) => $booking->source?->getLabel(),
+        ];
     }
 }

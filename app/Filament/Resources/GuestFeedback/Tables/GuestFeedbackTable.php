@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\GuestFeedback\Tables;
 
+use App\Filament\Support\TableExports;
+use App\Models\GuestFeedback;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -24,6 +26,10 @@ class GuestFeedbackTable
             ->filters([
                 //
             ])
+            ->headerActions([
+                TableExports::excel('بازخوردهای-مهمانان', static::exportColumns()),
+                TableExports::pdf('گزارش بازخورد و NPS مهمانان', static::exportColumns()),
+            ])
             ->recordActions([
                 EditAction::make(),
                 DeleteAction::make(),
@@ -33,5 +39,18 @@ class GuestFeedbackTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, \Closure(GuestFeedback): mixed>
+     */
+    private static function exportColumns(): array
+    {
+        return [
+            'مشتری' => fn (GuestFeedback $feedback) => $feedback->guest?->name,
+            'تاریخ درخواست' => fn (GuestFeedback $feedback) => $feedback->requested_at?->toJalali('Y/m/d'),
+            'امتیاز NPS' => fn (GuestFeedback $feedback) => $feedback->nps_score,
+            'نظر' => fn (GuestFeedback $feedback) => $feedback->comment,
+        ];
     }
 }

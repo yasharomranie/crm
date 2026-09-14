@@ -4,6 +4,7 @@ namespace App\Filament\Resources\GuestTickets\Tables;
 
 use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
+use App\Filament\Support\TableExports;
 use App\Models\GuestTicket;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -35,6 +36,10 @@ class GuestTicketsTable
                 SelectFilter::make('status')->label('وضعیت')->options(TicketStatus::class),
                 SelectFilter::make('priority')->label('فوریت')->options(TicketPriority::class),
             ])
+            ->headerActions([
+                TableExports::excel('تیکت‌های-پشتیبانی', static::exportColumns()),
+                TableExports::pdf('گزارش تیکت‌های پشتیبانی', static::exportColumns()),
+            ])
             ->recordActions([
                 EditAction::make(),
                 DeleteAction::make(),
@@ -44,5 +49,20 @@ class GuestTicketsTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, \Closure(GuestTicket): mixed>
+     */
+    private static function exportColumns(): array
+    {
+        return [
+            'مشتری' => fn (GuestTicket $ticket) => $ticket->guest?->name,
+            'موضوع' => fn (GuestTicket $ticket) => $ticket->subject,
+            'فوریت' => fn (GuestTicket $ticket) => $ticket->priority->getLabel(),
+            'وضعیت' => fn (GuestTicket $ticket) => $ticket->status->getLabel(),
+            'مهلت پاسخ' => fn (GuestTicket $ticket) => $ticket->sla_due_at?->toJalali('Y/m/d H:i'),
+            'معوق؟' => fn (GuestTicket $ticket) => $ticket->isOverdue() ? 'بله' : 'خیر',
+        ];
     }
 }

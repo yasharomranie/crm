@@ -8,6 +8,7 @@ use App\Filament\Resources\Guests\Pages\ListGuests;
 use App\Filament\Resources\Guests\Pages\ViewGuest;
 use App\Filament\Resources\Guests\Schemas\GuestInfolist;
 use App\Filament\Support\FieldHelp;
+use App\Filament\Support\TableExports;
 use App\Models\Guest;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
@@ -88,6 +89,10 @@ class GuestResource extends Resource
             ->filters([
                 //
             ])
+            ->headerActions([
+                TableExports::excel('مهمانان', static::exportColumns()),
+                TableExports::pdf('گزارش مهمانان', static::exportColumns()),
+            ])
             ->recordActions([
                 ViewAction::make(),
                 EditAction::make(),
@@ -98,6 +103,21 @@ class GuestResource extends Resource
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, \Closure(Guest): mixed>
+     */
+    private static function exportColumns(): array
+    {
+        return [
+            'نام' => fn (Guest $guest) => $guest->name,
+            'موبایل' => fn (Guest $guest) => $guest->mobile,
+            'کد ملی' => fn (Guest $guest) => $guest->national_code,
+            'سطح وفاداری' => fn (Guest $guest) => $guest->loyaltyTier()->getLabel(),
+            'کیف پول (تومان)' => fn (Guest $guest) => number_format($guest->wallet_balance),
+            'تعداد رزرو' => fn (Guest $guest) => $guest->bookings()->count(),
+        ];
     }
 
     public static function getRelations(): array
