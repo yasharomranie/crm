@@ -173,8 +173,13 @@
                         {{ $value->value ? 'بله' : 'خیر' }}
                     @elseif ($field->field_type->value === 'signature')
                         <img src="{{ $value->value }}" alt="امضا" height="70">
-                    @elseif ($field->field_type->value === 'gps' && is_array($value->value))
-                        {{ $value->value['lat'] ?? '—' }}, {{ $value->value['lng'] ?? '—' }}
+                    @elseif ($field->field_type->value === 'gps' && is_array($value->value) && isset($value->value['lat'], $value->value['lng']))
+                        {{ $value->value['lat'] }}, {{ $value->value['lng'] }}
+                        {{-- Word doesn't run the JS a live/static map would need (same
+                        reason the QR code above is skipped here) - a plain hyperlink
+                        to Google Maps is the one thing that's both real and reliable
+                        in an opened Word document. --}}
+                        <br><a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
                     @elseif ($field->field_type->value === 'file')
                         پیوست ثبت شده
                     @else

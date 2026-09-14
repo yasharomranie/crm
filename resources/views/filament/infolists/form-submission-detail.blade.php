@@ -63,7 +63,11 @@
                         @elseif ($field->field_type === FormFieldType::Signature)
                             <img src="{{ $value->value }}" alt="امضا" class="h-20 rounded border border-gray-200 bg-white dark:border-white/10" />
                         @elseif ($field->field_type === FormFieldType::Gps && is_array($value->value))
-                            عرض جغرافیایی {{ $value->value['lat'] ?? '—' }} — طول جغرافیایی {{ $value->value['lng'] ?? '—' }}
+                            @if (isset($value->value['lat'], $value->value['lng']))
+                                <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" class="max-w-md" />
+                            @else
+                                <span class="text-gray-400">—</span>
+                            @endif
                         @elseif ($field->field_type === FormFieldType::File)
                             <a href="{{ route('form-submissions.files.download', ['submission' => $submission, 'value' => $value]) }}" class="text-primary-600 underline dark:text-primary-400">دانلود فایل پیوست</a>
                         @else

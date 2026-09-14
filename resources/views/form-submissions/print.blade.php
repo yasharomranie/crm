@@ -313,7 +313,11 @@
                         @elseif ($field->field_type->value === 'signature')
                             <img class="signature" src="{{ $value->value }}" alt="امضا">
                         @elseif ($field->field_type->value === 'gps' && is_array($value->value))
-                            {{ $value->value['lat'] ?? '—' }}, {{ $value->value['lng'] ?? '—' }}
+                            @if (isset($value->value['lat'], $value->value['lng']))
+                                <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" />
+                            @else
+                                —
+                            @endif
                         @elseif ($field->field_type->value === 'file')
                             پیوست ثبت شده
                         @else
