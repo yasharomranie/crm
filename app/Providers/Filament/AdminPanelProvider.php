@@ -90,12 +90,31 @@ class AdminPanelProvider extends PanelProvider
             // that (its url() is fixed at render time), so it dispatches this
             // Livewire browser event instead and this one small listener
             // handles it panel-wide.
+            //
+            // This clicks a real <a target="_blank"> instead of calling
+            // window.open() directly: by the time this listener runs, the
+            // AJAX round trip for the action has already finished, so the
+            // browser no longer sees it as "directly caused by the click"
+            // and window.open() gets silently popup-blocked in most
+            // browsers. A synthetic anchor click is exactly what Livewire's
+            // own file-download feature does for the same reason (see
+            // vendor/livewire/livewire/js/features/supportFileDownloads.js)
+            // and isn't subject to that restriction.
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): HtmlString => new HtmlString(<<<'HTML'
                     <script>
                         document.addEventListener('livewire:init', () => {
-                            Livewire.on('open-in-new-tab', ({ url }) => window.open(url, '_blank'));
+                            Livewire.on('open-in-new-tab', ({ url }) => {
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.target = '_blank';
+                                link.rel = 'noopener';
+                                link.style.display = 'none';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                            });
                         });
                     </script>
                     HTML),
