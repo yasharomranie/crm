@@ -7,10 +7,11 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\SoftDeletes;
 
 class FormField extends Model
 {
-    use HasFactory;
+    use HasFactory, SoftDeletes;
 
     protected $fillable = [
         'form_template_id', 'field_key', 'label', 'field_type',
@@ -34,10 +35,11 @@ class FormField extends Model
     }
 
     /**
-     * form_submission_values.form_field_id is cascadeOnDelete() - deleting
-     * this field permanently deletes every submitted answer for it, across
-     * every past submission. FieldsRelationManager uses this to warn (with
-     * the real count) before that happens instead of doing it silently.
+     * Every submitted answer for this field, across every past submission.
+     * Because FormField soft-deletes, removing a field from the form
+     * builder never cascades into deleting these - they stay put, and old
+     * submissions keep showing them (see form-submission-detail.blade.php,
+     * which loads fields ->withTrashed() for exactly this reason).
      */
     public function values(): HasMany
     {

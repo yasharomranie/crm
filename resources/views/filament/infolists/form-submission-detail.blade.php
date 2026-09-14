@@ -51,7 +51,10 @@
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900">
         <h3 class="mb-3 text-sm font-semibold text-gray-950 dark:text-white">اطلاعات ثبت‌شده</h3>
         <dl class="space-y-3">
-            @foreach ($template->fields as $field)
+            {{-- ->withTrashed(): a field removed from the form builder since
+                this submission was made must still show here - it's soft-
+                deleted, not gone, precisely so old answers stay visible. --}}
+            @foreach ($template->fields()->withTrashed()->get() as $field)
                 @php $value = $valuesByField->get($field->id); @endphp
                 <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0 dark:border-white/5">
                     <dt class="text-xs text-gray-500 dark:text-gray-400">{{ $field->label }}</dt>

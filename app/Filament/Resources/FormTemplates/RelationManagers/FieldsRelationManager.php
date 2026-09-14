@@ -38,7 +38,19 @@ class FieldsRelationManager extends RelationManager
                     ->label('کلید فنی فیلد')
                     ->helperText('فقط حروف انگلیسی و زیرخط، بدون فاصله. مثلاً: description')
                     ->required()
-                    ->maxLength(255),
+                    ->maxLength(255)
+                    // Not a DB-level unique() (form_fields no longer has one -
+                    // see its migration): FormField soft-deletes, so a plain
+                    // unique() would reject reusing a key that only belongs
+                    // to a *deleted* field. scopedUnique() queries through
+                    // FormField's default (non-trashed) scope, so recreating
+                    // a field with the same key as one you just removed
+                    // works, while two currently-active fields on the same
+                    // template still can't collide.
+                    ->scopedUnique(
+                        ignoreRecord: true,
+                        modifyQueryUsing: fn ($query) => $query->where('form_template_id', $this->getOwnerRecord()->id),
+                    ),
                 TextInput::make('label')
                     ->label('برچسب نمایشی (فارسی)')
                     ->required()
@@ -98,11 +110,12 @@ class FieldsRelationManager extends RelationManager
     }
 
     /**
-     * form_submission_values.form_field_id is cascadeOnDelete() - deleting
-     * a field permanently deletes every submitted answer for it, across
-     * every past submission, with no way back. This is the warning that
-     * makes that consequence explicit before someone (accidentally) does
-     * it - see FormField::values() for why the count is trustworthy.
+     * FormField soft-deletes, so this is no longer destructive: removing a
+     * field here just hides it from the form builder and from any *new*
+     * submission - every existing submission that already answered it
+     * keeps showing that answer (see form-submission-detail.blade.php's
+     * ->withTrashed()). This still tells the admin the real, honest
+     * consequence rather than a generic "are you sure?".
      */
     private static function deleteWarning(int $valuesCount): string
     {
@@ -110,6 +123,6 @@ class FieldsRelationManager extends RelationManager
             return 'این فیلد هیچ پاسخ ثبت‌شده‌ای ندارد و حذف آن بی‌خطر است.';
         }
 
-        return "هشدار: {$valuesCount} پاسخ ثبت‌شده برای این فیلد وجود دارد. حذف فیلد، این پاسخ‌ها را برای همیشه از تمام فرم‌های ثبت‌شده (قبلی) پاک می‌کند و غیرقابل بازگشت است. اگر فقط می‌خواهید فیلد را اصلاح کنید، به‌جای حذف از دکمهٔ ویرایش استفاده کنید.";
+        return "این فیلد {$valuesCount} پاسخ ثبت‌شده دارد. با حذف آن، فیلد از فرم‌های جدید حذف می‌شود اما پاسخ‌های ثبت‌شدهٔ قبلی حفظ می‌شوند و همچنان در مشاهدهٔ سابمیشن‌های قبلی نمایش داده می‌شوند.";
     }
 }

@@ -301,7 +301,10 @@
         </span>
 
         <dl class="fields">
-            @foreach ($submission->formTemplate->fields as $field)
+            {{-- ->withTrashed(): show fields even if removed from the form
+                builder since this was submitted - they're soft-deleted, not
+                gone, precisely so this historical record stays accurate. --}}
+            @foreach ($submission->formTemplate->fields()->withTrashed()->get() as $field)
                 @php $value = $submission->values->firstWhere('form_field_id', $field->id); @endphp
                 <div>
                     <dt>{{ $field->label }}</dt>
