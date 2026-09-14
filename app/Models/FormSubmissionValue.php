@@ -18,6 +18,16 @@ class FormSubmissionValue extends Model
     protected function casts(): array
     {
         return [
+            // Without these, some MySQL/PDO driver configurations return
+            // foreign key columns as strings instead of ints - harmless for
+            // Eloquent relations (which use loose comparison internally),
+            // but deadly for any ===/!== check against another model's id
+            // (FormSubmissionFileController::show() compares this against
+            // FormSubmission::$id with ===, which silently 404s a real,
+            // correctly-stored file the moment this column comes back as a
+            // string on a server where it did).
+            'form_submission_id' => 'integer',
+            'form_field_id' => 'integer',
             'value_number' => 'decimal:4',
             'value_date' => 'date',
             'value_json' => 'array',

@@ -29,7 +29,7 @@ class ViewFormSubmission extends ViewRecord
         $instance = $this->record->workflowInstance;
         $user = Auth::user();
         $canAct = $instance?->canBeActedOnBy($user) || $user->hasRole('admin');
-        $canCancel = $instance?->status->value === 'in_progress' && $this->record->submitted_by === $user->id;
+        $canCancel = $instance?->status->value === 'in_progress' && (int) $this->record->submitted_by === (int) $user->id;
 
         return [
             Action::make('approve')

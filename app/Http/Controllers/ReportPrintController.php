@@ -21,7 +21,7 @@ class ReportPrintController extends Controller
         $cached = Cache::get("report-print:{$token}");
 
         abort_if($cached === null, 410, 'این گزارش منقضی شده است. لطفاً دوباره خروجی PDF را بگیرید.');
-        abort_unless($cached['user_id'] === $request->user()->id, 403, 'شما به این گزارش دسترسی ندارید.');
+        abort_unless((int) $cached['user_id'] === (int) $request->user()->id, 403, 'شما به این گزارش دسترسی ندارید.');
 
         return response($cached['html']);
     }

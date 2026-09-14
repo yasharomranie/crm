@@ -26,6 +26,11 @@ class FormSubmission extends Model
     protected function casts(): array
     {
         return [
+            // 'submitted_by' cast to int: without it, some MySQL/PDO driver
+            // configurations return this foreign key as a string, which
+            // silently breaks the strict === check in isVisibleTo() below
+            // (see FormSubmissionValue for the same bug, confirmed live).
+            'submitted_by' => 'integer',
             'status' => FormSubmissionStatus::class,
             'submitted_at' => 'datetime',
         ];
@@ -133,7 +138,7 @@ class FormSubmission extends Model
             return true;
         }
 
-        if ($this->submitted_by === $user->id) {
+        if ((int) $this->submitted_by === (int) $user->id) {
             return true;
         }
 

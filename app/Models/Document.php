@@ -23,6 +23,11 @@ class Document extends Model
     protected function casts(): array
     {
         return [
+            // 'uploaded_by' cast to int: without it, some MySQL/PDO driver
+            // configurations return this foreign key as a string, which
+            // silently breaks the strict === check in isVisibleTo() below
+            // (see FormSubmissionValue for the same bug, confirmed live).
+            'uploaded_by' => 'integer',
             'access_level' => DocumentAccessLevel::class,
         ];
     }
@@ -116,7 +121,7 @@ class Document extends Model
             DocumentAccessLevel::DepartmentOnly => $this->department_id !== null
                 && $user->department !== null
                 && in_array($this->department_id, $user->department->selfAndAncestorIds(), true),
-            DocumentAccessLevel::Restricted => $this->uploaded_by === $user->id
+            DocumentAccessLevel::Restricted => (int) $this->uploaded_by === (int) $user->id
                 || $this->shares()->where('user_id', $user->id)->exists(),
         };
     }

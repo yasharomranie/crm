@@ -81,7 +81,7 @@ class WorkflowInstance extends Model
         }
 
         if ($type === WorkflowActionType::Cancel) {
-            if (! ($this->subject instanceof FormSubmission) || $this->subject->submitted_by !== $actor->id) {
+            if (! ($this->subject instanceof FormSubmission) || (int) $this->subject->submitted_by !== (int) $actor->id) {
                 throw WorkflowException::onlySubmitterCanCancel();
             }
         } elseif (! $actor->hasRole('admin') && ! $this->canBeActedOnBy($actor)) {
