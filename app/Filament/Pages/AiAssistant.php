@@ -228,7 +228,7 @@ class AiAssistant extends Page
         // format, removes that guesswork.
         $now = now();
         $dateNote = sprintf(
-            'تاریخ و ساعت فعلی سیستم: %s میلادی (برابر با %s شمسی). هر تاریخ نسبی که کاربر می‌گوید (فردا، جمعه، دو روز دیگر، هفتهٔ آینده و...) را دقیقاً بر اساس همین تاریخ محاسبه کن، نه بر اساس حدس یا اطلاعات قدیمی خودت. هنگام صدا زدن ابزار create_task، مقدار due_at را همیشه به‌صورت تاریخ کامل میلادی با فرمت Y-m-d H:i بفرست.',
+            'تاریخ و ساعت فعلی سیستم: %s میلادی (برابر با %s شمسی). هر تاریخ نسبی که کاربر می‌گوید (فردا، جمعه، دو روز دیگر، هفتهٔ آینده و...) را دقیقاً بر اساس همین تاریخ محاسبه کن، نه بر اساس حدس یا اطلاعات قدیمی خودت. هنگام صدا زدن ابزار create_task، مقدار due_at را همیشه به‌صورت تاریخ کامل میلادی با فرمت Y-m-d H:i بفرست. بعد از اجرای create_task، اگر due_at ثبت شده بود، برای گفتن تاریخ به کاربر دقیقاً از همان رشتهٔ due_at_jalali که خود ابزار در خروجی برمی‌گرداند استفاده کن - هیچ‌وقت خودت میلادی را به شمسی تبدیل نکن، چون این تبدیل دستی همیشه اشتباه از آب درمی‌آید.',
             $now->format('Y-m-d H:i (l)'),
             Jalalian::fromCarbon($now)->format('%d %B %Y ساعت %H:%M'),
         );
@@ -641,7 +641,12 @@ class AiAssistant extends Page
             'task_id' => $task->id,
             'title' => $task->title,
             'department' => $department?->name,
-            'due_at' => $task->due_at?->format('Y-m-d H:i'),
+            'due_at_gregorian' => $task->due_at?->format('Y-m-d H:i'),
+            // Pre-converted so the model never does its own Gregorian ->
+            // Jalali math when telling the user the due date back - that
+            // conversion is exactly where it kept getting the date wrong,
+            // even though due_at itself was already saved correctly.
+            'due_at_jalali' => $task->due_at ? Jalalian::fromCarbon($task->due_at)->format('%d %B %Y') : null,
             'message' => "وظیفهٔ «{$task->title}» با موفقیت ایجاد شد.",
         ];
     }

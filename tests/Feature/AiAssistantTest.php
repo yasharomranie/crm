@@ -19,6 +19,7 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use Morilog\Jalali\Jalalian;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -267,6 +268,60 @@ class AiAssistantTest extends TestCase
         $payload = json_decode($toolMessage->content, true);
         $this->assertArrayHasKey('error', $payload);
         $this->assertContains('دپارتمان فروش', $payload['available_departments']);
+    }
+
+    /**
+     * Regression test: due_at itself was always being saved correctly, but
+     * the tool used to only hand the model back the Gregorian date, leaving
+     * the model to convert it to Jalali itself for its reply - and that
+     * manual conversion was consistently wrong (e.g. reporting "۱۵ شهریور"
+     * for a date that was really "۲۴ شهریور"). The tool must now do that
+     * conversion itself and hand back a ready-to-quote Jalali string.
+     */
+    public function test_the_create_task_tool_returns_a_pre_converted_jalali_due_date_so_the_model_never_converts_it_itself(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'create_task',
+                                'arguments' => json_encode([
+                                    'title' => 'گزارش فردا',
+                                    'due_at' => now()->addDay()->format('Y-m-d H:i'),
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'وظیفه ایجاد شد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یک وظیفه برای فردا بساز')
+            ->call('send');
+
+        $task = Task::sole();
+        $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
+        $payload = json_decode($toolMessage->content, true);
+
+        $this->assertSame(
+            Jalalian::fromCarbon($task->due_at)->format('%d %B %Y'),
+            $payload['due_at_jalali'],
+        );
     }
 
     public function test_the_create_task_tool_refuses_an_unparseable_due_date_instead_of_creating_a_task_with_a_wrong_date(): void
