@@ -18,17 +18,40 @@ use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
+use Spatie\Permission\Models\Permission;
+use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 class AiAssistantTest extends TestCase
 {
     use RefreshDatabase;
 
+    /**
+     * Logs in a user granted both "ai-assistant.report" and
+     * "ai-assistant.act" - the full-access role most of these tests need,
+     * since they exercise both the reporting tools and create_task. Tests
+     * for the permission gating itself build their own narrower roles.
+     */
+    private function actingAsFullyPermittedAiUser(): User
+    {
+        $this->artisan('access-control:sync');
+
+        $role = Role::create(['name' => 'مدیر کامل هوش مصنوعی']);
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'])->get());
+
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $this->actingAs($user);
+
+        return $user;
+    }
+
     public function test_sending_a_message_without_an_active_provider_does_not_call_out(): void
     {
         Http::fake();
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'سلام')
@@ -49,7 +72,7 @@ class AiAssistantTest extends TestCase
             ]),
         ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         $component = Livewire::test(AiAssistant::class)
             ->set('body', 'سلام')
@@ -94,7 +117,7 @@ class AiAssistantTest extends TestCase
                 ]],
             ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'چند تا وظیفه باز داریم؟')
@@ -145,7 +168,7 @@ class AiAssistantTest extends TestCase
                 ]],
             ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای تماس با تأمین‌کننده بساز')
@@ -213,7 +236,7 @@ class AiAssistantTest extends TestCase
                 ]],
             ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'وضعیت فرم‌ها و کارتابل تأییدات چیه؟')
@@ -271,7 +294,7 @@ class AiAssistantTest extends TestCase
                 ]],
             ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'زهرا چند روز این ماه چک‌لیست روزانه رو ثبت نکرده؟')
@@ -320,7 +343,7 @@ class AiAssistantTest extends TestCase
                 ]],
             ]);
 
-        $this->actingAs(User::factory()->create());
+        $this->actingAsFullyPermittedAiUser();
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'فرم ناموجود رو چک کن')
@@ -328,5 +351,83 @@ class AiAssistantTest extends TestCase
 
         $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
         $this->assertStringContainsString('پیدا نشد', $toolMessage->content);
+    }
+
+    public function test_a_user_without_any_ai_permission_gets_no_tools_offered_and_a_direct_answer(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['role' => 'assistant', 'content' => 'سلام! چطور می‌توانم کمک کنم؟']],
+                ],
+            ]),
+        ]);
+
+        // A page-access-only user - not granted "ai-assistant.report" or
+        // "ai-assistant.act" - should never even be offered a tool.
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'مشاهده‌گر دستیار هوشمند']);
+        $role->givePermissionTo(Permission::where('name', 'ai-assistant.access')->sole());
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'سلام')
+            ->call('send');
+
+        Http::assertSent(function ($request) {
+            return ! array_key_exists('tools', $request->data());
+        });
+    }
+
+    public function test_a_report_only_user_cannot_get_create_task_to_execute_even_if_the_model_calls_it(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        // Simulates a stale/replayed tool_call for "create_task" - a tool
+        // that should never even be offered to a report-only user - to
+        // prove executeTool()'s own permission check is real, not just the
+        // tool list filtering in getToolDefinitions().
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'create_task',
+                                'arguments' => json_encode(['title' => 'تماس با تأمین‌کننده']),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'شما اجازهٔ این کار را ندارید.'],
+                ]],
+            ]);
+
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'گزارش‌گیر دستیار هوشمند']);
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یک وظیفه برای تماس با تأمین‌کننده بساز')
+            ->call('send');
+
+        $this->assertDatabaseMissing('tasks', ['title' => 'تماس با تأمین‌کننده']);
+
+        $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
+        $this->assertStringContainsString('اجازه', $toolMessage->content);
     }
 }

@@ -82,8 +82,8 @@ class SyncAccessControlPermissions extends Command
             }
         }
 
-        foreach (array_keys(config('access-control.pages', [])) as $module) {
-            foreach (array_keys(self::PAGE_ACTIONS) as $action) {
+        foreach (config('access-control.pages', []) as $module => $definition) {
+            foreach (array_keys($definition['actions'] ?? self::PAGE_ACTIONS) as $action) {
                 $names[] = "{$module}.{$action}";
             }
         }
@@ -125,7 +125,7 @@ class SyncAccessControlPermissions extends Command
         foreach (config('access-control.pages', []) as $module => $definition) {
             $grouped[$definition['group']][$module] = [
                 'label' => $definition['label'],
-                'permissions' => collect(self::PAGE_ACTIONS)
+                'permissions' => collect($definition['actions'] ?? self::PAGE_ACTIONS)
                     ->mapWithKeys(fn (string $label, string $action) => ["{$module}.{$action}" => $label])
                     ->all(),
             ];

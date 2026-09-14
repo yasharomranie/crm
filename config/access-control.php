@@ -101,7 +101,16 @@ return [
     |
     */
     'pages' => [
-        'ai-assistant' => ['page' => AiAssistant::class, 'label' => 'دستیار هوشمند', 'group' => 'دستیار هوشمند مدیریتی'],
+        'ai-assistant' => [
+            'page' => AiAssistant::class,
+            'label' => 'دستیار هوشمند',
+            'group' => 'دستیار هوشمند مدیریتی',
+            'actions' => [
+                'access' => 'دسترسی به صفحه',
+                'report' => 'گزارش‌گیری (ابزارهای خواندنی)',
+                'act' => 'اقدام (ایجاد تسک و موارد مشابه)',
+            ],
+        ],
         'messenger' => ['page' => Messenger::class, 'label' => 'پیام‌رسان', 'group' => 'ارتباطات داخلی'],
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],

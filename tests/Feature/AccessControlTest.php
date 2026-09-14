@@ -32,6 +32,29 @@ class AccessControlTest extends TestCase
         $this->assertTrue(Permission::where('name', 'ai-assistant.access')->exists());
     }
 
+    public function test_a_page_module_can_define_its_own_custom_actions_beyond_plain_access(): void
+    {
+        // "ai-assistant" is the one page module with a custom, 3-action
+        // "actions" array (access/report/act) instead of the single
+        // "access" every other page module falls back to - see
+        // config/access-control.php and SyncAccessControlPermissions.
+        $this->assertTrue(Permission::where('name', 'ai-assistant.access')->exists());
+        $this->assertTrue(Permission::where('name', 'ai-assistant.report')->exists());
+        $this->assertTrue(Permission::where('name', 'ai-assistant.act')->exists());
+
+        // Every other page module is unaffected and still gets exactly one.
+        $this->assertTrue(Permission::where('name', 'messenger.access')->exists());
+        $this->assertFalse(Permission::where('name', 'messenger.report')->exists());
+
+        $grouped = SyncAccessControlPermissions::groupedDefinitions();
+        $aiAssistantPermissions = $grouped['دستیار هوشمند مدیریتی']['ai-assistant']['permissions'];
+
+        $this->assertSame(
+            ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'],
+            array_keys($aiAssistantPermissions),
+        );
+    }
+
     public function test_sync_command_removes_permissions_no_longer_defined_by_any_module(): void
     {
         Permission::create(['name' => 'a-removed-module.view_any', 'guard_name' => 'web']);

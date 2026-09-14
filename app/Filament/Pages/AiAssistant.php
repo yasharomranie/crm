@@ -225,8 +225,26 @@ class AiAssistant extends Page
      * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
+    /**
+     * Reporting tools require "ai-assistant.report"; action tools (that
+     * change data) require "ai-assistant.act". Both getToolDefinitions()
+     * (what the model is even offered) and executeTool() (a defense-in-depth
+     * check in case a stale tool_call from history is ever replayed) enforce
+     * this, so a user who loses a permission can never get an action tool to
+     * actually run even if the model still asks for it.
+     */
     private function executeTool(string $name, array $arguments): array
     {
+        $actionTools = ['create_task'];
+
+        if (in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.act')) {
+            return ['error' => 'شما اجازهٔ استفاده از این ابزار (اقدام) را ندارید.'];
+        }
+
+        if (! in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.report')) {
+            return ['error' => 'شما اجازهٔ استفاده از این ابزار (گزارش‌گیری) را ندارید.'];
+        }
+
         return match ($name) {
             'get_accommodation_summary' => $this->accommodationSummary(),
             'get_crm_summary' => $this->crmSummary(),
@@ -248,17 +266,19 @@ class AiAssistant extends Page
     private function getToolDefinitions(): array
     {
         $noParams = ['type' => 'object', 'properties' => (object) [], 'required' => []];
+        $user = Auth::user();
+        $tools = [];
 
-        return [
-            $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams),
-            $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams),
-            $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams),
-            $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams),
-            $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams),
-            $this->toolSchema('get_channel_manager_summary', 'Get commission owed and active booking counts per OTA sales channel.', $noParams),
-            $this->toolSchema('list_alerts', 'Get the system\'s current rule-based alerts across all modules (overdue tasks, over-budget projects, breached ticket SLAs, chronic lateness, low occupancy).', $noParams),
-            $this->toolSchema('get_form_submissions_summary', 'Get a system-wide snapshot of the dynamic form builder & approval workflow module: how many submissions are pending approval (overall and per form), this month\'s approved/rejected counts, and how many in-progress approvals have breached their step\'s SLA.', $noParams),
-            $this->toolSchema('get_daily_checklist_compliance', 'For a specific recurring/daily form template (e.g. an employee\'s daily checklist), check which days in "this_week" or "this_month" (Jalali calendar) have no submission - i.e. which days were missed. Optionally scope to one employee by name; otherwise every employee who has ever submitted that form is checked. Use this for questions like "which days did an employee not submit their daily checklist this month".', [
+        if ($user?->can('ai-assistant.report')) {
+            $tools[] = $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams);
+            $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
+            $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
+            $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
+            $tools[] = $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams);
+            $tools[] = $this->toolSchema('get_channel_manager_summary', 'Get commission owed and active booking counts per OTA sales channel.', $noParams);
+            $tools[] = $this->toolSchema('list_alerts', 'Get the system\'s current rule-based alerts across all modules (overdue tasks, over-budget projects, breached ticket SLAs, chronic lateness, low occupancy).', $noParams);
+            $tools[] = $this->toolSchema('get_form_submissions_summary', 'Get a system-wide snapshot of the dynamic form builder & approval workflow module: how many submissions are pending approval (overall and per form), this month\'s approved/rejected counts, and how many in-progress approvals have breached their step\'s SLA.', $noParams);
+            $tools[] = $this->toolSchema('get_daily_checklist_compliance', 'For a specific recurring/daily form template (e.g. an employee\'s daily checklist), check which days in "this_week" or "this_month" (Jalali calendar) have no submission - i.e. which days were missed. Optionally scope to one employee by name; otherwise every employee who has ever submitted that form is checked. Use this for questions like "which days did an employee not submit their daily checklist this month".', [
                 'type' => 'object',
                 'properties' => [
                     'form_template_name' => ['type' => 'string', 'description' => 'Name (or partial name) of the form template to check'],
@@ -266,8 +286,11 @@ class AiAssistant extends Page
                     'period' => ['type' => 'string', 'enum' => ['this_week', 'this_month'], 'description' => 'Defaults to this_month'],
                 ],
                 'required' => ['form_template_name'],
-            ]),
-            $this->toolSchema('create_task', 'Create a new task/action item and assign it to a department - use this when the user explicitly asks to create, assign, or schedule a task.', [
+            ]);
+        }
+
+        if ($user?->can('ai-assistant.act')) {
+            $tools[] = $this->toolSchema('create_task', 'Create a new task/action item and assign it to a department - use this when the user explicitly asks to create, assign, or schedule a task.', [
                 'type' => 'object',
                 'properties' => [
                     'title' => ['type' => 'string', 'description' => 'Task title'],
@@ -276,8 +299,10 @@ class AiAssistant extends Page
                     'due_at' => ['type' => 'string', 'description' => 'Due date/time as an ISO 8601 or natural date string'],
                 ],
                 'required' => ['title'],
-            ]),
-        ];
+            ]);
+        }
+
+        return $tools;
     }
 
     /**
