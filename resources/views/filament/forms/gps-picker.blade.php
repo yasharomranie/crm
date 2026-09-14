@@ -15,7 +15,7 @@
             marker: null,
             init() {
                 this.syncParsed(this.$refs.input.value);
-                this.$nextTick(() => this.renderMap());
+                this.renderMap();
             },
             syncParsed(raw) {
                 try { this.parsed = raw ? JSON.parse(raw) : null; } catch (e) { this.parsed = null; }
@@ -25,26 +25,40 @@
                     return;
                 }
 
-                const point = [this.parsed.lat, this.parsed.lng];
+                // The map container sits inside an x-show block that's
+                // display:none until a point exists - Alpine only flips
+                // that *after* this tick finishes, so if renderMap() runs
+                // in direct response to setting `parsed` (as opposed to
+                // after $nextTick), the container is still 0x0 the instant
+                // L.map() reads its size, and Leaflet is left showing a
+                // blank white box forever after (invalidateSize() later
+                // does not reliably recover from that). Every caller of
+                // renderMap() must go through $nextTick() first - never
+                // call this directly.
+                this.$nextTick(() => {
+                    const point = [this.parsed.lat, this.parsed.lng];
 
-                if (! this.map) {
-                    this.map = L.map(this.$refs.mapContainer, { attributionControl: true }).setView(point, 16);
-                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                        maxZoom: 19,
-                        attribution: '&copy; OpenStreetMap',
-                    }).addTo(this.map);
-                    this.marker = L.marker(point).addTo(this.map);
-                } else {
-                    this.map.setView(point, 16);
-                    this.marker.setLatLng(point);
-                }
+                    if (! this.map) {
+                        this.map = L.map(this.$refs.mapContainer, { attributionControl: true }).setView(point, 16);
+                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                            maxZoom: 19,
+                            attribution: '&copy; OpenStreetMap',
+                        }).addTo(this.map);
+                        this.marker = L.marker(point).addTo(this.map);
+                    } else {
+                        this.map.setView(point, 16);
+                        this.marker.setLatLng(point);
+                    }
 
-                // The map container is hidden (x-show, display:none) until a
-                // point exists, and Leaflet sizes its canvas from the
-                // container's dimensions at creation time - if that
-                // happened while hidden, the tiles render into a 0x0 box.
-                // invalidateSize() re-measures it now that it's visible.
-                this.$nextTick(() => this.map?.invalidateSize());
+                    // Belt-and-suspenders on top of the $nextTick() above:
+                    // requestAnimationFrame waits for the browser's next
+                    // layout/paint pass too, and the extra invalidateSize()
+                    // after a short delay covers slower devices where even
+                    // that isn't quite enough time for the container's
+                    // final size to settle.
+                    requestAnimationFrame(() => this.map?.invalidateSize());
+                    setTimeout(() => this.map?.invalidateSize(), 300);
+                });
             },
             locate() {
                 this.error = null;
