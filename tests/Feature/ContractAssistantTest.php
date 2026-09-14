@@ -188,4 +188,52 @@ class ContractAssistantTest extends TestCase
             ->assertOk()
             ->assertSee($contract->title);
     }
+
+    public function test_the_print_page_shows_the_companys_letterhead_and_signature_block(): void
+    {
+        $company = Company::factory()->create(['name' => 'گنج‌نامه', 'representative_name' => 'آقای محمدی']);
+        $contract = Contract::factory()->create(['company_id' => $company->id, 'counterparty_name' => 'شرکت تست']);
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('contracts.print', $contract))
+            ->assertOk()
+            ->assertSee('گنج‌نامه')
+            ->assertSee('آقای محمدی')
+            ->assertSee('شرکت تست')
+            ->assertSee('دانلود Word');
+    }
+
+    public function test_the_word_export_route_is_forbidden_for_a_user_who_cannot_see_the_contract(): void
+    {
+        $contract = Contract::factory()->create();
+
+        $role = Role::create(['name' => 'بدون دسترسی قرارداد ۲']);
+        $user = User::factory()->create();
+        $user->assignRole($role);
+
+        $this->actingAs($user)
+            ->get(route('contracts.export-word', $contract))
+            ->assertForbidden();
+    }
+
+    public function test_the_word_export_route_downloads_an_ms_word_document(): void
+    {
+        $company = Company::factory()->create(['name' => 'گنج‌نامه']);
+        $contract = Contract::factory()->create([
+            'company_id' => $company->id,
+            'title' => 'قرارداد آزمایشی',
+            'body' => 'متن کامل قرارداد آزمایشی',
+        ]);
+
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('contracts.export-word', $contract));
+
+        $response->assertOk()
+            ->assertHeader('Content-Type', 'application/vnd.ms-word; charset=UTF-8')
+            ->assertSee('گنج‌نامه')
+            ->assertSee('متن کامل قرارداد آزمایشی');
+
+        $this->assertStringContainsString('attachment;', $response->headers->get('Content-Disposition'));
+        $this->assertStringContainsString('.doc', $response->headers->get('Content-Disposition'));
+    }
 }

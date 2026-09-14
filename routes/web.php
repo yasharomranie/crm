@@ -17,6 +17,8 @@ Route::middleware('auth')->group(function () {
         ->name('document-versions.download');
     Route::get('/contracts/{contract}/print', [ContractPrintController::class, 'show'])
         ->name('contracts.print');
+    Route::get('/contracts/{contract}/export-word', [ContractPrintController::class, 'exportWord'])
+        ->name('contracts.export-word');
     Route::get('/form-submissions/{submission}/print', [FormSubmissionPrintController::class, 'show'])
         ->name('form-submissions.print');
     Route::get('/form-submissions/{submission}/files/{value}', [FormSubmissionFileController::class, 'show'])
