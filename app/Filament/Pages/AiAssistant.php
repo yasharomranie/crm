@@ -14,6 +14,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
+use App\Enums\WorkflowActionType;
 use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
@@ -25,6 +26,7 @@ use App\Models\BookingCharge;
 use App\Models\Deal;
 use App\Models\Department;
 use App\Models\FormSubmission;
+use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
 use App\Models\GuestTicket;
 use App\Models\Project;
@@ -32,8 +34,10 @@ use App\Models\Room;
 use App\Models\SalesChannel;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
+use App\Models\WorkflowStep;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -228,6 +232,9 @@ class AiAssistant extends Page
             - اگر فرم درخواستی نیاز به چرخهٔ تأیید چندمرحله‌ای دارد، اول با design_workflow_draft گردش‌کار را بساز و بعد workflow_definition_id برگشتی را به design_form_template_draft بده. اگر فرم ساده است و نیاز به تأیید ندارد، فقط design_form_template_draft کافی است.
             - هیچ‌وقت نام دپارتمان، کاربر یا نقش سازمانی را حدس نزن یا با نام مشابه/نزدیک جایگزین نکن؛ همیشه از لیستی که در همین پیام سیستم به تو داده شده استفاده کن. اگر چیزی که کاربر گفته دقیقاً در لیست نبود، اسم ندادنش را به کاربر بگو و از او بخواه دقیق‌تر مشخص کند یا نام‌های نزدیک موجود را پیشنهاد بده - هرگز آن را حدسی نساز.
             - هر گردش‌کار و فرمی که با این ابزارها ساخته می‌شود، همیشه و بدون استثنا به‌صورت «غیرفعال» (پیش‌نویس) ذخیره می‌شود و تا وقتی یک انسان آن را از پنل بررسی و فعال نکند، در هیچ ثبت واقعی‌ای استفاده نخواهد شد - این محدودیت را همیشه صریح به کاربر یادآوری کن تا غافلگیر نشود.
+            - اگر design_form_template_draft بگوید فرم مشابهی از قبل وجود دارد (needs_confirmation)، فرم جدیدی نساز؛ اول به کاربر بگو فرم مشابه چیست و بپرس آیا با وجود این فرم جدید می‌خواهد، و فقط با تأیید صریح او دوباره با confirm_similar_duplicate=true تماس بگیر.
+            - برای افزودن فیلد به فرم موجود از add_field_to_form_template استفاده کن (هرگز فیلد قبلی را حذف یا نوعش را عوض نمی‌کند)، و برای تغییر نام/مهلت پاسخ‌گویی یک مرحلهٔ موجود از update_workflow_step - این ابزار هرگز تأییدکنندهٔ یک مرحله را عوض نمی‌کند چون ممکن است تأییدهای در جریان را به فرد اشتباهی منتقل کند.
+            - get_rejection_reasons فقط متن خام نظرات رد را برمی‌گرداند؛ دسته‌بندی و خلاصه‌سازی دلایل رد کار خودت است، نه ابزار.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -283,7 +290,10 @@ class AiAssistant extends Page
      */
     private function executeTool(string $name, array $arguments): array
     {
-        $actionTools = ['create_task', 'design_workflow_draft', 'design_form_template_draft'];
+        $actionTools = [
+            'create_task', 'design_workflow_draft', 'design_form_template_draft',
+            'add_field_to_form_template', 'update_workflow_step',
+        ];
 
         if (in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.act')) {
             return ['error' => 'شما اجازهٔ استفاده از این ابزار (اقدام) را ندارید.'];
@@ -302,6 +312,8 @@ class AiAssistant extends Page
         $requiredResourcePermission = match ($name) {
             'design_workflow_draft' => 'workflow-definitions.create',
             'design_form_template_draft' => 'form-templates.create',
+            'add_field_to_form_template' => 'form-templates.update',
+            'update_workflow_step' => 'workflow-definitions.update',
             default => null,
         };
 
@@ -322,6 +334,16 @@ class AiAssistant extends Page
             'create_task' => $this->createTaskTool($arguments),
             'design_workflow_draft' => $this->designWorkflowDraftTool($arguments),
             'design_form_template_draft' => $this->designFormTemplateDraftTool($arguments),
+            'get_workflow_bottleneck_analysis' => $this->workflowBottleneckAnalysisTool($arguments),
+            'get_approver_performance' => $this->approverPerformanceTool($arguments),
+            'get_rejection_reasons' => $this->rejectionReasonsTool($arguments),
+            'compare_form_submissions_between_periods' => $this->comparePeriodsTool($arguments),
+            'search_form_submissions' => $this->searchFormSubmissionsTool($arguments),
+            'summarize_submission_for_decision' => $this->summarizeSubmissionTool($arguments),
+            'get_at_risk_sla_submissions' => $this->atRiskSlaSubmissionsTool(),
+            'get_workflow_health_check' => $this->workflowHealthCheckTool(),
+            'add_field_to_form_template' => $this->addFieldToFormTemplateTool($arguments),
+            'update_workflow_step' => $this->updateWorkflowStepTool($arguments),
             default => ['error' => "ابزار ناشناخته: {$name}"],
         };
     }
@@ -353,6 +375,65 @@ class AiAssistant extends Page
                 ],
                 'required' => ['form_template_name'],
             ]);
+
+            $tools[] = $this->toolSchema('get_workflow_bottleneck_analysis', 'Analyze which approval steps across form workflows take the longest to get acted on (approved/rejected/etc), on average, ranked worst first - use this for questions like "which step is the biggest bottleneck in our approval process".', [
+                'type' => 'object',
+                'properties' => [
+                    'workflow_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one workflow to scope the analysis to; omit to analyze every workflow'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max number of steps to return, worst first - defaults to 5'],
+                ],
+                'required' => [],
+            ]);
+
+            $tools[] = $this->toolSchema('get_approver_performance', 'Per-approver stats across form workflow actions: how many they approved/rejected, their rejection rate compared to the system average, and their average response time - use this for questions about who is fast/slow, or who rejects unusually often or rarely (rubber-stamping).', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one approver to scope to; omit to list every approver'],
+                ],
+                'required' => [],
+            ]);
+
+            $tools[] = $this->toolSchema('get_rejection_reasons', 'Get the raw list of recent rejection comments across form submissions (optionally scoped to one form), so you can read and summarize/categorize the actual reasons yourself in your answer - e.g. "what are the most common reasons contracts get rejected".', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one form to scope to'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max number of rejection comments to return - defaults to 30, max 100'],
+                ],
+                'required' => [],
+            ]);
+
+            $tools[] = $this->toolSchema('compare_form_submissions_between_periods', 'Compare submitted/approved/rejected/pending counts for this Jalali month vs last Jalali month, optionally scoped to one form - use for questions like "how does this month compare to last month".', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one form to scope to; omit to compare across every form'],
+                ],
+                'required' => [],
+            ]);
+
+            $tools[] = $this->toolSchema('search_form_submissions', 'Search past submissions of one form by a specific field\'s value - e.g. "show purchase requests over 500 million toman". Returns matching submissions (id, submitter, date, status), not full answers - use summarize_submission_for_decision on a specific id for full detail.', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Exact or partial name of the form to search within'],
+                    'field_key' => ['type' => 'string', 'description' => 'Optional - technical key of the field to filter on (omit to just filter by status/date)'],
+                    'operator' => ['type' => 'string', 'enum' => ['==', '!=', '>', '>=', '<', '<=', 'contains'], 'description' => 'Comparison operator for field_key\'s value - defaults to =='],
+                    'value' => ['type' => 'string', 'description' => 'Value to compare field_key against - a plain number for numeric fields, or Y-m-d Gregorian for date fields'],
+                    'status' => ['type' => 'string', 'enum' => ['pending_approval', 'approved', 'rejected'], 'description' => 'Optional status filter'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 100'],
+                ],
+                'required' => ['form_template_name'],
+            ]);
+
+            $tools[] = $this->toolSchema('summarize_submission_for_decision', 'Get full detail on one specific form submission (every answered field) plus, for its numeric fields, how it compares to the average/min/max of past decided submissions of the same form - use this to help the manager decide on a specific pending request by its id.', [
+                'type' => 'object',
+                'properties' => [
+                    'submission_id' => ['type' => 'integer', 'description' => 'The form submission\'s id'],
+                ],
+                'required' => ['submission_id'],
+            ]);
+
+            $tools[] = $this->toolSchema('get_at_risk_sla_submissions', 'Get in-progress approvals that have NOT yet breached their current step\'s SLA but are close to it (70%+ of the allotted time elapsed) - a preventive warning before list_alerts/get_form_submissions_summary would flag them as already breached.', $noParams);
+
+            $tools[] = $this->toolSchema('get_workflow_health_check', 'Find structural misconfigurations in active form approval workflows: a step whose specific approver user no longer exists, a role-based step whose role has no members, an active workflow with zero steps, or a form needing "department manager" approval whose department has no manager set.', $noParams);
         }
 
         if ($user?->can('ai-assistant.act')) {
@@ -404,6 +485,7 @@ class AiAssistant extends Page
                         'description' => ['type' => 'string', 'description' => 'Optional short description of what this form is for'],
                         'department_name' => ['type' => 'string', 'description' => 'Optional - exact name of an existing department this form belongs to, from the system prompt'],
                         'workflow_definition_id' => ['type' => 'integer', 'description' => 'Optional - the id returned by a design_workflow_draft call made earlier in this same conversation'],
+                        'confirm_similar_duplicate' => ['type' => 'boolean', 'description' => 'If a form with a very similar title already exists, the tool refuses and lists it instead of creating a duplicate. Only pass true here, after telling the user about the similar form and getting their explicit confirmation that they still want a new one.'],
                         'fields' => [
                             'type' => 'array',
                             'items' => [
@@ -421,6 +503,41 @@ class AiAssistant extends Page
                         ],
                     ],
                     'required' => ['title', 'fields'],
+                ]);
+            }
+
+            if ($user->can('form-templates.update')) {
+                $tools[] = $this->toolSchema('add_field_to_form_template', 'Add ONE new field to an EXISTING form template (active or draft) - use when the manager asks to add a field to a form that already exists. Never deletes or changes any existing field; only appends a new one, so it never loses past submissions\' data.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'form_template_name' => ['type' => 'string', 'description' => 'Exact or partial name of the existing form to add the field to'],
+                        'field' => [
+                            'type' => 'object',
+                            'properties' => [
+                                'field_key' => ['type' => 'string', 'description' => 'English snake_case technical key, unique within the form'],
+                                'label' => ['type' => 'string', 'description' => 'Persian display label'],
+                                'field_type' => ['type' => 'string', 'enum' => ['text', 'textarea', 'number', 'date_jalali', 'select', 'radio', 'checkbox', 'file', 'signature', 'gps']],
+                                'is_required' => ['type' => 'boolean'],
+                                'options' => ['type' => 'object', 'description' => 'Required only for select/radio fields - a map of stored value to Persian label'],
+                                'workflow_step_name' => ['type' => 'string', 'description' => 'Optional - exact name of a step in this form\'s own linked workflow, to scope this field to that step instead of initial submission'],
+                            ],
+                            'required' => ['field_key', 'label', 'field_type'],
+                        ],
+                    ],
+                    'required' => ['form_template_name', 'field'],
+                ]);
+            }
+
+            if ($user->can('workflow-definitions.update')) {
+                $tools[] = $this->toolSchema('update_workflow_step', 'Update an EXISTING workflow step\'s name and/or SLA deadline only - use when the manager asks to rename a step or change its response deadline. Never changes who approves at that step (approver_type/identity), since that could silently redirect approvals already pending there.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'workflow_name' => ['type' => 'string', 'description' => 'Exact or partial name of the existing workflow'],
+                        'step_name' => ['type' => 'string', 'description' => 'Exact or partial current name of the step to update'],
+                        'new_name' => ['type' => 'string', 'description' => 'Optional new name for the step'],
+                        'sla_hours' => ['type' => 'integer', 'description' => 'Optional new SLA deadline in hours - pass 0 or omit entirely to leave it unchanged, there is no way to clear an existing SLA through this tool'],
+                    ],
+                    'required' => ['workflow_name', 'step_name'],
                 ]);
             }
         }
@@ -928,6 +1045,30 @@ class AiAssistant extends Page
             return ['error' => 'حداقل یک فیلد برای فرم لازم است. هیچ فرمی ساخته نشد.'];
         }
 
+        // Duplicate-form guard: refuse (rather than silently create a
+        // near-duplicate) unless the caller explicitly confirms it wants a
+        // new form anyway - the same "never guess, ask for confirmation"
+        // principle as the department/user/role lookups below, just for
+        // "does this already exist" instead of "does this exist at all".
+        if (! ($arguments['confirm_similar_duplicate'] ?? false)) {
+            $similarTitles = FormTemplate::query()
+                ->get(['title'])
+                ->filter(function (FormTemplate $existing) use ($title) {
+                    similar_text(mb_strtolower($existing->title), mb_strtolower($title), $percent);
+
+                    return $percent >= 70;
+                })
+                ->pluck('title');
+
+            if ($similarTitles->isNotEmpty()) {
+                return [
+                    'needs_confirmation' => true,
+                    'message' => 'فرم(های) بسیار مشابهی از قبل وجود دارد. اگر کاربر مطمئن است که با وجود این، فرم جدیدی می‌خواهد، همین ابزار را دوباره با confirm_similar_duplicate=true صدا بزن؛ در غیر این صورت پیشنهاد بده از فرم موجود استفاده شود.',
+                    'similar_existing_forms' => $similarTitles->values()->all(),
+                ];
+            }
+        }
+
         $workflow = null;
 
         if (filled($arguments['workflow_definition_id'] ?? null)) {
@@ -1043,6 +1184,597 @@ class AiAssistant extends Page
             'workflow' => $workflow?->name,
             'message' => "قالب فرم «{$template->title}» با ".count($resolvedFields).' فیلد به‌صورت پیش‌نویس (غیرفعال) ساخته شد. تا وقتی یک مدیر آن را از بخش «فرم‌ساز و گردش‌کار ← قالب‌های فرم» بررسی، در صورت نیاز ویرایش و فعال نکند، هیچ کارمندی نمی‌تواند آن را ثبت کند.',
         ];
+    }
+
+    // --- Form/workflow analytics tools -----------------------------------
+
+    /**
+     * Walks every past instance of (optionally, one) workflow and, for
+     * each recorded action, computes how long the subject sat at that step
+     * before it was acted on - the time since the instance started (for a
+     * step's first action) or since the previous action (for any later
+     * one). There is no dedicated "entered this step at" column, so this
+     * is the same approximation get_form_submissions_summary's SLA-breach
+     * check already relies on, just applied to every historical step
+     * instead of only the current one.
+     *
+     * @return Collection<int, array{workflow_name: ?string, step_name: ?string, actor_name: ?string, action: WorkflowActionType, hours: float}>
+     */
+    private function workflowActionDurations(?string $workflowName = null): Collection
+    {
+        $instances = WorkflowInstance::query()
+            ->where('subject_type', FormSubmission::class)
+            ->when($workflowName, fn ($query) => $query->whereHas(
+                'workflowDefinition',
+                fn ($q) => $q->where('name', 'like', "%{$workflowName}%"),
+            ))
+            ->with(['workflowDefinition', 'actions.workflowStep', 'actions.actor'])
+            ->get();
+
+        $rows = new Collection;
+
+        foreach ($instances as $instance) {
+            $previousAt = $instance->started_at;
+
+            foreach ($instance->actions as $action) {
+                if ($previousAt) {
+                    $rows->push([
+                        'workflow_name' => $instance->workflowDefinition?->name,
+                        'step_name' => $action->workflowStep?->name,
+                        'actor_name' => $action->actor?->name,
+                        'action' => $action->action,
+                        'hours' => (float) $previousAt->diffInHours($action->acted_at),
+                    ]);
+                }
+
+                $previousAt = $action->acted_at;
+            }
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function workflowBottleneckAnalysisTool(array $arguments): array
+    {
+        $durations = $this->workflowActionDurations($arguments['workflow_name'] ?? null);
+
+        if ($durations->isEmpty()) {
+            return ['message' => 'داده‌ای برای تحلیل گلوگاه یافت نشد - هنوز هیچ اقدامی روی گردش‌کارها ثبت نشده است.'];
+        }
+
+        $limit = max(1, (int) ($arguments['limit'] ?? 5));
+
+        $bySteps = $durations
+            ->groupBy(fn (array $row) => ($row['workflow_name'] ?? '؟').' ← '.($row['step_name'] ?? '؟'))
+            ->map(fn (Collection $rows, string $label) => [
+                'workflow_and_step' => $label,
+                'average_hours' => round($rows->avg('hours'), 1),
+                'sample_count' => $rows->count(),
+            ])
+            ->sortByDesc('average_hours')
+            ->take($limit)
+            ->values();
+
+        return ['bottlenecks' => $bySteps->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function approverPerformanceTool(array $arguments): array
+    {
+        $userNameFilter = trim((string) ($arguments['user_name'] ?? ''));
+        $durations = $this->workflowActionDurations();
+
+        $decisions = $durations->whereIn('action', [WorkflowActionType::Approve, WorkflowActionType::Reject]);
+        $systemRejectionRate = $decisions->isNotEmpty()
+            ? $decisions->where('action', WorkflowActionType::Reject)->count() / $decisions->count()
+            : 0.0;
+
+        $byActor = $decisions
+            ->filter(fn (array $row) => filled($row['actor_name']))
+            ->groupBy('actor_name')
+            ->when($userNameFilter !== '', fn (Collection $groups) => $groups->filter(
+                fn (Collection $rows, string $actorName) => str_contains($actorName, $userNameFilter),
+            ))
+            ->map(function (Collection $rows, string $actorName) {
+                $approved = $rows->where('action', WorkflowActionType::Approve)->count();
+                $rejected = $rows->where('action', WorkflowActionType::Reject)->count();
+
+                return [
+                    'user' => $actorName,
+                    'approved_count' => $approved,
+                    'rejected_count' => $rejected,
+                    'rejection_rate_percent' => round($rejected / max(1, $approved + $rejected) * 100, 1),
+                    'average_response_hours' => round($rows->avg('hours'), 1),
+                ];
+            })
+            ->values();
+
+        if ($byActor->isEmpty()) {
+            return ['message' => $userNameFilter !== ''
+                ? "تأییدکننده‌ای با نام مشابه «{$userNameFilter}» در تاریخچهٔ اقدامات پیدا نشد."
+                : 'هنوز هیچ تأیید یا ردی در گردش‌کارها ثبت نشده است.'];
+        }
+
+        return [
+            'system_average_rejection_rate_percent' => round($systemRejectionRate * 100, 1),
+            'approvers' => $byActor->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function rejectionReasonsTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 30)));
+
+        $actions = WorkflowAction::query()
+            ->where('action', WorkflowActionType::Reject)
+            ->whereNotNull('comment')
+            ->where('comment', '!=', '')
+            ->with(['actor', 'workflowStep', 'workflowInstance.subject'])
+            ->latest('acted_at')
+            // A generous ceiling to filter within, well above any
+            // realistic $limit - keeps this a single query regardless of
+            // the optional form-name filter below, which can't be
+            // expressed through a plain whereHas() across a morphTo chain.
+            ->limit(300)
+            ->get()
+            ->filter(fn (WorkflowAction $action) => $action->workflowInstance?->subject instanceof FormSubmission)
+            ->when($formName !== '', fn (Collection $rows) => $rows->filter(
+                fn (WorkflowAction $action) => str_contains(
+                    $action->workflowInstance->subject->formTemplate?->title ?? '',
+                    $formName,
+                ),
+            ))
+            ->take($limit);
+
+        if ($actions->isEmpty()) {
+            return ['message' => 'هیچ ردی با نظر ثبت‌شده یافت نشد.'];
+        }
+
+        return [
+            'count' => $actions->count(),
+            'rejections' => $actions->map(fn (WorkflowAction $action) => [
+                'form' => $action->workflowInstance->subject->formTemplate?->title,
+                'step' => $action->workflowStep?->name,
+                'rejected_by' => $action->actor?->name,
+                'comment' => $action->comment,
+                'date' => $action->acted_at?->format('Y-m-d'),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function comparePeriodsTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+
+        $thisMonth = Jalalian::now();
+        $lastMonth = $thisMonth->subMonths(1);
+
+        $ranges = [
+            'این ماه' => [$thisMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $thisMonth->getEndDayOfMonth()->toCarbon()->endOfDay()->min(now())],
+            'ماه قبل' => [$lastMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $lastMonth->getEndDayOfMonth()->toCarbon()->endOfDay()],
+        ];
+
+        $comparison = [];
+
+        foreach ($ranges as $label => [$start, $end]) {
+            $base = FormSubmission::query()->whereBetween('submitted_at', [$start, $end]);
+
+            if ($formName !== '') {
+                $base->whereHas('formTemplate', fn ($q) => $q->where('title', 'like', "%{$formName}%"));
+            }
+
+            $comparison[$label] = [
+                'submitted' => (clone $base)->count(),
+                'approved' => (clone $base)->where('status', FormSubmissionStatus::Approved)->count(),
+                'rejected' => (clone $base)->where('status', FormSubmissionStatus::Rejected)->count(),
+                'still_pending' => (clone $base)->where('status', FormSubmissionStatus::PendingApproval)->count(),
+            ];
+        }
+
+        return [
+            'form' => $formName !== '' ? $formName : 'همهٔ فرم‌ها',
+            'comparison' => $comparison,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchFormSubmissionsTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $template = $formName !== '' ? $this->findFormTemplateByName($formName) : null;
+
+        if (! $template) {
+            return [
+                'error' => "قالب فرمی با نام «{$formName}» پیدا نشد.",
+                'available_forms' => FormTemplate::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $query = FormSubmission::query()->where('form_template_id', $template->id)->with('submitter');
+
+        $status = FormSubmissionStatus::tryFrom((string) ($arguments['status'] ?? ''));
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        $fieldKey = trim((string) ($arguments['field_key'] ?? ''));
+
+        if ($fieldKey !== '') {
+            $field = $template->fields()->withTrashed()->where('field_key', $fieldKey)->first();
+
+            if (! $field) {
+                return [
+                    'error' => "فیلدی با کلید «{$fieldKey}» در فرم «{$template->title}» پیدا نشد.",
+                    'available_fields' => $template->fields()->pluck('field_key')->all(),
+                ];
+            }
+
+            $value = $arguments['value'] ?? null;
+            $column = match ($field->field_type) {
+                FormFieldType::Number => 'value_number',
+                FormFieldType::DateJalali => 'value_date',
+                default => 'value_text',
+            };
+
+            if ($field->field_type === FormFieldType::DateJalali && filled($value)) {
+                try {
+                    $value = Carbon::parse($value)->toDateString();
+                } catch (\Throwable) {
+                    return ['error' => "تاریخ «{$value}» قابل تشخیص نبود."];
+                }
+            }
+
+            $operator = (string) ($arguments['operator'] ?? '==');
+            $sqlOperator = match ($operator) {
+                '!=', '>', '>=', '<', '<=' => $operator,
+                'contains' => 'like',
+                default => '=',
+            };
+
+            $query->whereHas('values', function ($q) use ($field, $column, $sqlOperator, $value) {
+                $q->where('form_field_id', $field->id)
+                    ->where($column, $sqlOperator, $sqlOperator === 'like' ? "%{$value}%" : $value);
+            });
+        }
+
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 20)));
+        $submissions = $query->latest('submitted_at')->limit($limit)->get();
+
+        return [
+            'form' => $template->title,
+            'matched_count' => $submissions->count(),
+            'submissions' => $submissions->map(fn (FormSubmission $submission) => [
+                'id' => $submission->id,
+                'submitted_by' => $submission->submitter?->name,
+                'submitted_at' => $submission->submitted_at?->format('Y-m-d'),
+                'status' => $submission->status?->getLabel(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function summarizeSubmissionTool(array $arguments): array
+    {
+        $id = $arguments['submission_id'] ?? null;
+
+        $submission = $id
+            ? FormSubmission::query()
+                ->with(['formTemplate', 'submitter', 'values.formField' => fn ($q) => $q->withTrashed()])
+                ->find($id)
+            : null;
+
+        if (! $submission) {
+            return ['error' => "درخواستی با شناسهٔ «{$id}» پیدا نشد."];
+        }
+
+        $answers = $submission->values
+            ->map(fn (FormSubmissionValue $value) => [
+                'field' => $value->formField?->label,
+                'value' => $value->value,
+            ])
+            ->all();
+
+        $comparisons = $submission->values
+            ->filter(fn (FormSubmissionValue $value) => $value->formField?->field_type === FormFieldType::Number)
+            ->map(function (FormSubmissionValue $value) use ($submission) {
+                $stats = FormSubmissionValue::query()
+                    ->where('form_field_id', $value->form_field_id)
+                    ->whereHas('formSubmission', fn ($q) => $q
+                        ->where('form_template_id', $submission->form_template_id)
+                        ->where('id', '!=', $submission->id)
+                        ->whereIn('status', [FormSubmissionStatus::Approved, FormSubmissionStatus::Rejected]))
+                    ->selectRaw('avg(value_number) as avg_value, min(value_number) as min_value, max(value_number) as max_value, count(*) as sample_count')
+                    ->first();
+
+                return [
+                    'field' => $value->formField?->label,
+                    'this_value' => (float) $value->value_number,
+                    'past_average' => $stats?->avg_value !== null ? round((float) $stats->avg_value, 2) : null,
+                    'past_min' => $stats?->min_value !== null ? (float) $stats->min_value : null,
+                    'past_max' => $stats?->max_value !== null ? (float) $stats->max_value : null,
+                    'past_sample_count' => (int) ($stats->sample_count ?? 0),
+                ];
+            })
+            ->values()
+            ->all();
+
+        return [
+            'submission_id' => $submission->id,
+            'form' => $submission->formTemplate?->title,
+            'submitted_by' => $submission->submitter?->name,
+            'status' => $submission->status?->getLabel(),
+            'answers' => $answers,
+            'numeric_field_comparisons' => $comparisons,
+        ];
+    }
+
+    private function atRiskSlaSubmissionsTool(): array
+    {
+        $items = WorkflowInstance::query()
+            ->where('status', WorkflowInstanceStatus::InProgress)
+            ->where('subject_type', FormSubmission::class)
+            ->with(['currentStep', 'subject.formTemplate'])
+            ->get()
+            ->map(function (WorkflowInstance $instance) {
+                $slaHours = $instance->currentStep?->sla_hours;
+
+                if (! $slaHours) {
+                    return null;
+                }
+
+                $elapsedHours = $instance->updated_at->diffInHours(now());
+                $percentElapsed = $elapsedHours / $slaHours;
+
+                // Already-breached instances are list_alerts/
+                // get_form_submissions_summary's job - this tool is only
+                // the preventive warning before that point.
+                if ($percentElapsed < 0.7 || $percentElapsed >= 1.0) {
+                    return null;
+                }
+
+                return [
+                    'form' => $instance->subject?->formTemplate?->title,
+                    'step' => $instance->currentStep?->name,
+                    'sla_hours' => $slaHours,
+                    'elapsed_hours' => $elapsedHours,
+                    'remaining_hours' => max(0, $slaHours - $elapsedHours),
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($items->isEmpty()) {
+            return ['message' => 'در حال حاضر هیچ درخواستی نزدیک به نقض SLA نیست.'];
+        }
+
+        return ['at_risk_count' => $items->count(), 'items' => $items->all()];
+    }
+
+    private function workflowHealthCheckTool(): array
+    {
+        $issues = [];
+
+        $workflows = WorkflowDefinition::query()
+            ->where('is_active', true)
+            ->where('subject_type', FormSubmission::class)
+            ->with(['steps.approverUser', 'steps.approverRole.users'])
+            ->get();
+
+        foreach ($workflows as $workflow) {
+            if ($workflow->steps->isEmpty()) {
+                $issues[] = "گردش‌کار «{$workflow->name}» فعال است ولی هیچ مرحله‌ای ندارد.";
+
+                continue;
+            }
+
+            foreach ($workflow->steps as $step) {
+                if ($step->approver_type === ApproverType::SpecificUser && ! $step->approverUser) {
+                    $issues[] = "مرحلهٔ «{$step->name}» در گردش‌کار «{$workflow->name}» به کاربر تأییدکننده‌ای اشاره می‌کند که دیگر وجود ندارد.";
+                }
+
+                if ($step->approver_type === ApproverType::Role && (! $step->approverRole || $step->approverRole->users->isEmpty())) {
+                    $roleLabel = $step->approverRole?->name ?? 'حذف‌شده';
+                    $issues[] = "مرحلهٔ «{$step->name}» در گردش‌کار «{$workflow->name}» به نقش «{$roleLabel}» اشاره می‌کند که هیچ کاربری ندارد.";
+                }
+            }
+        }
+
+        $formsNeedingDepartmentManager = FormTemplate::query()
+            ->where('is_active', true)
+            ->whereHas(
+                'workflowDefinition.steps',
+                fn ($q) => $q->where('approver_type', ApproverType::DepartmentManager),
+            )
+            ->with('department')
+            ->get();
+
+        foreach ($formsNeedingDepartmentManager as $template) {
+            if (! $template->department) {
+                $issues[] = "فرم «{$template->title}» به مرحلهٔ «مدیر دپارتمان» نیاز دارد ولی به هیچ دپارتمانی وصل نیست.";
+            } elseif (! $template->department->manager_id) {
+                $issues[] = "دپارتمان «{$template->department->name}» مدیر ندارد، در حالی که فرم «{$template->title}» به تأیید مدیر همین دپارتمان نیاز دارد.";
+            }
+        }
+
+        if ($issues === []) {
+            return ['message' => 'هیچ مشکل ساختاری در گردش‌کارهای فعال پیدا نشد.'];
+        }
+
+        return ['issues_count' => count($issues), 'issues' => $issues];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function addFieldToFormTemplateTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $template = $this->findFormTemplateByName($formName);
+
+        if (! $template) {
+            return [
+                'error' => "قالب فرمی با نام «{$formName}» پیدا نشد. فیلدی اضافه نشد.",
+                'available_forms' => FormTemplate::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $field = $arguments['field'] ?? null;
+
+        if (! is_array($field)) {
+            return ['error' => 'مشخصات فیلد جدید ارسال نشده است. فیلدی اضافه نشد.'];
+        }
+
+        $fieldKey = trim((string) ($field['field_key'] ?? ''));
+        $label = trim((string) ($field['label'] ?? ''));
+        $fieldType = FormFieldType::tryFrom((string) ($field['field_type'] ?? ''));
+
+        if ($fieldKey === '' || ! preg_match('/^[a-z][a-z0-9_]*$/', $fieldKey)) {
+            return ['error' => "کلید فیلد «{$fieldKey}» نامعتبر است - باید فقط شامل حروف انگلیسی کوچک، عدد و زیرخط باشد و با یک حرف شروع شود. فیلدی اضافه نشد."];
+        }
+
+        // Scoped to this template's own (non-trashed) fields, same idea as
+        // FieldsRelationManager's scopedUnique(): reusing a key that only
+        // belonged to a since-removed field is fine.
+        if ($template->fields()->where('field_key', $fieldKey)->exists()) {
+            return ['error' => "فیلدی با کلید «{$fieldKey}» از قبل در فرم «{$template->title}» وجود دارد. فیلدی اضافه نشد."];
+        }
+
+        if ($label === '' || ! $fieldType) {
+            return ['error' => 'برچسب یا نوع فیلد معتبر نیست. فیلدی اضافه نشد.'];
+        }
+
+        $workflowStepId = null;
+
+        if (filled($field['workflow_step_name'] ?? null)) {
+            $step = $template->workflowDefinition?->steps->firstWhere('name', $field['workflow_step_name']);
+
+            if (! $step) {
+                return [
+                    'error' => "مرحلهٔ «{$field['workflow_step_name']}» در گردش‌کار این فرم پیدا نشد. فیلدی اضافه نشد.",
+                    'available_steps' => $template->workflowDefinition?->steps->pluck('name')->all() ?? [],
+                ];
+            }
+
+            $workflowStepId = $step->id;
+        }
+
+        $options = null;
+
+        if (in_array($fieldType, [FormFieldType::Select, FormFieldType::Radio], true)) {
+            $options = is_array($field['options'] ?? null) && count($field['options']) > 0 ? $field['options'] : null;
+
+            if (! $options) {
+                return ['error' => "فیلد «{$label}» از نوع لیست کشویی/انتخاب تکی است ولی هیچ گزینه‌ای برایش مشخص نشده. فیلدی اضافه نشد."];
+            }
+        }
+
+        $newField = $template->fields()->create([
+            'field_key' => $fieldKey,
+            'label' => $label,
+            'field_type' => $fieldType,
+            'is_required' => (bool) ($field['is_required'] ?? false),
+            'options' => $options,
+            'workflow_step_id' => $workflowStepId,
+            'sort_order' => ($template->fields()->max('sort_order') ?? 0) + 1,
+        ]);
+
+        return [
+            'success' => true,
+            'form' => $template->title,
+            'field_key' => $newField->field_key,
+            'message' => "فیلد «{$newField->label}» با موفقیت به فرم «{$template->title}» اضافه شد.".($template->is_active ? ' چون این فرم فعال است، این فیلد از همین حالا در ثبت‌های جدید نمایش داده می‌شود.' : ''),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function updateWorkflowStepTool(array $arguments): array
+    {
+        $workflowName = trim((string) ($arguments['workflow_name'] ?? ''));
+        $workflow = $this->findWorkflowByName($workflowName);
+
+        if (! $workflow) {
+            return [
+                'error' => "گردش‌کاری با نام «{$workflowName}» پیدا نشد. تغییری اعمال نشد.",
+                'available_workflows' => WorkflowDefinition::query()->orderBy('name')->pluck('name')->all(),
+            ];
+        }
+
+        $stepName = trim((string) ($arguments['step_name'] ?? ''));
+        $step = $workflow->steps->first(fn (WorkflowStep $step) => $step->name === $stepName)
+            ?? $workflow->steps->first(fn (WorkflowStep $step) => str_contains($step->name, $stepName));
+
+        if (! $step) {
+            return [
+                'error' => "مرحله‌ای با نام «{$stepName}» در گردش‌کار «{$workflow->name}» پیدا نشد. تغییری اعمال نشد.",
+                'available_steps' => $workflow->steps->pluck('name')->all(),
+            ];
+        }
+
+        $updates = [];
+
+        if (filled($arguments['new_name'] ?? null)) {
+            $updates['name'] = trim($arguments['new_name']);
+        }
+
+        if (filled($arguments['sla_hours'] ?? null)) {
+            $updates['sla_hours'] = (int) $arguments['sla_hours'];
+        }
+
+        if ($updates === []) {
+            return ['error' => 'هیچ تغییری برای اعمال مشخص نشده است.'];
+        }
+
+        $step->update($updates);
+
+        return [
+            'success' => true,
+            'workflow' => $workflow->name,
+            'step' => $step->name,
+            'message' => "مرحلهٔ «{$step->name}» در گردش‌کار «{$workflow->name}» با موفقیت به‌روزرسانی شد.",
+        ];
+    }
+
+    private function findFormTemplateByName(string $name): ?FormTemplate
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return FormTemplate::query()->where('title', $name)->first()
+            ?? FormTemplate::query()->where('title', 'like', "%{$name}%")->first();
+    }
+
+    private function findWorkflowByName(string $name): ?WorkflowDefinition
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return WorkflowDefinition::query()->where('name', $name)->first()
+            ?? WorkflowDefinition::query()->where('name', 'like', "%{$name}%")->first();
     }
 
     /**
