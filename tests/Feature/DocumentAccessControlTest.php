@@ -164,4 +164,34 @@ class DocumentAccessControlTest extends TestCase
             ->get(route('documents.download', $document))
             ->assertSuccessful();
     }
+
+    /**
+     * Regression test: the download used to be named after the document's
+     * title alone, with no file extension at all - so every download in
+     * the app landed in the browser with a name like "گزارش" instead of
+     * "گزارش.pdf", making it look broken/unopenable.
+     */
+    public function test_download_filename_keeps_the_documents_title_and_the_files_real_extension(): void
+    {
+        $document = Document::factory()->create([
+            'title' => 'گزارش فروش',
+            'file_path' => 'documents/some-random-name.pdf',
+        ]);
+
+        $this->assertSame('گزارش فروش.pdf', $document->downloadFilename());
+    }
+
+    public function test_document_version_download_filename_keeps_its_extension_too(): void
+    {
+        $document = Document::factory()->create(['title' => 'گزارش فروش']);
+        $version = $document->versions()->create([
+            'version_number' => 1,
+            'file_path' => 'documents/old-version.docx',
+            'mime_type' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'size_kb' => 120,
+            'uploaded_by' => $document->uploaded_by,
+        ]);
+
+        $this->assertSame('گزارش فروش (نسخه 1).docx', $version->downloadFilename());
+    }
 }

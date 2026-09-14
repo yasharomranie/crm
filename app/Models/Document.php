@@ -67,6 +67,21 @@ class Document extends Model
         return $this->hasMany(DocumentVersion::class)->latest('version_number');
     }
 
+    /**
+     * The download's suggested filename: the document's own title, not the
+     * randomly-generated storage name - but with the real file extension
+     * appended, since the title alone has none. Without this, every
+     * download in the app was silently saved by the browser with no
+     * extension at all (e.g. "گزارش" instead of "گزارش.pdf"), which is why
+     * a downloaded file could look "broken" or unopenable.
+     */
+    public function downloadFilename(): string
+    {
+        $extension = pathinfo($this->file_path, PATHINFO_EXTENSION);
+
+        return $extension ? "{$this->title}.{$extension}" : $this->title;
+    }
+
     public function shares(): HasMany
     {
         return $this->hasMany(DocumentShare::class);

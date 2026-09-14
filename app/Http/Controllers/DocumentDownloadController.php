@@ -23,16 +23,13 @@ class DocumentDownloadController extends Controller
     {
         abort_unless($document->isVisibleTo($request->user()), 403, 'شما به این سند دسترسی ندارید.');
 
-        return Storage::disk()->download($document->file_path, $document->title);
+        return Storage::disk()->download($document->file_path, $document->downloadFilename());
     }
 
     public function version(Request $request, DocumentVersion $version): StreamedResponse
     {
         abort_unless($version->document->isVisibleTo($request->user()), 403, 'شما به این سند دسترسی ندارید.');
 
-        return Storage::disk()->download(
-            $version->file_path,
-            "{$version->document->title} (نسخه {$version->version_number})",
-        );
+        return Storage::disk()->download($version->file_path, $version->downloadFilename());
     }
 }

@@ -21,4 +21,16 @@ class DocumentVersion extends Model
     {
         return $this->belongsTo(User::class, 'uploaded_by');
     }
+
+    /**
+     * Same reasoning as Document::downloadFilename() - the document's title
+     * plus the version number, with the real file extension appended.
+     */
+    public function downloadFilename(): string
+    {
+        $extension = pathinfo($this->file_path, PATHINFO_EXTENSION);
+        $name = "{$this->document->title} (نسخه {$this->version_number})";
+
+        return $extension ? "{$name}.{$extension}" : $name;
+    }
 }
