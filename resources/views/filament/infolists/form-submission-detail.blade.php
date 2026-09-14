@@ -71,6 +71,8 @@
                                 <span class="text-gray-400">—</span>
                             @elseif ($field->field_type === FormFieldType::Checkbox)
                                 {{ $value->value ? 'بله' : 'خیر' }}
+                            @elseif ($field->field_type === FormFieldType::DateJalali)
+                                {{ optional($value->value)->toJalali('Y/m/d') ?? '—' }}
                             @elseif ($field->field_type === FormFieldType::Signature)
                                 <img src="{{ $value->value }}" alt="امضا" class="h-20 rounded border border-gray-200 bg-white dark:border-white/10" />
                             @elseif ($field->field_type === FormFieldType::Gps && is_array($value->value))

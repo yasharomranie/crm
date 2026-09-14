@@ -3,10 +3,12 @@
 namespace App\Filament\Resources\FormSubmissions\Schemas;
 
 use App\Filament\Support\DynamicFormFieldBuilder;
+use App\Models\FormField;
 use App\Models\FormTemplate;
 use Filament\Forms\Components\Select;
 use Filament\Schemas\Components\Group;
 use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 
 class FormSubmissionForm
@@ -25,7 +27,29 @@ class FormSubmissionForm
                     ->required()
                     ->live()
                     ->searchable()
-                    ->helperText('پس از انتخاب فرم، فیلدهای آن برای پرکردن نمایش داده می‌شود.'),
+                    ->helperText('پس از انتخاب فرم، فیلدهای آن برای پرکردن نمایش داده می‌شود.')
+                    // Seeds each dynamic field's Livewire state key the
+                    // moment a template is (re)selected. Without this, a
+                    // field the Group below builds in this same response
+                    // (the GPS picker, signature pad, or a Jalali date
+                    // picker - anything bound via $wire.$entangle() instead
+                    // of a plain wire:model) tries to entangle a property
+                    // that doesn't exist yet on the component, which
+                    // Livewire silently refuses ("Livewire property [...]
+                    // cannot be found" in the browser console). The field
+                    // then LOOKS filled in (Alpine's own local state updates
+                    // fine), but the value never reaches the server, so a
+                    // required rule on it still fails on submit even though
+                    // the user picked a value.
+                    ->afterStateUpdated(function (Set $set, ?int $state) {
+                        if (! $state) {
+                            return;
+                        }
+
+                        FormTemplate::find($state)?->fields->each(
+                            fn (FormField $field) => $set($field->field_key, null)
+                        );
+                    }),
 
                 // The template's own fields, rebuilt on every render from
                 // the selection above - this is what makes any form an

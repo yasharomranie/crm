@@ -191,6 +191,8 @@
                             —
                         @elseif ($field->field_type->value === 'checkbox')
                             {{ $value->value ? 'بله' : 'خیر' }}
+                        @elseif ($field->field_type->value === 'date_jalali')
+                            {{ optional($value->value)->toJalali('Y/m/d') ?? '—' }}
                         @elseif ($field->field_type->value === 'signature')
                             <img src="{{ $value->value }}" alt="امضا" height="70">
                         @elseif ($field->field_type->value === 'gps' && is_array($value->value) && isset($value->value['lat'], $value->value['lng']))

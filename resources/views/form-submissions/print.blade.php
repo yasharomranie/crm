@@ -348,6 +348,8 @@
                                 —
                             @elseif ($field->field_type->value === 'checkbox')
                                 {{ $value->value ? 'بله' : 'خیر' }}
+                            @elseif ($field->field_type->value === 'date_jalali')
+                                {{ optional($value->value)->toJalali('Y/m/d') ?? '—' }}
                             @elseif ($field->field_type->value === 'signature')
                                 <img class="signature" src="{{ $value->value }}" alt="امضا">
                             @elseif ($field->field_type->value === 'gps' && is_array($value->value))

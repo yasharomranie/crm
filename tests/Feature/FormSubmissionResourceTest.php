@@ -58,6 +58,42 @@ class FormSubmissionResourceTest extends TestCase
         $this->assertTrue($submission->workflowInstance->canBeActedOnBy($approver));
     }
 
+    /**
+     * Regression test for a real bug: selecting a template with an entangle-
+     * bound field (Jalali date picker, GPS picker, signature pad) let the
+     * user visibly pick a value in the browser, yet the server still
+     * rejected the submission with "این فیلد اجباری است" - because
+     * $wire.$entangle('data.visit_date') silently fails when that key
+     * doesn't exist on the Livewire component yet ("Livewire property
+     * [...] cannot be found", confirmed via a real browser reproduction),
+     * so the picked value never reached the server at all.
+     *
+     * FormSubmissionForm::configure() now seeds every dynamic field's key
+     * into the component's state the moment a template is selected
+     * (form_template_id's ->afterStateUpdated()) - this asserts that seed
+     * actually happens, which is the one part of the fix a PHP-only test
+     * can observe (the entangle failure itself is a browser-JS behavior
+     * no Livewire component test can reproduce).
+     */
+    public function test_selecting_a_template_seeds_every_dynamic_fields_state_key_immediately(): void
+    {
+        $template = FormTemplate::factory()->create(['is_active' => true]);
+        FormField::factory()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'visit_date',
+            'field_type' => FormFieldType::DateJalali,
+            'is_required' => true,
+        ]);
+
+        $this->actingAs(User::factory()->create());
+
+        $data = Livewire::test(CreateFormSubmission::class)
+            ->set('data.form_template_id', $template->id)
+            ->get('data');
+
+        $this->assertArrayHasKey('visit_date', $data);
+    }
+
     public function test_a_template_with_no_workflow_is_approved_immediately_on_submit(): void
     {
         $template = FormTemplate::factory()->create(['workflow_definition_id' => null, 'is_active' => true]);
