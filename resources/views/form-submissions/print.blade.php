@@ -152,6 +152,33 @@
             border-radius: .35rem;
         }
 
+        /* ---------- Merged document (from a form template's متن سند) ---------- */
+
+        .document-body {
+            margin: 0 0 1.75rem;
+            font-size: .95rem;
+            line-height: 2.1;
+        }
+
+        .document-body p {
+            margin: 0 0 .75rem;
+        }
+
+        .document-body h1, .document-body h2, .document-body h3 {
+            font-size: 1rem;
+            font-weight: 700;
+            margin: 1rem 0 .5rem;
+        }
+
+        .document-body ul, .document-body ol {
+            margin: 0 0 .75rem;
+            padding-inline-start: 1.5rem;
+        }
+
+        .document-body img {
+            max-width: 100%;
+        }
+
         h2.section {
             font-size: .95rem;
             font-weight: 700;
@@ -300,36 +327,45 @@
             {{ $submission->status->getLabel() }}
         </span>
 
-        <dl class="fields">
-            {{-- ->withTrashed(): show fields even if removed from the form
-                builder since this was submitted - they're soft-deleted, not
-                gone, precisely so this historical record stays accurate. --}}
-            @foreach ($submission->formTemplate->fields()->withTrashed()->get() as $field)
-                @php $value = $submission->values->firstWhere('form_field_id', $field->id); @endphp
-                <div>
-                    <dt>{{ $field->label }}</dt>
-                    <dd>
-                        @if (! $value)
-                            —
-                        @elseif ($field->field_type->value === 'checkbox')
-                            {{ $value->value ? 'بله' : 'خیر' }}
-                        @elseif ($field->field_type->value === 'signature')
-                            <img class="signature" src="{{ $value->value }}" alt="امضا">
-                        @elseif ($field->field_type->value === 'gps' && is_array($value->value))
-                            @if (isset($value->value['lat'], $value->value['lng']))
-                                <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" />
-                            @else
+        @php $mergedDocument = $submission->mergedDocumentBody(); @endphp
+        @if ($mergedDocument)
+            {{-- The form template has a "متن سند" - fixed boilerplate text
+                with the real answers merged into it - so render that
+                instead of the generic label/value list below. --}}
+            <div class="document-body">{!! $mergedDocument !!}</div>
+        @else
+            <dl class="fields">
+                {{-- ->withTrashed(): show fields even if removed from the
+                    form builder since this was submitted - they're soft-
+                    deleted, not gone, precisely so this historical record
+                    stays accurate. --}}
+                @foreach ($submission->formTemplate->fields()->withTrashed()->get() as $field)
+                    @php $value = $submission->values->firstWhere('form_field_id', $field->id); @endphp
+                    <div>
+                        <dt>{{ $field->label }}</dt>
+                        <dd>
+                            @if (! $value)
                                 —
+                            @elseif ($field->field_type->value === 'checkbox')
+                                {{ $value->value ? 'بله' : 'خیر' }}
+                            @elseif ($field->field_type->value === 'signature')
+                                <img class="signature" src="{{ $value->value }}" alt="امضا">
+                            @elseif ($field->field_type->value === 'gps' && is_array($value->value))
+                                @if (isset($value->value['lat'], $value->value['lng']))
+                                    <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" />
+                                @else
+                                    —
+                                @endif
+                            @elseif ($field->field_type->value === 'file')
+                                پیوست ثبت شده
+                            @else
+                                {{ $value->value }}
                             @endif
-                        @elseif ($field->field_type->value === 'file')
-                            پیوست ثبت شده
-                        @else
-                            {{ $value->value }}
-                        @endif
-                    </dd>
-                </div>
-            @endforeach
-        </dl>
+                        </dd>
+                    </div>
+                @endforeach
+            </dl>
+        @endif
 
         @if ($instance = $submission->workflowInstance)
             <h2 class="section">روند تأیید</h2>

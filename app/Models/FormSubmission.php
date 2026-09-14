@@ -3,10 +3,12 @@
 namespace App\Models;
 
 use App\Enums\ApproverType;
+use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\WorkflowInstanceStatus;
 use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -130,6 +132,71 @@ class FormSubmission extends Model
         ]);
 
         $this->update(['status' => FormSubmissionStatus::PendingApproval]);
+    }
+
+    /**
+     * The form template's document_template (fixed boilerplate + {{field_
+     * key}} placeholders, authored with Filament's RichEditor) with every
+     * placeholder replaced by this submission's real answer - what turns a
+     * generic label/value list into an actual filled-in document that
+     * mirrors a physical paper form. Returns null when the template
+     * carries no document text at all (the caller falls back to the plain
+     * field list in that case).
+     */
+    public function mergedDocumentBody(): ?string
+    {
+        $templateBody = $this->formTemplate->document_template;
+
+        if (blank($templateBody)) {
+            return null;
+        }
+
+        // ->withTrashed(): a placeholder must still resolve to a soft-
+        // deleted field so an old submission's document keeps rendering
+        // correctly even after that field is later removed from the form.
+        $fieldsByKey = $this->formTemplate->fields()->withTrashed()->get()->keyBy('field_key');
+        $valuesByFieldId = $this->values->keyBy('form_field_id');
+
+        return preg_replace_callback(
+            '/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/',
+            fn (array $matches) => $this->renderDocumentPlaceholder($matches[1], $fieldsByKey, $valuesByFieldId),
+            $templateBody,
+        );
+    }
+
+    /**
+     * @param  Collection<string, FormField>  $fieldsByKey
+     * @param  Collection<int, FormSubmissionValue>  $valuesByFieldId
+     */
+    private function renderDocumentPlaceholder(string $fieldKey, Collection $fieldsByKey, Collection $valuesByFieldId): string
+    {
+        $field = $fieldsByKey->get($fieldKey);
+
+        if (! $field) {
+            return "[کلید فیلد نامعتبر: {$fieldKey}]";
+        }
+
+        $submittedValue = $valuesByFieldId->get($field->id);
+        $value = $submittedValue?->value;
+
+        if ($value === null || $value === '') {
+            return '..........';
+        }
+
+        return match ($field->field_type) {
+            FormFieldType::Checkbox => $value ? 'بله' : 'خیر',
+            FormFieldType::DateJalali => method_exists($value, 'toJalali') ? $value->toJalali('Y/m/d') : e((string) $value),
+            FormFieldType::Signature => '<img src="'.e($value).'" alt="امضا" style="height:60px;vertical-align:middle;">',
+            // A plain Google Maps link, not the interactive <x-gps-map>
+            // component: this merged text also has to render correctly
+            // inside the Word export, which (like form-submissions/word.
+            // blade.php) can't run the JS a live map needs.
+            FormFieldType::Gps => (is_array($value) && isset($value['lat'], $value['lng']))
+                ? '<a href="https://www.google.com/maps?q='.$value['lat'].','.$value['lng'].'">مشاهدهٔ موقعیت روی نقشه</a>'
+                : '..........',
+            FormFieldType::File => '<a href="'.route('form-submissions.files.download', ['submission' => $this, 'value' => $submittedValue]).'">پیوست فایل</a>',
+            default => nl2br(e((string) $value)),
+        };
     }
 
     public function isVisibleTo(User $user): bool

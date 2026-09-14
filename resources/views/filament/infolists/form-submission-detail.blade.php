@@ -50,36 +50,45 @@
     {{-- مقادیر فرم --}}
     <div class="rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900">
         <h3 class="mb-3 text-sm font-semibold text-gray-950 dark:text-white">اطلاعات ثبت‌شده</h3>
-        <dl class="space-y-3">
-            {{-- ->withTrashed(): a field removed from the form builder since
-                this submission was made must still show here - it's soft-
-                deleted, not gone, precisely so old answers stay visible. --}}
-            @foreach ($template->fields()->withTrashed()->get() as $field)
-                @php $value = $valuesByField->get($field->id); @endphp
-                <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0 dark:border-white/5">
-                    <dt class="text-xs text-gray-500 dark:text-gray-400">{{ $field->label }}</dt>
-                    <dd class="mt-0.5 text-sm text-gray-900 dark:text-gray-100">
-                        @if (! $value)
-                            <span class="text-gray-400">—</span>
-                        @elseif ($field->field_type === FormFieldType::Checkbox)
-                            {{ $value->value ? 'بله' : 'خیر' }}
-                        @elseif ($field->field_type === FormFieldType::Signature)
-                            <img src="{{ $value->value }}" alt="امضا" class="h-20 rounded border border-gray-200 bg-white dark:border-white/10" />
-                        @elseif ($field->field_type === FormFieldType::Gps && is_array($value->value))
-                            @if (isset($value->value['lat'], $value->value['lng']))
-                                <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" class="max-w-md" />
-                            @else
+        @php $mergedDocument = $submission->mergedDocumentBody(); @endphp
+        @if ($mergedDocument)
+            {{-- The form template has a "متن سند" - fixed boilerplate text
+                with the real answers merged into it - so show that instead
+                of the generic label/value list below. --}}
+            <div class="text-sm leading-7 text-gray-900 [&_img]:max-w-full [&_p]:mb-3 dark:text-gray-100">{!! $mergedDocument !!}</div>
+        @else
+            <dl class="space-y-3">
+                {{-- ->withTrashed(): a field removed from the form builder
+                    since this submission was made must still show here -
+                    it's soft-deleted, not gone, precisely so old answers
+                    stay visible. --}}
+                @foreach ($template->fields()->withTrashed()->get() as $field)
+                    @php $value = $valuesByField->get($field->id); @endphp
+                    <div class="border-b border-gray-100 pb-3 last:border-0 last:pb-0 dark:border-white/5">
+                        <dt class="text-xs text-gray-500 dark:text-gray-400">{{ $field->label }}</dt>
+                        <dd class="mt-0.5 text-sm text-gray-900 dark:text-gray-100">
+                            @if (! $value)
                                 <span class="text-gray-400">—</span>
+                            @elseif ($field->field_type === FormFieldType::Checkbox)
+                                {{ $value->value ? 'بله' : 'خیر' }}
+                            @elseif ($field->field_type === FormFieldType::Signature)
+                                <img src="{{ $value->value }}" alt="امضا" class="h-20 rounded border border-gray-200 bg-white dark:border-white/10" />
+                            @elseif ($field->field_type === FormFieldType::Gps && is_array($value->value))
+                                @if (isset($value->value['lat'], $value->value['lng']))
+                                    <x-gps-map :lat="$value->value['lat']" :lng="$value->value['lng']" class="max-w-md" />
+                                @else
+                                    <span class="text-gray-400">—</span>
+                                @endif
+                            @elseif ($field->field_type === FormFieldType::File)
+                                <a href="{{ route('form-submissions.files.download', ['submission' => $submission, 'value' => $value]) }}" class="text-primary-600 underline dark:text-primary-400">دانلود فایل پیوست</a>
+                            @else
+                                {{ $value->value }}
                             @endif
-                        @elseif ($field->field_type === FormFieldType::File)
-                            <a href="{{ route('form-submissions.files.download', ['submission' => $submission, 'value' => $value]) }}" class="text-primary-600 underline dark:text-primary-400">دانلود فایل پیوست</a>
-                        @else
-                            {{ $value->value }}
-                        @endif
-                    </dd>
-                </div>
-            @endforeach
-        </dl>
+                        </dd>
+                    </div>
+                @endforeach
+            </dl>
+        @endif
     </div>
 
     {{-- گردش‌کار --}}

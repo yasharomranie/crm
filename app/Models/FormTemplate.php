@@ -17,7 +17,7 @@ class FormTemplate extends Model
     ];
 
     protected $fillable = [
-        'title', 'description', 'department_id', 'workflow_definition_id',
+        'title', 'description', 'document_template', 'department_id', 'workflow_definition_id',
         'version', 'is_active', 'created_by',
     ];
 

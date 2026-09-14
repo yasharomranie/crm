@@ -103,6 +103,16 @@
         font-size: 11pt;
     }
 
+    .document-body {
+        margin-bottom: 18pt;
+        font-size: 11pt;
+        line-height: 1.9;
+    }
+
+    .document-body p {
+        margin: 0 0 10pt;
+    }
+
     h2.section {
         font-size: 12pt;
         font-weight: bold;
@@ -161,37 +171,45 @@
     </p>
     <p class="status">وضعیت: {{ $submission->status->getLabel() }}</p>
 
-    <table class="fields">
-        {{-- ->withTrashed(): show fields even if removed from the form
-            builder since this was submitted - they're soft-deleted, not
-            gone, precisely so this historical record stays accurate. --}}
-        @foreach ($submission->formTemplate->fields()->withTrashed()->get() as $field)
-            @php $value = $submission->values->firstWhere('form_field_id', $field->id); @endphp
-            <tr>
-                <td class="label">{{ $field->label }}</td>
-                <td class="value">
-                    @if (! $value)
-                        —
-                    @elseif ($field->field_type->value === 'checkbox')
-                        {{ $value->value ? 'بله' : 'خیر' }}
-                    @elseif ($field->field_type->value === 'signature')
-                        <img src="{{ $value->value }}" alt="امضا" height="70">
-                    @elseif ($field->field_type->value === 'gps' && is_array($value->value) && isset($value->value['lat'], $value->value['lng']))
-                        {{ $value->value['lat'] }}, {{ $value->value['lng'] }}
-                        {{-- Word doesn't run the JS a live/static map would need (same
-                        reason the QR code above is skipped here) - a plain hyperlink
-                        to Google Maps is the one thing that's both real and reliable
-                        in an opened Word document. --}}
-                        <br><a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
-                    @elseif ($field->field_type->value === 'file')
-                        پیوست ثبت شده
-                    @else
-                        {{ $value->value }}
-                    @endif
-                </td>
-            </tr>
-        @endforeach
-    </table>
+    @php $mergedDocument = $submission->mergedDocumentBody(); @endphp
+    @if ($mergedDocument)
+        {{-- The form template has a "متن سند" - fixed boilerplate text with
+            the real answers merged into it - so render that instead of the
+            generic label/value table below. --}}
+        <div class="document-body">{!! $mergedDocument !!}</div>
+    @else
+        <table class="fields">
+            {{-- ->withTrashed(): show fields even if removed from the form
+                builder since this was submitted - they're soft-deleted, not
+                gone, precisely so this historical record stays accurate. --}}
+            @foreach ($submission->formTemplate->fields()->withTrashed()->get() as $field)
+                @php $value = $submission->values->firstWhere('form_field_id', $field->id); @endphp
+                <tr>
+                    <td class="label">{{ $field->label }}</td>
+                    <td class="value">
+                        @if (! $value)
+                            —
+                        @elseif ($field->field_type->value === 'checkbox')
+                            {{ $value->value ? 'بله' : 'خیر' }}
+                        @elseif ($field->field_type->value === 'signature')
+                            <img src="{{ $value->value }}" alt="امضا" height="70">
+                        @elseif ($field->field_type->value === 'gps' && is_array($value->value) && isset($value->value['lat'], $value->value['lng']))
+                            {{ $value->value['lat'] }}, {{ $value->value['lng'] }}
+                            {{-- Word doesn't run the JS a live/static map would need (same
+                            reason the QR code above is skipped here) - a plain hyperlink
+                            to Google Maps is the one thing that's both real and reliable
+                            in an opened Word document. --}}
+                            <br><a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
+                        @elseif ($field->field_type->value === 'file')
+                            پیوست ثبت شده
+                        @else
+                            {{ $value->value }}
+                        @endif
+                    </td>
+                </tr>
+            @endforeach
+        </table>
+    @endif
 
     @if ($instance = $submission->workflowInstance)
         <h2 class="section">روند تأیید</h2>
