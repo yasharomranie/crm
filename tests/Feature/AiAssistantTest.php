@@ -8,6 +8,7 @@ use App\Enums\TaskStatus;
 use App\Filament\Pages\AiAssistant;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
+use App\Models\Department;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\Task;
@@ -175,6 +176,161 @@ class AiAssistantTest extends TestCase
             ->call('send');
 
         $this->assertDatabaseHas('tasks', ['title' => 'تماس با تأمین‌کننده']);
+    }
+
+    public function test_the_create_task_tool_assigns_an_exact_matching_department(): void
+    {
+        AiProvider::factory()->active()->create();
+        $department = Department::factory()->create(['name' => 'دپارتمان فروش']);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'create_task',
+                                'arguments' => json_encode([
+                                    'title' => 'پیگیری مشتری',
+                                    'department_name' => 'دپارتمان فروش',
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'وظیفه ایجاد شد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یک وظیفه برای دپارتمان فروش بساز')
+            ->call('send');
+
+        $this->assertDatabaseHas('tasks', ['title' => 'پیگیری مشتری', 'department_id' => $department->id]);
+    }
+
+    /**
+     * Regression test: create_task used to silently create the task with an
+     * empty department whenever the model's department_name didn't match
+     * anything - the user only ever saw a "success" message and had to
+     * notice the department field was blank. It must now refuse instead.
+     */
+    public function test_the_create_task_tool_refuses_instead_of_silently_dropping_an_unmatched_department(): void
+    {
+        AiProvider::factory()->active()->create();
+        Department::factory()->create(['name' => 'دپارتمان فروش']);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'create_task',
+                                'arguments' => json_encode([
+                                    'title' => 'پیگیری مشتری',
+                                    'department_name' => 'دپارتمانی که اصلاً وجود ندارد',
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'چنین دپارتمانی پیدا نشد.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یک وظیفه برای دپارتمانی که اصلاً وجود ندارد بساز')
+            ->call('send');
+
+        $this->assertDatabaseMissing('tasks', ['title' => 'پیگیری مشتری']);
+
+        $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
+        $payload = json_decode($toolMessage->content, true);
+        $this->assertArrayHasKey('error', $payload);
+        $this->assertContains('دپارتمان فروش', $payload['available_departments']);
+    }
+
+    public function test_the_create_task_tool_refuses_an_unparseable_due_date_instead_of_creating_a_task_with_a_wrong_date(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'create_task',
+                                'arguments' => json_encode([
+                                    'title' => 'پیگیری مشتری',
+                                    'due_at' => 'یه روز نامعلوم',
+                                ]),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'تاریخ نامعتبر بود.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یک وظیفه با یه تاریخ عجیب بساز')
+            ->call('send');
+
+        $this->assertDatabaseMissing('tasks', ['title' => 'پیگیری مشتری']);
+    }
+
+    public function test_the_system_prompt_tells_the_model_todays_real_date_so_relative_dates_resolve_correctly(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [
+                    ['message' => ['role' => 'assistant', 'content' => 'باشه.']],
+                ],
+            ]),
+        ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'فردا رو یادم بنداز')
+            ->call('send');
+
+        Http::assertSent(function ($request) {
+            $systemMessage = collect($request->data()['messages'])->firstWhere('role', 'system');
+
+            return str_contains($systemMessage['content'], now()->format('Y-m-d'));
+        });
     }
 
     public function test_alerts_flag_overdue_tasks(): void

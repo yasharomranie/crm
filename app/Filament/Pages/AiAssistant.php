@@ -212,20 +212,44 @@ class AiAssistant extends Page
 
     private function systemPrompt(): string
     {
-        return <<<'PROMPT'
+        $base = <<<'PROMPT'
             تو دستیار هوشمند مدیریتی یک سامانهٔ یکپارچهٔ مدیریت اقامتگاه، پروژه، فروش و منابع انسانی هستی. کاربر تو، مدیر یا صاحب کسب‌وکار است.
             همیشه به فارسی و روان پاسخ بده. برای هر سؤالی که نیاز به داده دارد، حتماً از ابزارهای موجود استفاده کن - هیچ‌وقت عدد یا آمار را حدس نزن.
             وقتی داده‌های عددی داری، آن‌ها را در قالب جدول Markdown نمایش بده. بعد از هر گزارش، در صورت لزوم یک جمع‌بندی کوتاه و یک پیشنهاد/هشدار عملی اضافه کن.
             اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن و نتیجه را به‌وضوح تأیید کن.
             مبالغ همیشه به تومان هستند.
             PROMPT;
+
+        // The model has no reliable notion of "today" on its own (it can
+        // guess a stale or wrong date from training), which was causing
+        // wrong due_at values whenever the user said a relative date like
+        // "فردا" or "جمعه". Telling it the real current date/time on every
+        // request, and requiring create_task's due_at in a fixed Gregorian
+        // format, removes that guesswork.
+        $now = now();
+        $dateNote = sprintf(
+            'تاریخ و ساعت فعلی سیستم: %s میلادی (برابر با %s شمسی). هر تاریخ نسبی که کاربر می‌گوید (فردا، جمعه، دو روز دیگر، هفتهٔ آینده و...) را دقیقاً بر اساس همین تاریخ محاسبه کن، نه بر اساس حدس یا اطلاعات قدیمی خودت. هنگام صدا زدن ابزار create_task، مقدار due_at را همیشه به‌صورت تاریخ کامل میلادی با فرمت Y-m-d H:i بفرست.',
+            $now->format('Y-m-d H:i (l)'),
+            Jalalian::fromCarbon($now)->format('%d %B %Y ساعت %H:%M'),
+        );
+
+        // The model can't see the departments table, so if it invents a
+        // plausible-but-wrong department name, create_task's lookup was
+        // silently leaving the task's department empty. Giving it the real
+        // list up front makes it use an exact, existing name instead of
+        // guessing one.
+        $departments = Department::query()->orderBy('name')->pluck('name');
+        $departmentNote = $departments->isNotEmpty()
+            ? 'دپارتمان‌های موجود در سیستم (برای پارامتر department_name در ابزار create_task دقیقاً از یکی از همین نام‌ها استفاده کن، نه نام حدسی یا مشابه): '.$departments->implode('، ').'.'
+            : null;
+
+        return collect([$base, $dateNote, $departmentNote])->filter()->implode("\n\n");
     }
 
     /**
      * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
-     */
-    /**
+     *
      * Reporting tools require "ai-assistant.report"; action tools (that
      * change data) require "ai-assistant.act". Both getToolDefinitions()
      * (what the model is even offered) and executeTool() (a defense-in-depth
@@ -294,9 +318,9 @@ class AiAssistant extends Page
                 'type' => 'object',
                 'properties' => [
                     'title' => ['type' => 'string', 'description' => 'Task title'],
-                    'department_name' => ['type' => 'string', 'description' => 'Name (or partial name) of the department to assign this to'],
+                    'department_name' => ['type' => 'string', 'description' => 'Exact name of an existing department to assign this to - use one of the department names given to you in the system prompt, never a guessed or paraphrased name'],
                     'priority' => ['type' => 'string', 'enum' => ['urgent_important', 'not_urgent_important', 'urgent_not_important', 'neither']],
-                    'due_at' => ['type' => 'string', 'description' => 'Due date/time as an ISO 8601 or natural date string'],
+                    'due_at' => ['type' => 'string', 'description' => 'Due date/time in Y-m-d H:i Gregorian format, calculated from the current date given to you in the system prompt - never guess the year'],
                 ],
                 'required' => ['title'],
             ]);
@@ -578,7 +602,29 @@ class AiAssistant extends Page
         $department = null;
 
         if (filled($arguments['department_name'] ?? null)) {
-            $department = Department::where('name', 'like', '%'.$arguments['department_name'].'%')->first();
+            $department = $this->findDepartmentByName($arguments['department_name']);
+
+            // Never silently drop a department the user explicitly asked
+            // for - that used to create the task anyway with an empty
+            // department and no indication anything went wrong. Refuse and
+            // hand back the real list so the model retries with an exact
+            // name (or asks the user) instead of guessing.
+            if (! $department) {
+                return [
+                    'error' => "دپارتمانی با نام «{$arguments['department_name']}» پیدا نشد. هیچ وظیفه‌ای ساخته نشد.",
+                    'available_departments' => Department::query()->orderBy('name')->pluck('name')->all(),
+                ];
+            }
+        }
+
+        $dueAt = null;
+
+        if (filled($arguments['due_at'] ?? null)) {
+            try {
+                $dueAt = Carbon::parse($arguments['due_at']);
+            } catch (\Throwable) {
+                return ['error' => "تاریخ «{$arguments['due_at']}» قابل تشخیص نبود. هیچ وظیفه‌ای ساخته نشد."];
+            }
         }
 
         $task = Task::create([
@@ -587,7 +633,7 @@ class AiAssistant extends Page
             'department_id' => $department?->id,
             'priority' => TaskPriority::tryFrom($arguments['priority'] ?? '') ?? TaskPriority::Neither,
             'status' => TaskStatus::Todo,
-            'due_at' => filled($arguments['due_at'] ?? null) ? Carbon::parse($arguments['due_at']) : null,
+            'due_at' => $dueAt,
         ]);
 
         return [
@@ -595,8 +641,23 @@ class AiAssistant extends Page
             'task_id' => $task->id,
             'title' => $task->title,
             'department' => $department?->name,
+            'due_at' => $task->due_at?->format('Y-m-d H:i'),
             'message' => "وظیفهٔ «{$task->title}» با موفقیت ایجاد شد.",
         ];
+    }
+
+    /**
+     * Exact match first (after trimming), then falls back to a partial
+     * match - so a model-supplied name that's merely a substring of the
+     * real one (e.g. "فروش" for "دپارتمان فروش") still resolves, while an
+     * exact real name is never shadowed by a coincidental partial match.
+     */
+    private function findDepartmentByName(string $name): ?Department
+    {
+        $name = trim($name);
+
+        return Department::query()->where('name', $name)->first()
+            ?? Department::query()->where('name', 'like', "%{$name}%")->first();
     }
 
     /**
