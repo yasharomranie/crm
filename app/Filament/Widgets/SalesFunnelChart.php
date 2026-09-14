@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Widgets\ChartWidget;
 
@@ -17,8 +16,6 @@ use Filament\Widgets\ChartWidget;
  */
 class SalesFunnelChart extends ChartWidget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected ?string $heading = 'توزیع معاملات در پایپ‌لاین';
 
     protected ?string $description = 'تعداد و ارزش معاملات باز به تفکیک مرحله';

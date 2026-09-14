@@ -3,14 +3,11 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealSource;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Widgets\ChartWidget;
 
 class DealSourceChart extends ChartWidget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected ?string $heading = 'منبع سرنخ‌ها';
 
     protected int|string|array $columnSpan = 1;

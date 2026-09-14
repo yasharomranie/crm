@@ -39,8 +39,8 @@ class SalesPipeline extends Page
     /**
      * The pipeline's own report row - KPIs, stage distribution, source
      * breakdown, win/loss trend, a leaderboard, and a stale-deals list -
-     * kept off the main dashboard via OnlyVisibleOnSalesPipeline::canView()
-     * on each widget.
+     * kept off the main dashboard by App\Filament\Pages\Dashboard, which
+     * excludes these same widget classes from its own widget list.
      *
      * @return array<class-string>
      */

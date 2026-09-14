@@ -22,8 +22,9 @@ use Tests\TestCase;
  * The sales pipeline page grew a full report row on top of its kanban board
  * (KPIs, stage distribution, source breakdown, win/loss trend, a
  * leaderboard, and a stale-deals list). These widgets are deliberately
- * scoped to that one page via OnlyVisibleOnSalesPipeline - never on the
- * main dashboard, which already has its own, simpler pipeline stat.
+ * scoped to that one page by App\Filament\Pages\Dashboard excluding them
+ * from its own widget list - never on the main dashboard, which already
+ * has its own, simpler pipeline stat.
  */
 class SalesPipelineDashboardTest extends TestCase
 {
@@ -64,6 +65,31 @@ class SalesPipelineDashboardTest extends TestCase
         Livewire::test(DealWinLossTrendChart::class)->assertOk();
         Livewire::test(TopSalesRepsWidget::class)->assertOk();
         Livewire::test(StaleDealsWidget::class)->assertOk();
+    }
+
+    /**
+     * Regression test: a widget mounted directly via Livewire::test() never
+     * hydrates (that only happens once a *second* request comes in against
+     * an already-mounted component), so a bug that only shows up on
+     * hydration - like the earlier canView() that checked the current
+     * request's route name, which broke the moment a widget lazy-loaded or
+     * ran an action over Livewire's own update endpoint instead of the
+     * page's route - passed every "render once" test above and still blew
+     * up for real users. "$refresh" forces exactly that second,
+     * hydrate-from-snapshot round trip.
+     */
+    public function test_the_report_widgets_survive_a_second_hydration_not_just_the_first_mount(): void
+    {
+        $this->seedRepresentativeDeals();
+
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(SalesPipelineStatsOverview::class)->call('$refresh')->assertOk();
+        Livewire::test(SalesFunnelChart::class)->call('$refresh')->assertOk();
+        Livewire::test(DealSourceChart::class)->call('$refresh')->assertOk();
+        Livewire::test(DealWinLossTrendChart::class)->call('$refresh')->assertOk();
+        Livewire::test(TopSalesRepsWidget::class)->call('$refresh')->assertOk();
+        Livewire::test(StaleDealsWidget::class)->call('$refresh')->assertOk();
     }
 
     public function test_the_report_widgets_render_fine_with_no_deals_at_all(): void
@@ -108,6 +134,23 @@ class SalesPipelineDashboardTest extends TestCase
         $response->assertDontSeeLivewire(DealWinLossTrendChart::class);
         $response->assertDontSeeLivewire(TopSalesRepsWidget::class);
         $response->assertDontSeeLivewire(StaleDealsWidget::class);
+    }
+
+    public function test_the_stale_deals_widgets_export_actions_still_work_after_the_page_has_loaded(): void
+    {
+        $stale = Deal::create(['title' => 'معاملهٔ راکد', 'stage' => DealStage::ProposalSent, 'value' => 4_000_000]);
+        $stale->timestamps = false;
+        $stale->updated_at = now()->subDays(20);
+        $stale->save();
+
+        $this->actingAs(User::factory()->create());
+
+        // The export buttons are clicked *after* the widget is already
+        // sitting on the page (a second, hydrated request) - the same
+        // condition the canView()-by-route bug above broke.
+        Livewire::test(StaleDealsWidget::class)
+            ->callTableAction('exportExcel')
+            ->assertFileDownloaded('معاملات-راکد.xlsx');
     }
 
     public function test_the_stale_deals_widget_only_lists_open_deals_untouched_for_two_weeks(): void

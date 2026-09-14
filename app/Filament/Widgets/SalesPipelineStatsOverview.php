@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
@@ -20,8 +19,6 @@ use Illuminate\Support\Collection;
  */
 class SalesPipelineStatsOverview extends StatsOverviewWidget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected function getStats(): array
     {
         $openStages = [DealStage::NewLead, DealStage::NeedsAssessment, DealStage::ProposalSent, DealStage::Negotiation];

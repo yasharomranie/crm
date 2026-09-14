@@ -4,7 +4,6 @@ namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
 use App\Filament\Support\TableExports;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
@@ -18,8 +17,6 @@ use Filament\Widgets\TableWidget;
  */
 class StaleDealsWidget extends TableWidget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected int|string|array $columnSpan = 'full';
 
     public function table(Table $table): Table

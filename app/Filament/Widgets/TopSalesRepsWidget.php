@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Widgets\Widget;
 
@@ -15,8 +14,6 @@ use Filament\Widgets\Widget;
  */
 class TopSalesRepsWidget extends Widget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected string $view = 'filament.widgets.top-sales-reps';
 
     protected int|string|array $columnSpan = 1;

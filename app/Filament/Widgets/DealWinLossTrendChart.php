@@ -3,7 +3,6 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\DealStage;
-use App\Filament\Widgets\Concerns\OnlyVisibleOnSalesPipeline;
 use App\Models\Deal;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
@@ -16,8 +15,6 @@ use Morilog\Jalali\Jalalian;
  */
 class DealWinLossTrendChart extends ChartWidget
 {
-    use OnlyVisibleOnSalesPipeline;
-
     protected ?string $heading = 'روند برد و باخت (۸ هفتهٔ اخیر)';
 
     protected int|string|array $columnSpan = 1;
