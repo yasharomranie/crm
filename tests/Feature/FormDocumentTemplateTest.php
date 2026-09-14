@@ -94,6 +94,29 @@ class FormDocumentTemplateTest extends TestCase
         $this->assertStringContainsString('نام: علی رضایی', $submission->mergedDocumentBody());
     }
 
+    public function test_a_native_merge_tag_chip_from_the_rich_editor_is_resolved_the_same_as_plain_placeholder_text(): void
+    {
+        // What FormTemplateForm's RichEditor::mergeTags() actually saves
+        // when someone types "{{" and picks a field from the dropdown,
+        // or drags it in from the "تگ‌های ادغام" toolbar button - not the
+        // plain {{field_key}} text an admin might type by hand instead.
+        $template = FormTemplate::factory()->create([
+            'document_template' => '<p>نام آقای <span data-type="mergeTag" data-id="contractor_name">نام پیمانکار</span> امضا می‌کند.</p>',
+        ]);
+        $field = FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'contractor_name']);
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        FormSubmissionValue::factory()->create([
+            'form_submission_id' => $submission->id,
+            'form_field_id' => $field->id,
+            'value_text' => 'یاشار عمرانی',
+        ]);
+
+        $body = $submission->mergedDocumentBody();
+
+        $this->assertStringContainsString('نام آقای یاشار عمرانی امضا می‌کند.', $body);
+        $this->assertStringNotContainsString('data-type="mergeTag"', $body);
+    }
+
     public function test_the_print_route_shows_the_merged_document_instead_of_the_field_list_when_a_template_exists(): void
     {
         $viewer = User::factory()->create();

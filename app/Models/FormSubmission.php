@@ -135,13 +135,20 @@ class FormSubmission extends Model
     }
 
     /**
-     * The form template's document_template (fixed boilerplate + {{field_
-     * key}} placeholders, authored with Filament's RichEditor) with every
+     * The form template's document_template (fixed boilerplate with field
+     * placeholders, authored with Filament's RichEditor) with every
      * placeholder replaced by this submission's real answer - what turns a
      * generic label/value list into an actual filled-in document that
      * mirrors a physical paper form. Returns null when the template
      * carries no document text at all (the caller falls back to the plain
      * field list in that case).
+     *
+     * Two placeholder forms are recognised, since both produce valid
+     * document_template HTML:
+     * - RichEditor's native "merge tag" chip (typed via "{{" or inserted
+     *   from the toolbar's "تگ‌های ادغام" button - see FormTemplateForm):
+     *   <span data-type="mergeTag" data-id="field_key">Label</span>.
+     * - Plain {{field_key}} text, for anyone who types it by hand instead.
      */
     public function mergedDocumentBody(): ?string
     {
@@ -156,6 +163,12 @@ class FormSubmission extends Model
         // correctly even after that field is later removed from the form.
         $fieldsByKey = $this->formTemplate->fields()->withTrashed()->get()->keyBy('field_key');
         $valuesByFieldId = $this->values->keyBy('form_field_id');
+
+        $templateBody = preg_replace_callback(
+            '/<span\b(?=[^>]*\bdata-type="mergeTag")(?=[^>]*\bdata-id="([a-zA-Z0-9_]+)")[^>]*>.*?<\/span>/s',
+            fn (array $matches) => $this->renderDocumentPlaceholder($matches[1], $fieldsByKey, $valuesByFieldId),
+            $templateBody,
+        );
 
         return preg_replace_callback(
             '/\{\{\s*([a-zA-Z0-9_]+)\s*\}\}/',

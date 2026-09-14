@@ -46,9 +46,17 @@ class FormTemplateForm
                 RichEditor::make('document_template')
                     ->label('متن سند (اختیاری)')
                     ->columnSpanFull()
+                    // Filament's built-in "merge tags" picker: typing "{{"
+                    // (or clicking the "تگ‌های ادغام" toolbar button) opens a
+                    // searchable dropdown of these field-key => label pairs
+                    // and inserts a proper merge-tag chip - no custom JS
+                    // needed. FormSubmission::mergedDocumentBody() knows how
+                    // to resolve both this chip format and plain {{key}}
+                    // text typed by hand.
+                    ->mergeTags(fn (?FormTemplate $record) => $record?->fields->pluck('label', 'field_key')->all() ?? [])
                     ->helperText(fn (?FormTemplate $record) => filled($record?->fields)
-                        ? 'کلیدهای قابل استفاده در متن، به‌صورت {{کلید}}: '.$record->fields->pluck('field_key')->map(fn (string $key) => "{{$key}}")->implode('، ')
-                        : 'برای استفاده از این بخش، ابتدا فیلدهای فرم را در تب «فیلدهای فرم» بسازید (بعد از ذخیرهٔ اولیهٔ این فرم)، سپس کلید فنی هر فیلد را اینجا به‌صورت {{کلید_فیلد}} در متن قرار دهید.')
+                        ? 'برای وارد کردن مقدار یک فیلد، در متن عبارت {{ را تایپ کنید (یا از دکمهٔ «تگ‌های ادغام» در نوار ابزار استفاده کنید) و از لیست، فیلد موردنظر را انتخاب کنید.'
+                        : 'برای استفاده از این بخش، ابتدا فیلدهای فرم را در تب «فیلدهای فرم» بسازید (بعد از ذخیرهٔ اولیهٔ این فرم)، سپس این صفحه را دوباره باز کنید تا فیلدها برای انتخاب در دسترس باشند.')
                     ->hintAction(FieldHelp::make('form-templates.document_template')),
             ]);
     }
