@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FormTemplates\RelationManagers;
 
 use App\Enums\FormFieldType;
+use App\Models\FormField;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
@@ -17,6 +18,7 @@ use Filament\Schemas\Schema;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Collection;
 
 class FieldsRelationManager extends RelationManager
 {
@@ -82,12 +84,32 @@ class FieldsRelationManager extends RelationManager
             ])
             ->recordActions([
                 EditAction::make(),
-                DeleteAction::make(),
+                DeleteAction::make()
+                    ->modalDescription(fn (FormField $record) => static::deleteWarning($record->values()->count())),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
-                    DeleteBulkAction::make(),
+                    DeleteBulkAction::make()
+                        ->modalDescription(fn (Collection $records) => static::deleteWarning(
+                            $records->sum(fn (FormField $record) => $record->values()->count())
+                        )),
                 ]),
             ]);
+    }
+
+    /**
+     * form_submission_values.form_field_id is cascadeOnDelete() - deleting
+     * a field permanently deletes every submitted answer for it, across
+     * every past submission, with no way back. This is the warning that
+     * makes that consequence explicit before someone (accidentally) does
+     * it - see FormField::values() for why the count is trustworthy.
+     */
+    private static function deleteWarning(int $valuesCount): string
+    {
+        if ($valuesCount === 0) {
+            return 'این فیلد هیچ پاسخ ثبت‌شده‌ای ندارد و حذف آن بی‌خطر است.';
+        }
+
+        return "هشدار: {$valuesCount} پاسخ ثبت‌شده برای این فیلد وجود دارد. حذف فیلد، این پاسخ‌ها را برای همیشه از تمام فرم‌های ثبت‌شده (قبلی) پاک می‌کند و غیرقابل بازگشت است. اگر فقط می‌خواهید فیلد را اصلاح کنید، به‌جای حذف از دکمهٔ ویرایش استفاده کنید.";
     }
 }
