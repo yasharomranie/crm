@@ -296,7 +296,19 @@
             @endif
         </div>
 
-        <form wire:submit.prevent="send" class="flex items-end gap-2 border-t border-gray-200 p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))] dark:border-white/10">
+        <div x-show="listening || speechError" x-cloak class="flex items-center gap-1.5 border-t border-gray-200 px-3 pt-2 text-[11px] dark:border-white/10">
+            <span x-show="listening" class="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
+                <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
+                <span x-text="interimText || 'در حال شنیدن...'"></span>
+            </span>
+            <span x-show="speechError" x-text="speechError" class="text-danger-600 dark:text-danger-400"></span>
+        </div>
+
+        <form
+            wire:submit.prevent="send"
+            class="flex items-end gap-2 p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
+            :class="(listening || speechError) ? '' : 'border-t border-gray-200 dark:border-white/10'"
+        >
             <textarea
                 wire:model="body"
                 x-on:input="autoGrow($event.target)"
@@ -307,6 +319,20 @@
                 wire:target="send"
                 class="fi-input max-h-28 flex-1 resize-none rounded-xl border-gray-300 text-[13px] focus:ring-2 focus:ring-amber-500 dark:border-white/10 dark:bg-white/5"
             ></textarea>
+            <button
+                type="button"
+                x-show="speechSupported"
+                x-on:click="toggleListening()"
+                :aria-label="listening ? 'توقف ضبط صدا' : 'ورودی صوتی'"
+                :title="listening ? 'توقف ضبط صدا' : 'ورودی صوتی (فارسی)'"
+                class="flex h-9 w-9 shrink-0 cursor-pointer items-center justify-center rounded-xl transition"
+                :class="listening
+                    ? 'bg-danger-500 text-white'
+                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200 dark:bg-white/5 dark:text-gray-300 dark:hover:bg-white/10'"
+            >
+                <x-heroicon-o-stop-circle class="h-4 w-4" x-show="listening" x-cloak />
+                <x-heroicon-o-microphone class="h-4 w-4" x-show="!listening" />
+            </button>
             <button
                 type="submit"
                 aria-label="ارسال"
@@ -334,12 +360,92 @@
             position: { x: 0, y: 0 },
             isMobile: window.matchMedia('(max-width: 767px)').matches,
 
+            // --- Voice input (free, client-side only - see toggleListening()) ---
+            speechSupported: false,
+            listening: false,
+            interimText: '',
+            speechError: '',
+            recognition: null,
+
             init() {
                 this.position = this.loadPosition();
                 window.addEventListener('resize', () => {
                     this.isMobile = window.matchMedia('(max-width: 767px)').matches;
                     this.position = this.clamp(this.position);
                 });
+                this.initSpeech();
+            },
+
+            /**
+             * Uses the browser's own built-in speech recognition (Web
+             * Speech API) - free, no API key, no server round trip for the
+             * transcription itself. Only supported in Chromium-based
+             * browsers (Chrome/Edge); speechSupported hides the mic button
+             * everywhere else instead of showing something broken.
+             */
+            initSpeech() {
+                const SpeechRecognitionCtor = window.SpeechRecognition || window.webkitSpeechRecognition;
+                this.speechSupported = !! SpeechRecognitionCtor;
+
+                if (! this.speechSupported) {
+                    return;
+                }
+
+                this.recognition = new SpeechRecognitionCtor();
+                this.recognition.lang = 'fa-IR';
+                this.recognition.continuous = true;
+                this.recognition.interimResults = true;
+
+                this.recognition.onresult = (event) => {
+                    let finalChunk = '';
+                    this.interimText = '';
+
+                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                        const result = event.results[i];
+
+                        if (result.isFinal) {
+                            finalChunk += result[0].transcript;
+                        } else {
+                            this.interimText += result[0].transcript;
+                        }
+                    }
+
+                    if (finalChunk) {
+                        const current = (this.$wire.body || '').trim();
+                        this.$wire.set('body', (current ? current + ' ' : '') + finalChunk.trim());
+                    }
+                };
+
+                this.recognition.onerror = (event) => {
+                    this.listening = false;
+                    this.speechError = event.error === 'not-allowed'
+                        ? 'اجازهٔ دسترسی به میکروفون داده نشد.'
+                        : 'خطا در تشخیص گفتار. دوباره تلاش کنید.';
+                };
+
+                this.recognition.onend = () => {
+                    this.listening = false;
+                    this.interimText = '';
+                };
+            },
+
+            toggleListening() {
+                if (! this.speechSupported) {
+                    return;
+                }
+
+                this.speechError = '';
+
+                if (this.listening) {
+                    this.recognition.stop();
+                    this.listening = false;
+
+                    return;
+                }
+
+                this.interimText = '';
+                this.recognition.start();
+                this.listening = true;
             },
 
             bounds() {
