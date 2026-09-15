@@ -266,6 +266,7 @@
             interimText: '',
             speechError: '',
             recognition: null,
+            speechBaseText: '',
 
             init() {
                 this.scrollToBottom(true);
@@ -309,23 +310,30 @@
                 this.recognition.interimResults = true;
 
                 this.recognition.onresult = (event) => {
-                    let finalChunk = '';
-                    this.interimText = '';
+                    // Rebuilds the transcript from ALL results every time
+                    // (not just from event.resultIndex onward) and always
+                    // overwrites body with it, instead of appending each
+                    // event's "new" chunk - some browsers (Chrome on
+                    // Android especially) re-fire the same already-final
+                    // result again in a later event, which turned into
+                    // duplicated repeated phrases when we appended.
+                    let finalText = '';
+                    let interim = '';
 
-                    for (let i = event.resultIndex; i < event.results.length; i++) {
+                    for (let i = 0; i < event.results.length; i++) {
                         const result = event.results[i];
 
                         if (result.isFinal) {
-                            finalChunk += result[0].transcript;
+                            finalText += result[0].transcript;
                         } else {
-                            this.interimText += result[0].transcript;
+                            interim += result[0].transcript;
                         }
                     }
 
-                    if (finalChunk) {
-                        const current = (this.$wire.body || '').trim();
-                        this.$wire.set('body', (current ? current + ' ' : '') + finalChunk.trim());
-                    }
+                    this.interimText = interim.trim();
+
+                    const base = this.speechBaseText;
+                    this.$wire.set('body', (base && finalText.trim() ? base + ' ' : base) + finalText.trim());
                 };
 
                 this.recognition.onerror = (event) => {
@@ -356,6 +364,7 @@
                 }
 
                 this.interimText = '';
+                this.speechBaseText = (this.$wire.body || '').trim();
                 this.recognition.start();
                 this.listening = true;
             },
