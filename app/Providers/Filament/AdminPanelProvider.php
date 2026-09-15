@@ -118,6 +118,14 @@ class AdminPanelProvider extends PanelProvider
                         });
                     </script>
                     HTML),
+            )
+            // The floating AI assistant mascot - see AiAssistantWidget for
+            // why this has to be mounted panel-wide via a render hook
+            // rather than as a normal page: it needs to follow the user
+            // across every screen, not just its own route.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('filament.render-hooks.ai-assistant-widget'),
             );
     }
 }

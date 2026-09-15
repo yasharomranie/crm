@@ -2,12 +2,14 @@
 
 namespace App\Providers;
 
+use App\Livewire\AiAssistantWidget;
 use App\Models\User;
 use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\ServiceProvider;
+use Livewire\Livewire;
 use Morilog\Jalali\CalendarUtils;
 use Morilog\Jalali\Jalalian;
 
@@ -34,6 +36,12 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerAccessControl();
         $this->registerJalaliDateMacro();
+
+        // Explicit registration (rather than relying on Livewire's
+        // app/Livewire auto-discovery) so the tag name is guaranteed
+        // stable regardless of Livewire version - the panel-wide render
+        // hook in AdminPanelProvider mounts it by this exact tag.
+        Livewire::component('ai-assistant-widget', AiAssistantWidget::class);
     }
 
     /**
