@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\FormFieldType;
+use App\Enums\TableColumnType;
 use App\Models\FormField;
 use App\Models\FormTemplate;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -30,5 +31,25 @@ class FormFieldFactory extends Factory
             'sort_order' => 0,
             'is_required' => false,
         ];
+    }
+
+    /**
+     * A repeatable-table field with a couple of columns - the shape
+     * DynamicFormFieldBuilder's ->table() Repeater and every value renderer
+     * (detail view, print/word exports, mergedDocumentBody()) expect in
+     * options.columns.
+     */
+    public function table(): static
+    {
+        return $this->state(fn () => [
+            'field_type' => FormFieldType::Table,
+            'options' => [
+                'columns' => [
+                    ['key' => 'unit_name', 'label' => 'نام واحد', 'type' => TableColumnType::Text->value],
+                    ['key' => 'amount', 'label' => 'مبلغ (ریال)', 'type' => TableColumnType::Number->value],
+                ],
+                'default_rows' => 0,
+            ],
+        ]);
     }
 }

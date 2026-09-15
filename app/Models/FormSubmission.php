@@ -192,7 +192,7 @@ class FormSubmission extends Model
         $submittedValue = $valuesByFieldId->get($field->id);
         $value = $submittedValue?->value;
 
-        if ($value === null || $value === '') {
+        if (blank($value)) {
             return '..........';
         }
 
@@ -208,8 +208,29 @@ class FormSubmission extends Model
                 ? '<a href="https://www.google.com/maps?q='.$value['lat'].','.$value['lng'].'">مشاهدهٔ موقعیت روی نقشه</a>'
                 : '..........',
             FormFieldType::File => '<a href="'.route('form-submissions.files.download', ['submission' => $this, 'value' => $submittedValue]).'">پیوست فایل</a>',
+            FormFieldType::Table => is_array($value) ? $this->renderTablePlaceholder($field, $value) : '..........',
             default => nl2br(e((string) $value)),
         };
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $rows
+     */
+    private function renderTablePlaceholder(FormField $field, array $rows): string
+    {
+        $columns = $field->options['columns'] ?? [];
+
+        $headerCells = collect($columns)->map(fn (array $column) => '<th style="border:1px solid #ccc;padding:4px 6px;background:#f4f4f3;">'.e($column['label']).'</th>')->implode('');
+
+        $bodyRows = collect($rows)->map(function (array $row) use ($columns) {
+            $cells = collect($columns)->map(
+                fn (array $column) => '<td style="border:1px solid #ccc;padding:4px 6px;">'.e((string) ($row[$column['key']] ?? '')).'</td>'
+            )->implode('');
+
+            return "<tr>{$cells}</tr>";
+        })->implode('');
+
+        return '<table style="width:100%;border-collapse:collapse;"><thead><tr>'.$headerCells.'</tr></thead><tbody>'.$bodyRows.'</tbody></table>';
     }
 
     public function isVisibleTo(User $user): bool

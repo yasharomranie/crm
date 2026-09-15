@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\FormTemplates\RelationManagers;
 
 use App\Enums\FormFieldType;
+use App\Enums\TableColumnType;
 use App\Models\FormField;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -10,6 +11,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\KeyValue;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -66,6 +68,44 @@ class FieldsRelationManager extends RelationManager
                         FormFieldType::Select,
                         FormFieldType::Radio,
                     ]))
+                    ->columnSpanFull(),
+                // A repeatable table's own columns - what turns a physical
+                // paper form's grid (e.g. a 16-row "معوقات اجاره" table)
+                // into something the form-builder can actually reproduce,
+                // instead of forcing an admin to fake it with dozens of
+                // individually-numbered flat fields. Stored inside the same
+                // `options` JSON column as the KeyValue above (only one of
+                // the two is ever visible/dehydrated for a given field_type,
+                // so they never collide) - see DynamicFormFieldBuilder's
+                // ->table() Repeater, which reads this same shape back out.
+                Repeater::make('options.columns')
+                    ->label('ستون‌های جدول')
+                    ->visible(fn ($get) => $get('field_type') === FormFieldType::Table)
+                    ->schema([
+                        TextInput::make('key')
+                            ->label('کلید فنی ستون')
+                            ->helperText('فقط حروف انگلیسی و زیرخط، بدون فاصله. مثلاً: unit_name')
+                            ->required(),
+                        TextInput::make('label')
+                            ->label('عنوان ستون')
+                            ->required(),
+                        Select::make('type')
+                            ->label('نوع ستون')
+                            ->options(TableColumnType::class)
+                            ->default(TableColumnType::Text)
+                            ->required()
+                            ->native(false),
+                    ])
+                    ->columns(3)
+                    ->addActionLabel('افزودن ستون')
+                    ->reorderable(false)
+                    ->columnSpanFull(),
+                TextInput::make('options.default_rows')
+                    ->label('تعداد ردیف پیش‌فرض')
+                    ->helperText('مثلاً جدول کاغذی ۱۶ ردیف خالی دارد - همین تعداد ردیف از ابتدا نمایش داده می‌شود؛ کاربر می‌تواند بعداً ردیف کم یا زیاد کند.')
+                    ->numeric()
+                    ->default(0)
+                    ->visible(fn ($get) => $get('field_type') === FormFieldType::Table)
                     ->columnSpanFull(),
                 Toggle::make('is_required')
                     ->label('اجباری باشد'),

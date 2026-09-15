@@ -83,6 +83,27 @@
                                 @endif
                             @elseif ($field->field_type === FormFieldType::File)
                                 <a href="{{ route('form-submissions.files.download', ['submission' => $submission, 'value' => $value]) }}" class="text-primary-600 underline dark:text-primary-400">دانلود فایل پیوست</a>
+                            @elseif ($field->field_type === FormFieldType::Table && is_array($value->value))
+                                <div class="overflow-x-auto">
+                                    <table class="min-w-full border-collapse text-xs">
+                                        <thead>
+                                            <tr>
+                                                @foreach ($field->options['columns'] ?? [] as $column)
+                                                    <th class="border border-gray-200 bg-gray-50 px-2 py-1 text-start font-medium text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">{{ $column['label'] }}</th>
+                                                @endforeach
+                                            </tr>
+                                        </thead>
+                                        <tbody>
+                                            @foreach ($value->value as $row)
+                                                <tr>
+                                                    @foreach ($field->options['columns'] ?? [] as $column)
+                                                        <td class="border border-gray-200 px-2 py-1 text-gray-900 dark:border-white/10 dark:text-gray-100">{{ $row[$column['key']] ?? '—' }}</td>
+                                                    @endforeach
+                                                </tr>
+                                            @endforeach
+                                        </tbody>
+                                    </table>
+                                </div>
                             @else
                                 {{ $value->value }}
                             @endif

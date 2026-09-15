@@ -44,7 +44,10 @@ class CreateFormSubmission extends CreateRecord
 
                 $value = $data[$field->field_key];
 
-                if ($value === null || $value === '') {
+                // blank() (not a plain === null/'' check): a Table field
+                // with no rows added submits as [], which needs skipping
+                // here exactly like an untouched text field would.
+                if (blank($value)) {
                     continue;
                 }
 

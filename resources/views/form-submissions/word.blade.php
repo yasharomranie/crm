@@ -103,6 +103,24 @@
         font-size: 11pt;
     }
 
+    table.value-table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 10pt;
+    }
+
+    table.value-table th, table.value-table td {
+        border: 1pt solid #e7e5e4;
+        padding: 4pt 6pt;
+        text-align: right;
+    }
+
+    table.value-table th {
+        background: #f4f4f3;
+        font-weight: bold;
+        color: #57534e;
+    }
+
     .document-body {
         margin-bottom: 18pt;
         font-size: 11pt;
@@ -204,6 +222,25 @@
                             <br><a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
                         @elseif ($field->field_type->value === 'file')
                             پیوست ثبت شده
+                        @elseif ($field->field_type->value === 'table' && is_array($value->value))
+                            <table class="value-table">
+                                <thead>
+                                    <tr>
+                                        @foreach ($field->options['columns'] ?? [] as $column)
+                                            <th>{{ $column['label'] }}</th>
+                                        @endforeach
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach ($value->value as $row)
+                                        <tr>
+                                            @foreach ($field->options['columns'] ?? [] as $column)
+                                                <td>{{ $row[$column['key']] ?? '—' }}</td>
+                                            @endforeach
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
                         @else
                             {{ $value->value }}
                         @endif

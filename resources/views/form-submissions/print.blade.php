@@ -152,6 +152,24 @@
             border-radius: .35rem;
         }
 
+        table.value-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: .8rem;
+        }
+
+        table.value-table th, table.value-table td {
+            border: 1px solid var(--line);
+            padding: .4rem .5rem;
+            text-align: start;
+        }
+
+        table.value-table th {
+            background: var(--paper);
+            font-weight: 600;
+            color: var(--ink-soft);
+        }
+
         /* ---------- Merged document (from a form template's متن سند) ---------- */
 
         .document-body {
@@ -360,6 +378,25 @@
                                 @endif
                             @elseif ($field->field_type->value === 'file')
                                 پیوست ثبت شده
+                            @elseif ($field->field_type->value === 'table' && is_array($value->value))
+                                <table class="value-table">
+                                    <thead>
+                                        <tr>
+                                            @foreach ($field->options['columns'] ?? [] as $column)
+                                                <th>{{ $column['label'] }}</th>
+                                            @endforeach
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        @foreach ($value->value as $row)
+                                            <tr>
+                                                @foreach ($field->options['columns'] ?? [] as $column)
+                                                    <td>{{ $row[$column['key']] ?? '—' }}</td>
+                                                @endforeach
+                                            </tr>
+                                        @endforeach
+                                    </tbody>
+                                </table>
                             @else
                                 {{ $value->value }}
                             @endif

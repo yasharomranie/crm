@@ -16,6 +16,7 @@ enum FormFieldType: string implements HasLabel
     case File = 'file';
     case Signature = 'signature';
     case Gps = 'gps';
+    case Table = 'table';
 
     public function getLabel(): string
     {
@@ -30,6 +31,7 @@ enum FormFieldType: string implements HasLabel
             self::File => 'فایل پیوست',
             self::Signature => 'امضای دیجیتال',
             self::Gps => 'موقعیت مکانی (GPS)',
+            self::Table => 'جدول (ردیف‌های تکرارشونده)',
         };
     }
 
@@ -40,7 +42,7 @@ enum FormFieldType: string implements HasLabel
     public function storesAsJson(): bool
     {
         return match ($this) {
-            self::Checkbox, self::Gps => true,
+            self::Checkbox, self::Gps, self::Table => true,
             default => false,
         };
     }
