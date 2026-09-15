@@ -267,6 +267,8 @@
             speechError: '',
             recognition: null,
             speechBaseText: '',
+            speechCommitted: '',
+            speechStoppedByUser: false,
 
             init() {
                 this.scrollToBottom(true);
@@ -306,17 +308,19 @@
 
                 this.recognition = new SpeechRecognitionCtor();
                 this.recognition.lang = 'fa-IR';
-                this.recognition.continuous = true;
+                // continuous:true is where the real bug lives: Chrome on
+                // Android is well known to garble/duplicate long
+                // continuous dictation sessions (repeating whole phrases
+                // baked right into the transcript, not just re-sent
+                // events). Instead, each session covers ONE utterance and
+                // onend restarts a fresh one automatically for as long as
+                // the mic is toggled on - independent short sessions never
+                // hit that bug, and chaining them gives the same
+                // "keep talking" UX as continuous mode would.
+                this.recognition.continuous = false;
                 this.recognition.interimResults = true;
 
                 this.recognition.onresult = (event) => {
-                    // Rebuilds the transcript from ALL results every time
-                    // (not just from event.resultIndex onward) and always
-                    // overwrites body with it, instead of appending each
-                    // event's "new" chunk - some browsers (Chrome on
-                    // Android especially) re-fire the same already-final
-                    // result again in a later event, which turned into
-                    // duplicated repeated phrases when we appended.
                     let finalText = '';
                     let interim = '';
 
@@ -332,11 +336,23 @@
 
                     this.interimText = interim.trim();
 
-                    const base = this.speechBaseText;
-                    this.$wire.set('body', (base && finalText.trim() ? base + ' ' : base) + finalText.trim());
+                    if (finalText.trim()) {
+                        this.speechCommitted = (this.speechCommitted ? this.speechCommitted + ' ' : '') + finalText.trim();
+                    }
+
+                    const parts = [this.speechBaseText, this.speechCommitted].filter(Boolean);
+                    this.$wire.set('body', parts.join(' '));
                 };
 
                 this.recognition.onerror = (event) => {
+                    // "no-speech" (silence timeout) and "aborted" (we
+                    // called stop() ourselves) aren't real failures - just
+                    // let onend decide whether to keep the session going.
+                    if (event.error === 'no-speech' || event.error === 'aborted') {
+                        return;
+                    }
+
+                    this.speechStoppedByUser = true;
                     this.listening = false;
                     this.speechError = event.error === 'not-allowed'
                         ? 'اجازهٔ دسترسی به میکروفون داده نشد.'
@@ -344,8 +360,20 @@
                 };
 
                 this.recognition.onend = () => {
-                    this.listening = false;
                     this.interimText = '';
+
+                    if (this.listening && ! this.speechStoppedByUser) {
+                        try {
+                            this.recognition.start();
+                        } catch (e) {
+                            this.listening = false;
+                        }
+
+                        return;
+                    }
+
+                    this.listening = false;
+                    this.speechStoppedByUser = false;
                 };
             },
 
@@ -357,6 +385,7 @@
                 this.speechError = '';
 
                 if (this.listening) {
+                    this.speechStoppedByUser = true;
                     this.recognition.stop();
                     this.listening = false;
 
@@ -364,7 +393,9 @@
                 }
 
                 this.interimText = '';
+                this.speechCommitted = '';
                 this.speechBaseText = (this.$wire.body || '').trim();
+                this.speechStoppedByUser = false;
                 this.recognition.start();
                 this.listening = true;
             },
