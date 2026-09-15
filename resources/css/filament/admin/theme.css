@@ -15,3 +15,45 @@
  */
 @source '../../../../app/Livewire';
 @source '../../../../resources/views/livewire';
+
+/*
+ * Filament's table-style Repeater (used by DynamicFormFieldBuilder's
+ * FormFieldType::Table fields, e.g. an admin-built "دستور کارهای در دست
+ * اقدام" table with several columns) never wraps its own <table> in a
+ * horizontally-scrollable container - vendor/filament/forms' repeater.css
+ * gives it `width: 100%` but no overflow rule, so once the columns'
+ * combined minimum width exceeds the page, the table just overflows past
+ * the screen edge and gets silently clipped instead of scrolling, which is
+ * exactly what a "table field is missing columns" bug report looks like
+ * even though the data and columns are both fine.
+ */
+.fi-fo-table-repeater {
+    /*
+     * `.fi-fo-table-repeater` is itself a grid item wherever it sits (a
+     * form column), and a grid item's `min-width` defaults to `auto` -
+     * which resolves to its content's min-content size, so without this it
+     * grows past its own track instead of ever being squeezed down to it.
+     */
+    min-width: 0;
+    /*
+     * The scroll container has to be this outer div, not the <table>
+     * itself: Chromium doesn't turn a `display: table` box into a
+     * scrollable element via `overflow-x`/`overflow` (confirmed via
+     * getComputedStyle - it silently stays "visible" no matter what's
+     * specified), so `overflow-x: auto` is set here instead, one level up.
+     */
+    overflow-x: auto;
+
+    & > table {
+        /*
+         * Same min-width: auto growth problem as the comment above, one
+         * level down: without this the <table> still refuses to shrink to
+         * this div's width, so the div above would have nothing left to
+         * scroll (the table would just render at its natural, wider size
+         * with no visible cut-off, silently overflowing this div instead
+         * of the page - equally broken, just one level removed).
+         */
+        min-width: 0;
+        max-width: 100%;
+    }
+}
