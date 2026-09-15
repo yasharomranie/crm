@@ -24,6 +24,7 @@ use App\Models\Booking;
 use App\Models\BookingCharge;
 use App\Models\Deal;
 use App\Models\Department;
+use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
@@ -223,6 +224,11 @@ trait HasAiAssistantEngine
             - اگر design_form_template_draft بگوید فرم مشابهی از قبل وجود دارد (needs_confirmation)، فرم جدیدی نساز؛ اول به کاربر بگو فرم مشابه چیست و بپرس آیا با وجود این فرم جدید می‌خواهد، و فقط با تأیید صریح او دوباره با confirm_similar_duplicate=true تماس بگیر.
             - برای افزودن فیلد به فرم موجود از add_field_to_form_template استفاده کن (هرگز فیلد قبلی را حذف یا نوعش را عوض نمی‌کند)، و برای تغییر نام/مهلت پاسخ‌گویی یک مرحلهٔ موجود از update_workflow_step - این ابزار هرگز تأییدکنندهٔ یک مرحله را عوض نمی‌کند چون ممکن است تأییدهای در جریان را به فرد اشتباهی منتقل کند.
             - get_rejection_reasons فقط متن خام نظرات رد را برمی‌گرداند؛ دسته‌بندی و خلاصه‌سازی دلایل رد کار خودت است، نه ابزار.
+
+            دربارهٔ آنالیز محتوای فرم‌های پرشده (مثلاً جدول‌های کارها/پیشرفت داخل یک صورتجلسه):
+            - اگر کلید فنی فیلدی که کاربر با نامش (مثل «دپارتمان» یا «پیشرفت») به آن اشاره کرده را نمی‌دانی، اول get_form_template_fields را برای آن فرم صدا بزن تا کلیدهای فنی و - برای فیلدهای جدولی - ستون‌های واقعی آن را ببینی؛ هیچ‌وقت کلید فنی را حدس نزن.
+            - برای آنالیز چند سابمیشن با هم (مثلاً «همهٔ صورتجلسه‌های واحد دیجیتال مارکتینگ رو آنالیز کن»)، از search_form_submissions با include_answers=true استفاده کن تا مقادیر همهٔ فیلدها - از جمله کل ردیف‌های فیلدهای جدولی - یک‌جا برایت بیاید؛ برای یک سابمیشن مشخص با شناسه از summarize_submission_for_decision استفاده کن.
+            - دسته‌بندی و تحلیل کیفی ردیف‌های جدول (مثلاً «کدام کار تمام شده، کدام نیمه‌کاره، کدام شروع نشده») کار خودت است، نه ابزار - این تحلیل را بر اساس عنوان واقعی ستون‌هایی که get_form_template_fields/include_answers برگرداندند انجام بده، نه بر اساس فرض یا حدس دربارهٔ معنای یک ستون.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -326,6 +332,7 @@ trait HasAiAssistantEngine
             'get_approver_performance' => $this->approverPerformanceTool($arguments),
             'get_rejection_reasons' => $this->rejectionReasonsTool($arguments),
             'compare_form_submissions_between_periods' => $this->comparePeriodsTool($arguments),
+            'get_form_template_fields' => $this->formTemplateFieldsTool($arguments),
             'search_form_submissions' => $this->searchFormSubmissionsTool($arguments),
             'summarize_submission_for_decision' => $this->summarizeSubmissionTool($arguments),
             'get_at_risk_sla_submissions' => $this->atRiskSlaSubmissionsTool(),
@@ -398,7 +405,15 @@ trait HasAiAssistantEngine
                 'required' => [],
             ]);
 
-            $tools[] = $this->toolSchema('search_form_submissions', 'Search past submissions of one form by a specific field\'s value - e.g. "show purchase requests over 500 million toman". Returns matching submissions (id, submitter, date, status), not full answers - use summarize_submission_for_decision on a specific id for full detail.', [
+            $tools[] = $this->toolSchema('get_form_template_fields', 'Get a form template\'s field list - each field\'s label, technical key, type, and (for table-type fields, i.e. a repeating multi-column row like a task/progress table) its column definitions. Call this BEFORE search_form_submissions when you don\'t already know a field\'s exact technical key - e.g. to find which field on a specific form holds "department", "progress", or any other value the user refers to by its Persian label rather than its key.', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Exact or partial name of the form template'],
+                ],
+                'required' => ['form_template_name'],
+            ]);
+
+            $tools[] = $this->toolSchema('search_form_submissions', 'Search past submissions of one form by a specific field\'s value - e.g. "show purchase requests over 500 million toman" or "this department\'s weekly meeting minutes". Use get_form_template_fields first if you don\'t already know the field\'s technical key. Returns matching submissions (id, submitter, date, status) by default; set include_answers to also get every answered field for each one (table-type fields included, as their full array of rows) - use that for analyzing/comparing several submissions at once instead of calling summarize_submission_for_decision on each id separately.', [
                 'type' => 'object',
                 'properties' => [
                     'form_template_name' => ['type' => 'string', 'description' => 'Exact or partial name of the form to search within'],
@@ -406,7 +421,8 @@ trait HasAiAssistantEngine
                     'operator' => ['type' => 'string', 'enum' => ['==', '!=', '>', '>=', '<', '<=', 'contains'], 'description' => 'Comparison operator for field_key\'s value - defaults to =='],
                     'value' => ['type' => 'string', 'description' => 'Value to compare field_key against - a plain number for numeric fields, or Y-m-d Gregorian for date fields'],
                     'status' => ['type' => 'string', 'enum' => ['pending_approval', 'approved', 'rejected'], 'description' => 'Optional status filter'],
-                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 100'],
+                    'include_answers' => ['type' => 'boolean', 'description' => 'When true, includes every answered field (including table-type fields\' full row arrays) for each matched submission, for analyzing several submissions together. Defaults to false. Lowers the max limit to 15 (large payload per submission).'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 100 (max 15 when include_answers is true)'],
                 ],
                 'required' => ['form_template_name'],
             ]);
@@ -1440,7 +1456,20 @@ trait HasAiAssistantEngine
             });
         }
 
-        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 20)));
+        // include_answers's own payload (every field, with table-type
+        // fields' full row arrays) is much bigger per submission than the
+        // plain id/date/status listing, so the limit is capped tighter to
+        // keep a multi-submission analysis from blowing up the model's
+        // context - 15 full submissions is already a lot to reason over.
+        $includeAnswers = (bool) ($arguments['include_answers'] ?? false);
+        $limit = $includeAnswers
+            ? max(1, min(15, (int) ($arguments['limit'] ?? 10)))
+            : max(1, min(100, (int) ($arguments['limit'] ?? 20)));
+
+        if ($includeAnswers) {
+            $query->with(['values.formField' => fn ($q) => $q->withTrashed()]);
+        }
+
         $submissions = $query->latest('submitted_at')->limit($limit)->get();
 
         return [
@@ -1451,8 +1480,74 @@ trait HasAiAssistantEngine
                 'submitted_by' => $submission->submitter?->name,
                 'submitted_at' => $submission->submitted_at?->format('Y-m-d'),
                 'status' => $submission->status?->getLabel(),
+                ...($includeAnswers ? ['answers' => $this->submissionAnswers($submission)] : []),
             ])->all(),
         ];
+    }
+
+    /**
+     * Get a form template's own field list - label, technical key, type,
+     * and (for a Table field) its column definitions - so the model can
+     * work out which field a user's plain-language reference (e.g.
+     * "department", "progress") actually maps to before calling
+     * search_form_submissions, instead of guessing a field_key.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    private function formTemplateFieldsTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $template = $formName !== '' ? $this->findFormTemplateByName($formName) : null;
+
+        if (! $template) {
+            return [
+                'error' => "قالب فرمی با نام «{$formName}» پیدا نشد.",
+                'available_forms' => FormTemplate::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        return [
+            'form' => $template->title,
+            'fields' => $template->fields()->orderBy('sort_order')->get()->map(fn (FormField $field) => [
+                'label' => $field->label,
+                'field_key' => $field->field_key,
+                'field_type' => $field->field_type->value,
+                'is_required' => (bool) $field->is_required,
+                'table_columns' => $field->field_type === FormFieldType::Table
+                    ? collect($field->table_columns ?? [])->map(fn (array $column) => [
+                        'label' => $column['label'],
+                        'key' => $column['key'],
+                        'type' => $column['type'],
+                    ])->all()
+                    : null,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Every answered field on a submission, label + value - shared between
+     * summarize_submission_for_decision (one submission, full detail) and
+     * search_form_submissions's include_answers option (several at once).
+     * Signature/File values are masked to a short marker rather than their
+     * raw payload (a signature pad's base64 image, an uploaded file's
+     * storage path) - long, useless-to-a-language-model content that would
+     * otherwise bloat every multi-submission analysis for no benefit, since
+     * the model can't do anything with either besides note they exist.
+     *
+     * @return array<int, array{field: ?string, value: mixed}>
+     */
+    private function submissionAnswers(FormSubmission $submission): array
+    {
+        return $submission->values
+            ->map(fn (FormSubmissionValue $value) => [
+                'field' => $value->formField?->label,
+                'value' => match ($value->formField?->field_type) {
+                    FormFieldType::Signature => $value->value ? '[امضا ثبت شده]' : null,
+                    FormFieldType::File => $value->value ? '[فایل پیوست شده]' : null,
+                    default => $value->value,
+                },
+            ])
+            ->all();
     }
 
     /**
@@ -1472,12 +1567,7 @@ trait HasAiAssistantEngine
             return ['error' => "درخواستی با شناسهٔ «{$id}» پیدا نشد."];
         }
 
-        $answers = $submission->values
-            ->map(fn (FormSubmissionValue $value) => [
-                'field' => $value->formField?->label,
-                'value' => $value->value,
-            ])
-            ->all();
+        $answers = $this->submissionAnswers($submission);
 
         $comparisons = $submission->values
             ->filter(fn (FormSubmissionValue $value) => $value->formField?->field_type === FormFieldType::Number)

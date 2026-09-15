@@ -245,6 +245,106 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
         $this->assertSame($bigSubmission->id, $payload['submissions'][0]['id']);
     }
 
+    /**
+     * get_form_template_fields lets the model discover a form's field
+     * labels/keys/types (and a Table field's own column definitions)
+     * before calling search_form_submissions, instead of having to guess
+     * a technical field_key from the user's plain-language wording.
+     */
+    public function test_get_form_template_fields_lists_labels_keys_types_and_table_columns(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'صورتجلسه کمیسیون هفتگی']);
+        FormField::factory()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'department_name',
+            'label' => 'نام دپارتمان',
+            'field_type' => FormFieldType::Text,
+            'sort_order' => 1,
+        ]);
+        FormField::factory()->table()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'tasks',
+            'label' => 'جدول',
+            'sort_order' => 2,
+        ]);
+
+        $this->fakeToolCallThenAnswer('get_form_template_fields', ['form_template_name' => 'صورتجلسه کمیسیون هفتگی']);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'فیلدهای فرم صورتجلسه کمیسیون هفتگی رو بگو')
+            ->call('send');
+
+        $payload = $this->toolResultPayload();
+
+        $this->assertSame('صورتجلسه کمیسیون هفتگی', $payload['form']);
+        $this->assertSame('department_name', $payload['fields'][0]['field_key']);
+        $this->assertNull($payload['fields'][0]['table_columns']);
+        $this->assertSame('tasks', $payload['fields'][1]['field_key']);
+        $this->assertSame('unit_name', $payload['fields'][1]['table_columns'][0]['key']);
+    }
+
+    /**
+     * search_form_submissions's include_answers option is what makes
+     * "analyze every digital-marketing department's weekly meeting minutes"
+     * possible in one round trip - every matched submission's full answers
+     * come back together, table-type fields included as their complete row
+     * array, instead of one summarize_submission_for_decision call per id.
+     */
+    public function test_search_form_submissions_with_include_answers_returns_full_field_data_including_table_rows(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'صورتجلسه کمیسیون هفتگی']);
+        $departmentField = FormField::factory()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'department_name',
+            'label' => 'نام دپارتمان',
+            'field_type' => FormFieldType::Text,
+        ]);
+        $tableField = FormField::factory()->table()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'tasks',
+            'label' => 'جدول',
+        ]);
+
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        $submission->values()->create(['form_field_id' => $departmentField->id, 'value_text' => 'دیجیتال مارکتینگ']);
+        $submission->values()->create([
+            'form_field_id' => $tableField->id,
+            'value_json' => [
+                ['unit_name' => 'طراحی وب سایت', 'amount' => 100],
+                ['unit_name' => 'تولید محتوا', 'amount' => 40],
+            ],
+        ]);
+
+        FormSubmission::factory()->create(['form_template_id' => $template->id])
+            ->values()->create(['form_field_id' => $departmentField->id, 'value_text' => 'مالی']);
+
+        $this->fakeToolCallThenAnswer('search_form_submissions', [
+            'form_template_name' => 'صورتجلسه کمیسیون هفتگی',
+            'field_key' => 'department_name',
+            'operator' => 'contains',
+            'value' => 'دیجیتال مارکتینگ',
+            'include_answers' => true,
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'صورتجلسه‌های واحد دیجیتال مارکتینگ رو آنالیز کن')
+            ->call('send');
+
+        $payload = $this->toolResultPayload();
+
+        $this->assertSame(1, $payload['matched_count']);
+        $answers = collect($payload['submissions'][0]['answers']);
+        $this->assertSame('دیجیتال مارکتینگ', $answers->firstWhere('field', 'نام دپارتمان')['value']);
+        $tableAnswer = $answers->firstWhere('field', 'جدول')['value'];
+        $this->assertCount(2, $tableAnswer);
+        $this->assertSame('طراحی وب سایت', $tableAnswer[0]['unit_name']);
+        $this->assertSame(100, $tableAnswer[0]['amount']);
+    }
+
     public function test_summarize_submission_for_decision_compares_against_past_decided_submissions(): void
     {
         AiProvider::factory()->active()->create();
