@@ -313,11 +313,11 @@
                 wire:model="body"
                 x-on:input="autoGrow($event.target)"
                 x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.send(); }"
-                rows="1"
+                rows="2"
                 placeholder="پیام خود را بنویسید..."
                 wire:loading.attr="disabled"
                 wire:target="send"
-                class="fi-input max-h-28 flex-1 resize-none rounded-xl border-gray-300 text-[13px] focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-white/10 dark:bg-white/5"
+                class="fi-input max-h-28 min-h-[2.875rem] flex-1 resize-none rounded-xl border-gray-300 px-3 py-2.5 text-[13px] focus:outline-none focus:ring-2 focus:ring-amber-500 dark:border-white/10 dark:bg-white/5"
             ></textarea>
             <button
                 type="button"
