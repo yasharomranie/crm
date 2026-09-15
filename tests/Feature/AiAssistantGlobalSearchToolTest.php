@@ -140,6 +140,53 @@ class AiAssistantGlobalSearchToolTest extends TestCase
         $this->assertStringContainsString('قالب سایت رابیان', $formResult['snippet']);
     }
 
+    /**
+     * Regression test for a real production report: asking "تو کمیسیون‌های
+     * هفتگی چی در مورد سعید ترابیان" (a name mentioned only inside a
+     * table field's own row data, phrased as a natural sentence with the
+     * name at the END) came back "nothing found", even though a
+     * differently-worded question about the same data worked. Two bugs
+     * combined to cause this: (1) capping the query to its first N words
+     * BEFORE stripping filler words let a run of filler at the sentence's
+     * start ("تو ... چی در مورد") push the real name off the end of the
+     * cap entirely; (2) a table field's row data lives in value_json, not
+     * value_text, which the search never looked at.
+     */
+    public function test_it_finds_a_name_inside_a_table_fields_row_even_with_a_long_conversational_query(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'صورتجلسه کمیسیون هفتگی']);
+        $tasksField = FormField::factory()->table()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'tasks',
+            'label' => 'جدول',
+        ]);
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        $submission->values()->create([
+            'form_field_id' => $tasksField->id,
+            'value_json' => [
+                ['unit_name' => 'طراحی وب سایت سعید ترابیان', 'amount' => 100],
+            ],
+        ]);
+
+        // The exact phrasing from the report: the name comes last, after
+        // several filler words ("تو"، "چی"، "در"، "مورد").
+        $query = 'تو کمیسیون‌های هفتگی چی در مورد سعید ترابیان';
+        $this->fakeToolCallThenAnswer('search_everything', ['query' => $query]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', $query)
+            ->call('send');
+
+        $payload = $this->toolResultPayload();
+        $formResult = collect($payload['results'])->firstWhere('type', 'ردیف جدول در یک فرم ثبت‌شده');
+
+        $this->assertNotNull($formResult, 'Expected the table row containing "سعید ترابیان" to be found.');
+        $this->assertSame($template->title, $formResult['form']);
+        $this->assertStringContainsString('سعید ترابیان', $formResult['snippet']);
+    }
+
     public function test_an_empty_query_returns_an_error_instead_of_the_whole_database(): void
     {
         AiProvider::factory()->active()->create();

@@ -62,6 +62,23 @@ use Spatie\Permission\Models\Role;
  */
 trait HasAiAssistantEngine
 {
+    /**
+     * Common Persian filler words with no search signal of their own -
+     * stripped from a search_everything query before word-count capping,
+     * so a conversational sentence's actual name/keyword (which in Persian
+     * often lands near the END of the sentence, e.g. "... چی در مورد سعید
+     * ترابیان") never gets silently discarded just for coming after a run
+     * of filler words. See globalSearchTool().
+     *
+     * @var array<int, string>
+     */
+    private const SEARCH_STOPWORDS = [
+        'و', 'یا', 'به', 'از', 'در', 'با', 'را', 'که', 'این', 'آن', 'تو', 'چی', 'چه',
+        'مورد', 'برای', 'است', 'هست', 'رو', 'هم', 'یک', 'می', 'شود', 'بود', 'کن', 'کنید',
+        'داری', 'دارم', 'دارد', 'چقدر', 'چند', 'کدام', 'چطور', 'آیا', 'بگو', 'لطفا', 'لطفاً',
+        'بده', 'بگی', 'بگید', 'کجاست', 'چیه', 'چیست',
+    ];
+
     public ?int $conversationId = null;
 
     public string $body = '';
@@ -610,10 +627,17 @@ trait HasAiAssistantEngine
             return ['error' => 'عبارت جست‌وجو خالی است.'];
         }
 
-        // Capped at 6: a long, sentence-like query would otherwise build an
-        // ever-growing OR-of-LIKEs per module - six words is already far
-        // more than a "قالب سایت رابیان"-style phrase needs.
-        $words = collect(preg_split('/\s+/u', $query))->filter()->unique()->take(6)->values();
+        // Common filler words carry no search signal but, in a natural
+        // Persian sentence, often come BEFORE the actual name/keyword
+        // ("تو کمیسیون‌های هفتگی چی در مورد سعید ترابیان") - stripping them
+        // first (then capping) is what keeps a plain word-position cap from
+        // silently discarding the one distinctive word at the end of a
+        // longer, conversational query. Falls back to the raw word list if
+        // stripping happens to remove everything (e.g. the query WAS just
+        // filler), since searching something beats erroring out.
+        $allWords = collect(preg_split('/\s+/u', $query))->filter()->unique()->values();
+        $meaningfulWords = $allWords->reject(fn (string $word) => in_array(mb_strtolower($word), self::SEARCH_STOPWORDS, true))->values();
+        $words = ($meaningfulWords->isEmpty() ? $allWords : $meaningfulWords)->take(8);
 
         if ($words->isEmpty()) {
             return ['error' => 'عبارت جست‌وجو خالی است.'];
@@ -749,6 +773,54 @@ trait HasAiAssistantEngine
                     'field' => $value->formField?->label,
                     'snippet' => Str::limit((string) $value->value_text, 150),
                     'score' => $score((string) $value->value_text),
+                ]);
+            });
+
+        // A Table field's whole row array lives in value_json, not
+        // value_text - a name that only ever appears inside a table cell
+        // (e.g. a client's name in a weekly-commission table's own
+        // "توضیحات" column) would otherwise never be found at all, which
+        // was the exact real-world case that surfaced this gap.
+        //
+        // This CANNOT be pre-filtered with a SQL LIKE the way value_text
+        // is above: Eloquent's array cast json_encode()s without
+        // JSON_UNESCAPED_UNICODE, so Persian (or any non-ASCII) text is
+        // stored as escaped sequences like "سعید" in
+        // the raw column - a LIKE '%سعید%' against that literal column
+        // text can never match, even though the value is really "سعید"
+        // once decoded. Loading Table-field values directly and filtering
+        // in PHP (where the array cast has already decoded them back to
+        // real text) sidesteps that entirely - fine at this app's scale
+        // (a form-builder's table rows are a small slice of all answers).
+        FormSubmissionValue::query()
+            ->whereNotNull('value_json')
+            ->whereHas('formField', fn (Builder $q) => $q->withTrashed()->where('field_type', FormFieldType::Table))
+            ->with(['formField' => fn ($q) => $q->withTrashed(), 'formSubmission.formTemplate'])
+            ->latest('id')
+            ->limit(300)
+            ->get()
+            ->each(function (FormSubmissionValue $value) use (&$results, $score) {
+                if (! is_array($value->value_json)) {
+                    return;
+                }
+
+                $flattened = collect($value->value_json)
+                    ->map(fn ($row) => is_array($row) ? implode(' ', $row) : (string) $row)
+                    ->implode(' | ');
+
+                $rowScore = $score($flattened);
+
+                if ($flattened === '' || $rowScore === 0) {
+                    return;
+                }
+
+                $results->push([
+                    'type' => 'ردیف جدول در یک فرم ثبت‌شده',
+                    'form' => $value->formSubmission?->formTemplate?->title,
+                    'submission_id' => $value->form_submission_id,
+                    'field' => $value->formField?->label,
+                    'snippet' => Str::limit($flattened, 150),
+                    'score' => $rowScore,
                 ]);
             });
 
