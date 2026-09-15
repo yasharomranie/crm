@@ -215,7 +215,7 @@
                         placeholder="سؤال یا درخواست گزارش خود را بنویسید..."
                         wire:loading.attr="disabled"
                         wire:target="send"
-                        class="fi-input max-h-32 flex-1 resize-none rounded-xl border-gray-300 text-sm focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                        class="fi-input max-h-32 flex-1 resize-none rounded-xl border-gray-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                     ></textarea>
                     <button
                         type="button"

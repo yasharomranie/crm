@@ -3,3 +3,15 @@
 @source '../../../../app/Filament';
 @source '../../../../resources/views/filament';
 @source '../../../../vendor/mokhosh/filament-jalali/resources/**/*';
+
+/*
+ * The floating AI assistant widget (App\Livewire\AiAssistantWidget) is
+ * mounted panel-wide via a render hook, but it isn't a Filament page/
+ * resource, so it lives outside app/Filament and resources/views/filament
+ * above - Tailwind's build (source(none) in Filament's own theme.css)
+ * would silently never scan its classes without these two extra sources,
+ * leaving things like its focus ring color or safe-area padding utilities
+ * missing from the compiled CSS even though the class names are correct.
+ */
+@source '../../../../app/Livewire';
+@source '../../../../resources/views/livewire';
