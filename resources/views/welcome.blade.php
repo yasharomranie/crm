@@ -408,7 +408,15 @@
             --radius: 300px;
             position: absolute;
             top: 50%;
-            inset-inline-start: 50%;
+            /* Physical `left`, not the logical `inset-inline-start`: this
+               page is RTL, so inset-inline-start resolves to the RIGHT
+               edge here - combined with the plain (physical) `margin-left`
+               below meant for centering, that mismatch pulled every card
+               off its intended angle/radius position by a fixed amount,
+               which is exactly the "left/right spacing isn't even"
+               reported. The angle math itself is a physical rotate()
+               around this point, so the anchor needs to be physical too. */
+            left: 50%;
             width: 148px;
             margin: -72px 0 0 -74px;
             transform: rotate(var(--angle)) translateY(calc(-1 * var(--radius))) rotate(calc(-1 * var(--angle)));
