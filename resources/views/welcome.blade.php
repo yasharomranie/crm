@@ -98,7 +98,14 @@
                that path was tried first and only ever traded one overlap
                for another (a top-center card, then getting clipped by the
                viewport edge) for no real benefit over just staying put. */
-            transform: translateY(10px) scale(.62);
+            transform: translateY(10px) scale(.7);
+            /* Waits until the first card or two are already popping in
+               (their own transition-delay starts at 0/70ms) before the
+               character starts shrinking - without this, clicking the
+               button showed one bare frame of a small, empty-handed
+               character alone in the middle with no cards around it yet,
+               which read as broken rather than as a coordinated reveal. */
+            transition-delay: .18s;
         }
 
         @media (max-width: 640px) {
