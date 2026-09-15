@@ -56,7 +56,7 @@ class FeedbacksRelationManager extends RelationManager
             ->defaultSort('requested_at', 'desc')
             ->columns([
                 TextColumn::make('requested_at')->label('زمان درخواست')->jalaliDateTime('Y/m/d')->placeholder('—'),
-                TextColumn::make('nps_score')->label('امتیاز')->placeholder('در انتظار پاسخ'),
+                TextColumn::make('nps_score')->label('امتیاز')->numeric()->placeholder('در انتظار پاسخ'),
                 TextColumn::make('comment')->label('نظر')->limit(40)->placeholder('—'),
                 TextColumn::make('submitted_at')->label('زمان پاسخ')->jalaliDateTime('Y/m/d')->placeholder('—'),
             ])

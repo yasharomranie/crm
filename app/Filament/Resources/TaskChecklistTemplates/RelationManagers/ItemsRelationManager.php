@@ -45,7 +45,7 @@ class ItemsRelationManager extends RelationManager
             ->recordTitleAttribute('label')
             ->defaultSort('sort_order')
             ->columns([
-                TextColumn::make('sort_order')->label('ترتیب')->sortable(),
+                TextColumn::make('sort_order')->label('ترتیب')->numeric()->sortable(),
                 TextColumn::make('label')->label('عنوان آیتم'),
             ])
             ->filters([

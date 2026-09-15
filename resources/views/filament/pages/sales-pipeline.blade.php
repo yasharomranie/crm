@@ -22,12 +22,12 @@
                             <span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {{ ['gray' => '#9ca3af', 'info' => '#3b82f6', 'warning' => '#f59e0b', 'success' => '#16a34a', 'danger' => '#dc2626'][$stage->getColor()] }}"></span>
                             <span class="text-sm font-semibold text-gray-950 dark:text-white">{{ $stage->getLabel() }}</span>
                         </div>
-                        <x-filament::badge :color="$stage->getColor()">{{ $deals->count() }}</x-filament::badge>
+                        <x-filament::badge :color="$stage->getColor()">{{ \Illuminate\Support\Number::toPersian($deals->count()) }}</x-filament::badge>
                     </div>
 
                     @if ($stageValueSum > 0)
                         <div class="border-b border-gray-200 px-3 py-1.5 text-xs text-gray-500 dark:border-white/10 dark:text-gray-400">
-                            جمع ارزش: <span class="font-medium text-gray-700 dark:text-gray-300">{{ number_format($stageValueSum) }} تومان</span>
+                            جمع ارزش: <span class="font-medium text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Number::toPersian(number_format($stageValueSum)) }} تومان</span>
                         </div>
                     @endif
 
@@ -54,7 +54,7 @@
 
                                 @if ($deal->value)
                                     <div class="mt-1.5 text-xs font-medium text-gray-700 dark:text-gray-300">
-                                        {{ number_format($deal->value) }} تومان
+                                        {{ \Illuminate\Support\Number::toPersian(number_format($deal->value)) }} تومان
                                     </div>
                                 @endif
 
@@ -75,7 +75,7 @@
                                             'font-medium text-danger-600 dark:text-danger-400' => $daysInStage >= 14,
                                         ])
                                     >
-                                        {{ $daysInStage }} روز در این مرحله
+                                        {{ \Illuminate\Support\Number::toPersian($daysInStage) }} روز در این مرحله
                                     </span>
 
                                     <div class="flex gap-2">

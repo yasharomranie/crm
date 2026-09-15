@@ -98,11 +98,11 @@ class MessengerTest extends TestCase
 
         $this->actingAs($me);
 
-        $this->assertSame('3', Messenger::getNavigationBadge());
+        $this->assertSame('۳', Messenger::getNavigationBadge());
 
         $conversationA->markReadFor($me);
 
-        $this->assertSame('2', Messenger::getNavigationBadge());
+        $this->assertSame('۲', Messenger::getNavigationBadge());
     }
 
     public function test_creating_a_group_conversation_with_selected_participants(): void

@@ -6,6 +6,7 @@ use App\Enums\DealStage;
 use App\Models\Deal;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
+use Morilog\Jalali\CalendarUtils;
 use Morilog\Jalali\Jalalian;
 
 /**
@@ -65,7 +66,18 @@ class DealWinLossTrendChart extends ChartWidget
                     'tension' => 0.35,
                 ],
             ],
-            'labels' => $weeks->map(fn (Carbon $week) => Jalalian::fromCarbon($week)->format('%d/%m'))->all(),
+            'labels' => $weeks->map(fn (Carbon $week) => CalendarUtils::convertNumbers(Jalalian::fromCarbon($week)->format('%d/%m')))->all(),
+        ];
+    }
+
+    /**
+     * See RevenueTrendChart::getOptions() - same Chart.js locale hook for
+     * Persian-digit ticks/tooltips.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            'locale' => 'fa',
         ];
     }
 }

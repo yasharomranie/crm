@@ -15,6 +15,8 @@ use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Number;
 
 class AttendanceRecordsTable
 {
@@ -25,8 +27,12 @@ class AttendanceRecordsTable
                 TextColumn::make('user.name')->label('کاربر')->searchable(),
                 TextColumn::make('user.department.name')->label('دپارتمان')->placeholder('—'),
                 TextColumn::make('date')->label('تاریخ')->jalaliDate('Y/m/d')->sortable(),
-                TextColumn::make('check_in_at')->label('ورود')->time('H:i')->placeholder('—'),
-                TextColumn::make('check_out_at')->label('خروج')->time('H:i')->placeholder('—'),
+                TextColumn::make('check_in_at')->label('ورود')
+                    ->formatStateUsing(fn (?Carbon $state) => $state ? Number::toPersian($state->format('H:i')) : null)
+                    ->placeholder('—'),
+                TextColumn::make('check_out_at')->label('خروج')
+                    ->formatStateUsing(fn (?Carbon $state) => $state ? Number::toPersian($state->format('H:i')) : null)
+                    ->placeholder('—'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
                 IconColumn::make('is_device_unusual')
                     ->label('دستگاه')
@@ -40,13 +46,13 @@ class AttendanceRecordsTable
                         ? 'ورود این بار از دستگاهی متفاوت با دفعهٔ قبل ثبت شده - احتمال ورود از دستگاه شخص دیگر را بررسی کنید.'
                         : null),
                 TextColumn::make('check_in_ip')->label('IP ورود')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
-                TextColumn::make('late_minutes')->label('تأخیر')->suffix(' دقیقه')->toggleable(),
-                TextColumn::make('early_leave_minutes')->label('تعجیل در خروج')->suffix(' دقیقه')->toggleable(),
+                TextColumn::make('late_minutes')->label('تأخیر')->numeric()->suffix(' دقیقه')->toggleable(),
+                TextColumn::make('early_leave_minutes')->label('تعجیل در خروج')->numeric()->suffix(' دقیقه')->toggleable(),
                 TextColumn::make('worked_minutes')->label('کارکرد')->formatStateUsing(function (int $state) {
                     $hours = intdiv($state, 60);
                     $minutes = $state % 60;
 
-                    return "{$hours} ساعت {$minutes} دقیقه";
+                    return Number::toPersian("{$hours} ساعت {$minutes} دقیقه");
                 }),
             ])
             ->defaultSort('date', 'desc')

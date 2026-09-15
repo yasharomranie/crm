@@ -179,7 +179,7 @@
             <div class="meta">
                 تهیه‌کننده: {{ $generatedBy ?? '—' }}<br>
                 تاریخ تهیه: {{ now()->toJalali('Y/m/d H:i') }}<br>
-                تعداد ردیف: {{ number_format($rows->count()) }}
+                تعداد ردیف: {{ \Illuminate\Support\Number::toPersian(number_format($rows->count())) }}
             </div>
         </div>
 

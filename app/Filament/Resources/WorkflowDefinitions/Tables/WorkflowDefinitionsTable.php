@@ -24,7 +24,7 @@ class WorkflowDefinitionsTable
                     Task::class => 'تسک',
                     default => $state,
                 }),
-                TextColumn::make('steps_count')->label('تعداد مراحل')->counts('steps'),
+                TextColumn::make('steps_count')->label('تعداد مراحل')->counts('steps')->numeric(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
             ])
             ->filters([

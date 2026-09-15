@@ -99,8 +99,8 @@ class PhasesRelationManager extends RelationManager
                 TextColumn::make('type')->label('نوع')->badge(),
                 TextColumn::make('parent.title')->label('زیرمجموعه‌ی')->placeholder('—'),
                 TextColumn::make('predecessor.title')->label('وابسته به')->placeholder('—'),
-                TextColumn::make('weight')->label('وزن')->suffix('٪'),
-                TextColumn::make('progress_percent')->label('پیشرفت')->suffix('٪'),
+                TextColumn::make('weight')->label('وزن')->numeric()->suffix('٪'),
+                TextColumn::make('progress_percent')->label('پیشرفت')->numeric()->suffix('٪'),
                 TextColumn::make('start_date')->label('شروع')->jalaliDate('Y/m/d')->placeholder('—'),
                 TextColumn::make('end_date')->label('پایان')->jalaliDate('Y/m/d')->placeholder('—'),
             ])

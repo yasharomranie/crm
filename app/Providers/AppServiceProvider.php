@@ -8,6 +8,7 @@ use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
 use Morilog\Jalali\CalendarUtils;
@@ -36,6 +37,16 @@ class AppServiceProvider extends ServiceProvider
 
         $this->registerAccessControl();
         $this->registerJalaliDateMacro();
+        $this->registerPersianNumberMacro();
+
+        // Filament's own number formatting (TextColumn::numeric(), the
+        // table pagination/selection UI, etc.) already resolves to Persian
+        // digits because it passes app()->getLocale() into Number::format()
+        // explicitly - but any *bare* Number::format()/Number::currency()
+        // call elsewhere in the app (with no locale argument) falls back to
+        // Number's own static default, which is 'en' unless told otherwise.
+        // This keeps that default in sync with the app's actual locale.
+        Number::useLocale(config('app.locale'));
 
         // Explicit registration (rather than relying on Livewire's
         // app/Livewire auto-discovery) so the tag name is guaranteed
@@ -58,6 +69,20 @@ class AppServiceProvider extends ServiceProvider
             /** @var Carbon $this */
             return CalendarUtils::convertNumbers(Jalalian::fromCarbon($this)->format($format));
         });
+    }
+
+    /**
+     * The Persian-digit counterpart of the macro above, for every number
+     * that reaches the screen *without* going through Number::format() -
+     * a raw number_format() call, a string-interpolated count/percentage in
+     * a stat widget or an AI assistant alert, a chart's pre-formatted axis
+     * label. Number::toPersian(1234) / Number::toPersian("۱۴ روز") both just
+     * swap Latin digit characters for Persian ones wherever they appear, so
+     * it's safe to wrap either a bare number or an already-composed string.
+     */
+    protected function registerPersianNumberMacro(): void
+    {
+        Number::macro('toPersian', fn (string|int|float $value): string => CalendarUtils::convertNumbers((string) $value));
     }
 
     /**

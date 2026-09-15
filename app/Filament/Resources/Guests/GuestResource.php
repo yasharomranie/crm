@@ -23,6 +23,7 @@ use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class GuestResource extends Resource
 {
@@ -84,7 +85,7 @@ class GuestResource extends Resource
                     ->state(fn (Guest $record) => $record->loyaltyTier())
                     ->badge(),
                 TextColumn::make('wallet_balance')->label('کیف پول')->numeric()->suffix(' تومان'),
-                TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings'),
+                TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings')->numeric(),
             ])
             ->filters([
                 //
@@ -115,8 +116,8 @@ class GuestResource extends Resource
             'موبایل' => fn (Guest $guest) => $guest->mobile,
             'کد ملی' => fn (Guest $guest) => $guest->national_code,
             'سطح وفاداری' => fn (Guest $guest) => $guest->loyaltyTier()->getLabel(),
-            'کیف پول (تومان)' => fn (Guest $guest) => number_format($guest->wallet_balance),
-            'تعداد رزرو' => fn (Guest $guest) => $guest->bookings()->count(),
+            'کیف پول (تومان)' => fn (Guest $guest) => Number::toPersian(number_format($guest->wallet_balance)),
+            'تعداد رزرو' => fn (Guest $guest) => Number::toPersian($guest->bookings()->count()),
         ];
     }
 

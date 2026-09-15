@@ -9,6 +9,7 @@ use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
 use Filament\Widgets\TableWidget;
+use Illuminate\Support\Number;
 
 /**
  * Open deals nobody has touched in a while - the "needs attention" list
@@ -45,7 +46,7 @@ class StaleDealsWidget extends TableWidget
                 TextColumn::make('updated_at')
                     ->label('روز بدون پیگیری')
                     ->state(fn (Deal $record) => (int) $record->updated_at->diffInDays(now()))
-                    ->formatStateUsing(fn (int $state) => "{$state} روز")
+                    ->formatStateUsing(fn (int $state) => Number::toPersian("{$state} روز"))
                     ->badge()
                     ->color('danger'),
             ])
@@ -68,9 +69,9 @@ class StaleDealsWidget extends TableWidget
             'مشتری' => fn (Deal $deal) => $deal->guest?->name,
             'مرحله' => fn (Deal $deal) => $deal->stage->getLabel(),
             'کارشناس' => fn (Deal $deal) => $deal->assignee?->name,
-            'ارزش (تومان)' => fn (Deal $deal) => $deal->value ? number_format($deal->value) : null,
+            'ارزش (تومان)' => fn (Deal $deal) => $deal->value ? Number::toPersian(number_format($deal->value)) : null,
             'آخرین به‌روزرسانی' => fn (Deal $deal) => $deal->updated_at->toJalali('Y/m/d'),
-            'روز بدون پیگیری' => fn (Deal $deal) => (int) $deal->updated_at->diffInDays(now()),
+            'روز بدون پیگیری' => fn (Deal $deal) => Number::toPersian((int) $deal->updated_at->diffInDays(now())),
         ];
     }
 }

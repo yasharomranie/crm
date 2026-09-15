@@ -23,10 +23,12 @@ class RoleTable
                 TextColumn::make('permissions_count')
                     ->label('تعداد مجوزها')
                     ->counts('permissions')
+                    ->numeric()
                     ->badge(),
                 TextColumn::make('users_count')
                     ->label('تعداد کاربران')
                     ->counts('users')
+                    ->numeric()
                     ->badge()
                     ->color('gray'),
                 TextColumn::make('created_at')

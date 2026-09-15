@@ -70,7 +70,7 @@ class StepsRelationManager extends RelationManager
                 TextColumn::make('step_order')->label('ترتیب')->sortable(),
                 TextColumn::make('name')->label('نام مرحله'),
                 TextColumn::make('approver_type')->label('نوع تأییدکننده'),
-                TextColumn::make('sla_hours')->label('مهلت (ساعت)')->placeholder('—'),
+                TextColumn::make('sla_hours')->label('مهلت (ساعت)')->numeric()->placeholder('—'),
             ])
             ->filters([
                 //

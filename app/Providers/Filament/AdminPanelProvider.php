@@ -106,6 +106,47 @@ class AdminPanelProvider extends PanelProvider
             // own file-download feature does for the same reason (see
             // vendor/livewire/livewire/js/features/supportFileDownloads.js)
             // and isn't subject to that restriction.
+            // Chart.js's own default numeric tick formatter special-cases
+            // the value 0 and always returns the literal string '0',
+            // skipping the Intl.NumberFormat(locale) path every other tick
+            // goes through - so ->getOptions()'s 'locale' => 'fa' (see the
+            // chart widgets under app/Filament/Widgets) correctly Persianizes
+            // every tick except the zero baseline. There's no way to reach
+            // this from PHP (ChartWidget::getOptions() is JSON-encoded, not
+            // a place to hand Chart.js a JS callback), so this plugin -
+            // registered through Filament's own documented
+            // window.filamentChartJsGlobalPlugins hook, read once when its
+            // chart bundle is lazy-loaded - patches just that one tick after
+            // Chart.js (re)computes every scale's ticks on each update, but
+            // still before the canvas is drawn. Must run before that lazy
+            // import, which this satisfies simply by being a plain
+            // synchronous script.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn (): HtmlString => new HtmlString(<<<'HTML'
+                    <script>
+                        window.filamentChartJsGlobalPlugins = [
+                            ...(window.filamentChartJsGlobalPlugins ?? []),
+                            {
+                                id: 'persianZeroTick',
+                                afterUpdate(chart) {
+                                    if (chart.options?.locale !== 'fa') {
+                                        return;
+                                    }
+
+                                    for (const scale of Object.values(chart.scales ?? {})) {
+                                        for (const tick of scale.ticks ?? []) {
+                                            if (tick.label === '0') {
+                                                tick.label = '۰';
+                                            }
+                                        }
+                                    }
+                                },
+                            },
+                        ];
+                    </script>
+                    HTML),
+            )
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn (): HtmlString => new HtmlString(<<<'HTML'

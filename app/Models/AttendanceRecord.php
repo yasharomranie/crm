@@ -6,6 +6,7 @@ use App\Enums\AttendanceStatus;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Support\Number;
 
 class AttendanceRecord extends Model
 {
@@ -80,6 +81,6 @@ class AttendanceRecord extends Model
         $hours = intdiv($this->worked_minutes, 60);
         $minutes = $this->worked_minutes % 60;
 
-        return $hours > 0 ? "{$hours} ساعت و {$minutes} دقیقه" : "{$minutes} دقیقه";
+        return Number::toPersian($hours > 0 ? "{$hours} ساعت و {$minutes} دقیقه" : "{$minutes} دقیقه");
     }
 }

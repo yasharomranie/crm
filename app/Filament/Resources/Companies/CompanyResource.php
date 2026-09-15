@@ -77,8 +77,8 @@ class CompanyResource extends Resource
                 TextColumn::make('name')->label('نام شرکت')->searchable(),
                 TextColumn::make('national_id')->label('شناسه ملی')->placeholder('—'),
                 TextColumn::make('representative_name')->label('نماینده')->placeholder('—'),
-                TextColumn::make('departments_count')->label('تعداد دپارتمان‌ها')->counts('departments'),
-                TextColumn::make('contracts_count')->label('تعداد قراردادها')->counts('contracts'),
+                TextColumn::make('departments_count')->label('تعداد دپارتمان‌ها')->counts('departments')->numeric(),
+                TextColumn::make('contracts_count')->label('تعداد قراردادها')->counts('contracts')->numeric(),
             ])
             ->filters([
                 //

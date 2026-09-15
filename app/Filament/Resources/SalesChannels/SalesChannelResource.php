@@ -72,8 +72,8 @@ class SalesChannelResource extends Resource
             ->columns([
                 TextColumn::make('name')->label('نام کانال')->searchable(),
                 TextColumn::make('type')->label('نوع'),
-                TextColumn::make('commission_rate')->label('کمیسیون')->suffix('%'),
-                TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings'),
+                TextColumn::make('commission_rate')->label('کمیسیون')->numeric()->suffix('%'),
+                TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings')->numeric(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
             ])
             ->filters([

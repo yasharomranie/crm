@@ -14,6 +14,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
 
 class DocumentsTable
 {
@@ -27,7 +28,7 @@ class DocumentsTable
                 TextColumn::make('department.name')->label('دپارتمان مجاز')->placeholder('—'),
                 TextColumn::make('department.company.name')->label('شرکت')->placeholder('—'),
                 TextColumn::make('tags.name')->label('برچسب‌ها')->badge()->separator(','),
-                TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
+                TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? Number::toPersian(number_format($state)).' کیلوبایت' : '—'),
                 TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
                 TextColumn::make('created_at')->label('تاریخ بارگذاری')->jalaliDate('Y/m/d'),
             ])

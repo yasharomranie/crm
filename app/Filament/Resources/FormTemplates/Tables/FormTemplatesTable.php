@@ -19,9 +19,9 @@ class FormTemplatesTable
                 TextColumn::make('title')->label('عنوان فرم')->searchable(),
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('—'),
                 TextColumn::make('workflowDefinition.name')->label('گردش‌کار تأیید')->placeholder('بدون تأیید'),
-                TextColumn::make('version')->label('نسخه')->badge(),
-                TextColumn::make('fields_count')->label('تعداد فیلد')->counts('fields'),
-                TextColumn::make('submissions_count')->label('تعداد ثبت‌شده')->counts('submissions'),
+                TextColumn::make('version')->label('نسخه')->numeric()->badge(),
+                TextColumn::make('fields_count')->label('تعداد فیلد')->counts('fields')->numeric(),
+                TextColumn::make('submissions_count')->label('تعداد ثبت‌شده')->counts('submissions')->numeric(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
             ])
             ->filters([

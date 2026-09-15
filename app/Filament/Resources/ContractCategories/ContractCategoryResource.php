@@ -56,7 +56,7 @@ class ContractCategoryResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->label('نام دسته')->searchable(),
-                TextColumn::make('contracts_count')->label('تعداد قراردادها')->counts('contracts'),
+                TextColumn::make('contracts_count')->label('تعداد قراردادها')->counts('contracts')->numeric(),
             ])
             ->filters([
                 //

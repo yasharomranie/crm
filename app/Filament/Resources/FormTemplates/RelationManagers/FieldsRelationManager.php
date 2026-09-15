@@ -144,7 +144,7 @@ class FieldsRelationManager extends RelationManager
             ->recordTitleAttribute('label')
             ->defaultSort('sort_order')
             ->columns([
-                TextColumn::make('sort_order')->label('ترتیب')->sortable(),
+                TextColumn::make('sort_order')->label('ترتیب')->numeric()->sortable(),
                 TextColumn::make('label')->label('برچسب')->searchable(),
                 TextColumn::make('field_key')->label('کلید فنی')->fontFamily('mono'),
                 TextColumn::make('field_type')->label('نوع'),

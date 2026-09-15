@@ -21,6 +21,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Number;
 
 /**
  * The dashboard's landing row of "interesting facts" - one glanceable stat
@@ -67,8 +68,8 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
             return (int) round($occupiedThatDay / $totalRooms * 100);
         });
 
-        return Stat::make('نرخ اشغال امروز', "{$rate}٪")
-            ->description("{$occupied} از {$totalRooms} واحد پر است")
+        return Stat::make('نرخ اشغال امروز', Number::toPersian("{$rate}٪"))
+            ->description(Number::toPersian("{$occupied} از {$totalRooms} واحد پر است"))
             ->descriptionIcon(Heroicon::OutlinedHomeModern)
             ->color($rate >= 70 ? 'success' : ($rate >= 40 ? 'warning' : 'gray'))
             ->chart($trend->all())
@@ -84,11 +85,11 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
 
         $description = match (true) {
             $changePercent === null => 'ماه گذشته دادهٔ کافی برای مقایسه نبود',
-            $changePercent >= 0 => "{$changePercent}٪ بیشتر از ماه قبل",
-            default => abs($changePercent).'٪ کمتر از ماه قبل',
+            $changePercent >= 0 => Number::toPersian("{$changePercent}٪ بیشتر از ماه قبل"),
+            default => Number::toPersian(abs($changePercent).'٪ کمتر از ماه قبل'),
         };
 
-        return Stat::make('درآمد اقامتی این ماه', number_format($thisMonth).' تومان')
+        return Stat::make('درآمد اقامتی این ماه', Number::toPersian(number_format($thisMonth)).' تومان')
             ->description($description)
             ->descriptionIcon(
                 $changePercent !== null && $changePercent < 0
@@ -113,8 +114,8 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
         $openStages = [DealStage::NewLead, DealStage::NeedsAssessment, DealStage::ProposalSent, DealStage::Negotiation];
         $openDeals = Deal::whereIn('stage', $openStages)->get();
 
-        return Stat::make('ارزش پایپ‌لاین باز', number_format((int) $openDeals->sum('value')).' تومان')
-            ->description($openDeals->count().' معاملهٔ در جریان')
+        return Stat::make('ارزش پایپ‌لاین باز', Number::toPersian(number_format((int) $openDeals->sum('value'))).' تومان')
+            ->description(Number::toPersian($openDeals->count().' معاملهٔ در جریان'))
             ->descriptionIcon(Heroicon::OutlinedChartBar)
             ->color('info');
     }
@@ -133,8 +134,8 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
                 && $instance->updated_at->diffInHours(now()) > $instance->currentStep->sla_hours)
             ->count();
 
-        return Stat::make('فرم‌های در انتظار تأیید', (string) $pending)
-            ->description($breached > 0 ? "{$breached} مورد از مهلت SLA گذشته" : 'همه در بازهٔ زمانی مجازند')
+        return Stat::make('فرم‌های در انتظار تأیید', Number::toPersian($pending))
+            ->description($breached > 0 ? Number::toPersian("{$breached} مورد از مهلت SLA گذشته") : 'همه در بازهٔ زمانی مجازند')
             ->descriptionIcon($breached > 0 ? Heroicon::OutlinedExclamationTriangle : Heroicon::OutlinedCheckCircle)
             ->descriptionColor($breached > 0 ? 'danger' : 'success')
             ->color($pending > 0 ? 'warning' : 'success');
@@ -147,8 +148,8 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
         $overdue = (clone $openTasks)->whereNotNull('due_at')->where('due_at', '<', now())->count();
         $openTotal = $openTasks->count();
 
-        return Stat::make('تسک‌های عقب‌افتاده', (string) $overdue)
-            ->description("از مجموع {$openTotal} تسک باز")
+        return Stat::make('تسک‌های عقب‌افتاده', Number::toPersian($overdue))
+            ->description(Number::toPersian("از مجموع {$openTotal} تسک باز"))
             ->descriptionIcon(Heroicon::OutlinedClock)
             ->color($overdue > 0 ? 'danger' : 'success');
     }
@@ -160,8 +161,8 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
         $late = $today->where('status', AttendanceStatus::Late)->count();
         $absent = $today->where('status', AttendanceStatus::Absent)->count();
 
-        return Stat::make('حضور امروز', ($onTime + $late).' نفر حاضر')
-            ->description("{$late} نفر تأخیر • {$absent} نفر غایب")
+        return Stat::make('حضور امروز', Number::toPersian(($onTime + $late).' نفر حاضر'))
+            ->description(Number::toPersian("{$late} نفر تأخیر • {$absent} نفر غایب"))
             ->descriptionIcon(Heroicon::OutlinedUserGroup)
             ->descriptionColor($late + $absent > 0 ? 'warning' : 'success')
             ->color('gray');

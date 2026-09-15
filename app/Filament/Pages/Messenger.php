@@ -13,6 +13,7 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Number;
 
 class Messenger extends Page
 {
@@ -230,6 +231,6 @@ class Messenger extends Page
 
         $count = Message::totalUnreadFor($user);
 
-        return $count > 0 ? (string) $count : null;
+        return $count > 0 ? Number::toPersian($count) : null;
     }
 }

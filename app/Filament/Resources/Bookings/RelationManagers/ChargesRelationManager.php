@@ -13,6 +13,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class ChargesRelationManager extends RelationManager
 {
@@ -51,11 +52,11 @@ class ChargesRelationManager extends RelationManager
             ->recordTitleAttribute('title')
             ->columns([
                 TextColumn::make('title')->label('شرح'),
-                TextColumn::make('quantity')->label('تعداد'),
+                TextColumn::make('quantity')->label('تعداد')->numeric(),
                 TextColumn::make('unit_amount')->label('مبلغ واحد')->numeric()->suffix(' تومان'),
                 TextColumn::make('id')
                     ->label('جمع')
-                    ->state(fn (BookingCharge $record) => number_format($record->lineTotal()))
+                    ->state(fn (BookingCharge $record) => Number::toPersian(number_format($record->lineTotal())))
                     ->suffix(' تومان'),
             ])
             ->filters([

@@ -8,6 +8,7 @@ use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 /**
  * Read-only history of a document's past files. Versions are created only
@@ -28,8 +29,8 @@ class VersionsRelationManager extends RelationManager
     {
         return $table
             ->columns([
-                TextColumn::make('version_number')->label('نسخه')->prefix('نسخهٔ '),
-                TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? number_format($state).' کیلوبایت' : '—'),
+                TextColumn::make('version_number')->label('نسخه')->numeric()->prefix('نسخهٔ '),
+                TextColumn::make('size_kb')->label('حجم')->formatStateUsing(fn (?int $state) => $state ? Number::toPersian(number_format($state)).' کیلوبایت' : '—'),
                 TextColumn::make('uploader.name')->label('بارگذاری‌کننده'),
                 TextColumn::make('created_at')->label('تاریخ بایگانی')->jalaliDateTime('Y/m/d H:i'),
             ])

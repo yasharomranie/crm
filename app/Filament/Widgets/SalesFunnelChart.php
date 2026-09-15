@@ -64,6 +64,7 @@ class SalesFunnelChart extends ChartWidget
     protected function getOptions(): array
     {
         return [
+            'locale' => 'fa',
             'indexAxis' => 'y',
             'plugins' => [
                 'legend' => ['display' => false],

@@ -11,7 +11,7 @@
                     <li class="flex items-center gap-3">
                         <span class="flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-bold
                             {{ $index === 0 ? 'bg-warning-100 text-warning-700 dark:bg-warning-500/20 dark:text-warning-400' : 'bg-gray-100 text-gray-500 dark:bg-white/5 dark:text-gray-400' }}">
-                            {{ $index + 1 }}
+                            {{ \Illuminate\Support\Number::toPersian($index + 1) }}
                         </span>
 
                         <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary-100 text-sm font-semibold text-primary-700 dark:bg-primary-500/20 dark:text-primary-400">
@@ -24,7 +24,7 @@
                                     {{ $rep['user']?->name ?? 'بدون کارشناس' }}
                                 </span>
                                 <span class="shrink-0 text-xs text-gray-500 dark:text-gray-400">
-                                    {{ $rep['won_count'] }} معامله
+                                    {{ \Illuminate\Support\Number::toPersian($rep['won_count']) }} معامله
                                 </span>
                             </div>
 
@@ -36,7 +36,7 @@
                             </div>
 
                             <span class="mt-1 block text-xs text-gray-500 dark:text-gray-400">
-                                {{ number_format($rep['won_value']) }} تومان
+                                {{ \Illuminate\Support\Number::toPersian(number_format($rep['won_value'])) }} تومان
                             </span>
                         </div>
                     </li>

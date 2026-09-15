@@ -79,7 +79,7 @@
                             </span>
                             @if ($unread > 0)
                                 <span class="absolute -top-1 -start-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-danger-600 px-1 text-[11px] font-bold leading-none text-white">
-                                    {{ $unread > 99 ? '۹۹+' : $unread }}
+                                    {{ $unread > 99 ? '۹۹+' : \Illuminate\Support\Number::toPersian($unread) }}
                                 </span>
                             @endif
                         </span>
@@ -143,7 +143,7 @@
                         <p class="truncate font-semibold text-gray-950 dark:text-white">{{ $name }}</p>
                         <p class="truncate text-xs text-gray-500 dark:text-gray-400">
                             @if ($isGroup)
-                                {{ $selected->participants->count() }} عضو ·
+                                {{ \Illuminate\Support\Number::toPersian($selected->participants->count()) }} عضو ·
                                 {{ $selected->participants->pluck('user.name')->filter()->implode('، ') }}
                             @else
                                 همکار سازمانی

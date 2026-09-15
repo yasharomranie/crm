@@ -12,11 +12,13 @@
         $sign = $amount < 0 ? '-' : '';
         $amount = abs($amount);
 
-        return match (true) {
+        $formatted = match (true) {
             $amount >= 1_000_000_000 => $sign.number_format($amount / 1_000_000_000, 1).' میلیارد تومان',
             $amount >= 1_000_000 => $sign.number_format($amount / 1_000_000, 1).' میلیون تومان',
             default => $sign.number_format($amount).' تومان',
         };
+
+        return \Illuminate\Support\Number::toPersian($formatted);
     };
 @endphp
 
@@ -49,11 +51,11 @@
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">آخرین اقامت (روز پیش)</div>
-            <div class="text-lg font-semibold">{{ $recency ?? '—' }}</div>
+            <div class="text-lg font-semibold">{{ $recency === null ? '—' : \Illuminate\Support\Number::toPersian($recency) }}</div>
         </div>
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">تعداد اقامت تکمیل‌شده</div>
-            <div class="text-lg font-semibold">{{ $frequency }}</div>
+            <div class="text-lg font-semibold">{{ \Illuminate\Support\Number::toPersian($frequency) }}</div>
         </div>
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">ارزش کل مشتری (CLV)</div>
@@ -61,13 +63,13 @@
         </div>
         <div class="rounded-lg border p-3 {{ $openTickets > 0 ? 'border-danger-300' : '' }}">
             <div class="text-xs text-gray-500 dark:text-gray-400">تیکت باز</div>
-            <div class="text-lg font-semibold {{ $openTickets > 0 ? 'text-danger-600' : '' }}">{{ $openTickets }}</div>
+            <div class="text-lg font-semibold {{ $openTickets > 0 ? 'text-danger-600' : '' }}">{{ \Illuminate\Support\Number::toPersian($openTickets) }}</div>
         </div>
     </div>
 
     @if ($npsScores->isNotEmpty())
         <div class="text-sm text-gray-600 dark:text-gray-300">
-            میانگین NPS ثبت‌شده: <span class="font-medium">{{ round($npsScores->avg(), 1) }}</span> از ۱۰ (بر اساس {{ $npsScores->count() }} نظرسنجی)
+            میانگین NPS ثبت‌شده: <span class="font-medium">{{ \Illuminate\Support\Number::toPersian(round($npsScores->avg(), 1)) }}</span> از ۱۰ (بر اساس {{ \Illuminate\Support\Number::toPersian($npsScores->count()) }} نظرسنجی)
         </div>
     @endif
 

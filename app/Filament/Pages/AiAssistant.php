@@ -7,6 +7,7 @@ use App\Filament\Pages\Concerns\HasAiAssistantEngine;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Number;
 
 class AiAssistant extends Page
 {
@@ -31,6 +32,6 @@ class AiAssistant extends Page
     {
         $count = count(static::computeAlerts());
 
-        return $count > 0 ? (string) $count : null;
+        return $count > 0 ? Number::toPersian($count) : null;
     }
 }

@@ -12,6 +12,7 @@ use Filament\Actions\EditAction;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class DealsTable
 {
@@ -53,7 +54,7 @@ class DealsTable
             'عنوان' => fn (Deal $deal) => $deal->title,
             'مشتری' => fn (Deal $deal) => $deal->guest?->name,
             'مرحله' => fn (Deal $deal) => $deal->stage->getLabel(),
-            'ارزش (تومان)' => fn (Deal $deal) => $deal->value ? number_format($deal->value) : null,
+            'ارزش (تومان)' => fn (Deal $deal) => $deal->value ? Number::toPersian(number_format($deal->value)) : null,
             'کارشناس' => fn (Deal $deal) => $deal->assignee?->name,
             'منبع' => fn (Deal $deal) => $deal->source?->getLabel(),
             'تخمین قطعی‌شدن' => fn (Deal $deal) => $deal->expected_close_date?->toJalali('Y/m/d'),

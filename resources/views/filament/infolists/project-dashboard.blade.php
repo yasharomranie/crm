@@ -27,11 +27,13 @@
         $sign = $amount < 0 ? '-' : '';
         $amount = abs($amount);
 
-        return match (true) {
+        $formatted = match (true) {
             $amount >= 1_000_000_000 => $sign.number_format($amount / 1_000_000_000, 1).' میلیارد تومان',
             $amount >= 1_000_000 => $sign.number_format($amount / 1_000_000, 1).' میلیون تومان',
             default => $sign.number_format($amount).' تومان',
         };
+
+        return \Illuminate\Support\Number::toPersian($formatted);
     };
 @endphp
 
@@ -40,11 +42,11 @@
     <div class="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">پیشرفت فیزیکی</div>
-            <div class="text-lg font-semibold">{{ round($evPercent) }}٪</div>
+            <div class="text-lg font-semibold">{{ \Illuminate\Support\Number::toPersian(round($evPercent)) }}٪</div>
         </div>
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">پیشرفت برنامه‌ای</div>
-            <div class="text-lg font-semibold">{{ round($pvPercent) }}٪</div>
+            <div class="text-lg font-semibold">{{ \Illuminate\Support\Number::toPersian(round($pvPercent)) }}٪</div>
         </div>
         <div class="rounded-lg border p-3">
             <div class="text-xs text-gray-500 dark:text-gray-400">ارزش کسب‌شده (EV)</div>
@@ -70,7 +72,7 @@
 
     @if ($totalWeight != 100)
         <div class="rounded-lg border border-warning-300 bg-warning-50 dark:bg-warning-950/40 p-3 text-sm">
-            ⚠ مجموع وزن آیتم‌های برگ WBS برابر {{ $totalWeight }}٪ است (باید ۱۰۰٪ باشد) تا اعداد EVM دقیق باشند.
+            ⚠ مجموع وزن آیتم‌های برگ WBS برابر {{ \Illuminate\Support\Number::toPersian($totalWeight) }}٪ است (باید ۱۰۰٪ باشد) تا اعداد EVM دقیق باشند.
         </div>
     @endif
 
@@ -108,7 +110,7 @@
                                 </div>
                             @endif
                         </div>
-                        <div class="w-10 shrink-0 text-xs text-gray-500">{{ $phase->progress_percent }}٪</div>
+                        <div class="w-10 shrink-0 text-xs text-gray-500">{{ \Illuminate\Support\Number::toPersian($phase->progress_percent) }}٪</div>
                     </div>
                 @endforeach
             </div>

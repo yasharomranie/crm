@@ -8,7 +8,7 @@
             $hours = intdiv($minutes, 60);
             $mins = $minutes % 60;
 
-            return $hours > 0 ? "{$hours} ساعت و {$mins} دقیقه" : "{$mins} دقیقه";
+            return \Illuminate\Support\Number::toPersian($hours > 0 ? "{$hours} ساعت و {$mins} دقیقه" : "{$mins} دقیقه");
         };
     @endphp
 
@@ -18,12 +18,12 @@
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div>
                     <p class="text-sm text-gray-500 dark:text-gray-400">امروز</p>
-                    <p class="text-lg font-semibold text-gray-950 dark:text-white">{{ now()->translatedFormat('l، j F Y') }}</p>
+                    <p class="text-lg font-semibold text-gray-950 dark:text-white">{{ \Illuminate\Support\Number::toPersian(now()->translatedFormat('l، j F Y')) }}</p>
                     @if ($today?->check_in_at)
                         <p class="mt-1 text-sm text-gray-600 dark:text-gray-300">
-                            ورود: <span class="font-medium">{{ $today->check_in_at->format('H:i') }}</span>
+                            ورود: <span class="font-medium">{{ \Illuminate\Support\Number::toPersian($today->check_in_at->format('H:i')) }}</span>
                             @if ($today->check_out_at)
-                                · خروج: <span class="font-medium">{{ $today->check_out_at->format('H:i') }}</span>
+                                · خروج: <span class="font-medium">{{ \Illuminate\Support\Number::toPersian($today->check_out_at->format('H:i')) }}</span>
                             @endif
                         </p>
                     @else
@@ -92,15 +92,15 @@
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">کارکرد این ماه</p>
             </div>
             <div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <p class="text-2xl font-bold text-warning-600 dark:text-warning-400">{{ $summary['late_days'] }}</p>
+                <p class="text-2xl font-bold text-warning-600 dark:text-warning-400">{{ \Illuminate\Support\Number::toPersian($summary['late_days']) }}</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">روز با تأخیر</p>
             </div>
             <div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <p class="text-2xl font-bold text-danger-600 dark:text-danger-400">{{ $summary['absent_days'] }}</p>
+                <p class="text-2xl font-bold text-danger-600 dark:text-danger-400">{{ \Illuminate\Support\Number::toPersian($summary['absent_days']) }}</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">روز غیبت</p>
             </div>
             <div class="rounded-xl border border-gray-200 bg-white p-4 text-center shadow-sm dark:border-white/10 dark:bg-gray-900">
-                <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ $summary['late_minutes'] }}</p>
+                <p class="text-2xl font-bold text-gray-950 dark:text-white">{{ \Illuminate\Support\Number::toPersian($summary['late_minutes']) }}</p>
                 <p class="mt-1 text-xs text-gray-500 dark:text-gray-400">مجموع دقایق تأخیر</p>
             </div>
         </div>
@@ -125,8 +125,8 @@
                         @forelse ($history as $record)
                             <tr>
                                 <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->date->toJalali('Y/m/d') }}</td>
-                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_in_at?->format('H:i') ?? '—' }}</td>
-                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_out_at?->format('H:i') ?? '—' }}</td>
+                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_in_at ? \Illuminate\Support\Number::toPersian($record->check_in_at->format('H:i')) : '—' }}</td>
+                                <td class="px-4 py-2.5 text-gray-700 dark:text-gray-300">{{ $record->check_out_at ? \Illuminate\Support\Number::toPersian($record->check_out_at->format('H:i')) : '—' }}</td>
                                 <td class="px-4 py-2.5">
                                     <span @class([
                                         'rounded-full px-2 py-0.5 text-xs font-medium',

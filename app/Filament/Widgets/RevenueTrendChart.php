@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Models\BookingCharge;
 use Filament\Widgets\ChartWidget;
 use Illuminate\Support\Carbon;
+use Morilog\Jalali\CalendarUtils;
 use Morilog\Jalali\Jalalian;
 
 class RevenueTrendChart extends ChartWidget
@@ -49,7 +50,20 @@ class RevenueTrendChart extends ChartWidget
                     'tension' => 0.35,
                 ],
             ],
-            'labels' => $days->map(fn (Carbon $day) => Jalalian::fromCarbon($day)->format('%d/%m'))->all(),
+            'labels' => $days->map(fn (Carbon $day) => CalendarUtils::convertNumbers(Jalalian::fromCarbon($day)->format('%d/%m')))->all(),
+        ];
+    }
+
+    /**
+     * Chart.js formats every tick/tooltip number through Intl.NumberFormat
+     * client-side - telling it the Persian locale is all it needs to render
+     * those numbers (though not the pre-formatted Jalali labels above) in
+     * Persian digits, same as everything server-rendered elsewhere.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            'locale' => 'fa',
         ];
     }
 }

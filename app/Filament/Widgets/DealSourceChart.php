@@ -52,4 +52,15 @@ class DealSourceChart extends ChartWidget
             'labels' => collect($sources)->map(fn (DealSource $source) => $source->getLabel())->all(),
         ];
     }
+
+    /**
+     * See BookingStatusChart::getOptions() - same Chart.js locale hook for
+     * Persian-digit ticks/tooltips.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            'locale' => 'fa',
+        ];
+    }
 }

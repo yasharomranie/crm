@@ -697,7 +697,7 @@ class AiAssistantTest extends TestCase
 
         Task::factory()->create(['status' => TaskStatus::Todo, 'due_at' => now()->subDay()]);
 
-        $this->assertSame('1', AiAssistant::getNavigationBadge());
+        $this->assertSame('۱', AiAssistant::getNavigationBadge());
     }
 
     public function test_the_form_submissions_summary_tool_reports_pending_and_sla_breaches(): void

@@ -9,6 +9,7 @@ use Filament\Widgets\StatsOverviewWidget;
 use Filament\Widgets\StatsOverviewWidget\Stat;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Number;
 
 /**
  * The sales pipeline's own headline numbers - separate from
@@ -43,8 +44,8 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
                 ->sum('value')
         );
 
-        return Stat::make('ارزش باز پایپ‌لاین', number_format((int) $openDeals->sum('value')).' تومان')
-            ->description($openDeals->count().' معاملهٔ در جریان')
+        return Stat::make('ارزش باز پایپ‌لاین', Number::toPersian(number_format((int) $openDeals->sum('value'))).' تومان')
+            ->description(Number::toPersian($openDeals->count().' معاملهٔ در جریان'))
             ->descriptionIcon(Heroicon::OutlinedBanknotes)
             ->color('primary')
             ->chart($trend->all())
@@ -55,7 +56,7 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
     {
         $weighted = $openDeals->sum(fn (Deal $deal) => (int) $deal->value * $deal->stage->probability() / 100);
 
-        return Stat::make('پیش‌بینی وزن‌دار فروش', number_format((int) $weighted).' تومان')
+        return Stat::make('پیش‌بینی وزن‌دار فروش', Number::toPersian(number_format((int) $weighted)).' تومان')
             ->description('بر اساس احتمال بستن هر مرحله')
             ->descriptionIcon(Heroicon::OutlinedChartBar)
             ->color('info');
@@ -69,8 +70,8 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
 
         $rate = $decided > 0 ? (int) round($won / $decided * 100) : null;
 
-        return Stat::make('نرخ برد', $rate === null ? '—' : "{$rate}٪")
-            ->description($decided > 0 ? "{$won} برد از {$decided} معاملهٔ تصمیم‌گیری‌شده" : 'هنوز معامله‌ای بسته نشده')
+        return Stat::make('نرخ برد', $rate === null ? '—' : Number::toPersian("{$rate}٪"))
+            ->description($decided > 0 ? Number::toPersian("{$won} برد از {$decided} معاملهٔ تصمیم‌گیری‌شده") : 'هنوز معامله‌ای بسته نشده')
             ->descriptionIcon(Heroicon::OutlinedTrophy)
             ->color($rate === null ? 'gray' : ($rate >= 50 ? 'success' : 'warning'));
     }
@@ -79,7 +80,7 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
     {
         $average = (int) Deal::query()->whereNotNull('value')->avg('value');
 
-        return Stat::make('میانگین ارزش معامله', number_format($average).' تومان')
+        return Stat::make('میانگین ارزش معامله', Number::toPersian(number_format($average)).' تومان')
             ->description('میانگین کل معاملات ثبت‌شده')
             ->descriptionIcon(Heroicon::OutlinedCalculator)
             ->color('gray');
@@ -93,8 +94,8 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
             ->whereYear('updated_at', now()->year)
             ->get();
 
-        return Stat::make('برد این ماه', number_format((int) $wonThisMonth->sum('value')).' تومان')
-            ->description($wonThisMonth->count().' معاملهٔ قطعی‌شده')
+        return Stat::make('برد این ماه', Number::toPersian(number_format((int) $wonThisMonth->sum('value'))).' تومان')
+            ->description(Number::toPersian($wonThisMonth->count().' معاملهٔ قطعی‌شده'))
             ->descriptionIcon(Heroicon::OutlinedCheckBadge)
             ->color('success');
     }
@@ -104,7 +105,7 @@ class SalesPipelineStatsOverview extends StatsOverviewWidget
         $threshold = Carbon::now()->subDays(14);
         $stale = $openDeals->where('updated_at', '<=', $threshold)->count();
 
-        return Stat::make('معاملات راکد', (string) $stale)
+        return Stat::make('معاملات راکد', Number::toPersian($stale))
             ->description($stale > 0 ? 'بیش از ۱۴ روز بدون پیگیری' : 'همه معاملات به‌روز هستند')
             ->descriptionIcon($stale > 0 ? Heroicon::OutlinedExclamationTriangle : Heroicon::OutlinedCheckCircle)
             ->descriptionColor($stale > 0 ? 'danger' : 'success')

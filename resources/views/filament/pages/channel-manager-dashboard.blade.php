@@ -4,11 +4,13 @@
             $sign = $amount < 0 ? '-' : '';
             $amount = abs($amount);
 
-            return match (true) {
+            $formatted = match (true) {
                 $amount >= 1_000_000_000 => $sign.number_format($amount / 1_000_000_000, 1).' میلیارد تومان',
                 $amount >= 1_000_000 => $sign.number_format($amount / 1_000_000, 1).' میلیون تومان',
                 default => $sign.number_format($amount).' تومان',
             };
+
+            return \Illuminate\Support\Number::toPersian($formatted);
         };
     @endphp
 
@@ -21,14 +23,14 @@
                             {{ $channel->name }}
                         </h3>
                         <p class="text-sm text-gray-500 dark:text-gray-400">
-                            {{ $channel->type->getLabel() }} · کمیسیون {{ $channel->commission_rate }}٪
+                            {{ $channel->type->getLabel() }} · کمیسیون {{ \Illuminate\Support\Number::toPersian($channel->commission_rate) }}٪
                         </p>
                     </div>
 
                     <div class="flex gap-3">
                         <div class="rounded-lg bg-gray-50 px-4 py-2 text-center dark:bg-white/5">
                             <div class="text-lg font-bold text-gray-950 dark:text-white">
-                                {{ $channel->bookings_count_cache }}
+                                {{ \Illuminate\Support\Number::toPersian($channel->bookings_count_cache) }}
                             </div>
                             <div class="text-xs text-gray-500 dark:text-gray-400">رزرو فعال</div>
                         </div>
@@ -53,7 +55,7 @@
                             <div>
                                 <div class="flex items-center justify-between text-sm text-gray-700 dark:text-gray-300">
                                     <span>{{ $usage['room_type'] }}</span>
-                                    <span class="whitespace-nowrap">{{ $usage['used_count'] }} از {{ $usage['allotment_count'] }} سهمیه (امروز)</span>
+                                    <span class="whitespace-nowrap">{{ \Illuminate\Support\Number::toPersian($usage['used_count']) }} از {{ \Illuminate\Support\Number::toPersian($usage['allotment_count']) }} سهمیه (امروز)</span>
                                 </div>
                                 <div class="mt-1 h-2 w-full overflow-hidden rounded-full bg-gray-200 dark:bg-white/10">
                                     <div class="h-full {{ $barColor }}" style="width: {{ $percent }}%"></div>

@@ -57,4 +57,17 @@ class BookingStatusChart extends ChartWidget
             'labels' => collect($statuses)->map(fn (BookingStatus $status) => $status->getLabel())->all(),
         ];
     }
+
+    /**
+     * Chart.js formats every tick/tooltip number through Intl.NumberFormat
+     * client-side - telling it the Persian locale is all it needs to render
+     * those numbers in Persian digits, same as everything server-rendered
+     * elsewhere.
+     */
+    protected function getOptions(): array
+    {
+        return [
+            'locale' => 'fa',
+        ];
+    }
 }

@@ -76,7 +76,7 @@ class DepartmentResource extends Resource
                 TextColumn::make('code')->label('کد')->badge(),
                 TextColumn::make('parent.name')->label('زیرمجموعه‌ی')->placeholder('—'),
                 TextColumn::make('company.name')->label('شرکت')->placeholder('—'),
-                TextColumn::make('users_count')->label('تعداد پرسنل')->counts('users'),
+                TextColumn::make('users_count')->label('تعداد پرسنل')->counts('users')->numeric(),
             ])
             ->filters([
                 //

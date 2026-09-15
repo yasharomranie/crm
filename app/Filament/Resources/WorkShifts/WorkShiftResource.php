@@ -20,6 +20,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class WorkShiftResource extends Resource
 {
@@ -100,11 +101,11 @@ class WorkShiftResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->label('نام شیفت')->searchable(),
-                TextColumn::make('start_time')->label('شروع')->time('H:i'),
-                TextColumn::make('end_time')->label('پایان')->time('H:i'),
-                TextColumn::make('grace_minutes')->label('مهلت تأخیر')->suffix(' دقیقه'),
+                TextColumn::make('start_time')->label('شروع')->formatStateUsing(fn (?string $state) => $state ? Number::toPersian($state) : null),
+                TextColumn::make('end_time')->label('پایان')->formatStateUsing(fn (?string $state) => $state ? Number::toPersian($state) : null),
+                TextColumn::make('grace_minutes')->label('مهلت تأخیر')->numeric()->suffix(' دقیقه'),
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('همه'),
-                TextColumn::make('users_count')->label('تعداد کاربر')->counts('users'),
+                TextColumn::make('users_count')->label('تعداد کاربر')->counts('users')->numeric(),
                 IconColumn::make('is_default')->label('پیش‌فرض')->boolean(),
                 IconColumn::make('latitude')
                     ->label('محدودیت مکانی')

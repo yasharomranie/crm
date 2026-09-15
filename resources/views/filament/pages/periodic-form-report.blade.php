@@ -114,7 +114,7 @@
                                                     class="block h-20 rounded-lg border p-2 text-xs transition hover:shadow {{ $colorClass }} {{ $cell['isToday'] ? 'ring-2 ring-primary-500' : '' }}"
                                                 >
                                                     <div class="flex items-center justify-between">
-                                                        <span class="font-semibold {{ $cell['inPeriod'] ? 'text-gray-950 dark:text-white' : 'text-gray-400' }}">{{ $cell['jalali']->format('%d') }}</span>
+                                                        <span class="font-semibold {{ $cell['inPeriod'] ? 'text-gray-950 dark:text-white' : 'text-gray-400' }}">{{ \Illuminate\Support\Number::toPersian($cell['jalali']->format('%d')) }}</span>
                                                         <x-filament::badge :color="$submission->status->getColor()" size="xs">
                                                             {{ $submission->status->getLabel() }}
                                                         </x-filament::badge>
@@ -123,7 +123,7 @@
                                                 </a>
                                             @else
                                                 <div class="flex h-20 flex-col justify-between rounded-lg border p-2 text-xs {{ $colorClass }} {{ $cell['isToday'] ? 'ring-2 ring-primary-500' : '' }} {{ ! $cell['inPeriod'] ? 'opacity-40' : '' }}">
-                                                    <span class="font-semibold {{ $cell['inPeriod'] ? 'text-gray-950 dark:text-white' : 'text-gray-400' }}">{{ $cell['jalali']->format('%d') }}</span>
+                                                    <span class="font-semibold {{ $cell['inPeriod'] ? 'text-gray-950 dark:text-white' : 'text-gray-400' }}">{{ \Illuminate\Support\Number::toPersian($cell['jalali']->format('%d')) }}</span>
                                                     @if ($cell['inPeriod'] && ! $cell['isFuture'])
                                                         <span class="text-warning-600 dark:text-warning-400">ثبت نشده</span>
                                                     @endif

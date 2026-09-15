@@ -65,7 +65,7 @@ class DocumentFolderResource extends Resource
                 TextColumn::make('name')->label('نام پوشه')->searchable(),
                 TextColumn::make('parent.name')->label('پوشه والد')->placeholder('—'),
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('همه'),
-                TextColumn::make('documents_count')->label('تعداد اسناد')->counts('documents'),
+                TextColumn::make('documents_count')->label('تعداد اسناد')->counts('documents')->numeric(),
             ])
             ->filters([
                 //

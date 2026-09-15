@@ -19,7 +19,7 @@ class TaskChecklistTemplatesTable
                 TextColumn::make('name')->label('نام قالب')->searchable(),
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('—'),
                 TextColumn::make('recurrence')->label('تکرار')->badge(),
-                TextColumn::make('items_count')->label('تعداد آیتم')->counts('items'),
+                TextColumn::make('items_count')->label('تعداد آیتم')->counts('items')->numeric(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
             ])
             ->filters([

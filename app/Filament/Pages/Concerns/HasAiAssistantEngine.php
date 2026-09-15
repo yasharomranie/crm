@@ -47,6 +47,7 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 use Morilog\Jalali\Jalalian;
 use Spatie\Permission\Models\Role;
@@ -2144,7 +2145,7 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($overdueTasks > 0) {
-            $alerts[] = ['severity' => 'warning', 'message' => "{$overdueTasks} وظیفه از مهلت انجام خود گذشته است."];
+            $alerts[] = ['severity' => 'warning', 'message' => Number::toPersian("{$overdueTasks} وظیفه از مهلت انجام خود گذشته است.")];
         }
 
         Project::whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress])
@@ -2160,7 +2161,7 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($breachedTickets > 0) {
-            $alerts[] = ['severity' => 'danger', 'message' => "{$breachedTickets} تیکت پشتیبانی از مهلت SLA عبور کرده است."];
+            $alerts[] = ['severity' => 'danger', 'message' => Number::toPersian("{$breachedTickets} تیکت پشتیبانی از مهلت SLA عبور کرده است.")];
         }
 
         $chronicallyLateCount = AttendanceRecord::where('status', AttendanceStatus::Late)
@@ -2173,7 +2174,7 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($chronicallyLateCount > 0) {
-            $alerts[] = ['severity' => 'warning', 'message' => "{$chronicallyLateCount} نفر بیش از ۳ بار در این ماه با تأخیر حضور یافته‌اند."];
+            $alerts[] = ['severity' => 'warning', 'message' => Number::toPersian("{$chronicallyLateCount} نفر بیش از ۳ بار در این ماه با تأخیر حضور یافته‌اند.")];
         }
 
         $totalRooms = Room::where('is_active', true)->count();

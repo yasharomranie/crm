@@ -16,6 +16,7 @@ use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
 
 class ProjectsTable
 {
@@ -32,7 +33,7 @@ class ProjectsTable
                 TextColumn::make('budget')->label('بودجه')->numeric()->suffix(' تومان'),
                 TextColumn::make('progress')
                     ->label('پیشرفت فیزیکی')
-                    ->state(fn (Project $record) => round($record->earnedValuePercent()).'٪'),
+                    ->state(fn (Project $record) => Number::toPersian(round($record->earnedValuePercent()).'٪')),
                 TextColumn::make('end_date')->label('پایان مصوب')->jalaliDate('Y/m/d')->placeholder('—'),
             ])
             ->filters([

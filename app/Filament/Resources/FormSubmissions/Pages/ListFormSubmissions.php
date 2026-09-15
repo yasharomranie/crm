@@ -8,6 +8,7 @@ use Filament\Resources\Pages\ListRecords;
 use Filament\Schemas\Components\Tabs\Tab;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Number;
 
 class ListFormSubmissions extends ListRecords
 {
@@ -31,7 +32,7 @@ class ListFormSubmissions extends ListRecords
         return [
             'inbox' => Tab::make('کارتابل ورودی')
                 ->modifyQueryUsing(fn (Builder $query) => $query->awaitingActionFrom($user))
-                ->badge(fn () => FormSubmissionResource::getEloquentQuery()->awaitingActionFrom($user)->count()),
+                ->badge(fn () => Number::toPersian(FormSubmissionResource::getEloquentQuery()->awaitingActionFrom($user)->count())),
             'mine' => Tab::make('ارسالی‌های من')
                 ->modifyQueryUsing(fn (Builder $query) => $query->where('submitted_by', $user->id)),
             'all' => Tab::make('همه'),

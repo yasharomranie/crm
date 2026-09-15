@@ -69,9 +69,9 @@ class RoomTypeResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('name')->label('نام')->searchable(),
-                TextColumn::make('capacity')->label('ظرفیت'),
+                TextColumn::make('capacity')->label('ظرفیت')->numeric(),
                 TextColumn::make('base_price')->label('نرخ پایه هر شب')->numeric()->suffix(' تومان'),
-                TextColumn::make('rooms_count')->label('تعداد واحد')->counts('rooms'),
+                TextColumn::make('rooms_count')->label('تعداد واحد')->counts('rooms')->numeric(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
             ])
             ->filters([
