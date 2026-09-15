@@ -33,6 +33,12 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName(fn () => config('app.name'))
+            // The mascot + FarsiWP wordmark, matching the public landing
+            // page and the AI assistant widget - see brand-logo.blade.php.
+            // brandLogoHeight is generous enough for the two-line text
+            // block beside the mascot, not just a single logo image.
+            ->brandLogo(fn () => view('filament.brand-logo'))
+            ->brandLogoHeight('2.75rem')
             ->font('Vazirmatn')
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->colors([

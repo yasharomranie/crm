@@ -8,6 +8,7 @@ use App\Exceptions\AttendanceException;
 use Carbon\Carbon;
 use Database\Factories\UserFactory;
 use Filament\Models\Contracts\FilamentUser;
+use Filament\Models\Contracts\HasAvatar;
 use Filament\Panel;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
@@ -20,7 +21,7 @@ use Spatie\Permission\Traits\HasRoles;
 
 #[Fillable(['name', 'mobile', 'national_code', 'email', 'password', 'department_id', 'work_shift_id', 'is_active'])]
 #[Hidden(['password', 'remember_token'])]
-class User extends Authenticatable implements FilamentUser
+class User extends Authenticatable implements FilamentUser, HasAvatar
 {
     /** @use HasFactory<UserFactory> */
     use HasFactory, HasRoles, Notifiable;
@@ -43,6 +44,16 @@ class User extends Authenticatable implements FilamentUser
     public function canAccessPanel(Panel $panel): bool
     {
         return $this->is_active;
+    }
+
+    /**
+     * The mascot (in its cap) stands in for every user's avatar - there's no
+     * uploaded-photo field on this model, and this beats Filament's default
+     * UiAvatarsProvider, which calls out to ui-avatars.com for initials.
+     */
+    public function getFilamentAvatarUrl(): ?string
+    {
+        return asset('images/mascot-avatar.svg');
     }
 
     public function department(): BelongsTo
