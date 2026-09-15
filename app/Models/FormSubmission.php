@@ -198,7 +198,16 @@ class FormSubmission extends Model
 
         return match ($field->field_type) {
             FormFieldType::Checkbox => $value ? 'بله' : 'خیر',
-            FormFieldType::DateJalali => method_exists($value, 'toJalali') ? $value->toJalali('Y/m/d') : e((string) $value),
+            // Not a method_exists() guard: toJalali() is a Carbon macro
+            // (registered in AppServiceProvider), and PHP's method_exists()
+            // can never see macros - they're dispatched through __call(),
+            // not a real declared method - so that guard always silently
+            // failed and fell through to Carbon's raw "Y-m-d H:i:s" string,
+            // which is exactly the "میلادی و با ۰۰:۰۰:۰۰" bug reported in
+            // a merged-document print. $value is a real Carbon instance
+            // here (the blank() check above already ruled out null), same
+            // as every other ->toJalali() call site in this app.
+            FormFieldType::DateJalali => $value->toJalali('Y/m/d'),
             FormFieldType::Signature => '<img src="'.e($value).'" alt="امضا" style="height:60px;vertical-align:middle;">',
             // A plain Google Maps link, not the interactive <x-gps-map>
             // component: this merged text also has to render correctly

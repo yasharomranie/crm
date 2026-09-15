@@ -65,6 +65,41 @@ class FormDocumentTemplateTest extends TestCase
         $this->assertStringContainsString('حمل مصالح به عهدهٔ پیمانکار: بله', $submission->mergedDocumentBody());
     }
 
+    /**
+     * Regression test for a real production bug: a date_jalali placeholder
+     * inside a merged document printed the raw Gregorian datetime (e.g.
+     * "2026-09-15 00:00:00") instead of a Jalali date. The cause was a
+     * method_exists($value, 'toJalali') guard in renderDocumentPlaceholder()
+     * - toJalali() is a Carbon macro (registered in AppServiceProvider),
+     * and method_exists() can never see macros (they're dispatched through
+     * __call(), not a real declared method), so the guard always silently
+     * failed and fell through to Carbon's default __toString() format.
+     * Every other ->toJalali() call site in the app calls it directly
+     * without this guard and was never affected.
+     */
+    public function test_a_date_jalali_placeholder_renders_in_jalali_format_not_raw_gregorian(): void
+    {
+        $template = FormTemplate::factory()->create(['document_template' => 'تاریخ برگزاری: {{meeting_date}}']);
+        $field = FormField::factory()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'meeting_date',
+            'field_type' => FormFieldType::DateJalali,
+        ]);
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        FormSubmissionValue::factory()->create([
+            'form_submission_id' => $submission->id,
+            'form_field_id' => $field->id,
+            'value_text' => null,
+            'value_date' => '2026-09-15',
+        ]);
+
+        $body = $submission->mergedDocumentBody();
+
+        $this->assertStringContainsString('تاریخ برگزاری: ۱۴۰۵/۰۶/۲۴', $body);
+        $this->assertStringNotContainsString('2026-09-15', $body);
+        $this->assertStringNotContainsString('00:00:00', $body);
+    }
+
     public function test_an_unanswered_placeholder_falls_back_to_a_blank_line(): void
     {
         $template = FormTemplate::factory()->create(['document_template' => 'نشانی: {{address}}']);
