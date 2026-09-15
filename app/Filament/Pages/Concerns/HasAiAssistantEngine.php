@@ -22,8 +22,11 @@ use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
 use App\Models\BookingCharge;
+use App\Models\Company;
+use App\Models\Contract;
 use App\Models\Deal;
 use App\Models\Department;
+use App\Models\Document;
 use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormSubmissionValue;
@@ -39,10 +42,12 @@ use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
 use Filament\Notifications\Notification;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 use Morilog\Jalali\Jalalian;
 use Spatie\Permission\Models\Role;
 
@@ -217,6 +222,11 @@ trait HasAiAssistantEngine
             اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن و نتیجه را به‌وضوح تأیید کن.
             مبالغ همیشه به تومان هستند.
 
+            دربارهٔ جست‌وجوی سراسری (search_everything):
+            - وقتی کاربر چیزی را با یک نام/عبارت کلی می‌خواهد (مثل نام یک مشتری، پروژه، قرارداد، یا هر کلیدواژه‌ای) بدون این‌که بگوید دقیقاً مال کدام بخش سیستم است، اول search_everything را با همان عبارت صدا بزن - هیچ‌وقت مستقیم حدس نزن کدوم ابزار تخصصی مناسبه و هیچ‌وقت فقط به این دلیل که یک ابزار تخصصی‌تر چیزی پیدا نکرد، بگو «پیدا نشد»؛ همیشه اول با این ابزار در کل سیستم بگرد.
+            - این ابزار هم‌زمان وظایف، پروژه‌ها، معاملات، قراردادها، اسناد، تیکت‌های پشتیبانی، شرکت‌ها، و مقادیر واقعی ثبت‌شده داخل همهٔ فرم‌ها (نه فقط اسم فرم‌ها) را می‌گردد و نتایج را بر اساس شباهت به عبارت جست‌وجو مرتب می‌کند - نتیجهٔ اول لزوماً تطابق کامل نیست، بهترین تطابق نسبیه.
+            - بعد از پیدا کردن نتیجهٔ مرتبط، اگه کاربر جزئیات بیشتری خواست، با ابزار تخصصی‌تر همون بخش (مثلاً summarize_submission_for_decision برای یک پاسخ فرم) عمیق‌تر برو - search_everything فقط برای پیدا کردن «کجاست» است، نه جایگزین ابزارهای تخصصی.
+
             دربارهٔ طراحی گردش‌کار و قالب فرم (design_workflow_draft و design_form_template_draft):
             - اگر فرم درخواستی نیاز به چرخهٔ تأیید چندمرحله‌ای دارد، اول با design_workflow_draft گردش‌کار را بساز و بعد workflow_definition_id برگشتی را به design_form_template_draft بده. اگر فرم ساده است و نیاز به تأیید ندارد، فقط design_form_template_draft کافی است.
             - هیچ‌وقت نام دپارتمان، کاربر یا نقش سازمانی را حدس نزن یا با نام مشابه/نزدیک جایگزین نکن؛ همیشه از لیستی که در همین پیام سیستم به تو داده شده استفاده کن. اگر چیزی که کاربر گفته دقیقاً در لیست نبود، اسم ندادنش را به کاربر بگو و از او بخواه دقیق‌تر مشخص کند یا نام‌های نزدیک موجود را پیشنهاد بده - هرگز آن را حدسی نساز.
@@ -316,6 +326,7 @@ trait HasAiAssistantEngine
         }
 
         return match ($name) {
+            'search_everything' => $this->globalSearchTool($arguments),
             'get_accommodation_summary' => $this->accommodationSummary(),
             'get_crm_summary' => $this->crmSummary(),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
@@ -353,6 +364,14 @@ trait HasAiAssistantEngine
         $tools = [];
 
         if ($user?->can('ai-assistant.report')) {
+            $tools[] = $this->toolSchema('search_everything', 'Free-text search across the ENTIRE system at once - tasks, projects, CRM deals, contracts, documents, support tickets, companies, AND every answered value inside every submitted form (not just form titles). Use this FIRST whenever the user names something loosely (a client/company name, a project/task title, a keyword) without saying which module it is in, or after a more specific tool already came back empty - never just say "not found" without trying this first. Results are ranked by how many of the query\'s words they match, most relevant first. Each result names which module it came from and its id, so you can fetch full detail with a more specific tool afterwards if needed (e.g. summarize_submission_for_decision for a form-submission result).', [
+                'type' => 'object',
+                'properties' => [
+                    'query' => ['type' => 'string', 'description' => 'Free-text search phrase - a name, title, keyword, or short phrase. Not a technical id or field key.'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results to return, across all modules combined - defaults to 15, max 30'],
+                ],
+                'required' => ['query'],
+            ]);
             $tools[] = $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
@@ -566,6 +585,186 @@ trait HasAiAssistantEngine
     }
 
     // --- Tool implementations -------------------------------------------------
+
+    /**
+     * A free-text, cross-module search - the one tool that doesn't require
+     * already knowing which module/table something lives in. Every other
+     * tool in this class is scoped to one module (accommodation, CRM,
+     * forms, ...); a user naming a client, project, or keyword loosely
+     * (e.g. "قالب سایت رابیان") has no way to know which of those to reach
+     * for, and used to just get "not found" from whichever single tool the
+     * model guessed. This searches tasks, projects, deals, contracts,
+     * documents, support tickets, companies, and - critically - every
+     * answered value inside every submitted form (not just form/field
+     * names) all at once, and ranks results by how many of the query's
+     * words they contain so the closest match surfaces first even when the
+     * user's wording isn't an exact substring of any single record.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    private function globalSearchTool(array $arguments): array
+    {
+        $query = trim((string) ($arguments['query'] ?? ''));
+
+        if ($query === '') {
+            return ['error' => 'عبارت جست‌وجو خالی است.'];
+        }
+
+        // Capped at 6: a long, sentence-like query would otherwise build an
+        // ever-growing OR-of-LIKEs per module - six words is already far
+        // more than a "قالب سایت رابیان"-style phrase needs.
+        $words = collect(preg_split('/\s+/u', $query))->filter()->unique()->take(6)->values();
+
+        if ($words->isEmpty()) {
+            return ['error' => 'عبارت جست‌وجو خالی است.'];
+        }
+
+        // How many of the query's words appear inside a candidate's own
+        // searchable text - the ranking signal, since a real match rarely
+        // contains the user's exact phrase verbatim but does share most of
+        // its distinct words.
+        $score = fn (string $haystack): int => $words
+            ->filter(fn (string $word) => mb_stripos($haystack, $word) !== false)
+            ->count();
+
+        $likeAnyWord = function (Builder $query, array $columns) use ($words) {
+            $query->where(function (Builder $q) use ($columns, $words) {
+                foreach ($columns as $column) {
+                    foreach ($words as $word) {
+                        $q->orWhere($column, 'like', "%{$word}%");
+                    }
+                }
+            });
+        };
+
+        $results = collect();
+
+        Task::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['title', 'description']))
+            ->limit(30)->get()
+            ->each(function (Task $task) use (&$results, $score) {
+                $results->push([
+                    'type' => 'وظیفه',
+                    'id' => $task->id,
+                    'title' => $task->title,
+                    'snippet' => Str::limit((string) $task->description, 150),
+                    'status' => $task->status?->getLabel(),
+                    'score' => $score($task->title.' '.$task->description),
+                ]);
+            });
+
+        Project::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['title', 'description']))
+            ->limit(30)->get()
+            ->each(function (Project $project) use (&$results, $score) {
+                $results->push([
+                    'type' => 'پروژه',
+                    'id' => $project->id,
+                    'title' => $project->title,
+                    'snippet' => Str::limit((string) $project->description, 150),
+                    'status' => $project->status?->getLabel(),
+                    'score' => $score($project->title.' '.$project->description),
+                ]);
+            });
+
+        Deal::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['title', 'notes']))
+            ->limit(30)->get()
+            ->each(function (Deal $deal) use (&$results, $score) {
+                $results->push([
+                    'type' => 'معامله (CRM)',
+                    'id' => $deal->id,
+                    'title' => $deal->title,
+                    'snippet' => Str::limit((string) $deal->notes, 150),
+                    'status' => $deal->stage?->getLabel(),
+                    'score' => $score($deal->title.' '.$deal->notes),
+                ]);
+            });
+
+        Contract::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['title', 'counterparty_name', 'brief']))
+            ->limit(30)->get()
+            ->each(function (Contract $contract) use (&$results, $score) {
+                $results->push([
+                    'type' => 'قرارداد',
+                    'id' => $contract->id,
+                    'title' => $contract->title,
+                    'snippet' => Str::limit($contract->counterparty_name.' - '.$contract->brief, 150),
+                    'score' => $score($contract->title.' '.$contract->counterparty_name.' '.$contract->brief),
+                ]);
+            });
+
+        Document::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['title']))
+            ->limit(30)->get()
+            ->each(function (Document $document) use (&$results, $score) {
+                $results->push([
+                    'type' => 'سند',
+                    'id' => $document->id,
+                    'title' => $document->title,
+                    'score' => $score($document->title),
+                ]);
+            });
+
+        GuestTicket::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['subject', 'description']))
+            ->limit(30)->get()
+            ->each(function (GuestTicket $ticket) use (&$results, $score) {
+                $results->push([
+                    'type' => 'تیکت پشتیبانی',
+                    'id' => $ticket->id,
+                    'title' => $ticket->subject,
+                    'snippet' => Str::limit((string) $ticket->description, 150),
+                    'status' => $ticket->status?->getLabel(),
+                    'score' => $score($ticket->subject.' '.$ticket->description),
+                ]);
+            });
+
+        Company::query()
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['name']))
+            ->limit(30)->get()
+            ->each(function (Company $company) use (&$results, $score) {
+                $results->push([
+                    'type' => 'شرکت',
+                    'id' => $company->id,
+                    'title' => $company->name,
+                    'score' => $score($company->name),
+                ]);
+            });
+
+        // The one place a plain "form title" search would miss the point:
+        // the user usually means something someone TYPED INTO a form, not
+        // the form's own name - e.g. "قالب سایت رابیان" is almost certainly
+        // a value inside some field, not a form template called that.
+        FormSubmissionValue::query()
+            ->whereNotNull('value_text')
+            ->tap(fn (Builder $q) => $likeAnyWord($q, ['value_text']))
+            ->with(['formField' => fn ($q) => $q->withTrashed(), 'formSubmission.formTemplate'])
+            ->limit(30)->get()
+            ->each(function (FormSubmissionValue $value) use (&$results, $score) {
+                $results->push([
+                    'type' => 'پاسخ ثبت‌شده در فرم',
+                    'form' => $value->formSubmission?->formTemplate?->title,
+                    'submission_id' => $value->form_submission_id,
+                    'field' => $value->formField?->label,
+                    'snippet' => Str::limit((string) $value->value_text, 150),
+                    'score' => $score((string) $value->value_text),
+                ]);
+            });
+
+        $limit = max(1, min(30, (int) ($arguments['limit'] ?? 15)));
+
+        $matched = $results
+            ->filter(fn (array $result) => $result['score'] > 0)
+            ->sortByDesc('score')
+            ->values();
+
+        return [
+            'query' => $query,
+            'matched_count' => $matched->count(),
+            'results' => $matched->take($limit)->all(),
+        ];
+    }
 
     private function accommodationSummary(): array
     {
