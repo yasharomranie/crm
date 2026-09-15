@@ -73,12 +73,17 @@ class FieldsRelationManager extends RelationManager
                 // paper form's grid (e.g. a 16-row "معوقات اجاره" table)
                 // into something the form-builder can actually reproduce,
                 // instead of forcing an admin to fake it with dozens of
-                // individually-numbered flat fields. Stored inside the same
-                // `options` JSON column as the KeyValue above (only one of
-                // the two is ever visible/dehydrated for a given field_type,
-                // so they never collide) - see DynamicFormFieldBuilder's
-                // ->table() Repeater, which reads this same shape back out.
-                Repeater::make('options.columns')
+                // individually-numbered flat fields. This is its own
+                // top-level column (table_columns), NOT nested inside the
+                // `options` JSON column used by the KeyValue above:
+                // Repeater::make('options.columns') was tried first, but a
+                // Repeater nested under a dotted sub-path of another
+                // component's own state path silently loses every item's
+                // data (key/label/type all come back null on save) in this
+                // Filament version - a plain top-level path doesn't have
+                // that problem. See DynamicFormFieldBuilder's ->table()
+                // Repeater, which reads this same shape back out.
+                Repeater::make('table_columns')
                     ->label('ستون‌های جدول')
                     ->visible(fn ($get) => $get('field_type') === FormFieldType::Table)
                     ->schema([
@@ -100,7 +105,7 @@ class FieldsRelationManager extends RelationManager
                     ->addActionLabel('افزودن ستون')
                     ->reorderable(false)
                     ->columnSpanFull(),
-                TextInput::make('options.default_rows')
+                TextInput::make('table_default_rows')
                     ->label('تعداد ردیف پیش‌فرض')
                     ->helperText('مثلاً جدول کاغذی ۱۶ ردیف خالی دارد - همین تعداد ردیف از ابتدا نمایش داده می‌شود؛ کاربر می‌تواند بعداً ردیف کم یا زیاد کند.')
                     ->numeric()

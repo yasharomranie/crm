@@ -15,7 +15,8 @@ class FormField extends Model
 
     protected $fillable = [
         'form_template_id', 'workflow_step_id', 'field_key', 'label', 'field_type',
-        'options', 'validation_rules', 'conditional_logic', 'sort_order', 'is_required',
+        'options', 'table_columns', 'table_default_rows', 'validation_rules', 'conditional_logic',
+        'sort_order', 'is_required',
     ];
 
     protected function casts(): array
@@ -23,6 +24,7 @@ class FormField extends Model
         return [
             'field_type' => FormFieldType::class,
             'options' => 'array',
+            'table_columns' => 'array',
             'validation_rules' => 'array',
             'conditional_logic' => 'array',
             'is_required' => 'boolean',

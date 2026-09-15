@@ -57,7 +57,7 @@ class DynamicFormFieldBuilder
             // 16-row "معوقات اجاره" grid) instead of forcing an admin to
             // fake it with dozens of individually-numbered flat fields -
             // ->table() renders it as an actual spreadsheet-like grid, one
-            // column per entry in options.columns, rather than the
+            // column per entry in table_columns, rather than the
             // stacked card layout a plain Repeater defaults to.
             FormFieldType::Table => static::buildTableRepeater($field),
         };
@@ -74,7 +74,7 @@ class DynamicFormFieldBuilder
      */
     private static function tableColumns(FormField $field): array
     {
-        return collect($field->options['columns'] ?? [])
+        return collect($field->table_columns ?? [])
             ->map(fn (array $column) => [
                 'key' => $column['key'],
                 'label' => $column['label'],
@@ -94,7 +94,7 @@ class DynamicFormFieldBuilder
                 TableColumnType::DateJalali => DatePicker::make($column['key'])->jalali()->displayFormat('Y/m/d'),
                 TableColumnType::Text => TextInput::make($column['key']),
             }, $columns))
-            ->defaultItems((int) ($field->options['default_rows'] ?? 0))
+            ->defaultItems((int) ($field->table_default_rows ?? 0))
             ->addActionLabel('افزودن ردیف')
             ->reorderable(false);
     }

@@ -37,19 +37,17 @@ class FormFieldFactory extends Factory
      * A repeatable-table field with a couple of columns - the shape
      * DynamicFormFieldBuilder's ->table() Repeater and every value renderer
      * (detail view, print/word exports, mergedDocumentBody()) expect in
-     * options.columns.
+     * table_columns.
      */
     public function table(): static
     {
         return $this->state(fn () => [
             'field_type' => FormFieldType::Table,
-            'options' => [
-                'columns' => [
-                    ['key' => 'unit_name', 'label' => 'نام واحد', 'type' => TableColumnType::Text->value],
-                    ['key' => 'amount', 'label' => 'مبلغ (ریال)', 'type' => TableColumnType::Number->value],
-                ],
-                'default_rows' => 0,
+            'table_columns' => [
+                ['key' => 'unit_name', 'label' => 'نام واحد', 'type' => TableColumnType::Text->value],
+                ['key' => 'amount', 'label' => 'مبلغ (ریال)', 'type' => TableColumnType::Number->value],
             ],
+            'table_default_rows' => 0,
         ]);
     }
 }

@@ -218,7 +218,7 @@ class FormSubmission extends Model
      */
     private function renderTablePlaceholder(FormField $field, array $rows): string
     {
-        $columns = $field->options['columns'] ?? [];
+        $columns = $field->table_columns ?? [];
 
         $headerCells = collect($columns)->map(fn (array $column) => '<th style="border:1px solid #ccc;padding:4px 6px;background:#f4f4f3;">'.e($column['label']).'</th>')->implode('');
 

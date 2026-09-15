@@ -382,7 +382,7 @@
                                 <table class="value-table">
                                     <thead>
                                         <tr>
-                                            @foreach ($field->options['columns'] ?? [] as $column)
+                                            @foreach ($field->table_columns ?? [] as $column)
                                                 <th>{{ $column['label'] }}</th>
                                             @endforeach
                                         </tr>
@@ -390,7 +390,7 @@
                                     <tbody>
                                         @foreach ($value->value as $row)
                                             <tr>
-                                                @foreach ($field->options['columns'] ?? [] as $column)
+                                                @foreach ($field->table_columns ?? [] as $column)
                                                     <td>{{ $row[$column['key']] ?? '—' }}</td>
                                                 @endforeach
                                             </tr>

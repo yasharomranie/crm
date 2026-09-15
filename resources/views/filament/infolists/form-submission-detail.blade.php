@@ -88,7 +88,7 @@
                                     <table class="min-w-full border-collapse text-xs">
                                         <thead>
                                             <tr>
-                                                @foreach ($field->options['columns'] ?? [] as $column)
+                                                @foreach ($field->table_columns ?? [] as $column)
                                                     <th class="border border-gray-200 bg-gray-50 px-2 py-1 text-start font-medium text-gray-600 dark:border-white/10 dark:bg-white/5 dark:text-gray-300">{{ $column['label'] }}</th>
                                                 @endforeach
                                             </tr>
@@ -96,7 +96,7 @@
                                         <tbody>
                                             @foreach ($value->value as $row)
                                                 <tr>
-                                                    @foreach ($field->options['columns'] ?? [] as $column)
+                                                    @foreach ($field->table_columns ?? [] as $column)
                                                         <td class="border border-gray-200 px-2 py-1 text-gray-900 dark:border-white/10 dark:text-gray-100">{{ $row[$column['key']] ?? '—' }}</td>
                                                     @endforeach
                                                 </tr>
