@@ -176,6 +176,20 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('filament.render-hooks.ai-assistant-widget'),
+            )
+            // Makes the panel installable as a PWA (manifest + service
+            // worker) - see resources/views/partials/pwa-head.blade.php and
+            // public/sw.js for what that actually does. The same partials
+            // are included on the public landing page (welcome.blade.php),
+            // so either entry point can trigger the browser's install
+            // prompt for the one shared app.
+            ->renderHook(
+                PanelsRenderHook::HEAD_END,
+                fn () => view('partials.pwa-head'),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.pwa-register'),
             );
     }
 }

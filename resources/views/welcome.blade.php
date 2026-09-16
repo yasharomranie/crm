@@ -7,6 +7,8 @@
     <title>{{ config('app.name') }} — یک کلمه بنویس، یک سیستم را به حرکت درآور</title>
     <meta name="description" content="FarsiWP: دستیار هوش مصنوعی، فرم‌ساز و گردش‌کار، مدیریت اقامتگاه، پروژه، فروش و منابع انسانی، همه در یک سامانه.">
 
+    @include('partials.pwa-head')
+
     @fonts
 
     @vite(['resources/css/app.css'])
@@ -629,5 +631,7 @@
             });
         })();
     </script>
+
+    @include('partials.pwa-register')
 </body>
 </html>
