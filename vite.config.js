@@ -10,7 +10,7 @@ export default defineConfig({
             refresh: true,
             fonts: [
                 google('Vazirmatn', {
-                    weights: [400, 500, 600, 700],
+                    weights: [400, 500, 600, 700, 800],
                     subsets: ['arabic'],
                 }),
             ],

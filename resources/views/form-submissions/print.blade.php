@@ -4,9 +4,11 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>{{ $submission->formTemplate->title }} — {{ $submission->reference_code }}</title>
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Vazirmatn:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    {{-- Self-hosted via Vite's font-bundling (vite.config.js), not Google
+        Fonts - this app is hosted for users in Iran, where that CDN can be
+        slow or filtered. See LocalViteFontProvider's doc comment for the
+        matching fix on the admin panel side. --}}
+    @fonts('vazirmatn')
     <style>
         :root {
             color-scheme: light;
@@ -438,7 +440,13 @@
         </footer>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
+    {{-- Vendored under public/vendor/qrcodejs instead of a CDN - see the
+        matching note in filament/components/leaflet-assets.blade.php on why
+        (hosted for Iran-based users, where jsdelivr can be slow/filtered).
+        An exact, unmodified copy of npm's qrcodejs@1.0.0 (package.json's
+        "qrcodejs" dependency), copied from
+        node_modules/qrcodejs/qrcode.min.js. --}}
+    <script src="{{ asset('vendor/qrcodejs/qrcode.min.js') }}"></script>
     <script>
         if (window.QRCode) {
             new QRCode(document.getElementById('qrcode'), {

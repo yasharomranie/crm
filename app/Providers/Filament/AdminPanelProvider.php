@@ -4,6 +4,7 @@ namespace App\Providers\Filament;
 
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\AiProviders\AiProviderResource;
+use App\Filament\Support\LocalViteFontProvider;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -39,7 +40,9 @@ class AdminPanelProvider extends PanelProvider
             // block beside the mascot, not just a single logo image.
             ->brandLogo(fn () => view('filament.brand-logo'))
             ->brandLogoHeight('2.75rem')
-            ->font('Vazirmatn')
+            // Self-hosted, not Filament's default Bunny Fonts CDN - see
+            // LocalViteFontProvider's own doc comment for why.
+            ->font('Vazirmatn', provider: LocalViteFontProvider::class)
             ->viteTheme('resources/css/filament/admin/theme.css')
             ->colors([
                 'primary' => Color::Amber,

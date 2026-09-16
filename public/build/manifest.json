@@ -1,7 +1,7 @@
 {
-  "_fonts-CLCuQbeY.css": {
-    "file": "assets/fonts-CLCuQbeY.css",
-    "src": "_fonts-CLCuQbeY.css"
+  "_fonts-DC4Gu8La.css": {
+    "file": "assets/fonts-DC4Gu8La.css",
+    "src": "_fonts-DC4Gu8La.css"
   },
   "_vazirmatn-variable-normal-Cafbb7Zc.woff2": {
     "file": "assets/vazirmatn-variable-normal-Cafbb7Zc.woff2",
@@ -17,7 +17,7 @@
     "isEntry": true
   },
   "resources/css/filament/admin/theme.css": {
-    "file": "assets/theme-DBNS3Wx0.css",
+    "file": "assets/theme-D43aCank.css",
     "name": "theme",
     "names": [
       "theme.css"
