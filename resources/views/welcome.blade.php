@@ -633,5 +633,6 @@
     </script>
 
     @include('partials.pwa-register')
+    @include('partials.pwa-install-prompt')
 </body>
 </html>

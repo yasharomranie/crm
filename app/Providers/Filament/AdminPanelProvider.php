@@ -190,6 +190,10 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('partials.pwa-register'),
+            )
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.pwa-install-prompt'),
             );
     }
 }
