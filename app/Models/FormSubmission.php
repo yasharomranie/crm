@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\ApproverType;
+use App\Enums\DocumentAccessLevel;
 use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\WorkflowInstanceStatus;
@@ -15,7 +16,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Number;
+use Illuminate\Support\Str;
 
 class FormSubmission extends Model
 {
@@ -88,6 +91,16 @@ class FormSubmission extends Model
     }
 
     /**
+     * The Document this submission was archived into once it reached its
+     * final Approved state - see archive() below. Null for every
+     * submission still Draft/PendingApproval/Rejected/Cancelled.
+     */
+    public function document(): MorphOne
+    {
+        return $this->morphOne(Document::class, 'owner');
+    }
+
+    /**
      * Tasks spawned from this submission (e.g. an inspection form that
      * creates a repair task).
      */
@@ -133,6 +146,72 @@ class FormSubmission extends Model
         ]);
 
         $this->update(['status' => FormSubmissionStatus::PendingApproval]);
+    }
+
+    /**
+     * Files this submission away in the "مدیریت اسناد" archive as a real,
+     * downloadable Document - called by FormSubmissionObserver once a
+     * submission reaches its final Approved state, never for a
+     * draft/pending/rejected/cancelled one. Idempotent: a submission
+     * already archived just returns its existing Document rather than
+     * duplicating it.
+     *
+     * Reuses the same dependency-free "Word export" HTML
+     * (form-submissions/word.blade.php) already used for the one-click
+     * download in FormSubmissionPrintController, so the archived copy
+     * looks exactly like what the user themself would download.
+     */
+    public function archive(): Document
+    {
+        if ($this->document) {
+            return $this->document;
+        }
+
+        $this->loadMissing([
+            'formTemplate.fields', 'values.formField', 'department.company', 'submitter',
+            'workflowInstance.actions.actor',
+        ]);
+
+        $html = view('form-submissions.word', ['submission' => $this])->render();
+        $filePath = 'documents/'.Str::uuid().'.doc';
+        Storage::disk()->put($filePath, $html);
+
+        return Document::create([
+            'title' => "{$this->formTemplate->title} - {$this->reference_code}",
+            'file_path' => $filePath,
+            'mime_type' => 'application/vnd.ms-word',
+            'size_kb' => (int) ceil(Storage::disk()->size($filePath) / 1024),
+            'owner_id' => $this->id,
+            'owner_type' => self::class,
+            'folder_id' => $this->resolveArchiveFolder()->id,
+            'access_level' => DocumentAccessLevel::DepartmentOnly,
+            'department_id' => $this->department_id,
+            'uploaded_by' => $this->submitted_by,
+        ]);
+    }
+
+    /**
+     * Finds (or creates) the "شرکت X" → "قالب فرم" folder path this
+     * submission's archived Document belongs in - a top-level folder per
+     * holding company (so it's always clear which company a form belongs
+     * to), with one subfolder per form template underneath it. A
+     * submission whose department carries no company at all falls back to
+     * a single shared "بدون شرکت مشخص" root, rather than losing the
+     * document's place in the tree.
+     */
+    private function resolveArchiveFolder(): DocumentFolder
+    {
+        $company = $this->company();
+
+        $companyFolder = DocumentFolder::firstOrCreate(
+            ['parent_id' => null, 'name' => $company ? "شرکت {$company->name}" : 'بدون شرکت مشخص'],
+            ['company_id' => $company?->id],
+        );
+
+        return DocumentFolder::firstOrCreate(
+            ['parent_id' => $companyFolder->id, 'name' => $this->formTemplate->title],
+            ['department_id' => $this->department_id],
+        );
     }
 
     /**

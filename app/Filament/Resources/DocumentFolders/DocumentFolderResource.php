@@ -48,6 +48,13 @@ class DocumentFolderResource extends Resource
                     ->preload()
                     ->helperText('برای ساخت یک زیرپوشه، پوشهٔ والد را انتخاب کنید.')
                     ->hintAction(FieldHelp::make('document-folders.parent_id')),
+                Select::make('company_id')
+                    ->label('شرکت/هلدینگ')
+                    ->relationship('company', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('اختیاری - برای پوشه‌های سطح بالا که مشخص می‌کنند این پوشه مال کدام شرکت است.')
+                    ->hintAction(FieldHelp::make('document-folders.company_id')),
                 Select::make('department_id')
                     ->label('مخصوص دپارتمان')
                     ->relationship('department', 'name')
@@ -64,6 +71,7 @@ class DocumentFolderResource extends Resource
             ->columns([
                 TextColumn::make('name')->label('نام پوشه')->searchable(),
                 TextColumn::make('parent.name')->label('پوشه والد')->placeholder('—'),
+                TextColumn::make('company.name')->label('شرکت/هلدینگ')->placeholder('—'),
                 TextColumn::make('department.name')->label('دپارتمان')->placeholder('همه'),
                 TextColumn::make('documents_count')->label('تعداد اسناد')->counts('documents')->numeric(),
             ])

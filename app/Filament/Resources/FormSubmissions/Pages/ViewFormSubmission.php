@@ -4,6 +4,7 @@ namespace App\Filament\Resources\FormSubmissions\Pages;
 
 use App\Enums\WorkflowActionType;
 use App\Exceptions\WorkflowException;
+use App\Filament\Resources\Documents\DocumentResource;
 use App\Filament\Resources\FormSubmissions\FormSubmissionResource;
 use App\Filament\Resources\FormSubmissions\Schemas\FormSubmissionInfolist;
 use App\Filament\Support\DynamicFormFieldBuilder;
@@ -111,6 +112,14 @@ class ViewFormSubmission extends ViewRecord
                 ->icon('heroicon-o-printer')
                 ->color('gray')
                 ->url(fn () => route('form-submissions.print', $this->record))
+                ->openUrlInNewTab(),
+
+            Action::make('viewArchivedDocument')
+                ->label('مشاهده در بایگانی اسناد')
+                ->icon('heroicon-o-archive-box')
+                ->color('gray')
+                ->visible(fn () => $this->record->document !== null)
+                ->url(fn () => DocumentResource::getUrl('edit', ['record' => $this->record->document]))
                 ->openUrlInNewTab(),
         ];
     }

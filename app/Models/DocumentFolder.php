@@ -11,7 +11,7 @@ class DocumentFolder extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['parent_id', 'name', 'department_id'];
+    protected $fillable = ['parent_id', 'name', 'department_id', 'company_id'];
 
     public function parent(): BelongsTo
     {
@@ -26,6 +26,18 @@ class DocumentFolder extends Model
     public function department(): BelongsTo
     {
         return $this->belongsTo(Department::class);
+    }
+
+    /**
+     * The holding company this folder belongs to - set directly (unlike
+     * Document::company(), which is only ever resolved indirectly through
+     * a department) so a top-level "which holding is this" folder can
+     * exist even with no department of its own, e.g. the auto-archived
+     * root folder FormSubmission::archive() creates per company.
+     */
+    public function company(): BelongsTo
+    {
+        return $this->belongsTo(Company::class);
     }
 
     public function documents(): HasMany

@@ -3,7 +3,9 @@
 namespace App\Providers;
 
 use App\Livewire\AiAssistantWidget;
+use App\Models\FormSubmission;
 use App\Models\User;
+use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
@@ -53,6 +55,8 @@ class AppServiceProvider extends ServiceProvider
         // stable regardless of Livewire version - the panel-wide render
         // hook in AdminPanelProvider mounts it by this exact tag.
         Livewire::component('ai-assistant-widget', AiAssistantWidget::class);
+
+        FormSubmission::observe(FormSubmissionObserver::class);
     }
 
     /**
