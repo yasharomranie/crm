@@ -5,7 +5,8 @@
     the same installed app.
 --}}
 <link rel="manifest" href="{{ asset('manifest.webmanifest') }}">
-<meta name="theme-color" content="#f59e0b">
+<meta name="theme-color" content="#f59e0b" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#1c1917" media="(prefers-color-scheme: dark)">
 <link rel="apple-touch-icon" href="{{ asset('icons/apple-touch-icon.png') }}">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">

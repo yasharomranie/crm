@@ -34,5 +34,22 @@
             "type": "image/png",
             "purpose": "maskable"
         }
+    ],
+    "shortcuts": [
+        {
+            "name": "حضور و غیاب من",
+            "url": "/admin/my-attendance",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "دستیار هوشمند",
+            "url": "/admin/ai-assistant",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+        },
+        {
+            "name": "ثبت فرم جدید",
+            "url": "/admin/form-submissions/create",
+            "icons": [{ "src": "/icons/icon-192.png", "sizes": "192x192" }]
+        }
     ]
 }

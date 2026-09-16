@@ -194,6 +194,14 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('partials.pwa-install-prompt'),
+            )
+            // Mirrors the sidebar's own unread/alert counts onto the
+            // installed app icon via the Badging API - admin panel only,
+            // since it needs an authenticated user's counts (the public
+            // landing page has none to show).
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.pwa-badge'),
             );
     }
 }
