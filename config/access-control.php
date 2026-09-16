@@ -3,6 +3,7 @@
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
+use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
@@ -118,5 +119,6 @@ return [
         'sales-pipeline' => ['page' => SalesPipeline::class, 'label' => 'پایپ‌لاین فروش (کانبان)', 'group' => 'CRM و مشتریان'],
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
         'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
+        'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
     ],
 ];
