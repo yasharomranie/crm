@@ -99,3 +99,54 @@ self.addEventListener('fetch', (event) => {
         }),
     );
 });
+
+// Web Push only delivers an encrypted payload to this worker - actually
+// showing something for it, and deciding what a tap on it does, is this
+// app's own job. The payload shape here is whatever a NotificationChannels
+// \WebPush\WebPushMessage builds server-side (see e.g.
+// App\Notifications\NewMessageReceived) - title/body/icon plus an
+// arbitrary "data" bag, here just { url } to open on click.
+self.addEventListener('push', (event) => {
+    if (!event.data) {
+        return;
+    }
+
+    let payload;
+    try {
+        payload = event.data.json();
+    } catch (error) {
+        return;
+    }
+
+    event.waitUntil(
+        self.registration.showNotification(payload.title || 'FarsiWP', {
+            body: payload.body,
+            icon: payload.icon || '/icons/icon-192.png',
+            badge: payload.badge || '/icons/icon-192.png',
+            dir: payload.dir || 'rtl',
+            lang: payload.lang || 'fa',
+            tag: payload.tag,
+            data: payload.data,
+        }),
+    );
+});
+
+self.addEventListener('notificationclick', (event) => {
+    event.notification.close();
+
+    const targetUrl = event.notification.data?.url || '/';
+
+    event.waitUntil(
+        clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
+            for (const client of windowClients) {
+                if (client.url === targetUrl && 'focus' in client) {
+                    return client.focus();
+                }
+            }
+
+            if (clients.openWindow) {
+                return clients.openWindow(targetUrl);
+            }
+        }),
+    );
+});

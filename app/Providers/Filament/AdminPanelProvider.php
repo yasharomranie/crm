@@ -5,6 +5,7 @@ namespace App\Providers\Filament;
 use App\Filament\Pages\Dashboard;
 use App\Filament\Resources\AiProviders\AiProviderResource;
 use App\Filament\Support\LocalViteFontProvider;
+use Filament\Actions\Action;
 use Filament\Http\Middleware\Authenticate;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
@@ -52,6 +53,15 @@ class AdminPanelProvider extends PanelProvider
                     ->label('تنظیمات هوش مصنوعی')
                     ->icon(Heroicon::OutlinedCog6Tooth)
                     ->url(fn () => AiProviderResource::getUrl()),
+                // A plain link (url '#') rather than a real Filament
+                // action: this needs to run client-side JS only (request
+                // Notification permission, subscribe via PushManager -
+                // see pwa-push.blade.php), never a Livewire round trip.
+                Action::make('togglePushNotifications')
+                    ->label('فعال/غیرفعال‌سازی اعلان‌های فوری')
+                    ->icon(Heroicon::OutlinedBell)
+                    ->url('#')
+                    ->extraAttributes(['onclick' => 'event.preventDefault(); window.farsiwpTogglePush?.();']),
             ])
             ->navigationGroups([
                 // The AI assistant is the flagship module - all-of-system
@@ -202,6 +212,12 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('partials.pwa-badge'),
+            )
+            // Wires up the "فعال/غیرفعال‌سازی اعلان‌های فوری" user-menu
+            // item above - see pwa-push.blade.php's own doc comment.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.pwa-push'),
             );
     }
 }

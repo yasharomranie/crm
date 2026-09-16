@@ -4,6 +4,7 @@ use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
+use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
 use Illuminate\Support\Facades\Route;
 
@@ -28,4 +29,8 @@ Route::middleware('auth')->group(function () {
         ->name('form-submissions.files.download');
     Route::get('/reports/print/{token}', [ReportPrintController::class, 'show'])
         ->name('reports.print');
+    Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])
+        ->name('push-subscriptions.store');
+    Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])
+        ->name('push-subscriptions.destroy');
 });

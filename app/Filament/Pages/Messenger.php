@@ -7,6 +7,7 @@ use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\Conversation;
 use App\Models\Message;
 use App\Models\User;
+use App\Notifications\NewMessageReceived;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -150,12 +151,20 @@ class Messenger extends Page
             return;
         }
 
-        $conversation->messages()->create([
+        $message = $conversation->messages()->create([
             'sender_id' => Auth::id(),
             'body' => $body,
         ]);
 
         $conversation->markReadFor(Auth::user());
+
+        $conversation->participants()
+            ->where('user_id', '!=', Auth::id())
+            ->with('user')
+            ->get()
+            ->pluck('user')
+            ->filter()
+            ->each(fn (User $participant) => $participant->notify(new NewMessageReceived($message)));
 
         $this->body = '';
 

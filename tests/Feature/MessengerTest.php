@@ -6,7 +6,9 @@ use App\Enums\ConversationType;
 use App\Filament\Pages\Messenger;
 use App\Models\Conversation;
 use App\Models\User;
+use App\Notifications\NewMessageReceived;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use Livewire\Livewire;
 use Tests\TestCase;
 
@@ -16,6 +18,8 @@ class MessengerTest extends TestCase
 
     public function test_starting_a_direct_conversation_and_sending_a_message(): void
     {
+        Notification::fake();
+
         $me = User::factory()->create();
         $colleague = User::factory()->create();
 
@@ -64,6 +68,8 @@ class MessengerTest extends TestCase
 
     public function test_a_recipient_sees_the_message_as_unread_until_they_open_the_conversation(): void
     {
+        Notification::fake();
+
         $sender = User::factory()->create();
         $recipient = User::factory()->create();
         $conversation = Conversation::findOrCreateDirect($sender, $recipient);
@@ -81,6 +87,24 @@ class MessengerTest extends TestCase
             ->call('selectConversation', $conversation->id);
 
         $this->assertSame(0, $conversation->fresh()->unreadCountFor($recipient));
+    }
+
+    public function test_sending_a_message_notifies_the_other_participant_but_not_the_sender(): void
+    {
+        Notification::fake();
+
+        $sender = User::factory()->create();
+        $recipient = User::factory()->create();
+        $conversation = Conversation::findOrCreateDirect($sender, $recipient);
+
+        $this->actingAs($sender);
+        Livewire::test(Messenger::class)
+            ->set('conversationId', $conversation->id)
+            ->set('body', 'گزارش امروز آماده است.')
+            ->call('sendMessage');
+
+        Notification::assertSentTo($recipient, NewMessageReceived::class);
+        Notification::assertNotSentTo($sender, NewMessageReceived::class);
     }
 
     public function test_navigation_badge_reflects_total_unread_messages(): void
