@@ -97,7 +97,7 @@
                                             @foreach ($value->value as $row)
                                                 <tr>
                                                     @foreach ($field->table_columns ?? [] as $column)
-                                                        <td class="border border-gray-200 px-2 py-1 text-gray-900 dark:border-white/10 dark:text-gray-100">{{ $row[$column['key']] ?? '—' }}</td>
+                                                        <td class="border border-gray-200 px-2 py-1 text-gray-900 dark:border-white/10 dark:text-gray-100">{{ isset($row[$column['key']]) ? \Illuminate\Support\Number::toPersian($row[$column['key']]) : '—' }}</td>
                                                     @endforeach
                                                 </tr>
                                             @endforeach
@@ -105,7 +105,7 @@
                                     </table>
                                 </div>
                             @else
-                                {{ $value->value }}
+                                {{ \Illuminate\Support\Number::toPersian($value->value) }}
                             @endif
                         </dd>
                     </div>

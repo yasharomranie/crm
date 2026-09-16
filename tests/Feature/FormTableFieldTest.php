@@ -96,7 +96,7 @@ class FormTableFieldTest extends TestCase
         $this->assertStringContainsString('نام واحد', $body);
         $this->assertStringContainsString('مبلغ (ریال)', $body);
         $this->assertStringContainsString('واحد ۱', $body);
-        $this->assertStringContainsString('1500000', $body);
+        $this->assertStringContainsString('۱۵۰۰۰۰۰', $body);
         $this->assertStringContainsString('واحد ۲', $body);
     }
 
@@ -132,7 +132,7 @@ class FormTableFieldTest extends TestCase
             ->assertSee('<table class="value-table">', false)
             ->assertSee('نام واحد')
             ->assertSee('واحد ۱')
-            ->assertSee('1500000');
+            ->assertSee('۱۵۰۰۰۰۰');
     }
 
     public function test_a_table_field_dehydrates_using_the_table_field_type(): void

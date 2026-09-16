@@ -15,6 +15,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Database\Eloquent\Relations\MorphOne;
+use Illuminate\Support\Number;
 
 class FormSubmission extends Model
 {
@@ -218,7 +219,7 @@ class FormSubmission extends Model
                 : '..........',
             FormFieldType::File => '<a href="'.route('form-submissions.files.download', ['submission' => $this, 'value' => $submittedValue]).'">پیوست فایل</a>',
             FormFieldType::Table => is_array($value) ? $this->renderTablePlaceholder($field, $value) : '..........',
-            default => nl2br(e((string) $value)),
+            default => nl2br(e(Number::toPersian((string) $value))),
         };
     }
 
@@ -233,7 +234,7 @@ class FormSubmission extends Model
 
         $bodyRows = collect($rows)->map(function (array $row) use ($columns) {
             $cells = collect($columns)->map(
-                fn (array $column) => '<td style="border:1px solid #ccc;padding:4px 6px;">'.e((string) ($row[$column['key']] ?? '')).'</td>'
+                fn (array $column) => '<td style="border:1px solid #ccc;padding:4px 6px;">'.e(Number::toPersian((string) ($row[$column['key']] ?? ''))).'</td>'
             )->implode('');
 
             return "<tr>{$cells}</tr>";

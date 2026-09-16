@@ -44,7 +44,7 @@ class FormDocumentTemplateTest extends TestCase
 
         $body = $submission->mergedDocumentBody();
 
-        $this->assertStringContainsString('نام آقای یاشار عمرانی به شماره ملی 1234567890', $body);
+        $this->assertStringContainsString('نام آقای یاشار عمرانی به شماره ملی ۱۲۳۴۵۶۷۸۹۰', $body);
     }
 
     public function test_a_checkbox_placeholder_renders_as_yes_or_no(): void

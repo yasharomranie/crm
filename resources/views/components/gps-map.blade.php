@@ -23,7 +23,7 @@
         rel="noopener"
         style="display: inline-block; margin-top: .35rem; font-size: .75rem; color: #9c6b1f; text-decoration: none;"
     >
-        باز کردن در Google Maps ({{ $lat }}, {{ $lng }})
+        باز کردن در Google Maps ({{ \Illuminate\Support\Number::toPersian($lat) }}, {{ \Illuminate\Support\Number::toPersian($lng) }})
     </a>
 </div>
 

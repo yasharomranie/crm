@@ -391,14 +391,14 @@
                                         @foreach ($value->value as $row)
                                             <tr>
                                                 @foreach ($field->table_columns ?? [] as $column)
-                                                    <td>{{ $row[$column['key']] ?? '—' }}</td>
+                                                    <td>{{ isset($row[$column['key']]) ? \Illuminate\Support\Number::toPersian($row[$column['key']]) : '—' }}</td>
                                                 @endforeach
                                             </tr>
                                         @endforeach
                                     </tbody>
                                 </table>
                             @else
-                                {{ $value->value }}
+                                {{ \Illuminate\Support\Number::toPersian($value->value) }}
                             @endif
                         </dd>
                     </div>
