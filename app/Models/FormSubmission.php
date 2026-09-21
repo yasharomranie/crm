@@ -57,9 +57,18 @@ class FormSubmission extends Model
         return "GNJ-FRM-{$sequence}";
     }
 
+    /**
+     * ->withTrashed(): a submission must keep showing its own template
+     * (title, fields, document_template merge tags - everywhere this
+     * relation is dereferenced, e.g. mergedDocumentBody()) even after an
+     * admin trashes that template so it stops appearing for *new*
+     * submissions. Without this, every historical submission of a
+     * trashed template would silently start rendering as if it had none
+     * at all the moment it was moved to the bin.
+     */
     public function formTemplate(): BelongsTo
     {
-        return $this->belongsTo(FormTemplate::class);
+        return $this->belongsTo(FormTemplate::class)->withTrashed();
     }
 
     public function submitter(): BelongsTo
