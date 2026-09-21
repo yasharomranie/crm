@@ -41,6 +41,18 @@ class FieldsRelationManager extends RelationManager
                     ->helperText('فقط حروف انگلیسی و زیرخط، بدون فاصله. مثلاً: description')
                     ->required()
                     ->maxLength(255)
+                    // Enforced, not just suggested via helperText: a
+                    // non-ASCII (e.g. Persian) or otherwise malformed key
+                    // still saves fine as a plain string column, but the
+                    // merge-tag regex in FormSubmission::mergedDocumentBody()
+                    // only ever recognizes [a-zA-Z0-9_]+ - a field slipping
+                    // through with a Persian key silently never resolves in
+                    // any "متن سند" (document_template) merge, showing up
+                    // as nothing at all instead of the submitted answer.
+                    ->regex('/^[a-zA-Z_][a-zA-Z0-9_]*$/')
+                    ->validationMessages([
+                        'regex' => 'کلید فنی باید فقط شامل حروف انگلیسی، عدد و زیرخط باشد و با حرف یا زیرخط شروع شود (مثلاً: description).',
+                    ])
                     // Not a DB-level unique() (form_fields no longer has one -
                     // see its migration): FormField soft-deletes, so a plain
                     // unique() would reject reusing a key that only belongs
@@ -90,7 +102,11 @@ class FieldsRelationManager extends RelationManager
                         TextInput::make('key')
                             ->label('کلید فنی ستون')
                             ->helperText('فقط حروف انگلیسی و زیرخط، بدون فاصله. مثلاً: unit_name')
-                            ->required(),
+                            ->required()
+                            ->regex('/^[a-zA-Z_][a-zA-Z0-9_]*$/')
+                            ->validationMessages([
+                                'regex' => 'کلید فنی باید فقط شامل حروف انگلیسی، عدد و زیرخط باشد و با حرف یا زیرخط شروع شود (مثلاً: unit_name).',
+                            ]),
                         TextInput::make('label')
                             ->label('عنوان ستون')
                             ->required(),
