@@ -8,6 +8,7 @@ use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\WorkflowInstanceStatus;
 use App\Models\Concerns\HasTags;
+use App\Support\StaticMapThumbnail;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -289,17 +290,47 @@ class FormSubmission extends Model
             // as every other ->toJalali() call site in this app.
             FormFieldType::DateJalali => $value->toJalali('Y/m/d'),
             FormFieldType::Signature => '<img src="'.e($value).'" alt="امضا" style="height:60px;vertical-align:middle;">',
-            // A plain Google Maps link, not the interactive <x-gps-map>
-            // component: this merged text also has to render correctly
-            // inside the Word export, which (like form-submissions/word.
-            // blade.php) can't run the JS a live map needs.
-            FormFieldType::Gps => (is_array($value) && isset($value['lat'], $value['lng']))
-                ? '<a href="https://www.google.com/maps?q='.$value['lat'].','.$value['lng'].'">مشاهدهٔ موقعیت روی نقشه</a>'
-                : '..........',
-            FormFieldType::File => '<a href="'.route('form-submissions.files.download', ['submission' => $this, 'value' => $submittedValue]).'">پیوست فایل</a>',
+            // A static image, not the interactive <x-gps-map> component:
+            // this merged text also has to render correctly inside the
+            // Word export, which (like form-submissions/word.blade.php)
+            // can't run the JS a live map needs - see StaticMapThumbnail.
+            // The link stays underneath as a fallback for whenever the
+            // thumbnail couldn't be generated (offline server, OSM
+            // unreachable) and for anyone who wants the real interactive
+            // map instead of a static snapshot.
+            FormFieldType::Gps => $this->renderGpsPlaceholder($value),
+            FormFieldType::File => $this->renderFilePlaceholder($submittedValue),
             FormFieldType::Table => is_array($value) ? $this->renderTablePlaceholder($field, $value) : '..........',
             default => nl2br(e(Number::toPersian((string) $value))),
         };
+    }
+
+    private function renderGpsPlaceholder(mixed $value): string
+    {
+        if (! is_array($value) || ! isset($value['lat'], $value['lng'])) {
+            return '..........';
+        }
+
+        $mapsLink = '<a href="https://www.google.com/maps?q='.$value['lat'].','.$value['lng'].'">مشاهدهٔ موقعیت روی نقشه</a>';
+        $thumbnail = StaticMapThumbnail::dataUri((float) $value['lat'], (float) $value['lng']);
+
+        if (! $thumbnail) {
+            return $mapsLink;
+        }
+
+        return '<img src="'.$thumbnail.'" alt="موقعیت روی نقشه" style="max-width:320px;display:block;margin-bottom:4px;">'.$mapsLink;
+    }
+
+    private function renderFilePlaceholder(FormSubmissionValue $submittedValue): string
+    {
+        $downloadLink = '<a href="'.route('form-submissions.files.download', ['submission' => $this, 'value' => $submittedValue]).'">پیوست فایل</a>';
+        $dataUri = $submittedValue->fileAsDataUri();
+
+        if (! $dataUri) {
+            return $downloadLink;
+        }
+
+        return '<img src="'.$dataUri.'" alt="پیوست فایل" style="max-width:320px;display:block;margin-bottom:4px;">'.$downloadLink;
     }
 
     /**

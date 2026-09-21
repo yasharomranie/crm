@@ -214,13 +214,24 @@
                         @elseif ($field->field_type->value === 'signature')
                             <img src="{{ $value->value }}" alt="امضا" height="70">
                         @elseif ($field->field_type->value === 'gps' && is_array($value->value) && isset($value->value['lat'], $value->value['lng']))
-                            {{ \Illuminate\Support\Number::toPersian($value->value['lat']) }}, {{ \Illuminate\Support\Number::toPersian($value->value['lng']) }}
-                            {{-- Word doesn't run the JS a live/static map would need (same
-                            reason the QR code above is skipped here) - a plain hyperlink
-                            to Google Maps is the one thing that's both real and reliable
-                            in an opened Word document. --}}
-                            <br><a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
+                            {{-- Word doesn't run the JS a live map would need (same reason
+                            the QR code above is skipped here) - a static PNG snapshot
+                            composited server-side (see App\Support\StaticMapThumbnail)
+                            is embedded instead, with the interactive-map link kept
+                            underneath as a fallback for whenever that snapshot couldn't
+                            be generated (offline server, OSM unreachable). --}}
+                            @php $mapThumbnail = \App\Support\StaticMapThumbnail::dataUri((float) $value->value['lat'], (float) $value->value['lng']); @endphp
+                            @if ($mapThumbnail)
+                                <img src="{{ $mapThumbnail }}" alt="موقعیت روی نقشه" style="max-width:320px;display:block;margin-bottom:4px;"><br>
+                            @else
+                                {{ \Illuminate\Support\Number::toPersian($value->value['lat']) }}, {{ \Illuminate\Support\Number::toPersian($value->value['lng']) }}
+                                <br>
+                            @endif
+                            <a href="https://www.google.com/maps?q={{ $value->value['lat'] }},{{ $value->value['lng'] }}">مشاهده روی نقشه</a>
                         @elseif ($field->field_type->value === 'file')
+                            @if ($imageDataUri = $value->fileAsDataUri())
+                                <img src="{{ $imageDataUri }}" alt="پیوست فایل" style="max-width:320px;display:block;margin-bottom:4px;"><br>
+                            @endif
                             پیوست ثبت شده
                         @elseif ($field->field_type->value === 'table' && is_array($value->value))
                             <table class="value-table">
