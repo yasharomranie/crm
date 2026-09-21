@@ -4,9 +4,17 @@
     {{--
         Same reasoning as signature-pad.blade.php: this field only exists
         after the user picks a form template, so a plain wire:model on a
-        hidden input is used instead of $wire.$entangle().
+        hidden input is used instead of $wire.$entangle(). wire:key gives
+        Livewire's morph a stable identity per field - needed for a form
+        with two+ GPS fields, both inserted into the DOM in the same
+        update. See renderMap()'s own guard below for the actual bug this
+        setup can otherwise cause (reproduced first on the signature pad):
+        a `this.map` created against one field's container silently
+        rendering there even after the morph reassigns that physical
+        container to a *different* field.
     --}}
     <div
+        wire:key="{{ $getStatePath() }}-gps-picker"
         x-data="{
             locating: false,
             error: null,
@@ -37,6 +45,22 @@
                 // call this directly.
                 this.$nextTick(() => {
                     const point = [this.parsed.lat, this.parsed.lng];
+
+                    // Guards the same class of bug fixed on the signature
+                    // pad (a form with two+ GPS fields both inserted in one
+                    // Livewire update): if the morph ever reassigns which
+                    // physical container element ends up at this field's
+                    // position, a `this.map` created against the old
+                    // container would silently keep rendering there
+                    // instead of the one now actually shown. $refs always
+                    // re-resolves to the current element, so comparing
+                    // against it catches the mismatch and rebuilds the map
+                    // against the right one.
+                    if (this.map && this.map.getContainer() !== this.$refs.mapContainer) {
+                        this.map.remove();
+                        this.map = null;
+                        this.marker = null;
+                    }
 
                     if (! this.map) {
                         this.map = L.map(this.$refs.mapContainer, { attributionControl: true }).setView(point, 16);

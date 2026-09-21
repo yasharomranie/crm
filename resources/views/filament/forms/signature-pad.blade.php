@@ -6,22 +6,43 @@
         Livewire component first mounted. A plain wire:model on a hidden
         input works instead, since Livewire re-scans the DOM for it on
         every update rather than binding once at init.
+
+        wire:key gives Livewire's morph a stable identity per field when a
+        form has two+ signature fields, both inserted into the DOM in the
+        same update (right after the template is picked) as structurally
+        identical <div x-data> blocks.
+
+        canvasContext() re-resolves this.$refs.canvas.getContext('2d')
+        every time rather than caching it once in init() - a real,
+        reproduced bug: with a cached this.ctx, drawing on one signature
+        pad visibly landed on the *other* pad's canvas whenever Livewire's
+        morph reassigned which physical <canvas> element ended up at which
+        position while inserting the two new fields together. $refs.canvas
+        itself always stays correct (Alpine re-resolves it fresh off the
+        current DOM), so routing every draw operation through it - instead
+        of a value captured once at init() - can't go stale the same way.
+        getContext('2d') is cheap to call repeatedly (the browser returns
+        the same context object for a given canvas), so this costs nothing.
     --}}
     <div
+        wire:key="{{ $getStatePath() }}-signature-pad"
         x-data="{
             drawing: false,
             hasDrawing: false,
-            init() {
-                this.ctx = this.$refs.canvas.getContext('2d');
-                this.ctx.lineWidth = 2.4;
-                this.ctx.lineCap = 'round';
-                this.ctx.strokeStyle = '#111827';
+            canvasContext() {
+                const ctx = this.$refs.canvas.getContext('2d');
+                ctx.lineWidth = 2.4;
+                ctx.lineCap = 'round';
+                ctx.strokeStyle = '#111827';
 
+                return ctx;
+            },
+            init() {
                 const existing = this.$refs.input.value;
 
                 if (existing) {
                     const img = new Image();
-                    img.onload = () => this.ctx.drawImage(img, 0, 0);
+                    img.onload = () => this.canvasContext().drawImage(img, 0, 0);
                     img.src = existing;
                     this.hasDrawing = true;
                 }
@@ -37,15 +58,15 @@
                 this.drawing = true;
                 this.hasDrawing = true;
                 const { x, y } = this.pos(event);
-                this.ctx.beginPath();
-                this.ctx.moveTo(x, y);
+                this.canvasContext().beginPath();
+                this.canvasContext().moveTo(x, y);
             },
             move(event) {
                 if (! this.drawing) return;
                 event.preventDefault();
                 const { x, y } = this.pos(event);
-                this.ctx.lineTo(x, y);
-                this.ctx.stroke();
+                this.canvasContext().lineTo(x, y);
+                this.canvasContext().stroke();
             },
             end() {
                 if (! this.drawing) return;
@@ -54,7 +75,7 @@
                 this.$refs.input.dispatchEvent(new Event('input', { bubbles: true }));
             },
             clear() {
-                this.ctx.clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height);
+                this.canvasContext().clearRect(0, 0, this.$refs.canvas.width, this.$refs.canvas.height);
                 this.hasDrawing = false;
                 this.$refs.input.value = '';
                 this.$refs.input.dispatchEvent(new Event('input', { bubbles: true }));
