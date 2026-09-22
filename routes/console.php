@@ -21,3 +21,12 @@ Schedule::command('attendance:mark-absentees')
     ->dailyAt('23:55')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// This host has no persistent queue worker (no Supervisor/terminal access
+// to run `queue:work` as a daemon), so QUEUE_CONNECTION=database jobs -
+// including every WebPush notification - would otherwise sit in the
+// `jobs` table forever. Piggybacking on the existing schedule:run cron
+// drains it roughly once a minute instead.
+Schedule::command('queue:work --stop-when-empty --max-time=50')
+    ->everyMinute()
+    ->withoutOverlapping();
