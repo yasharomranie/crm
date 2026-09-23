@@ -5,6 +5,7 @@ use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
+use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
@@ -42,4 +43,8 @@ Route::middleware('auth')->group(function () {
         ->name('messages.voice-note.store');
     Route::get('/admission-tickets/{ticket}/print', [AdmissionTicketPrintController::class, 'show'])
         ->name('admission-tickets.print');
+    Route::get('/gate-scanner/{gate}/sync-package', [GateOfflineSyncController::class, 'pullPackage'])
+        ->name('gate-scanner.sync-package');
+    Route::post('/gate-scanner/{gate}/sync-scans', [GateOfflineSyncController::class, 'pushScans'])
+        ->name('gate-scanner.sync-scans');
 });
