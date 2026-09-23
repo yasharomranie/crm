@@ -1,4 +1,42 @@
 <x-filament-panels::page>
+    {{-- Shown only when this page loaded from the service worker's cached
+        snapshot (public/sw.js's OFFLINE_CACHEABLE_PATHS) rather than a
+        live request - the room statuses/bookings below are then whatever
+        they were on the last successful visit, not necessarily current. --}}
+    <div id="room-rack-stale-banner" hidden class="mb-4 rounded-lg border border-warning-300 bg-warning-50 px-4 py-2 text-sm text-warning-800 dark:border-warning-800 dark:bg-warning-950/40 dark:text-warning-200">
+        اتصال اینترنت برقرار نیست - این نسخه از رک اتاق ذخیره‌شده و ممکنه به‌روز نباشه. آخرین بروزرسانی: <span data-last-synced>نامشخص</span>.
+    </div>
+
+    <script>
+        (function () {
+            var STORAGE_KEY = 'room-rack-last-synced-at';
+
+            if (navigator.onLine) {
+                try {
+                    localStorage.setItem(STORAGE_KEY, new Date().toISOString());
+                } catch (e) {}
+
+                return;
+            }
+
+            var lastSynced = null;
+            try {
+                lastSynced = localStorage.getItem(STORAGE_KEY);
+            } catch (e) {}
+
+            var banner = document.getElementById('room-rack-stale-banner');
+            if (!banner) {
+                return;
+            }
+
+            if (lastSynced) {
+                banner.querySelector('[data-last-synced]').textContent = new Date(lastSynced).toLocaleString('fa-IR');
+            }
+
+            banner.hidden = false;
+        })();
+    </script>
+
     <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         @foreach ($this->getRooms() as $room)
             @php

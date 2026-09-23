@@ -15,7 +15,7 @@
 // *cache* left over from a previous version of this file, not individual
 // stale files within the current one).
 
-const CACHE_NAME = 'farsiwp-static-v2';
+const CACHE_NAME = 'farsiwp-static-v3';
 const OFFLINE_URL = '/offline.html';
 
 const STATIC_PATH_PATTERNS = [
@@ -23,6 +23,26 @@ const STATIC_PATH_PATTERNS = [
     /^\/icons\//,
     /^\/vendor\//,
     /^\/images\//,
+    // Filament's own core JS/CSS/fonts (dropdowns, modals, the sidebar's
+    // Alpine components - every page depends on these) are published
+    // under these paths, not /build/ - without them, a page served from
+    // OFFLINE_CACHEABLE_PATHS's cache still fails to actually work once
+    // rendered, since the framework JS it needs never loaded.
+    /^\/css\/filament\//,
+    /^\/js\/filament\//,
+    /^\/fonts\/filament\//,
+];
+
+// Pages worth showing a last-known snapshot of when there's truly no
+// network, instead of the generic offline shell - deliberately a short,
+// explicit allowlist rather than every navigation: this app is live data,
+// and a stale cached copy of most pages (a form mid-edit, a list someone
+// else has since changed) would mislead more than help. A read-only status
+// board like the room rack is the case where "possibly a few minutes old"
+// beats "nothing at all". See room-rack.blade.php's own script for how it
+// tells the viewer the copy is stale.
+const OFFLINE_CACHEABLE_PATHS = [
+    '/admin/room-rack',
 ];
 
 self.addEventListener('install', (event) => {
@@ -70,6 +90,22 @@ self.addEventListener('fetch', (event) => {
     // never served stale - and only fall back to the offline shell when
     // there's truly no connection.
     if (request.mode === 'navigate') {
+        if (OFFLINE_CACHEABLE_PATHS.includes(url.pathname)) {
+            event.respondWith(
+                fetch(request)
+                    .then((response) => {
+                        if (response.ok) {
+                            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+                        }
+
+                        return response;
+                    })
+                    .catch(async () => (await caches.match(request)) || caches.match(OFFLINE_URL)),
+            );
+
+            return;
+        }
+
         event.respondWith(
             fetch(request).catch(() => caches.match(OFFLINE_URL)),
         );
