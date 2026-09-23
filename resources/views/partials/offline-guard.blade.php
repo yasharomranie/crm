@@ -14,9 +14,16 @@
     hidden
     style="position:fixed; inset-inline:0; bottom:0; z-index:1000; display:flex; justify-content:center; padding:0 .75rem calc(.75rem + env(safe-area-inset-bottom, 0px)); transform:translateY(120%); transition:transform .3s ease; pointer-events:none;"
 >
+    {{-- pointer-events:none here too, not just on the wrapper: this pill has
+        no interactive content of its own, and on a short form (Bookings,
+        for one) it sits directly over the sticky submit-button row - with
+        auto it silently ate every click there, making the exact "keep
+        working while offline" case this bar exists for actually
+        unusable. Add pointer-events:auto scoped to any future control this
+        pill gains (e.g. a dismiss button), never to the whole pill. --}}
     <div
         id="offline-guard-pill"
-        style="pointer-events:auto; display:flex; align-items:center; gap:.6rem; background:#78350f; color:#fff; border-radius:.75rem; box-shadow:0 10px 30px rgb(0 0 0 / .25); padding:.55rem 1rem; font-family:'Vazirmatn', Tahoma, Arial, sans-serif; font-size:.82rem; max-width:calc(100vw - 1.5rem);"
+        style="pointer-events:none; display:flex; align-items:center; gap:.6rem; background:#78350f; color:#fff; border-radius:.75rem; box-shadow:0 10px 30px rgb(0 0 0 / .25); padding:.55rem 1rem; font-family:'Vazirmatn', Tahoma, Arial, sans-serif; font-size:.82rem; max-width:calc(100vw - 1.5rem);"
     >
         <span style="width:.5rem; height:.5rem; border-radius:999px; background:#fbbf24; flex-shrink:0;"></span>
         <span id="offline-guard-text">اتصال اینترنت قطع شده. می‌تونید کارتون رو ادامه بدید، ولی تا وصل‌شدن دوباره، اطلاعات ذخیره نمی‌شه.</span>
