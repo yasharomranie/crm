@@ -14,7 +14,7 @@ return new class extends Migration
             $table->foreignId('ticket_variant_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['discount_code_id', 'ticket_variant_id']);
+            $table->unique(['discount_code_id', 'ticket_variant_id'], 'discount_code_ticket_variant_unique');
         });
     }
 

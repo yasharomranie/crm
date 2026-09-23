@@ -19,7 +19,7 @@ return new class extends Migration
             $table->foreignId('product_id')->constrained()->cascadeOnDelete();
             $table->timestamps();
 
-            $table->unique(['external_api_client_id', 'product_id']);
+            $table->unique(['external_api_client_id', 'product_id'], 'external_api_client_product_unique');
         });
     }
 
