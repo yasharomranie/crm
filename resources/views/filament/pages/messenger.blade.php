@@ -313,7 +313,7 @@
                 <form
                     wire:submit.prevent="sendMessage"
                     class="flex items-end gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
-                    :class="(listening || speechError || recording || recordError || {{ $attachment ? 'true' : 'false' }}) ? '' : 'border-t border-gray-200 dark:border-white/10'"
+                    :class="(listening || speechError || recording || recordError || $wire.attachment) ? '' : 'border-t border-gray-200 dark:border-white/10'"
                 >
                     <input type="file" x-ref="attachmentInput" wire:model="attachment" class="hidden" />
                     <button
@@ -354,7 +354,7 @@
                         send button the moment there is. --}}
                     <button
                         type="button"
-                        x-show="! ($wire.body ?? '').trim() && ! {{ $attachment ? 'true' : 'false' }} && recordingSupported"
+                        x-show="! ($wire.body ?? '').trim() && ! $wire.attachment && recordingSupported"
                         x-on:click="toggleRecording()"
                         :aria-label="recording ? 'توقف ضبط پیام صوتی' : 'ارسال پیام صوتی'"
                         :title="recording ? 'توقف ضبط پیام صوتی' : 'ارسال پیام صوتی'"
@@ -368,7 +368,7 @@
                     </button>
                     <button
                         type="submit"
-                        x-show="{{ $attachment ? 'true' : 'false' }} || ($wire.body ?? '').trim() || ! recordingSupported"
+                        x-show="$wire.attachment || ($wire.body ?? '').trim() || ! recordingSupported"
                         aria-label="ارسال پیام"
                         title="ارسال پیام"
                         wire:loading.attr="disabled"
