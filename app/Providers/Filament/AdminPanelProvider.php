@@ -227,6 +227,16 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('partials.offline-guard'),
+            )
+            // Queues a Livewire action (any resource's "ثبت"/save, a table
+            // action, anything) that fails purely because there's no
+            // connection, and replays the exact same request the moment
+            // it's back - covers Bookings, Deals, Form Submissions, Rooms
+            // and every other Filament form with no per-resource code. See
+            // the partial's own doc comment.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.offline-form-retry'),
             );
     }
 }

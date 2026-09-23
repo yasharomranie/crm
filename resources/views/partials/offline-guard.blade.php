@@ -52,6 +52,46 @@
             }, 2500);
         }
 
+        var revertTimeout = null;
+        var defaultOfflineText = text.textContent;
+
+        // Fired by offline-form-retry.blade.php when a submission gets
+        // queued (still offline) or successfully replayed (just
+        // reconnected) - shares this same bar rather than popping up a
+        // second, competing notice.
+        window.addEventListener('offline-form-notice', function (event) {
+            clearTimeout(hideTimeout);
+            clearTimeout(revertTimeout);
+
+            var isSuccess = event.detail.tone === 'success';
+            pill.style.background = isSuccess ? '#166534' : '#78350f';
+            text.textContent = event.detail.text;
+            bar.hidden = false;
+            requestAnimationFrame(function () {
+                bar.style.transform = 'translateY(0)';
+            });
+
+            if (isSuccess) {
+                hideTimeout = setTimeout(function () {
+                    bar.style.transform = 'translateY(120%)';
+                    setTimeout(function () { bar.hidden = true; }, 300);
+                }, 3500);
+
+                return;
+            }
+
+            // Still offline - after a few seconds of showing which
+            // submission got queued, go back to the standing "you're
+            // offline" message rather than leaving a one-off notice up
+            // indefinitely.
+            revertTimeout = setTimeout(function () {
+                if (! navigator.onLine) {
+                    pill.style.background = '#78350f';
+                    text.textContent = defaultOfflineText;
+                }
+            }, 4000);
+        });
+
         function beforeUnloadHandler(event) {
             event.preventDefault();
             // Modern browsers show their own generic wording regardless of
