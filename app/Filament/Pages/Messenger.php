@@ -13,12 +13,14 @@ use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Number;
+use Livewire\WithFileUploads;
 
 class Messenger extends Page
 {
-    use HasAccessControlledPage;
+    use HasAccessControlledPage, WithFileUploads;
 
     protected string $view = 'filament.pages.messenger';
 
@@ -38,6 +40,8 @@ class Messenger extends Page
     public ?int $conversationId = null;
 
     public string $body = '';
+
+    public ?UploadedFile $attachment = null;
 
     public string $search = '';
 
@@ -105,9 +109,17 @@ class Messenger extends Page
     }
 
     /**
+     * Named getConversationMessages(), not getMessages() - Livewire's own
+     * HandlesValidation trait reserves a protected getMessages() for
+     * custom validation messages, and a class method silently overrides a
+     * trait's, so a same-named public method here breaks $this->validate()
+     * the moment it's ever called (confirmed live: it threw a
+     * type-mismatch error on the first validate() call this page ever
+     * made, for the file-attachment feature below).
+     *
      * @return Collection<int, Message>
      */
-    public function getMessages(): Collection
+    public function getConversationMessages(): Collection
     {
         $conversation = $this->getSelectedConversation();
 
@@ -134,16 +146,23 @@ class Messenger extends Page
     {
         $this->conversationId = $conversationId;
         $this->body = '';
+        $this->attachment = null;
         $this->getSelectedConversation()?->markReadFor(Auth::user());
     }
 
+    /**
+     * A message can be text, an attachment, or both - only reject it if
+     * there's truly nothing to send.
+     */
     public function sendMessage(): void
     {
         $body = trim($this->body);
 
-        if ($body === '') {
+        if ($body === '' && ! $this->attachment) {
             return;
         }
+
+        $this->validate(['attachment' => ['nullable', 'file', 'max:10240']]);
 
         $conversation = $this->getSelectedConversation();
 
@@ -151,10 +170,16 @@ class Messenger extends Page
             return;
         }
 
-        $message = $conversation->messages()->create([
+        $data = [
             'sender_id' => Auth::id(),
-            'body' => $body,
-        ]);
+            'body' => $body !== '' ? $body : null,
+        ];
+
+        if ($this->attachment) {
+            $data = [...$data, ...$this->storeAttachment($this->attachment)];
+        }
+
+        $message = $conversation->messages()->create($data);
 
         $conversation->markReadFor(Auth::user());
 
@@ -167,8 +192,27 @@ class Messenger extends Page
             ->each(fn (User $participant) => $participant->notify(new NewMessageReceived($message)));
 
         $this->body = '';
+        $this->attachment = null;
 
         $this->dispatch('message-sent');
+    }
+
+    public function removeAttachment(): void
+    {
+        $this->attachment = null;
+    }
+
+    /**
+     * @return array{file_path: string, file_name: string, mime_type: string, size_kb: int}
+     */
+    private function storeAttachment(UploadedFile $file): array
+    {
+        return [
+            'file_path' => $file->store('message-attachments', config('filesystems.default')),
+            'file_name' => $file->getClientOriginalName(),
+            'mime_type' => $file->getMimeType(),
+            'size_kb' => (int) round($file->getSize() / 1024),
+        ];
     }
 
     public function openNewConversationModal(): void

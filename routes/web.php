@@ -4,8 +4,10 @@ use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
+use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
+use App\Http\Controllers\VoiceMessageController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -33,4 +35,8 @@ Route::middleware('auth')->group(function () {
         ->name('push-subscriptions.store');
     Route::delete('/push-subscriptions', [PushSubscriptionController::class, 'destroy'])
         ->name('push-subscriptions.destroy');
+    Route::get('/messages/{message}/attachment', [MessageAttachmentController::class, 'show'])
+        ->name('messages.attachment');
+    Route::post('/messages/voice-note', [VoiceMessageController::class, 'store'])
+        ->name('messages.voice-note.store');
 });

@@ -136,6 +136,16 @@ class Conversation extends Model
         return $this->participants->firstWhere('user_id', '!=', $viewer->id)?->user;
     }
 
+    /**
+     * Guards message-attachment downloads (see MessageAttachmentController)
+     * - only someone actually in the conversation may fetch a file/voice
+     * note shared in it.
+     */
+    public function isParticipant(User $user): bool
+    {
+        return $this->participants()->where('user_id', $user->id)->exists();
+    }
+
     public function unreadCountFor(User $user): int
     {
         $participant = $this->participants->firstWhere('user_id', $user->id);
