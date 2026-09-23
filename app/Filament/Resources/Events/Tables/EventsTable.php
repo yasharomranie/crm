@@ -21,7 +21,7 @@ class EventsTable
                     ->searchable(),
                 TextColumn::make('starts_at')
                     ->label('تاریخ و ساعت')
-                    ->dateTime('Y-m-d H:i')
+                    ->jalaliDateTime('Y/m/d H:i')
                     ->sortable(),
                 TextColumn::make('participants.name')
                     ->label('شرکت‌کنندگان')

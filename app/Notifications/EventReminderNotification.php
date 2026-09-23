@@ -79,6 +79,6 @@ class EventReminderNotification extends Notification implements ShouldQueue
     {
         $event = $this->reminder->event;
 
-        return "{$event->title} - ".$event->starts_at->format('Y-m-d H:i');
+        return "{$event->title} - ".$event->starts_at->toJalali('Y/m/d H:i');
     }
 }

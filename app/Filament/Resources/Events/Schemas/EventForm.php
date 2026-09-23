@@ -25,6 +25,8 @@ class EventForm
                     ->rows(3)
                     ->columnSpanFull(),
                 DateTimePicker::make('starts_at')
+                    ->jalali()
+                    ->displayFormat('Y/m/d H:i')
                     ->label('تاریخ و ساعت رویداد')
                     ->native(false)
                     ->seconds(false)
