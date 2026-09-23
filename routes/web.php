@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -39,4 +40,6 @@ Route::middleware('auth')->group(function () {
         ->name('messages.attachment');
     Route::post('/messages/voice-note', [VoiceMessageController::class, 'store'])
         ->name('messages.voice-note.store');
+    Route::get('/admission-tickets/{ticket}/print', [AdmissionTicketPrintController::class, 'show'])
+        ->name('admission-tickets.print');
 });

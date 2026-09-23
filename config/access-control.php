@@ -1,9 +1,11 @@
 <?php
 
 use App\Filament\Pages\AiAssistant;
+use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
 use App\Filament\Pages\DocumentArchiveBrowser;
+use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
@@ -19,15 +21,18 @@ use App\Models\Contract;
 use App\Models\ContractCategory;
 use App\Models\Deal;
 use App\Models\Department;
+use App\Models\DiscountCode;
 use App\Models\Document;
 use App\Models\DocumentFolder;
 use App\Models\Event;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
+use App\Models\Gate;
 use App\Models\Guest;
 use App\Models\GuestFeedback;
 use App\Models\GuestTicket;
 use App\Models\PriceRule;
+use App\Models\Product;
 use App\Models\Project;
 use App\Models\Room;
 use App\Models\RoomType;
@@ -35,6 +40,7 @@ use App\Models\SalesChannel;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
+use App\Models\TicketVariant;
 use App\Models\User;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkShift;
@@ -94,6 +100,11 @@ return [
         'contract-categories' => ['model' => ContractCategory::class, 'label' => 'دسته‌های قرارداد', 'group' => 'حقوقی و قرارداد'],
 
         'events' => ['model' => Event::class, 'label' => 'رویدادها', 'group' => 'ارتباطات داخلی'],
+
+        'ticketing-products' => ['model' => Product::class, 'label' => 'محصولات (جاذبه‌ها)', 'group' => 'گیشه بلیط'],
+        'ticketing-variants' => ['model' => TicketVariant::class, 'label' => 'انواع بلیت', 'group' => 'گیشه بلیط'],
+        'ticketing-gates' => ['model' => Gate::class, 'label' => 'گیت‌ها', 'group' => 'گیشه بلیط'],
+        'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
     ],
 
     /*
@@ -125,5 +136,15 @@ return [
         'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
+        'cashier' => [
+            'page' => Cashier::class,
+            'label' => 'فروش بلیط (صندوق)',
+            'group' => 'گیشه بلیط',
+            'actions' => [
+                'access' => 'دسترسی به صفحه',
+                'issue_complimentary' => 'صدور بلیت رایگان/اهدایی',
+            ],
+        ],
+        'gate-scanner' => ['page' => GateScanner::class, 'label' => 'اسکن بلیط (گیت)', 'group' => 'گیشه بلیط'],
     ],
 ];
