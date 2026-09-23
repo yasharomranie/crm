@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Http\Middleware\EnsureIdempotentLivewireUpdate;
 use App\Livewire\AiAssistantWidget;
 use App\Models\FormSubmission;
 use App\Models\User;
@@ -9,6 +10,7 @@ use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
@@ -57,6 +59,30 @@ class AppServiceProvider extends ServiceProvider
         Livewire::component('ai-assistant-widget', AiAssistantWidget::class);
 
         FormSubmission::observe(FormSubmissionObserver::class);
+
+        $this->attachIdempotencyMiddlewareToLivewireUpdateRoute();
+    }
+
+    /**
+     * See EnsureIdempotentLivewireUpdate's own doc comment for why this
+     * exists. Deferred to app()->booted() rather than run here directly,
+     * so it doesn't matter whether Livewire's own service provider has
+     * registered its update route yet at this point in the boot cycle -
+     * by the time every provider has booted, it always has.
+     */
+    protected function attachIdempotencyMiddlewareToLivewireUpdateRoute(): void
+    {
+        $this->app->booted(function () {
+            foreach (Route::getRoutes() as $route) {
+                if (! str($route->getName())->endsWith('livewire.update')) {
+                    continue;
+                }
+
+                if (! in_array(EnsureIdempotentLivewireUpdate::class, $route->middleware(), true)) {
+                    $route->middleware(EnsureIdempotentLivewireUpdate::class);
+                }
+            }
+        });
     }
 
     /**
