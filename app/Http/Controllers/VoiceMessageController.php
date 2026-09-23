@@ -22,7 +22,13 @@ class VoiceMessageController extends Controller
     {
         $data = $request->validate([
             'conversation_id' => ['required', 'integer'],
-            'audio' => ['required', 'file', 'mimetypes:audio/webm,audio/ogg,audio/mp4,audio/mpeg,audio/wav,audio/x-m4a', 'max:10240'],
+            // video/webm is deliberately included: an audio-only WebM/Opus
+            // recording from MediaRecorder (what the browser actually sends
+            // here) is a libmagic/fileinfo quirk away from audio/webm - the
+            // Matroska container's magic bytes don't distinguish an
+            // audio-only track from a video one, so PHP's real-content mime
+            // sniffing reports video/webm for it even though it's audio.
+            'audio' => ['required', 'file', 'mimetypes:audio/webm,video/webm,audio/ogg,audio/mp4,audio/mpeg,audio/wav,audio/x-m4a', 'max:10240'],
         ]);
 
         $conversation = Conversation::findOrFail($data['conversation_id']);
@@ -31,12 +37,21 @@ class VoiceMessageController extends Controller
 
         $file = $request->file('audio');
 
+        // This endpoint only ever handles audio, but libmagic/fileinfo
+        // sniffs an audio-only WebM/Opus recording (what MediaRecorder
+        // actually produces in Chrome/Firefox) as video/webm - the
+        // Matroska container's magic bytes don't distinguish an audio-only
+        // track from a video one. Normalize it back so
+        // Message::attachmentIsAudio() renders it as a player instead of a
+        // generic file-download row.
+        $mimeType = $file->getMimeType() === 'video/webm' ? 'audio/webm' : $file->getMimeType();
+
         $message = $conversation->messages()->create([
             'sender_id' => $request->user()->id,
             'body' => null,
             'file_path' => $file->store('message-attachments', config('filesystems.default')),
             'file_name' => 'پیام صوتی.'.($file->getClientOriginalExtension() ?: 'webm'),
-            'mime_type' => $file->getMimeType(),
+            'mime_type' => $mimeType,
             'size_kb' => (int) round($file->getSize() / 1024),
         ]);
 
