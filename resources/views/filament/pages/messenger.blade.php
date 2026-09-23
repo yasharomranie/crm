@@ -289,11 +289,47 @@
                         <span x-text="interimText || 'در حال شنیدن...'"></span>
                     </span>
                     <span x-show="speechError" x-text="speechError" class="text-danger-600 dark:text-danger-400"></span>
-                    <span x-show="recording" class="flex items-center gap-1.5 text-danger-600 dark:text-danger-400">
+                    <span x-show="recording" class="flex items-center gap-1.5 font-medium text-danger-600 dark:text-danger-400">
                         <span class="h-1.5 w-1.5 animate-pulse rounded-full bg-current"></span>
                         <span>در حال ضبط پیام صوتی...</span>
+                        <span x-text="formatDuration(recordSeconds)" class="tabular-nums"></span>
                     </span>
                     <span x-show="recordError" x-text="recordError" class="text-danger-600 dark:text-danger-400"></span>
+                </div>
+
+                {{-- Recorded voice note, not yet sent - listen before you
+                    send it, or discard and record again. Replaces the
+                    normal composer row while active (below). --}}
+                <div
+                    x-show="!! recordedBlob"
+                    x-cloak
+                    class="flex items-center gap-2 border-t border-gray-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/10"
+                >
+                    <button
+                        type="button"
+                        x-on:click="discardRecordedVoiceNote()"
+                        :disabled="uploadingVoiceNote"
+                        aria-label="حذف پیام صوتی ضبط‌شده"
+                        title="حذف و ضبط دوباره"
+                        class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl text-gray-500 transition hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-400 dark:hover:bg-white/10"
+                    >
+                        <x-heroicon-o-trash class="h-5 w-5" />
+                    </button>
+                    <audio x-ref="voicePreview" :src="recordedUrl" controls preload="metadata" class="h-10 flex-1"></audio>
+                    <button
+                        type="button"
+                        x-on:click="sendRecordedVoiceNote()"
+                        :disabled="uploadingVoiceNote"
+                        aria-label="ارسال پیام صوتی"
+                        title="ارسال پیام صوتی"
+                        class="flex h-10 w-10 shrink-0 cursor-pointer items-center justify-center rounded-xl bg-primary-600 text-white transition hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                        <x-heroicon-o-paper-airplane x-show="! uploadingVoiceNote" class="h-5 w-5 -scale-x-100" />
+                        <svg x-show="uploadingVoiceNote" x-cloak class="h-5 w-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"></path>
+                        </svg>
+                    </button>
                 </div>
 
                 {{-- Pending attachment (picked, not yet sent) --}}
@@ -311,6 +347,7 @@
                 </div>
 
                 <form
+                    x-show="! recordedBlob"
                     wire:submit.prevent="sendMessage"
                     class="flex items-end gap-2 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]"
                     :class="(listening || speechError || recording || recordError || $wire.attachment) ? '' : 'border-t border-gray-200 dark:border-white/10'"
@@ -493,12 +530,21 @@
             // --- Voice messages (real recorded audio clips, sent as a
             // file attachment) - a different feature from dictation above:
             // this records actual sound and uploads it, it never touches
-            // the text `body`. ---
+            // the text `body`. Record -> stop -> preview (listen to what
+            // you got, with a live elapsed-time counter while recording) ->
+            // explicit send or discard, rather than auto-uploading the
+            // instant recording stops. ---
             recordingSupported: false,
             recording: false,
             recordError: '',
             mediaRecorder: null,
             audioChunks: [],
+            recordSeconds: 0,
+            recordTimer: null,
+            recordedBlob: null,
+            recordedUrl: null,
+            recordedMimeType: '',
+            uploadingVoiceNote: false,
 
             init() {
                 this.scrollToBottom(true);
@@ -624,12 +670,22 @@
                 }
 
                 if (this.recording) {
-                    this.mediaRecorder?.stop();
+                    // Guards against calling stop() on a recorder that
+                    // isn't actually recording (throws InvalidStateError) -
+                    // this happened silently before and left `recording`
+                    // stuck true forever with no way back to the mic button.
+                    if (this.mediaRecorder && this.mediaRecorder.state !== 'inactive') {
+                        this.mediaRecorder.stop();
+                    } else {
+                        this.recording = false;
+                        this.stopTimer();
+                    }
 
                     return;
                 }
 
                 this.recordError = '';
+                this.discardRecordedVoiceNote();
 
                 let stream;
                 try {
@@ -641,10 +697,18 @@
                 }
 
                 this.audioChunks = [];
-                // Let the browser pick its own supported mime type
-                // (webm on Chrome/Firefox, mp4/aac on Safari) rather than
-                // forcing one it might not actually support.
-                this.mediaRecorder = new MediaRecorder(stream);
+
+                try {
+                    // Let the browser pick its own supported mime type
+                    // (webm on Chrome/Firefox, mp4/aac on Safari) rather
+                    // than forcing one it might not actually support.
+                    this.mediaRecorder = new MediaRecorder(stream);
+                } catch (e) {
+                    this.recordError = 'ضبط صدا در این مرورگر پشتیبانی نمی‌شود.';
+                    stream.getTracks().forEach((track) => track.stop());
+
+                    return;
+                }
 
                 this.mediaRecorder.ondataavailable = (event) => {
                     if (event.data.size > 0) {
@@ -652,33 +716,102 @@
                     }
                 };
 
+                this.mediaRecorder.onerror = () => {
+                    this.recordError = 'خطایی در ضبط پیام صوتی رخ داد. دوباره تلاش کنید.';
+                    this.recording = false;
+                    this.stopTimer();
+                    stream.getTracks().forEach((track) => track.stop());
+                };
+
                 this.mediaRecorder.onstop = () => {
                     stream.getTracks().forEach((track) => track.stop());
                     this.recording = false;
-                    this.uploadVoiceNote();
+                    this.stopTimer();
+
+                    if (this.audioChunks.length === 0) {
+                        // The previous version silently did nothing here -
+                        // exactly the "record does nothing" symptom - if no
+                        // audio data ever arrived (permission revoked
+                        // mid-recording, a hardware hiccup, an unsupported
+                        // codec). Surface it instead.
+                        this.recordError = 'صدایی ضبط نشد. دوباره تلاش کنید.';
+
+                        return;
+                    }
+
+                    this.recordedMimeType = this.mediaRecorder.mimeType || 'audio/webm';
+                    this.recordedBlob = new Blob(this.audioChunks, { type: this.recordedMimeType });
+                    this.recordedUrl = URL.createObjectURL(this.recordedBlob);
                 };
 
-                this.mediaRecorder.start();
+                // A 250ms timeslice keeps data flowing into ondataavailable
+                // throughout the recording instead of relying on a single
+                // chunk delivered at stop() - more reliable across
+                // browsers/devices, and means a recording that gets cut off
+                // some other way still has usable audio in it.
+                this.mediaRecorder.start(250);
                 this.recording = true;
+                this.startTimer();
             },
 
-            async uploadVoiceNote() {
-                if (this.audioChunks.length === 0) {
+            startTimer() {
+                this.recordSeconds = 0;
+                this.stopTimer();
+                this.recordTimer = setInterval(() => {
+                    this.recordSeconds++;
+                }, 1000);
+            },
+
+            stopTimer() {
+                if (this.recordTimer) {
+                    clearInterval(this.recordTimer);
+                    this.recordTimer = null;
+                }
+            },
+
+            formatDuration(totalSeconds) {
+                const minutes = Math.floor(totalSeconds / 60);
+                const seconds = totalSeconds % 60;
+
+                return `${minutes}:${String(seconds).padStart(2, '0')}`;
+            },
+
+            discardRecordedVoiceNote() {
+                if (this.recordedUrl) {
+                    URL.revokeObjectURL(this.recordedUrl);
+                }
+
+                this.recordedBlob = null;
+                this.recordedUrl = null;
+                this.recordedMimeType = '';
+                this.audioChunks = [];
+                this.recordError = '';
+            },
+
+            async sendRecordedVoiceNote() {
+                if (! this.recordedBlob || this.uploadingVoiceNote) {
                     return;
                 }
 
-                const blob = new Blob(this.audioChunks, { type: this.mediaRecorder.mimeType || 'audio/webm' });
-                this.audioChunks = [];
+                this.uploadingVoiceNote = true;
+                this.recordError = '';
 
-                const extension = (blob.type.split('/')[1] || 'webm').split(';')[0];
+                const extension = (this.recordedMimeType.split('/')[1] || 'webm').split(';')[0];
                 const formData = new FormData();
                 formData.append('conversation_id', this.$wire.conversationId);
-                formData.append('audio', blob, `voice-note.${extension}`);
+                formData.append('audio', this.recordedBlob, `voice-note.${extension}`);
 
                 try {
                     const response = await fetch('{{ route('messages.voice-note.store') }}', {
                         method: 'POST',
-                        headers: { 'X-CSRF-TOKEN': this.csrfToken() },
+                        // Without an explicit Accept header, Laravel treats
+                        // a validation failure as a normal web request and
+                        // 302-redirects back instead of returning JSON -
+                        // fetch() silently follows that redirect and hands
+                        // back whatever 200 OK page it lands on, so a
+                        // rejected upload looked exactly like a successful
+                        // one with nothing ever actually sent.
+                        headers: { 'X-CSRF-TOKEN': this.csrfToken(), 'Accept': 'application/json' },
                         body: formData,
                     });
 
@@ -686,10 +819,13 @@
                         throw new Error('upload failed');
                     }
 
+                    this.discardRecordedVoiceNote();
                     await this.$wire.tick();
                     this.$dispatch('message-sent');
                 } catch (e) {
                     this.recordError = 'ارسال پیام صوتی ناموفق بود. دوباره تلاش کنید.';
+                } finally {
+                    this.uploadingVoiceNote = false;
                 }
             },
 
