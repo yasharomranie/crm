@@ -15,7 +15,7 @@
 // *cache* left over from a previous version of this file, not individual
 // stale files within the current one).
 
-const CACHE_NAME = 'farsiwp-static-v3';
+const CACHE_NAME = 'farsiwp-static-v4';
 const OFFLINE_URL = '/offline.html';
 
 const STATIC_PATH_PATTERNS = [
@@ -91,16 +91,26 @@ self.addEventListener('fetch', (event) => {
     // there's truly no connection.
     if (request.mode === 'navigate') {
         if (OFFLINE_CACHEABLE_PATHS.includes(url.pathname)) {
+            // Cache.put()/match() reject a Request whose mode is "navigate"
+            // (every full-page navigation request is exactly that) with
+            // "Request mode 'navigate' is unsupported" - thrown async here,
+            // inside a .then() with nothing awaiting or catching it, so it
+            // failed completely silently: the page rendered fine while
+            // online, nothing ever actually landed in the cache, and the
+            // very next offline visit had nothing to fall back to. Passing
+            // the URL string instead of the Request object sidesteps the
+            // restriction entirely - the Cache API builds its own
+            // default-mode Request from it internally.
             event.respondWith(
                 fetch(request)
                     .then((response) => {
                         if (response.ok) {
-                            caches.open(CACHE_NAME).then((cache) => cache.put(request, response.clone()));
+                            caches.open(CACHE_NAME).then((cache) => cache.put(request.url, response.clone()));
                         }
 
                         return response;
                     })
-                    .catch(async () => (await caches.match(request)) || caches.match(OFFLINE_URL)),
+                    .catch(async () => (await caches.match(request.url)) || caches.match(OFFLINE_URL)),
             );
 
             return;
