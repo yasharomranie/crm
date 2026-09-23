@@ -30,3 +30,11 @@ Schedule::command('attendance:mark-absentees')
 Schedule::command('queue:work --stop-when-empty --max-time=50')
     ->everyMinute()
     ->withoutOverlapping();
+
+// Fires any event reminder whose configured "days before + alarm time"
+// has arrived (see EventReminder::remindAt()). Runs often since a
+// reminder's alarm time can be any minute of the day, not just a fixed
+// daily slot like the two schedules above.
+Schedule::command('events:send-reminders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();

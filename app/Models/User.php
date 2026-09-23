@@ -14,6 +14,7 @@ use Illuminate\Database\Eloquent\Attributes\Fillable;
 use Illuminate\Database\Eloquent\Attributes\Hidden;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -241,5 +242,15 @@ class User extends Authenticatable implements FilamentUser, HasAvatar
     public function workflowActions(): HasMany
     {
         return $this->hasMany(WorkflowAction::class, 'actor_id');
+    }
+
+    public function createdEvents(): HasMany
+    {
+        return $this->hasMany(Event::class, 'created_by');
+    }
+
+    public function participatingEvents(): BelongsToMany
+    {
+        return $this->belongsToMany(Event::class);
     }
 }

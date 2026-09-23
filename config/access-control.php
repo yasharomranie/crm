@@ -9,6 +9,7 @@ use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
+use App\Filament\Pages\SmsSettings;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
@@ -20,6 +21,7 @@ use App\Models\Deal;
 use App\Models\Department;
 use App\Models\Document;
 use App\Models\DocumentFolder;
+use App\Models\Event;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\Guest;
@@ -90,6 +92,8 @@ return [
 
         'contracts' => ['model' => Contract::class, 'label' => 'آرشیو قراردادها', 'group' => 'حقوقی و قرارداد'],
         'contract-categories' => ['model' => ContractCategory::class, 'label' => 'دسته‌های قرارداد', 'group' => 'حقوقی و قرارداد'],
+
+        'events' => ['model' => Event::class, 'label' => 'رویدادها', 'group' => 'ارتباطات داخلی'],
     ],
 
     /*
@@ -120,5 +124,6 @@ return [
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
         'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
+        'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
     ],
 ];
