@@ -30,6 +30,15 @@ Homestead.json
 Homestead.yaml
 Thumbs.db
 
+# Left behind by a one-off manual Composer install/deploy on the
+# production host, before this app switched to cPanel Git Version
+# Control - never something this repo's own history should track.
+/composer-setup.php
+/composer.phar
+/deploy.sh
+/error_log
+/public/error_log
+
 # Python (ui-ux-pro-max skill scripts)
 __pycache__/
 *.pyc
