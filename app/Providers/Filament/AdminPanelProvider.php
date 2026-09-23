@@ -218,6 +218,15 @@ class AdminPanelProvider extends PanelProvider
             ->renderHook(
                 PanelsRenderHook::BODY_END,
                 fn () => view('partials.pwa-push'),
+            )
+            // App-wide "you're offline" bottom bar + leave-page guard (every
+            // panel page) - a lighter safety net than the Gate Scanner's own
+            // dedicated offline mode, for the ordinary case of a brief
+            // connectivity drop while filling out any other form. See the
+            // partial's own doc comment.
+            ->renderHook(
+                PanelsRenderHook::BODY_END,
+                fn () => view('partials.offline-guard'),
             );
     }
 }
