@@ -3,6 +3,7 @@ deployment:
   tasks:
     - php composer.phar install --no-dev --optimize-autoloader
     - php artisan migrate --force
+    - php artisan access-control:sync --no-interaction
     - php artisan config:clear
     - php artisan config:cache
     - php artisan route:cache
