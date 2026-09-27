@@ -13,14 +13,16 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * A USB/Bluetooth QR scanner behaves as a keyboard - it "types" the QR
- * payload into whatever input is focused, then sends Enter. That's the
- * whole interaction model here (see the blade view's auto-focus +
- * keydown.enter handler): no camera/JS QR library needed, and it works
- * with real, cheap hardware gate scanners exactly as sold. Section 54
- * (no offline mode in v1) means every scan is a live call to
- * GateValidationService, which itself fails closed if the DB is
- * unreachable.
+ * Two ways to get a QR token into handleScan() on the blade view: the
+ * phone/tablet's own camera (qr-scanner JS library, decoding live video -
+ * the primary path), or a USB/Bluetooth hardware scanner, which behaves as
+ * a keyboard and "types" the payload into the manual input then sends
+ * Enter (still fully supported as a fallback). Both funnel into the same
+ * scan() call here. This page's own view/JS also layers offline support on
+ * top (IndexedDB-cached tickets/rules, queued scans synced later) - see
+ * gate-scanner.blade.php - but scan() itself stays simple: every online
+ * call is live against GateValidationService, which fails closed if the
+ * DB is unreachable.
  */
 class GateScanner extends Page
 {

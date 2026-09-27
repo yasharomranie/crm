@@ -18,6 +18,7 @@
     },
     "dependencies": {
         "leaflet": "1.9.4",
+        "qr-scanner": "^1.4.2",
         "qrcodejs": "1.0.0"
     }
 }
