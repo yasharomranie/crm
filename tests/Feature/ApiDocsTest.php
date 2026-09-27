@@ -25,4 +25,18 @@ class ApiDocsTest extends TestCase
             ->assertSee('/api/v1/external')
             ->assertSee('X-Webhook-Signature');
     }
+
+    public function test_the_docs_include_the_quick_start_guide_and_full_parameter_tables(): void
+    {
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('api-docs'));
+
+        $response->assertOk()
+            ->assertSee('راهنمای شروع سریع')
+            ->assertSee('uuidgen')
+            ->assertSee('مرجع کامل مجوزها')
+            ->assertSee('discount_code.validate')
+            ->assertSee('guest.mobile')
+            ->assertSee('RATE_LIMITED');
+    }
 }
