@@ -2,9 +2,11 @@
 
 namespace App\Domain\Ticketing;
 
+use App\Domain\Webhooks\WebhookDispatcher;
 use App\Enums\AdmissionTicketStatus;
 use App\Enums\GateRejectionReason;
 use App\Enums\GateScanResult;
+use App\Enums\WebhookEventType;
 use App\Models\AdmissionTicket;
 use App\Models\Gate;
 use App\Models\GateRule;
@@ -33,6 +35,8 @@ use Illuminate\Support\Facades\DB;
  */
 class GateValidationService
 {
+    public function __construct(private WebhookDispatcher $webhooks) {}
+
     /**
      * @return array{result: GateScanResult, ticket: ?AdmissionTicket, reason: ?GateRejectionReason, usage_number: ?int}
      */
@@ -204,5 +208,18 @@ class GateValidationService
             'metadata' => $context['metadata'] ?? null,
             'scanned_at' => now(),
         ]);
+
+        $this->webhooks->dispatch(
+            $ticket?->orderItem?->order?->external_api_client_id,
+            $result === GateScanResult::Success ? WebhookEventType::TicketScanned : WebhookEventType::TicketRejected,
+            [
+                'ticket_number' => $ticket?->ticket_number,
+                'gate' => $gate->code,
+                'result' => $result->value,
+                'reason' => $reason?->value,
+                'usage_number' => $usageNumber,
+                'scanned_at' => now()->toIso8601String(),
+            ],
+        );
     }
 }

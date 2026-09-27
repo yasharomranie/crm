@@ -27,7 +27,7 @@ class FormSubmission extends Model
 
     protected $fillable = [
         'reference_code', 'form_template_id', 'form_template_version',
-        'submitted_by', 'department_id', 'status', 'submitted_at',
+        'submitted_by', 'department_id', 'external_api_client_id', 'status', 'submitted_at',
     ];
 
     protected function casts(): array

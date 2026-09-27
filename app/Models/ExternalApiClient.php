@@ -5,6 +5,7 @@ namespace App\Models;
 use Database\Factories\ExternalApiClientFactory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Str;
@@ -35,6 +36,11 @@ class ExternalApiClient extends Model
         return $this->belongsToMany(Product::class, 'external_api_client_product');
     }
 
+    public function creator(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'created_by');
+    }
+
     /**
      * Creates the client and returns [$client, $plainSecret] - the plain
      * secret exists only in that return value and is never persisted or
@@ -44,8 +50,13 @@ class ExternalApiClient extends Model
      * @param  array<int, string>  $allowedOperations
      * @return array{0: self, 1: string}
      */
-    public static function issue(string $clientName, array $allowedOperations, ?string $company = null): array
-    {
+    public static function issue(
+        string $clientName,
+        array $allowedOperations,
+        ?string $company = null,
+        ?int $rateLimitPerMinute = null,
+        ?int $createdBy = null,
+    ): array {
         $plainSecret = Str::random(40);
 
         $client = static::create([
@@ -55,6 +66,8 @@ class ExternalApiClient extends Model
             'api_secret_hash' => Hash::make($plainSecret),
             'allowed_operations' => $allowedOperations,
             'is_active' => true,
+            'rate_limit_per_minute' => $rateLimitPerMinute ?? 60,
+            'created_by' => $createdBy,
         ]);
 
         return [$client, $plainSecret];
@@ -63,6 +76,21 @@ class ExternalApiClient extends Model
     public function verifySecret(string $secret): bool
     {
         return Hash::check($secret, $this->api_secret_hash);
+    }
+
+    /**
+     * Rotates the secret in place (same reasoning as issue(): the plain
+     * value only ever exists in this return value, never persisted or
+     * loggable again) - for when a client's secret has leaked or been
+     * lost, without having to reissue a whole new api_key too.
+     */
+    public function regenerateSecret(): string
+    {
+        $plainSecret = Str::random(40);
+
+        $this->update(['api_secret_hash' => Hash::make($plainSecret)]);
+
+        return $plainSecret;
     }
 
     public function hasPermission(string $operation): bool

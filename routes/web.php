@@ -61,3 +61,11 @@ Route::get('/system-guide', function () {
         ? view('system-guide')
         : redirect()->route('filament.admin.auth.login');
 })->name('system-guide');
+
+// Same reasoning as /system-guide above: a plain static view, kept out of
+// the panel's own routing/middleware so it renders as its own document.
+Route::get('/api-docs', function () {
+    return auth()->check()
+        ? view('api-docs')
+        : redirect()->route('filament.admin.auth.login');
+})->name('api-docs');

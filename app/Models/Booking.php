@@ -24,7 +24,7 @@ class Booking extends Model
     protected $fillable = [
         'reference_code', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
-        'status', 'source', 'sales_channel_id', 'commission_amount', 'notes', 'created_by',
+        'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'notes', 'created_by',
     ];
 
     protected function casts(): array
