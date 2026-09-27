@@ -11,9 +11,13 @@ use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
+use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
+use Filament\Schemas\Components\Utilities\Set;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 
 class EventForm
 {
@@ -76,16 +80,15 @@ class EventForm
                 Hidden::make('created_by')
                     ->default(fn () => Auth::id()),
 
-                Repeater::make('reminders')
-                    ->relationship()
-                    ->label('یادآوری‌ها')
-                    ->hintAction(
+                Section::make('یادآوری‌ها')
+                    ->headerActions([
                         Action::make('addStandardReminders')
-                            ->label('افزودن یادآوری‌های استاندارد (۱ هفته، ۲۴ ساعت، ۱ ساعت قبل)')
+                            ->label('افزودن یادآوری‌های استاندارد')
+                            ->tooltip('۱ هفته، ۲۴ ساعت و ۱ ساعت قبل')
                             ->icon(Heroicon::OutlinedSparkles)
                             ->color('gray')
-                            ->action(function (Repeater $component): void {
-                                $items = $component->getRawState() ?? [];
+                            ->action(function (Get $get, Set $set): void {
+                                $items = $get('reminders') ?? [];
 
                                 $existing = collect($items)
                                     ->map(fn (array $item): string => ($item['value'] ?? '').'-'.($item['unit'] ?? ''))
@@ -98,9 +101,7 @@ class EventForm
                                         continue;
                                     }
 
-                                    $uuid = $component->generateUuid();
-
-                                    $items[$uuid ?? count($items)] = [
+                                    $items[(string) Str::uuid()] = [
                                         'value' => $reminder['value'],
                                         'unit' => $reminder['unit'],
                                         'notify_push' => true,
@@ -109,60 +110,64 @@ class EventForm
                                     ];
                                 }
 
-                                $component->rawState($items);
-                                $component->callAfterStateUpdated();
+                                $set('reminders', $items);
                             }),
-                    )
-                    ->schema([
-                        TextInput::make('value')
-                            ->label('مقدار')
-                            ->numeric()
-                            ->minValue(1)
-                            ->default(1)
-                            ->required(),
-                        Select::make('unit')
-                            ->label('واحد زمانی')
-                            ->options(EventReminderUnit::class)
-                            ->default(EventReminderUnit::Hour->value)
-                            ->native(false)
-                            ->required(),
-                        Toggle::make('notify_push')
-                            ->label('اعلان فوری (Push)')
-                            ->default(true),
-                        Toggle::make('notify_sms')
-                            ->label('پیامک (SMS)')
-                            ->default(false),
-                        Toggle::make('notify_email')
-                            ->label('ایمیل')
-                            ->default(false),
                     ])
-                    ->mutateRelationshipDataBeforeFillUsing(function (array $data): array {
-                        $decomposed = EventReminderUnit::decompose($data['minutes_before']);
-                        $data['value'] = $decomposed['value'];
-                        $data['unit'] = $decomposed['unit']->value;
+                    ->schema([
+                        Repeater::make('reminders')
+                            ->relationship()
+                            ->hiddenLabel()
+                            ->schema([
+                                TextInput::make('value')
+                                    ->label('مقدار')
+                                    ->numeric()
+                                    ->minValue(1)
+                                    ->default(1)
+                                    ->required(),
+                                Select::make('unit')
+                                    ->label('واحد زمانی')
+                                    ->options(EventReminderUnit::class)
+                                    ->default(EventReminderUnit::Hour->value)
+                                    ->native(false)
+                                    ->required(),
+                                Toggle::make('notify_push')
+                                    ->label('اعلان فوری (Push)')
+                                    ->default(true),
+                                Toggle::make('notify_sms')
+                                    ->label('پیامک (SMS)')
+                                    ->default(false),
+                                Toggle::make('notify_email')
+                                    ->label('ایمیل')
+                                    ->default(false),
+                            ])
+                            ->mutateRelationshipDataBeforeFillUsing(function (array $data): array {
+                                $decomposed = EventReminderUnit::decompose($data['minutes_before']);
+                                $data['value'] = $decomposed['value'];
+                                $data['unit'] = $decomposed['unit']->value;
 
-                        return $data;
-                    })
-                    ->mutateRelationshipDataBeforeCreateUsing(function (array $data): array {
-                        $data['minutes_before'] = ((int) $data['value']) * self::unitFrom($data['unit'])->minutes();
+                                return $data;
+                            })
+                            ->mutateRelationshipDataBeforeCreateUsing(function (array $data): array {
+                                $data['minutes_before'] = ((int) $data['value']) * self::unitFrom($data['unit'])->minutes();
 
-                        if (! ($data['notify_push'] || $data['notify_sms'] || $data['notify_email'])) {
-                            $data['notify_push'] = true;
-                        }
+                                if (! ($data['notify_push'] || $data['notify_sms'] || $data['notify_email'])) {
+                                    $data['notify_push'] = true;
+                                }
 
-                        return $data;
-                    })
-                    ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
-                        $data['minutes_before'] = ((int) $data['value']) * self::unitFrom($data['unit'])->minutes();
+                                return $data;
+                            })
+                            ->mutateRelationshipDataBeforeSaveUsing(function (array $data): array {
+                                $data['minutes_before'] = ((int) $data['value']) * self::unitFrom($data['unit'])->minutes();
 
-                        return $data;
-                    })
-                    ->itemLabel(fn (array $state): ?string => isset($state['value'], $state['unit'])
-                        ? "{$state['value']} ".self::unitFrom($state['unit'])->getLabel().' قبل'
-                        : null)
-                    ->addActionLabel('افزودن یادآوری')
-                    ->defaultItems(0)
-                    ->columns(2)
+                                return $data;
+                            })
+                            ->itemLabel(fn (array $state): ?string => isset($state['value'], $state['unit'])
+                                ? "{$state['value']} ".self::unitFrom($state['unit'])->getLabel().' قبل'
+                                : null)
+                            ->addActionLabel('افزودن یادآوری')
+                            ->defaultItems(0)
+                            ->columns(2),
+                    ])
                     ->columnSpanFull(),
             ]);
     }
