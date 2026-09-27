@@ -21,7 +21,7 @@
 
   * { box-sizing: border-box; }
 
-  html, body { margin: 0; padding: 0; }
+  html, body { margin: 0; padding: 0; overflow-x: hidden; }
 
   :root {
     --paper: #fbf9f6;
@@ -37,6 +37,14 @@
     --amber-600: #d97706;
     --amber-900: #78350f;
     --amber-ink: #451a03;
+    --get: #0369a1;
+    --get-bg: #e0f2fe;
+    --post: #15803d;
+    --post-bg: #dcfce7;
+    --delete: #b91c1c;
+    --delete-bg: #fee2e2;
+    --code-bg: #211c16;
+    --code-ink: #f3ece0;
     --shadow: 0 18px 40px -20px rgb(28 25 23 / 0.28);
     --shadow-sm: 0 8px 20px -12px rgb(28 25 23 / 0.22);
     color-scheme: light;
@@ -57,6 +65,14 @@
       --amber-600: #f0930f;
       --amber-900: #fbbf6a;
       --amber-ink: #2a1204;
+      --get: #7dd3fc;
+      --get-bg: #0c2a3a;
+      --post: #86efac;
+      --post-bg: #0f2a19;
+      --delete: #fca5a5;
+      --delete-bg: #3a1414;
+      --code-bg: #100d0a;
+      --code-ink: #f3ece0;
       --shadow: 0 18px 40px -18px rgb(0 0 0 / 0.55);
       --shadow-sm: 0 8px 20px -12px rgb(0 0 0 / 0.5);
       color-scheme: dark;
@@ -77,6 +93,14 @@
     --amber-600: #f0930f;
     --amber-900: #fbbf6a;
     --amber-ink: #2a1204;
+    --get: #7dd3fc;
+    --get-bg: #0c2a3a;
+    --post: #86efac;
+    --post-bg: #0f2a19;
+    --delete: #fca5a5;
+    --delete-bg: #3a1414;
+    --code-bg: #100d0a;
+    --code-ink: #f3ece0;
     --shadow: 0 18px 40px -18px rgb(0 0 0 / 0.55);
     --shadow-sm: 0 8px 20px -12px rgb(0 0 0 / 0.5);
     color-scheme: dark;
@@ -103,6 +127,7 @@
     font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     direction: ltr;
     unicode-bidi: isolate;
+    overflow-wrap: anywhere;
   }
 
   /* ---------- Top identity bar ---------- */
@@ -328,6 +353,49 @@
 
   ul.plain { margin: .9rem 0 0; padding-inline-start: 1.2rem; color: var(--ink-soft); font-size: .92rem; }
   ul.plain li { margin-bottom: .35rem; }
+
+  /* ---------- REST API reference (ch-13) ---------- */
+  .chapter-body h3 { font-size: 1.02rem; font-weight: 700; margin-top: 2rem; margin-bottom: .6rem; scroll-margin-top: 1.5rem; }
+  .chapter-body ol.steps { margin: 0; padding-inline-start: 1.4rem; display: flex; flex-direction: column; gap: .7rem; }
+  .chapter-body ol.steps li { color: var(--ink-soft); font-size: .94rem; }
+  .chapter-body ol.steps li b { color: var(--ink); }
+  .subtoc { display: flex; flex-wrap: wrap; gap: .5rem .9rem; margin-top: 1.1rem; padding: 0; list-style: none; }
+  .subtoc a {
+    font-size: .82rem; color: var(--ink-soft); text-decoration: none;
+    background: var(--paper-2); border: 1px solid var(--border); border-radius: 999px; padding: .3rem .8rem;
+  }
+  .subtoc a:hover { color: var(--amber-600); }
+
+  .endpoint { border: 1px solid var(--border); border-radius: 16px; padding: 1.3rem 1.4rem; margin-block: 1.3rem; background: var(--paper-2); }
+  .endpoint-head { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; }
+  .method { font-family: ui-monospace, monospace; font-size: .72rem; font-weight: 700; letter-spacing: .03em; padding: .25rem .6rem; border-radius: 7px; }
+  .method-get { color: var(--get); background: var(--get-bg); }
+  .method-post { color: var(--post); background: var(--post-bg); }
+  .method-delete { color: var(--delete); background: var(--delete-bg); }
+  .endpoint-path { font-family: ui-monospace, monospace; font-size: .88rem; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; min-width: 0; }
+  .endpoint-perm { margin-inline-start: auto; font-size: .72rem; color: var(--ink-faint); font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; }
+  .endpoint-desc { color: var(--ink-soft); font-size: .9rem; margin-top: .7rem; }
+  .code-cols { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin-top: .9rem; }
+  @media (max-width: 640px) { .code-cols { grid-template-columns: 1fr; } .endpoint-perm { margin-inline-start: 0; } }
+  .code-block { min-width: 0; }
+  .code-block.full { grid-column: 1 / -1; }
+  .code-label { font-size: .7rem; letter-spacing: .04em; text-transform: uppercase; color: var(--ink-faint); font-family: ui-monospace, monospace; margin-bottom: .35rem; }
+  pre {
+    margin: 0; background: var(--code-bg); color: var(--code-ink); border-radius: 10px;
+    padding: .85rem .95rem; font-size: .78rem; line-height: 1.6; overflow-x: auto;
+    direction: ltr; unicode-bidi: isolate; text-align: left;
+  }
+  pre code { font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace; }
+
+  .tbl { overflow-x: auto; margin-block: 1rem; }
+  table.ref { width: 100%; border-collapse: collapse; margin-block: 0; font-size: .86rem; }
+  table.ref th, table.ref td { text-align: right; padding: .55rem .7rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; overflow-wrap: anywhere; }
+  table.ref th { color: var(--ink-faint); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; font-family: ui-monospace, monospace; }
+  table.ref td.mono, table.ref code { font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; }
+  table.ref td.req-yes { color: var(--post); font-size: .78rem; font-weight: 700; }
+  table.ref td.req-no { color: var(--ink-faint); font-size: .78rem; }
+  .params-label { font-size: .74rem; letter-spacing: .03em; color: var(--ink-faint); text-transform: uppercase; font-family: ui-monospace, monospace; margin-top: 1.1rem; margin-bottom: -.4rem; display: block; }
+  @media (max-width: 640px) { table.ref { font-size: .78rem; } }
 </style>
 </head>
 <body>
@@ -415,6 +483,7 @@
       <li><a href="#ch-10">حضور و غیاب</a></li>
       <li><a href="#ch-11">زیرساخت سازمانی و دسترسی‌ها</a></li>
       <li><a href="#ch-12">کار بدون اینترنت</a></li>
+      <li><a href="#ch-13">REST API برای سامانه‌های بیرونی</a></li>
     </ol>
   </nav>
 
@@ -980,6 +1049,666 @@
       <img src="/system-guide-assets/shots/32-room-rack-offline.png" alt="رک اتاق در حالت کاملاً آفلاین">
       <figcaption><span class="step-n">✓</span> عکس واقعی: اینترنت کاملاً قطع است، و رک اتاق همچنان با آخرین وضعیت ذخیره‌شده باز می‌شود؛ نوار زرد بالای صفحه زمان آخرین به‌روزرسانی را نشان می‌دهد و نوار پایین صفحه یادآوری می‌کند که کارتون رو ادامه بدید.</figcaption>
     </figure>
+  </section>
+
+  <!-- ============ 13 — REST API FOR EXTERNAL SYSTEMS ============ -->
+  <section class="chapter" id="ch-13">
+    <div class="chapter-head">
+      <div class="chapter-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 3 14h8l-1 8 10-12h-8l1-8Z"/></svg>
+      </div>
+      <div>
+        <span class="chapter-num">فصل ۱۳</span>
+        <h2>REST API برای سامانه‌های بیرونی</h2>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="lede">
+        مجموعه‌ای از APIهای REST نسخه‌بندی‌شده که سامانه‌های بیرونی (وب‌سایت رزرو، گیت‌وی پرداخت، اسکنر گیت مستقل،
+        فرم‌های آنلاین و ابزارهای شخص‌ثالث) را به هسته‌ی هتلداری، فروش بلیط، CRM، فرم‌ساز و مدیریت اسناد سامانه متصل می‌کند.
+        هر درخواست JSON روی HTTPS است، با همان قرارداد خطا و همان مدل احراز هویت در همه‌ی بخش‌ها.
+      </p>
+      <ul class="subtoc">
+        <li><a href="#ch-13-auth">احراز هویت، خطاها و Idempotency</a></li>
+        <li><a href="#ch-13-quickstart">شروع سریع</a></li>
+        <li><a href="#ch-13-ticketing">فروش بلیط و گیشه (POS)</a></li>
+        <li><a href="#ch-13-hospitality">اقامتی و هتلداری</a></li>
+        <li><a href="#ch-13-crm">CRM و سرنخ‌ها</a></li>
+        <li><a href="#ch-13-forms">فرم‌ساز</a></li>
+        <li><a href="#ch-13-documents">مدیریت اسناد</a></li>
+        <li><a href="#ch-13-webhooks">وب‌هوک‌های خروجی</a></li>
+        <li><a href="#ch-13-errors">مرجع کدهای خطا</a></li>
+        <li><a href="#ch-13-permissions">مرجع کامل مجوزها</a></li>
+      </ul>
+
+      <h3 id="ch-13-auth">احراز هویت، خطاها و Idempotency</h3>
+      <p>
+        هر اکانت API (<span class="mono">ExternalApiClient</span>) یک جفت <span class="mono">api_key</span>/
+        <span class="mono">api_secret</span> دارد. این‌ها هرگز جای نشست کاربر پنل را نمی‌گیرند - مخصوص سامانه‌های
+        بیرونی‌اند، نه پرسنل. آدرس پایه‌ی همه‌ی مسیرهای این بخش:
+      </p>
+      <pre><code>https://your-domain.example/api/v1/external</code></pre>
+
+      <div class="code-cols" style="margin-top:1.3rem">
+        <div class="code-block">
+          <div class="code-label">هدرهای لازم برای هر درخواست</div>
+          <pre><code>X-API-Key: pk_xxxxxxxxxxxxxxxx
+X-API-Secret: your-plain-secret
+Content-Type: application/json</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-label">شکل یکسان خطاها (هر کد وضعیت ≥ 400)</div>
+          <pre><code>{
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "این اکانت مجاز به این عملیات نیست."
+  }
+}</code></pre>
+        </div>
+      </div>
+
+      <p style="margin-top:1rem"><b>گام‌های احراز هویت (چه اتفاقی روی هر درخواست می‌افتد):</b></p>
+      <ol class="steps">
+        <li><b>۱.</b> هدرهای <span class="mono">X-API-Key</span> و <span class="mono">X-API-Secret</span> بررسی می‌شوند؛ نبودشان <span class="mono">401 UNAUTHORIZED</span> می‌دهد.</li>
+        <li><b>۲.</b> اکانتی با همان <span class="mono">api_key</span> پیدا می‌شود؛ اگر نبود، غیرفعال بود، یا رمز اشتباه بود، همان <span class="mono">401 UNAUTHORIZED</span> برمی‌گردد (عمداً بدون افشای اینکه کدام‌یک اشتباه است).</li>
+        <li><b>۳.</b> سقف نرخ درخواست آن اکانت بررسی می‌شود (بخش بعد را ببینید).</li>
+        <li><b>۴.</b> اکانت مجاز روی درخواست قرار می‌گیرد و کنترلر مجوز عملیات مشخص (مثل <span class="mono">ticket.issue</span>) را جداگانه بررسی می‌کند؛ نبود آن مجوز <span class="mono">403 FORBIDDEN</span> می‌دهد.</li>
+      </ol>
+
+      <p style="margin-top:1.4rem"><b>محدودیت نرخ درخواست (Rate Limiting):</b></p>
+      <p>
+        هر اکانت یک سقف <span class="mono">rate_limit_per_minute</span> دارد (پیش‌فرض ۶۰، از پنل «اکانت‌های API خارجی» قابل تغییر است).
+        شمارش به‌صورت یک پنجره‌ی ۶۰ ثانیه‌ای، جداگانه برای هر اکانت (بر اساس شناسه‌ی اکانت، نه IP) انجام می‌شود. عبور از سقف،
+        بدون نیاز به هیچ هدر خاصی، پاسخ زیر را می‌دهد (در نسخه‌ی فعلی هدرهای <span class="mono">X-RateLimit-*</span> برگردانده نمی‌شوند):
+      </p>
+      <pre><code>HTTP/1.1 429 Too Many Requests
+{ "error": { "code": "RATE_LIMITED", "message": "تعداد درخواست‌ها بیش از حد مجاز است." } }</code></pre>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <div>
+          <span class="label">Idempotency-Key</span>
+          <p>
+            هر متد POST‌ی که چیزی می‌سازد (بلیط، رزرو، سرنخ، سند، بازپرداخت، ثبت فرم) به هدر
+            <span class="mono">Idempotency-Key</span> نیاز دارد - نبودش <span class="mono">400 INVALID_REQUEST</span> می‌دهد.
+            هر رشته‌ی یکتا (پیشنهاد: یک UUID v4 که همان سمت شما، پیش از فرستادن درخواست، ساخته می‌شود) قابل قبول است.
+          </p>
+        </div>
+      </div>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>وضعیت درخواست تکراری</th><th>پاسخ</th></tr></thead>
+        <tbody>
+          <tr><td>همان کلید + همان بدنه‌ی دقیق درخواست</td><td>همان پاسخ اولین بار (همان کد وضعیت و همان بدنه) دوباره و بدون ساخت رکورد جدید برگردانده می‌شود.</td></tr>
+          <tr><td>همان کلید + بدنه‌ی متفاوت</td><td><span class="mono">409 CONFLICT</span> - این کلید قبلاً با محتوای دیگری استفاده شده است.</td></tr>
+          <tr><td>دو درخواست هم‌زمان با کلید و بدنه‌ی یکسان</td><td>هر دو یک رکورد می‌سازند تا زمانی که یکی commit شود؛ دیگری به‌طور خودکار پاسخ همان رکورد را برمی‌گرداند (بدون رکورد تکراری).</td></tr>
+          <tr><td>کلید تازه (هنوز دیده نشده)</td><td>درخواست به‌طور عادی پردازش و رکورد ساخته می‌شود.</td></tr>
+        </tbody>
+      </table></div>
+      <p>کلیدها به‌صورت دائمی نگه‌داشته می‌شوند - از یک کلید فقط یک‌بار، برای یک عملیات مشخص، استفاده کنید.</p>
+
+      <p style="margin-top:1.4rem">
+        هر عملیات به یک مجوز مشخص روی اکانت نیاز دارد (فهرست کامل در <a href="#ch-13-permissions">بخش مرجع مجوزها</a>)؛ نبود آن مجوز
+        <span class="mono">403 FORBIDDEN</span> می‌دهد. هر رکورد ساخته‌شده از طریق API فقط برای همان اکانتی که آن را ساخته قابل
+        خواندن است - رکوردهای ساخته‌شده در پنل مدیریت، یا توسط اکانت دیگری، هرگز از این API دیده نمی‌شوند
+        (پاسخ <span class="mono">404</span>، نه ۴۰۳، تا وجود یا عدم‌وجود رکورد فاش نشود).
+      </p>
+
+      <h3 id="ch-13-quickstart">شروع سریع - از صفر تا اولین درخواست موفق</h3>
+      <ol class="steps">
+        <li><b>۱. ساخت اکانت API.</b> در پنل مدیریت، از منوی کاربری وارد «اکانت‌های API خارجی» شوید (زیرساخت سازمانی) و یک اکانت جدید بسازید: نام سامانه، عملیات‌های مجاز، سقف نرخ درخواست، و در صورت نیاز کاربر «ثبت به نام» (برای ثبت فرم). رمز فقط همان یک لحظه نمایش داده می‌شود - همان‌جا کپی و در جای امن ذخیره کنید.</li>
+        <li><b>۲. یک درخواست تستیِ ساده (GET) بزنید</b> تا احراز هویت را تأیید کنید:
+          <pre><code>curl -s https://your-domain.example/api/v1/external/products \
+  -H "X-API-Key: pk_xxxxxxxxxxxxxxxx" \
+  -H "X-API-Secret: your-plain-secret"</code></pre>
+          پاسخ موفق یک آرایه‌ی <span class="mono">data</span> برمی‌گرداند (حتی اگر خالی باشد).
+        </li>
+        <li><b>۳. یک POST را با Idempotency-Key امتحان کنید</b> - مثلاً ثبت یک سرنخ آزمایشی:
+          <pre><code>curl -s -X POST https://your-domain.example/api/v1/external/deals \
+  -H "X-API-Key: pk_xxxxxxxxxxxxxxxx" \
+  -H "X-API-Secret: your-plain-secret" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "تست اتصال"}'</code></pre>
+        </li>
+        <li><b>۴. همان درخواست را دوباره با همان Idempotency-Key بفرستید</b> و مطمئن شوید دقیقاً همان پاسخ (و نه یک سرنخ تکراری) برمی‌گردد.</li>
+        <li><b>۵. سراغ endpointهای دامنه‌ی مورد نیازتان بروید</b> و مطمئن شوید عملیات مربوطه در «عملیات‌های مجاز» اکانتتان فعال است؛ در غیر این صورت <span class="mono">403 FORBIDDEN</span> می‌گیرید.</li>
+      </ol>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <div>
+          <span class="label">محیط آزمایشی جداگانه‌ای وجود ندارد</span>
+          <p>این API محیط sandbox مجزا ندارد؛ هر درخواست روی همان دیتابیس واقعی اجرا می‌شود. برای تست، یک اکانت API جداگانه با فقط عملیات‌های لازم بسازید و رکوردهای تستی را بعداً از پنل پاک کنید.</p>
+        </div>
+      </div>
+
+      <h3 id="ch-13-ticketing">فروش بلیط و گیشه (POS)</h3>
+      <p>صدور بلیط، اعتبارسنجی کد تخفیف، بازپرداخت و اسکن مستقل گیت - برای یک گیشه‌ی فروش بیرونی یا اسکنر آفلاین.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/products</span>
+          <span class="endpoint-perm">product.read</span>
+        </div>
+        <div class="endpoint-desc">فهرست محصولات (رویداد/تور) فعال قابل فروش برای این اکانت.</div>
+        <div class="code-block full">
+          <div class="code-label">curl</div>
+          <pre><code>curl -s https://your-domain.example/api/v1/external/products \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET"</code></pre>
+        </div>
+        <span class="params-label">پاسخ · Response fields</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">data[].id</td><td class="mono">int</td><td>شناسه‌ی محصول.</td></tr>
+            <tr><td class="mono">data[].code</td><td class="mono">string</td><td>کد یکتای محصول.</td></tr>
+            <tr><td class="mono">data[].name</td><td class="mono">string</td><td>نام محصول.</td></tr>
+            <tr><td class="mono">data[].status</td><td class="mono">string</td><td><span class="mono">active</span> یا <span class="mono">inactive</span>.</td></tr>
+            <tr><td class="mono">data[].variants[]</td><td class="mono">array</td><td>انواع بلیت فعال این محصول: <span class="mono">id</span>, <span class="mono">code</span>, <span class="mono">name</span>.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/ticket-variants?product_id=</span>
+          <span class="endpoint-perm">ticket_variant.read</span>
+        </div>
+        <div class="endpoint-desc">فهرست انواع بلیت فعال، با فیلتر اختیاری روی محصول.</div>
+        <span class="params-label">پارامترهای Query</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>پارامتر</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">product_id</td><td class="mono">int</td><td class="req-no">خیر</td><td>فقط انواع بلیت همین محصول.</td></tr>
+          </tbody>
+        </table></div>
+        <span class="params-label">پاسخ · Response fields</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">data[].variant_id</td><td class="mono">int</td><td>شناسه‌ی نوع بلیت.</td></tr>
+            <tr><td class="mono">data[].product_id</td><td class="mono">int</td><td>محصول والد.</td></tr>
+            <tr><td class="mono">data[].name / code</td><td class="mono">string</td><td>نام و کد.</td></tr>
+            <tr><td class="mono">data[].direction</td><td class="mono">string|null</td><td><span class="mono">outbound</span> یا <span class="mono">return</span>؛ <span class="mono">null</span> یعنی بدون محدودیت جهت.</td></tr>
+            <tr><td class="mono">data[].allowed_uses</td><td class="mono">int</td><td>تعداد دفعات مجاز استفاده از هر بلیت این نوع.</td></tr>
+            <tr><td class="mono">data[].price</td><td class="mono">int|null</td><td>قیمت فعلی به ریال - فقط اطلاعاتی؛ سرور همیشه قیمت واقعی را در لحظه‌ی صدور دوباره محاسبه می‌کند.</td></tr>
+            <tr><td class="mono">data[].status</td><td class="mono">string</td><td><span class="mono">active</span> یا <span class="mono">inactive</span>.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/tickets</span>
+          <span class="endpoint-perm">ticket.issue</span>
+        </div>
+        <div class="endpoint-desc">صدور یک یا چند بلیط از یک نوع بلیت، در یک سفارش. نیازمند <span class="mono">Idempotency-Key</span>.</div>
+        <span class="params-label">بدنه‌ی درخواست</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">product_id</td><td class="mono">int</td><td class="req-yes">بله</td><td>باید در محصولات مجاز این اکانت باشد.</td></tr>
+            <tr><td class="mono">ticket_variant_id</td><td class="mono">int</td><td class="req-yes">بله</td><td>باید متعلق به همان <span class="mono">product_id</span> باشد.</td></tr>
+            <tr><td class="mono">quantity</td><td class="mono">int</td><td class="req-no">خیر (پیش‌فرض ۱)</td><td>بین ۱ تا ۵۰.</td></tr>
+            <tr><td class="mono">customer_name</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
+            <tr><td class="mono">customer_phone</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۳۲ کاراکتر.</td></tr>
+            <tr><td class="mono">discount_code</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۵۰ کاراکتر؛ در لحظه‌ی صدور اعتبارسنجی و مصرف می‌شود.</td></tr>
+            <tr><td class="mono">external_order_id</td><td class="mono">string</td><td class="req-no">خیر</td><td>شناسه‌ی سفارش در سامانه‌ی شما، برای ردیابی متقابل.</td></tr>
+            <tr><td class="mono">payment_reference</td><td class="mono">string</td><td class="req-no">خیر</td><td>اگر ارسال شود و مبلغ سفارش &gt; ۰ باشد، یک پرداخت «تسویه‌شده» با همین مرجع ثبت می‌شود.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -s -X POST .../tickets \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "product_id": 5,
+    "ticket_variant_id": 3,
+    "quantity": 2,
+    "discount_code": "SAVE10"
+  }'</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 201</div>
+            <pre><code>{
+  "order_id": 481,
+  "final_amount": 360000,
+  "currency": "IRR",
+  "tickets": [
+    { "ticket_id": 901,
+      "ticket_number": "TKT-260927-000123",
+      "qr_payload": "...",
+      "allowed_uses": 1,
+      "remaining_uses": 1 }
+  ]
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/tickets/{ticket_number}</span>
+          <span class="endpoint-perm">ticket.read</span>
+        </div>
+        <div class="endpoint-desc">جزئیات یک بلیط با شماره‌ی آن - فقط اگر این اکانت آن را صادر کرده باشد. پاسخ شامل <span class="mono">ticket_number</span>، <span class="mono">qr_payload</span> (مقداری که باید عیناً در QR کد‌گذاری شود)، بازه‌ی اعتبار و تعداد مصرف باقی‌مانده است.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/tickets/{ticket_number}/reprint</span>
+          <span class="endpoint-perm">ticket.reprint</span>
+        </div>
+        <div class="endpoint-desc">ثبت یک لاگ چاپ مجدد و بازگرداندن همان بلیط/QR - هرگز بلیط جدید نمی‌سازد و اعتبار/مصرف را تغییر نمی‌دهد.</div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/tickets/{ticket_number}/refund</span>
+          <span class="endpoint-perm">ticket.refund</span>
+        </div>
+        <div class="endpoint-desc">بازپرداخت یک بلیط (وضعیت آن Refunded می‌شود و دیگر از گیت رد نمی‌شود). نیازمند <span class="mono">Idempotency-Key</span>؛ بلیط قبلاً لغو یا مسترد‌شده <span class="mono">422 VALIDATION_ERROR</span> می‌دهد.</div>
+        <span class="params-label">بدنه‌ی درخواست</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">reason</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
+            <tr><td class="mono">reference</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۱۰۰ کاراکتر - مثلاً شماره‌ی پیگیری بانکی.</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/discount-codes/validate</span>
+          <span class="endpoint-perm">discount_code.validate</span>
+        </div>
+        <div class="endpoint-desc">پیش‌بررسی یک کد تخفیف روی یک نوع بلیط، بدون مصرف واقعی آن (بدون Idempotency-Key، چون هیچ رکوردی نمی‌سازد).</div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">Request</div>
+            <pre><code>{ "code": "SAVE10", "ticket_variant_id": 3 }</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 200</div>
+            <pre><code>{ "valid": true, "subtotal": 200000,
+  "discount_amount": 20000, "final_amount": 180000 }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/gates/{gate_code}/scan</span>
+          <span class="endpoint-perm">gate.scan</span>
+        </div>
+        <div class="endpoint-desc">اعتبارسنجی و مصرف یک بلیط در یک دروازه‌ی مشخص - برای اسکنرهای مستقل که کاربر پرسنلی وارد نشده‌اند. همیشه <span class="mono">200</span> برمی‌گرداند؛ نتیجه در فیلد <span class="mono">result</span> (<span class="mono">success</span> یا <span class="mono">rejected</span>) است.</div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">Request</div>
+            <pre><code>{ "qr_token": "..." }</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 200</div>
+            <pre><code>{ "result": "success", "reason": null,
+  "ticket_number": "TKT-260927-000123",
+  "usage_number": 1 }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <h3 id="ch-13-hospitality">اقامتی و هتلداری</h3>
+      <p>استعلام موجودی اتاق و ثبت رزرو - برای موتور رزرو آنلاین یا یک OTA بیرونی.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/rooms/availability?check_in=&check_out=&room_type_id=</span>
+          <span class="endpoint-perm">room.read</span>
+        </div>
+        <div class="endpoint-desc">فهرست اتاق‌های فعال و آزاد در بازه‌ی تاریخی داده‌شده.</div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -s -G .../rooms/availability \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  --data-urlencode "check_in=2026-11-02" \
+  --data-urlencode "check_out=2026-11-04"</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 200</div>
+            <pre><code>{ "data": [
+  { "room_id": 14, "name": "اتاق ۱۰۱",
+    "room_type": {"id": 2, "name": "دبل"},
+    "price_for_stay": 4500000 } ] }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/bookings</span>
+          <span class="endpoint-perm">booking.create</span>
+        </div>
+        <div class="endpoint-desc">ثبت یک رزرو قطعی روی یک اتاق مشخص. نیازمند <span class="mono">Idempotency-Key</span>؛ در صورت هم‌زمانی دو درخواست روی یک اتاق و بازه‌ی هم‌پوشان، فقط یکی رزرو شده و دیگری <span class="mono">409 CONFLICT</span> می‌گیرد.</div>
+        <span class="params-label">بدنه‌ی درخواست</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">room_id</td><td class="mono">int</td><td class="req-yes">بله</td><td>—</td></tr>
+            <tr><td class="mono">check_in_date / check_out_date</td><td class="mono">date</td><td class="req-yes">بله</td><td>خروج باید بعد از ورود باشد.</td></tr>
+            <tr><td class="mono">adults_count / children_count</td><td class="mono">int</td><td class="req-no">خیر</td><td>پیش‌فرض ۱ و ۰.</td></tr>
+            <tr><td class="mono">sales_channel_id</td><td class="mono">int</td><td class="req-no">خیر</td><td>در صورت ارسال، منبع رزرو <span class="mono">ota</span> ثبت می‌شود.</td></tr>
+            <tr><td class="mono">notes</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۱۰۰۰ کاراکتر.</td></tr>
+            <tr><td class="mono">guest.name / guest.mobile</td><td class="mono">string</td><td class="req-yes">بله</td><td>موبایل کلید یکتاسازی مهمان است.</td></tr>
+            <tr><td class="mono">guest.national_code / guest.email</td><td class="mono">string</td><td class="req-no">خیر</td><td>—</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -s -X POST .../bookings \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "room_id": 14,
+    "check_in_date": "2026-11-02",
+    "check_out_date": "2026-11-05",
+    "guest": {"name": "مریم احمدی", "mobile": "09121112233"}
+  }'</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 201</div>
+            <pre><code>{
+  "booking_id": 91,
+  "reference_code": "BKG-2609-0091",
+  "status": "confirmed",
+  "nights": 3,
+  "total_amount": 4500000
+}</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/bookings/{reference_code}</span>
+          <span class="endpoint-perm">booking.read</span>
+        </div>
+        <div class="endpoint-desc">جزئیات یک رزرو با کد مرجع آن - فقط اگر همین اکانت آن را ساخته باشد.</div>
+      </div>
+
+      <h3 id="ch-13-crm">CRM و سرنخ‌ها</h3>
+      <p>ثبت سرنخ‌های ورودی از سایت، لندینگ تبلیغاتی یا هر فرم بیرونی، مستقیم در همان قیف فروش داخلی.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/deals</span>
+          <span class="endpoint-perm">deal.create</span>
+        </div>
+        <div class="endpoint-desc">ثبت یک سرنخ جدید (همیشه در مرحله‌ی <span class="mono">new_lead</span> شروع می‌شود)، با ساخت خودکار مشتری در صورت نبودش. نیازمند <span class="mono">Idempotency-Key</span>.</div>
+        <span class="params-label">بدنه‌ی درخواست</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">title</td><td class="mono">string</td><td class="req-yes">بله</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
+            <tr><td class="mono">value</td><td class="mono">int</td><td class="req-no">خیر</td><td>ارزش تخمینی معامله به ریال.</td></tr>
+            <tr><td class="mono">source</td><td class="mono">string</td><td class="req-no">خیر (پیش‌فرض online)</td><td>یکی از: <span class="mono">walk_in</span>, <span class="mono">phone</span>, <span class="mono">online</span>, <span class="mono">referral</span>, <span class="mono">social_media</span>, <span class="mono">other</span>.</td></tr>
+            <tr><td class="mono">expected_close_date / notes</td><td class="mono">date / string</td><td class="req-no">خیر</td><td>notes حداکثر ۲۰۰۰ کاراکتر.</td></tr>
+            <tr><td class="mono">guest.name / guest.mobile</td><td class="mono">string</td><td class="req-no">اگر guest ارسال شود بله</td><td>—</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -s -X POST .../deals \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "درخواست تور از سایت",
+    "value": 5000000,
+    "guest": {"name": "نیما کریمی", "mobile": "09129998877"}
+  }'</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 201</div>
+            <pre><code>{
+  "deal_id": 233,
+  "title": "درخواست تور از سایت",
+  "stage": "new_lead",
+  "value": 5000000
+}</code></pre>
+          </div>
+        </div>
+        <p style="margin-top:.6rem">مراحل ممکن برای <span class="mono">stage</span> (فقط از پنل تغییر می‌کند): <span class="mono">new_lead</span>, <span class="mono">needs_assessment</span>, <span class="mono">proposal_sent</span>, <span class="mono">negotiation</span>, <span class="mono">won</span>, <span class="mono">lost</span>.</p>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/deals/{id}</span>
+          <span class="endpoint-perm">deal.read</span>
+        </div>
+        <div class="endpoint-desc">جزئیات یک سرنخ با شناسه‌ی آن - فقط اگر همین اکانت آن را ساخته باشد.</div>
+      </div>
+
+      <h3 id="ch-13-forms">فرم‌ساز (ثبت عمومی فرم)</h3>
+      <p>درج مستقیم پاسخ یک فرم داخلی از یک وب‌سایت یا اپلیکیشن بیرونی - دقیقاً از همان مسیر تأیید/گردش‌کاری که یک ثبت داخلی طی می‌کند.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/form-templates/{form_template_id}/submissions</span>
+          <span class="endpoint-perm">form_submission.create</span>
+        </div>
+        <div class="endpoint-desc">ثبت یک پاسخ جدید برای یک قالب فعال. فیلدهای نوع فایل/امضا/GPS/جدول از این مسیر پشتیبانی نمی‌شوند.</div>
+        <span class="params-label">بدنه‌ی درخواست</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">values</td><td class="mono">object</td><td class="req-no">خیر</td><td>نگاشت <span class="mono">field_key</span> ← مقدار، برای هر فیلد قالب.</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">curl</div>
+            <pre><code>curl -s -X POST .../form-templates/7/submissions \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -H "Content-Type: application/json" \
+  -d '{"values": {"full_name": "زهرا محمدی"}}'</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 201</div>
+            <pre><code>{ "submission_id": 77,
+  "reference_code": "FRM-...",
+  "status": "approved" }</code></pre>
+          </div>
+        </div>
+      </div>
+
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <div>
+          <span class="label">پیش‌نیاز اکانت</span>
+          <p>اکانتی که این مسیر را صدا می‌زند باید یک «کاربر ثبت به نام» (<span class="mono">created_by</span>) تنظیم‌شده داشته باشد - در پنل، هنگام ساخت اکانت API. بدون آن، پاسخ <span class="mono">422 CONFIGURATION_ERROR</span> برمی‌گردد.</p>
+        </div>
+      </div>
+
+      <h3 id="ch-13-documents">مدیریت اسناد</h3>
+      <p>بارگذاری و دریافت فایل، مستقیم در سیستم مدیریت اسناد پنل (پوشه‌ها، تاریخچه‌ی نسخه‌ها و سطح دسترسی یکسان).</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/documents</span>
+          <span class="endpoint-perm">document.upload</span>
+        </div>
+        <div class="endpoint-desc">بارگذاری یک فایل (<span class="mono">multipart/form-data</span>). نیازمند <span class="mono">Idempotency-Key</span>.</div>
+        <span class="params-label">فیلدهای فرم (multipart)</span>
+        <div class="tbl"><table class="ref">
+          <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">title</td><td class="mono">string</td><td class="req-yes">بله</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
+            <tr><td class="mono">file</td><td class="mono">file</td><td class="req-yes">بله</td><td>حداکثر حجم ۱۰٬۲۴۰ کیلوبایت.</td></tr>
+            <tr><td class="mono">access_level</td><td class="mono">string</td><td class="req-no">خیر (پیش‌فرض restricted)</td><td><span class="mono">public_internal</span>, <span class="mono">department_only</span>, <span class="mono">restricted</span>.</td></tr>
+            <tr><td class="mono">department_id</td><td class="mono">int</td><td class="req-no">فقط با department_only بله</td><td>—</td></tr>
+          </tbody>
+        </table></div>
+        <div class="code-block full">
+          <div class="code-label">curl</div>
+          <pre><code>curl -s -X POST .../documents \
+  -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET" \
+  -H "Idempotency-Key: $(uuidgen)" \
+  -F "title=قرارداد اجاره اتاق" \
+  -F "file=@/path/to/contract.pdf"</code></pre>
+        </div>
+      </div>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/documents/{id}/download</span>
+          <span class="endpoint-perm">document.read</span>
+        </div>
+        <div class="endpoint-desc">دریافت مستقیم فایل جاری یک سند - فقط اگر همین اکانت آن را بارگذاری کرده باشد.</div>
+      </div>
+
+      <h3 id="ch-13-webhooks">وب‌هوک‌های خروجی</h3>
+      <p>اطلاع‌رسانی لحظه‌ای رویدادهای کلیدی (اسکن موفق/ناموفق بلیط، ثبت رزرو، تغییر مرحله‌ی سرنخ) به سامانه‌ی بیرونی، به‌جای Polling.</p>
+
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-post">POST</span>
+          <span class="endpoint-path">/webhooks</span>
+          <span class="endpoint-perm">webhook.manage</span>
+        </div>
+        <div class="endpoint-desc">ثبت یک اشتراک جدید. <span class="mono">signing_secret</span> فقط همین یک‌بار برگردانده می‌شود.</div>
+        <div class="code-cols">
+          <div class="code-block">
+            <div class="code-label">Request</div>
+            <pre><code>{ "event_type": "booking.created",
+  "target_url": "https://example.com/hooks/bookings" }</code></pre>
+          </div>
+          <div class="code-block">
+            <div class="code-label">Response · 201</div>
+            <pre><code>{ "webhook_subscription_id": 4,
+  "event_type": "booking.created",
+  "signing_secret": "ONLY-SHOWN-ONCE..." }</code></pre>
+          </div>
+        </div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-get">GET</span>
+          <span class="endpoint-path">/webhooks</span>
+          <span class="endpoint-perm">webhook.manage</span>
+        </div>
+        <div class="endpoint-desc">فهرست اشتراک‌های همین اکانت (بدون secret).</div>
+      </div>
+      <div class="endpoint">
+        <div class="endpoint-head">
+          <span class="method method-delete">DELETE</span>
+          <span class="endpoint-path">/webhooks/{id}</span>
+          <span class="endpoint-perm">webhook.manage</span>
+        </div>
+        <div class="endpoint-desc">لغو یک اشتراک.</div>
+      </div>
+
+      <p style="margin-top:1.4rem"><b>رویدادهای پشتیبانی‌شده:</b></p>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>event_type</th><th>زمان ارسال</th></tr></thead>
+        <tbody>
+          <tr><td class="mono"><code>ticket.scanned</code></td><td>اسکن موفق یک بلیط در گیت</td></tr>
+          <tr><td class="mono"><code>ticket.rejected</code></td><td>رد شدن یک اسکن در گیت</td></tr>
+          <tr><td class="mono"><code>booking.created</code></td><td>ثبت یک رزرو جدید متعلق به همین اکانت</td></tr>
+          <tr><td class="mono"><code>deal.stage_changed</code></td><td>تغییر مرحله‌ی یک سرنخ متعلق به همین اکانت</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="code-cols" style="margin-top:.5rem">
+        <div class="code-block">
+          <div class="code-label">بدنه‌ی هر رویداد ارسالی</div>
+          <pre><code>{ "event": "ticket.scanned",
+  "data": {"ticket_number": "...", "result": "success"},
+  "sent_at": "2026-09-27T10:00:00+00:00" }</code></pre>
+        </div>
+        <div class="code-block">
+          <div class="code-label">هدرهای این درخواست</div>
+          <pre><code>X-Webhook-Event: ticket.scanned
+X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
+        </div>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l8 4v6c0 5-3.4 8.4-8 10-4.6-1.6-8-5-8-10V6l8-4Z"/></svg>
+        <div>
+          <span class="label">اعتبارسنجی امضا</span>
+          <p>امضا روی <b>بدنه‌ی خام</b> درخواست محاسبه شده - آن را روی همان بایت‌های خام دریافتی بازمحاسبه کنید (PHP: <span class="mono">hash_hmac('sha256', $rawBody, $secret)</span>)، نه روی نسخه‌ای که دوباره JSON.stringify کرده‌اید.</p>
+        </div>
+      </div>
+
+      <h3 id="ch-13-errors">مرجع کدهای خطا</h3>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>HTTP</th><th>code</th><th>معنی</th></tr></thead>
+        <tbody>
+          <tr><td>400</td><td class="mono"><code>INVALID_REQUEST</code></td><td>هدر <span class="mono">Idempotency-Key</span> فرستاده نشده.</td></tr>
+          <tr><td>401</td><td class="mono"><code>UNAUTHORIZED</code></td><td>کلید/رمز API نامعتبر یا اکانت غیرفعال است.</td></tr>
+          <tr><td>403</td><td class="mono"><code>FORBIDDEN</code></td><td>اکانت مجوز این عملیات را ندارد.</td></tr>
+          <tr><td>404</td><td class="mono"><code>NOT_FOUND</code></td><td>رکورد یافت نشد، یا متعلق به اکانت دیگری است.</td></tr>
+          <tr><td>409</td><td class="mono"><code>CONFLICT</code></td><td>همان Idempotency-Key با بدنه‌ی متفاوت، یا تداخل منبع.</td></tr>
+          <tr><td>422</td><td class="mono"><code>VALIDATION_ERROR</code></td><td>ورودی نامعتبر یا ناقص است.</td></tr>
+          <tr><td>422</td><td class="mono"><code>CONFIGURATION_ERROR</code></td><td>پیش‌نیازی روی خود اکانت تنظیم نشده.</td></tr>
+          <tr><td>429</td><td class="mono"><code>RATE_LIMITED</code></td><td>سقف درخواست در دقیقه‌ی این اکانت رد شده.</td></tr>
+        </tbody>
+      </table></div>
+
+      <h3 id="ch-13-permissions">مرجع کامل مجوزها (Operations)</h3>
+      <p>هر اکانت API یک فهرست «عملیات‌های مجاز» دارد که از پنل «اکانت‌های API خارجی» تنظیم می‌شود.</p>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>operation</th><th>endpoint</th><th>توضیح</th></tr></thead>
+        <tbody>
+          <tr><td class="mono">product.read</td><td class="mono">GET /products</td><td>مشاهده‌ی محصولات گیشه بلیط.</td></tr>
+          <tr><td class="mono">ticket_variant.read</td><td class="mono">GET /ticket-variants</td><td>مشاهده‌ی انواع بلیت.</td></tr>
+          <tr><td class="mono">ticket.issue</td><td class="mono">POST /tickets</td><td>صدور بلیط.</td></tr>
+          <tr><td class="mono">ticket.read</td><td class="mono">GET /tickets/{ticket_number}</td><td>مشاهده‌ی بلیط.</td></tr>
+          <tr><td class="mono">ticket.reprint</td><td class="mono">POST /tickets/{ticket_number}/reprint</td><td>چاپ مجدد بلیط.</td></tr>
+          <tr><td class="mono">ticket.refund</td><td class="mono">POST /tickets/{ticket_number}/refund</td><td>بازپرداخت بلیط.</td></tr>
+          <tr><td class="mono">discount_code.validate</td><td class="mono">POST /discount-codes/validate</td><td>اعتبارسنجی کد تخفیف.</td></tr>
+          <tr><td class="mono">gate.scan</td><td class="mono">POST /gates/{gate_code}/scan</td><td>اسکن مستقل گیت.</td></tr>
+          <tr><td class="mono">room.read</td><td class="mono">GET /rooms/availability</td><td>مشاهده‌ی موجودی اتاق.</td></tr>
+          <tr><td class="mono">booking.create</td><td class="mono">POST /bookings</td><td>ثبت رزرو.</td></tr>
+          <tr><td class="mono">booking.read</td><td class="mono">GET /bookings/{reference_code}</td><td>مشاهده‌ی رزرو.</td></tr>
+          <tr><td class="mono">deal.create</td><td class="mono">POST /deals</td><td>ثبت سرنخ (CRM).</td></tr>
+          <tr><td class="mono">deal.read</td><td class="mono">GET /deals/{id}</td><td>مشاهده‌ی سرنخ (CRM).</td></tr>
+          <tr><td class="mono">form_submission.create</td><td class="mono">POST /form-templates/{id}/submissions</td><td>ثبت پاسخ فرم.</td></tr>
+          <tr><td class="mono">document.upload</td><td class="mono">POST /documents</td><td>بارگذاری سند.</td></tr>
+          <tr><td class="mono">document.read</td><td class="mono">GET /documents/{id}/download</td><td>دانلود سند.</td></tr>
+          <tr><td class="mono">webhook.manage</td><td class="mono">POST|GET|DELETE /webhooks</td><td>ثبت/فهرست/حذف اشتراک وب‌هوک.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+        <div>
+          <span class="label">اصل کمترین دسترسی</span>
+          <p>فقط عملیات‌هایی که واقعاً استفاده می‌کنید را برای هر اکانت فعال کنید. یک اکانت می‌تواند به فهرست مشخصی از محصولات هم محدود شود (خالی = دسترسی به همه‌ی محصولات).</p>
+        </div>
+      </div>
+    </div>
   </section>
 
   <!-- ============ COLOPHON ============ -->
