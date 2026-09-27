@@ -49,6 +49,16 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->userMenuItems([
+                // A screenshot-illustrated walkthrough of every module - a
+                // plain static view (resources/views/system-guide.blade.php),
+                // not a Filament page, so it renders as its own full
+                // document instead of being wrapped in the panel's chrome.
+                // Kept up to date by hand alongside new features.
+                MenuItem::make()
+                    ->label('راهنمای سیستم')
+                    ->icon(Heroicon::OutlinedBookOpen)
+                    ->url(fn () => route('system-guide'))
+                    ->openUrlInNewTab(),
                 MenuItem::make()
                     ->label('تنظیمات هوش مصنوعی')
                     ->icon(Heroicon::OutlinedCog6Tooth)
