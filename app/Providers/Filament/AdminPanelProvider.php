@@ -60,11 +60,6 @@ class AdminPanelProvider extends PanelProvider
                     ->url(fn () => route('system-guide'))
                     ->openUrlInNewTab(),
                 MenuItem::make()
-                    ->label('مستندات API')
-                    ->icon(Heroicon::OutlinedCodeBracketSquare)
-                    ->url(fn () => route('api-docs'))
-                    ->openUrlInNewTab(),
-                MenuItem::make()
                     ->label('تنظیمات هوش مصنوعی')
                     ->icon(Heroicon::OutlinedCog6Tooth)
                     ->url(fn () => AiProviderResource::getUrl()),
