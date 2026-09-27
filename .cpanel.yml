@@ -8,3 +8,17 @@ deployment:
     - php artisan config:cache
     - php artisan route:cache
     - php artisan view:cache
+    # config:cache/route:cache/view:cache above only rebuild Laravel's own
+    # framework caches - they don't touch PHP's OPcache, which keeps
+    # compiled bytecode of every PHP class (controllers, Filament
+    # resources, everything) in shared memory across requests. Observed on
+    # this host: a deploy correctly pulled and migrated a commit (cPanel's
+    # own "Last Deployed SHA" matched it exactly) while web requests kept
+    # serving the PREVIOUS version of a changed class, because OPcache
+    # never noticed the file had changed. This resets OPcache from the CLI
+    # SAPI - on most EA-PHP/cPanel setups that shares the same shared-
+    # memory segment as PHP-FPM, so it also clears it there; if this
+    # host's config keeps them separate, the CLI reset is a harmless
+    # no-op and PHP-FPM still needs restarting some other way (e.g.
+    # reselecting the PHP version for the domain in MultiPHP Manager).
+    - php -r "if (function_exists('opcache_reset')) { opcache_reset(); }"
