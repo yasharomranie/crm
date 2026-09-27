@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Enums\EventReminderUnit;
 use Carbon\Carbon;
 use Database\Factories\EventReminderFactory;
 use Illuminate\Database\Eloquent\Builder;
@@ -15,7 +16,7 @@ class EventReminder extends Model
     use HasFactory;
 
     protected $fillable = [
-        'event_id', 'days_before', 'remind_time',
+        'event_id', 'minutes_before',
         'notify_push', 'notify_sms', 'notify_email', 'sent_at',
     ];
 
@@ -35,17 +36,31 @@ class EventReminder extends Model
     }
 
     /**
-     * The moment this reminder should fire: the event's own date, moved
-     * back by days_before, with its time-of-day replaced by remind_time
-     * (an independent, admin-chosen "alarm time" - e.g. an event on the
-     * 10th with days_before=1 and remind_time=09:00 fires on the 9th at
-     * 09:00, regardless of what time the event itself starts).
+     * The moment this reminder should fire: the event's own start time,
+     * moved back by minutes_before - a plain relative offset (e.g. "1 week
+     * before", "24 hours before", "1 hour before"), so it always tracks
+     * the event's actual start rather than an independently chosen clock
+     * time.
      */
     public function remindAt(): Carbon
     {
-        return $this->event->starts_at->copy()
-            ->subDays($this->days_before)
-            ->setTimeFromTimeString((string) $this->remind_time);
+        return $this->event->starts_at->copy()->subMinutes($this->minutes_before);
+    }
+
+    /**
+     * A human-readable "N ساعت قبل" / "N هفته قبل" label for the admin
+     * table - see EventReminderUnit::decompose() for how minutes_before is
+     * broken back down into the largest whole unit.
+     */
+    public function label(): string
+    {
+        $decomposed = EventReminderUnit::decompose($this->minutes_before);
+
+        if ($decomposed['value'] === 0) {
+            return 'همان لحظه‌ی شروع رویداد';
+        }
+
+        return "{$decomposed['value']} {$decomposed['unit']->getLabel()} قبل";
     }
 
     /**

@@ -16,16 +16,30 @@ class EventReminderSchedulingTest extends TestCase
 {
     use RefreshDatabase;
 
-    public function test_remind_at_subtracts_days_before_and_applies_the_configured_alarm_time(): void
+    public function test_remind_at_subtracts_minutes_before_from_the_events_start_time(): void
     {
         $event = Event::factory()->create(['starts_at' => '2026-10-10 18:00:00']);
         $reminder = EventReminder::factory()->create([
             'event_id' => $event->id,
-            'days_before' => 2,
-            'remind_time' => '09:30:00',
+            'minutes_before' => 60 * 24, // 24 hours before
         ]);
 
-        $this->assertSame('2026-10-08 09:30:00', $reminder->remindAt()->format('Y-m-d H:i:s'));
+        $this->assertSame('2026-10-09 18:00:00', $reminder->remindAt()->format('Y-m-d H:i:s'));
+    }
+
+    public function test_label_picks_the_largest_whole_unit_that_fits(): void
+    {
+        $event = Event::factory()->create();
+
+        $week = EventReminder::factory()->create(['event_id' => $event->id, 'minutes_before' => 60 * 24 * 7]);
+        $hours24 = EventReminder::factory()->create(['event_id' => $event->id, 'minutes_before' => 60 * 24]);
+        $hour = EventReminder::factory()->create(['event_id' => $event->id, 'minutes_before' => 60]);
+        $oddMinutes = EventReminder::factory()->create(['event_id' => $event->id, 'minutes_before' => 90]);
+
+        $this->assertSame('1 هفته قبل', $week->label());
+        $this->assertSame('1 روز قبل', $hours24->label());
+        $this->assertSame('1 ساعت قبل', $hour->label());
+        $this->assertSame('90 دقیقه قبل', $oddMinutes->label());
     }
 
     public function test_the_command_sends_a_due_reminder_to_every_participant_and_marks_it_sent(): void
@@ -38,8 +52,7 @@ class EventReminderSchedulingTest extends TestCase
 
         $reminder = EventReminder::factory()->create([
             'event_id' => $event->id,
-            'days_before' => 1,
-            'remind_time' => now()->format('H:i:s'),
+            'minutes_before' => 60 * 24,
         ]);
 
         $this->artisan('events:send-reminders')->assertSuccessful();
@@ -55,8 +68,7 @@ class EventReminderSchedulingTest extends TestCase
         $event = Event::factory()->create(['starts_at' => now()->addDays(5)]);
         $reminder = EventReminder::factory()->create([
             'event_id' => $event->id,
-            'days_before' => 1,
-            'remind_time' => now()->addHours(2)->format('H:i:s'),
+            'minutes_before' => 60 * 24 * 4, // fires 1 day from now, not yet
         ]);
 
         $this->artisan('events:send-reminders')->assertSuccessful();
@@ -74,8 +86,7 @@ class EventReminderSchedulingTest extends TestCase
 
         EventReminder::factory()->create([
             'event_id' => $event->id,
-            'days_before' => 1,
-            'remind_time' => now()->format('H:i:s'),
+            'minutes_before' => 60 * 24,
         ]);
 
         $this->artisan('events:send-reminders');
@@ -126,8 +137,7 @@ class EventReminderSchedulingTest extends TestCase
 
         EventReminder::factory()->create([
             'event_id' => $event->id,
-            'days_before' => 1,
-            'remind_time' => now()->format('H:i:s'),
+            'minutes_before' => 60 * 24,
         ]);
 
         $this->artisan('events:send-reminders');

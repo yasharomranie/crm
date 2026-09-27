@@ -20,8 +20,7 @@ class EventReminderFactory extends Factory
     {
         return [
             'event_id' => Event::factory(),
-            'days_before' => fake()->numberBetween(0, 3),
-            'remind_time' => '09:00:00',
+            'minutes_before' => fake()->randomElement([60, 60 * 24, 60 * 24 * 7]),
             'notify_push' => true,
             'notify_sms' => false,
             'notify_email' => false,
