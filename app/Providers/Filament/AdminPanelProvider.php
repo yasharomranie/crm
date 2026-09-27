@@ -49,6 +49,15 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->userMenuItems([
+                // Points at a Claude-published Artifact (a screenshot-illustrated
+                // walkthrough of every module), not a page in this app - kept
+                // up to date by hand alongside new features, so its URL isn't
+                // stored anywhere more structured than this one line.
+                MenuItem::make()
+                    ->label('راهنمای سیستم')
+                    ->icon(Heroicon::OutlinedBookOpen)
+                    ->url('https://claude.ai/artifact/LaYcaduHmsj2uh3hjqqruN')
+                    ->openUrlInNewTab(),
                 MenuItem::make()
                     ->label('تنظیمات هوش مصنوعی')
                     ->icon(Heroicon::OutlinedCog6Tooth)
