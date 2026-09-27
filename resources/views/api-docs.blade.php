@@ -21,7 +21,7 @@
 
   * { box-sizing: border-box; }
 
-  html, body { margin: 0; padding: 0; }
+  html, body { margin: 0; padding: 0; overflow-x: hidden; }
 
   :root {
     --paper: #fbf9f6;
@@ -124,6 +124,7 @@
     font-family: ui-monospace, 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
     direction: ltr;
     unicode-bidi: isolate;
+    overflow-wrap: anywhere;
   }
 
   /* ---------- Top identity bar ---------- */
@@ -194,8 +195,8 @@
   .method-get { color: var(--get); background: var(--get-bg); }
   .method-post { color: var(--post); background: var(--post-bg); }
   .method-delete { color: var(--delete); background: var(--delete-bg); }
-  .endpoint-path { font-family: ui-monospace, monospace; font-size: .88rem; direction: ltr; unicode-bidi: isolate; }
-  .endpoint-perm { margin-inline-start: auto; font-size: .72rem; color: var(--ink-faint); font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; }
+  .endpoint-path { font-family: ui-monospace, monospace; font-size: .88rem; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; min-width: 0; }
+  .endpoint-perm { margin-inline-start: auto; font-size: .72rem; color: var(--ink-faint); font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; }
   .endpoint-desc { color: var(--ink-soft); font-size: .9rem; margin-top: .7rem; }
   .code-cols { display: grid; grid-template-columns: 1fr 1fr; gap: .9rem; margin-top: .9rem; }
   .code-block { min-width: 0; }
@@ -218,10 +219,11 @@
   .callout p { margin: 0; color: var(--ink); font-size: .88rem; }
 
   /* ---------- Reference / parameter tables ---------- */
-  table.ref { width: 100%; border-collapse: collapse; margin-block: 1rem; font-size: .86rem; }
-  table.ref th, table.ref td { text-align: right; padding: .55rem .7rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; }
+  .tbl { overflow-x: auto; margin-block: 1rem; }
+  table.ref { width: 100%; border-collapse: collapse; margin-block: 0; font-size: .86rem; }
+  table.ref th, table.ref td { text-align: right; padding: .55rem .7rem; border-bottom: 1px solid var(--border-soft); vertical-align: top; overflow-wrap: anywhere; }
   table.ref th { color: var(--ink-faint); font-size: .72rem; text-transform: uppercase; letter-spacing: .03em; font-family: ui-monospace, monospace; }
-  table.ref td.mono, table.ref code { font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; }
+  table.ref td.mono, table.ref code { font-family: ui-monospace, monospace; direction: ltr; unicode-bidi: isolate; overflow-wrap: anywhere; }
   table.ref td.req-yes { color: var(--post); font-size: .78rem; font-weight: 700; }
   table.ref td.req-no { color: var(--ink-faint); font-size: .78rem; }
   .params-label { font-size: .74rem; letter-spacing: .03em; color: var(--ink-faint); text-transform: uppercase; font-family: ui-monospace, monospace; margin-top: 1.1rem; margin-bottom: -.4rem; display: block; }
@@ -371,7 +373,7 @@ Content-Type: application/json</code></pre>
           </p>
         </div>
       </div>
-      <table class="ref">
+      <div class="tbl"><table class="ref">
         <thead><tr><th>وضعیت درخواست تکراری</th><th>پاسخ</th></tr></thead>
         <tbody>
           <tr><td>همان کلید + همان بدنه‌ی دقیق درخواست</td><td>همان پاسخ اولین بار (همان کد وضعیت و همان بدنه) دوباره و بدون ساخت رکورد جدید برگردانده می‌شود.</td></tr>
@@ -379,7 +381,7 @@ Content-Type: application/json</code></pre>
           <tr><td>دو درخواست هم‌زمان با کلید و بدنه‌ی یکسان</td><td>هر دو یک رکورد می‌سازند تا زمانی که یکی commit شود؛ دیگری به‌طور خودکار پاسخ همان رکورد را برمی‌گرداند (بدون رکورد تکراری).</td></tr>
           <tr><td>کلید تازه (هنوز دیده نشده)</td><td>درخواست به‌طور عادی پردازش و رکورد ساخته می‌شود.</td></tr>
         </tbody>
-      </table>
+      </table></div>
       <p>کلیدها به‌صورت دائمی نگه‌داشته می‌شوند - از یک کلید فقط یک‌بار، برای یک عملیات مشخص، استفاده کنید (مثلاً UUID تصادفی برای هر تراکنش واقعی، نه یک مقدار ثابت).</p>
 
       <p style="margin-top:1.4rem">
@@ -459,7 +461,7 @@ Content-Type: application/json</code></pre>
   -H "X-API-Key: $KEY" -H "X-API-Secret: $SECRET"</code></pre>
         </div>
         <span class="params-label">پاسخ · Response fields</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">data[].id</td><td class="mono">int</td><td>شناسه‌ی محصول.</td></tr>
@@ -468,7 +470,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">data[].status</td><td class="mono">string</td><td><span class="mono">active</span> یا <span class="mono">inactive</span>.</td></tr>
             <tr><td class="mono">data[].variants[]</td><td class="mono">array</td><td>انواع بلیت فعال این محصول: <span class="mono">id</span>, <span class="mono">code</span>, <span class="mono">name</span>.</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <div class="endpoint">
@@ -479,14 +481,14 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">فهرست انواع بلیت فعال، با فیلتر اختیاری روی محصول.</div>
         <span class="params-label">پارامترهای Query</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>پارامتر</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">product_id</td><td class="mono">int</td><td class="req-no">خیر</td><td>فقط انواع بلیت همین محصول.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <span class="params-label">پاسخ · Response fields</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">data[].variant_id</td><td class="mono">int</td><td>شناسه‌ی نوع بلیت.</td></tr>
@@ -497,7 +499,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">data[].price</td><td class="mono">int|null</td><td>قیمت فعلی به ریال - فقط اطلاعاتی؛ سرور همیشه قیمت واقعی را در لحظه‌ی صدور دوباره محاسبه می‌کند.</td></tr>
             <tr><td class="mono">data[].status</td><td class="mono">string</td><td><span class="mono">active</span> یا <span class="mono">inactive</span>.</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <div class="endpoint">
@@ -508,7 +510,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">صدور یک یا چند بلیط از یک نوع بلیت، در یک سفارش. نیازمند <span class="mono">Idempotency-Key</span>.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">product_id</td><td class="mono">int</td><td class="req-yes">بله</td><td>باید در محصولات مجاز این اکانت باشد.</td></tr>
@@ -520,7 +522,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">external_order_id</td><td class="mono">string</td><td class="req-no">خیر</td><td>شناسه‌ی سفارش در سامانه‌ی شما، برای ردیابی متقابل.</td></tr>
             <tr><td class="mono">payment_reference</td><td class="mono">string</td><td class="req-no">خیر</td><td>اگر ارسال شود و مبلغ سفارش &gt; ۰ باشد، یک پرداخت «تسویه‌شده» با همین مرجع ثبت می‌شود.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -565,7 +567,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">جزئیات یک بلیط با شماره‌ی آن - فقط اگر این اکانت آن را صادر کرده باشد.</div>
         <span class="params-label">پاسخ · Response fields</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">ticket_id / ticket_number</td><td class="mono">int / string</td><td>شناسه‌ی داخلی و شماره‌ی چاپی بلیط.</td></tr>
@@ -574,7 +576,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">valid_from / valid_until</td><td class="mono">ISO 8601</td><td>بازه‌ی اعتبار.</td></tr>
             <tr><td class="mono">allowed_uses / remaining_uses</td><td class="mono">int</td><td>تعداد کل و باقی‌مانده‌ی مصرف مجاز.</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
 
       <div class="endpoint">
@@ -594,13 +596,13 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">بازپرداخت یک بلیط (وضعیت آن Refunded می‌شود و دیگر از گیت رد نمی‌شود). نیازمند <span class="mono">Idempotency-Key</span>؛ بلیط قبلاً لغو یا مسترد‌شده <span class="mono">422 VALIDATION_ERROR</span> می‌دهد.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">reason</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
             <tr><td class="mono">reference</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۱۰۰ کاراکتر - مثلاً شماره‌ی پیگیری بانکی.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -632,7 +634,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">پیش‌بررسی یک کد تخفیف روی یک نوع بلیط، بدون مصرف واقعی آن (بدون Idempotency-Key، چون هیچ رکوردی نمی‌سازد).</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">code</td><td class="mono">string</td><td class="req-yes">بله</td><td>حداکثر ۵۰ کاراکتر.</td></tr>
@@ -640,7 +642,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">quantity</td><td class="mono">int</td><td class="req-no">خیر (پیش‌فرض ۱)</td><td>بین ۱ تا ۵۰ - برای محاسبه‌ی جمع مبلغ.</td></tr>
             <tr><td class="mono">customer_phone</td><td class="mono">string</td><td class="req-no">خیر</td><td>برای بررسی سقف استفاده‌ی هر مشتری، در صورت تنظیم‌شدن روی کد.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">Request</div>
@@ -669,13 +671,13 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">اعتبارسنجی و مصرف یک بلیط در یک دروازه‌ی مشخص - برای اسکنرهای مستقل که کاربر پرسنلی وارد نشده‌اند. همیشه <span class="mono">200</span> برمی‌گرداند (حتی برای اسکن رد‌شده)؛ نتیجه در فیلد <span class="mono">result</span> است.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">qr_token</td><td class="mono">string</td><td class="req-yes">بله</td><td>مقدار خام <span class="mono">qr_payload</span> که روی QR کد‌گذاری شده.</td></tr>
             <tr><td class="mono">device_identifier</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۱۰۰ کاراکتر - برای ردیابی اینکه کدام دستگاه اسکن کرده.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">Request</div>
@@ -692,7 +694,7 @@ Content-Type: application/json</code></pre>
           </div>
         </div>
         <span class="params-label">مقادیر ممکن برای result / reason</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>result</th><th>reason (وقتی result=rejected)</th></tr></thead>
           <tbody>
             <tr><td class="mono">success</td><td>—</td></tr>
@@ -707,7 +709,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">refunded</td></tr>
             <tr><td class="mono">blocked</td></tr>
           </tbody>
-        </table>
+        </table></div>
       </div>
     </div>
   </section>
@@ -734,14 +736,14 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">فهرست اتاق‌های فعال و آزاد در بازه‌ی تاریخی داده‌شده (اتاقی که یک رزروِ غیرلغو‌شده با این بازه هم‌پوشانی داشته باشد، در نتیجه نیست).</div>
         <span class="params-label">پارامترهای Query</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>پارامتر</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">check_in</td><td class="mono">date</td><td class="req-yes">بله</td><td>فرمت <span class="mono">YYYY-MM-DD</span> (میلادی).</td></tr>
             <tr><td class="mono">check_out</td><td class="mono">date</td><td class="req-yes">بله</td><td>باید بعد از <span class="mono">check_in</span> باشد.</td></tr>
             <tr><td class="mono">room_type_id</td><td class="mono">int</td><td class="req-no">خیر</td><td>فیلتر روی نوع اتاق مشخص.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -771,7 +773,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">ثبت یک رزرو قطعی روی یک اتاق مشخص. نیازمند <span class="mono">Idempotency-Key</span>؛ در صورت هم‌زمانی دو درخواست روی یک اتاق و بازه‌ی هم‌پوشان، فقط یکی رزرو شده و دیگری <span class="mono">409 CONFLICT</span> می‌گیرد.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">room_id</td><td class="mono">int</td><td class="req-yes">بله</td><td>—</td></tr>
@@ -787,7 +789,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">guest.national_code</td><td class="mono">string</td><td class="req-no">خیر</td><td>حداکثر ۲۰ کاراکتر.</td></tr>
             <tr><td class="mono">guest.email</td><td class="mono">string</td><td class="req-no">خیر</td><td>ایمیل معتبر، حداکثر ۲۵۵ کاراکتر.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -853,7 +855,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">ثبت یک سرنخ جدید (همیشه در مرحله‌ی <span class="mono">new_lead</span> شروع می‌شود)، با ساخت خودکار مشتری در صورت نبودش (بر اساس شماره موبایل). نیازمند <span class="mono">Idempotency-Key</span>.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">title</td><td class="mono">string</td><td class="req-yes">بله</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
@@ -866,7 +868,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">guest.mobile</td><td class="mono">string</td><td class="req-no">با guest بله</td><td>حداکثر ۳۲ کاراکتر.</td></tr>
             <tr><td class="mono">guest.email</td><td class="mono">string</td><td class="req-no">خیر</td><td>ایمیل معتبر.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -931,12 +933,12 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">ثبت یک پاسخ جدید برای یک قالب فعال. فیلدهای نوع فایل/امضا/GPS/جدول از این مسیر پشتیبانی نمی‌شوند و اگر مقداری برایشان بفرستید یا الزامی باشند، <span class="mono">422 VALIDATION_ERROR</span> می‌گیرید. قالب غیرفعال یا ناموجود، <span class="mono">404 NOT_FOUND</span> می‌دهد.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">values</td><td class="mono">object</td><td class="req-no">خیر</td><td>نگاشت <span class="mono">field_key</span> ← مقدار، برای هر فیلد قالب. فیلدهای الزامیِ قالب باید مقدار داشته باشند وگرنه <span class="mono">422</span>.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -996,7 +998,7 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">بارگذاری یک فایل (<span class="mono">multipart/form-data</span>، نه JSON). نیازمند <span class="mono">Idempotency-Key</span> (کلید ترکیب‌شده با هش محتوای فایل، پس همان فایل با همان کلید دوباره سند تکراری نمی‌سازد).</div>
         <span class="params-label">فیلدهای فرم (multipart)</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">title</td><td class="mono">string</td><td class="req-yes">بله</td><td>حداکثر ۲۵۵ کاراکتر.</td></tr>
@@ -1004,7 +1006,7 @@ Content-Type: application/json</code></pre>
             <tr><td class="mono">access_level</td><td class="mono">string</td><td class="req-no">خیر (پیش‌فرض restricted)</td><td>یکی از: <span class="mono">public_internal</span>, <span class="mono">department_only</span>, <span class="mono">restricted</span>.</td></tr>
             <tr><td class="mono">department_id</td><td class="mono">int</td><td class="req-no">فقط با department_only بله</td><td>باید در جدول دپارتمان‌ها موجود باشد.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -1066,13 +1068,13 @@ Content-Type: application/json</code></pre>
         </div>
         <div class="endpoint-desc">ثبت یک اشتراک جدید. <span class="mono">signing_secret</span> فقط همین یک‌بار در پاسخ برگردانده می‌شود - در جای امن ذخیره کنید.</div>
         <span class="params-label">بدنه‌ی درخواست</span>
-        <table class="ref">
+        <div class="tbl"><table class="ref">
           <thead><tr><th>فیلد</th><th>نوع</th><th>الزامی</th><th>توضیح</th></tr></thead>
           <tbody>
             <tr><td class="mono">event_type</td><td class="mono">string</td><td class="req-yes">بله</td><td>یکی از چهار مقدار جدول پایین.</td></tr>
             <tr><td class="mono">target_url</td><td class="mono">string</td><td class="req-yes">بله</td><td>URL معتبر، حداکثر ۲۰۴۸ کاراکتر - باید HTTPS پذیرا باشد.</td></tr>
           </tbody>
-        </table>
+        </table></div>
         <div class="code-cols">
           <div class="code-block">
             <div class="code-label">curl</div>
@@ -1118,7 +1120,7 @@ Content-Type: application/json</code></pre>
       </div>
 
       <p style="margin-top:1.6rem"><b>رویدادهای پشتیبانی‌شده:</b></p>
-      <table class="ref">
+      <div class="tbl"><table class="ref">
         <thead><tr><th>event_type</th><th>زمان ارسال</th><th>فیلدهای data</th></tr></thead>
         <tbody>
           <tr><td class="mono"><code>ticket.scanned</code></td><td>اسکن موفق یک بلیط در گیت</td><td class="mono">ticket_number, gate, result, reason, usage_number, scanned_at</td></tr>
@@ -1126,7 +1128,7 @@ Content-Type: application/json</code></pre>
           <tr><td class="mono"><code>booking.created</code></td><td>ثبت یک رزرو جدید متعلق به همین اکانت</td><td class="mono">booking_id, reference_code, status, check_in, check_out</td></tr>
           <tr><td class="mono"><code>deal.stage_changed</code></td><td>تغییر مرحله‌ی یک سرنخ متعلق به همین اکانت</td><td class="mono">deal_id, title, stage, previous_stage</td></tr>
         </tbody>
-      </table>
+      </table></div>
 
       <div class="code-cols" style="margin-top:.5rem">
         <div class="code-block">
@@ -1197,7 +1199,7 @@ if (! hash_equals($expected, $signatureHeader)) {
       </div>
     </div>
     <div class="chapter-body">
-      <table class="ref">
+      <div class="tbl"><table class="ref">
         <thead><tr><th>HTTP</th><th>code</th><th>معنی</th></tr></thead>
         <tbody>
           <tr><td>400</td><td class="mono"><code>INVALID_REQUEST</code></td><td>هدر <span class="mono">Idempotency-Key</span> فرستاده نشده.</td></tr>
@@ -1209,7 +1211,7 @@ if (! hash_equals($expected, $signatureHeader)) {
           <tr><td>422</td><td class="mono"><code>CONFIGURATION_ERROR</code></td><td>پیش‌نیازی روی خود اکانت تنظیم نشده (مثلاً کاربر «ثبت به نام»).</td></tr>
           <tr><td>429</td><td class="mono"><code>RATE_LIMITED</code></td><td>سقف درخواست در دقیقه‌ی این اکانت رد شده.</td></tr>
         </tbody>
-      </table>
+      </table></div>
       <p>خطاهای استاندارد اعتبارسنجی Laravel (۴۲۲) که مستقیماً از <span class="mono">$request->validate()</span> می‌آیند، ساختار native خودِ Laravel (<span class="mono">{"message": ..., "errors": {...}}</span>) دارند، نه لزوماً همیشه شکل <span class="mono">{"error": {...}}</span> بالا - هر دو شکل را در سمت کلاینت پشتیبانی کنید.</p>
     </div>
   </section>
@@ -1227,7 +1229,7 @@ if (! hash_equals($expected, $signatureHeader)) {
     </div>
     <div class="chapter-body">
       <p class="lede">هر اکانت API یک فهرست «عملیات‌های مجاز» دارد که از پنل «اکانت‌های API خارجی» تنظیم می‌شود. این جدول، نگاشت کامل هر مجوز به همان endpointـی است که آن را بررسی می‌کند.</p>
-      <table class="ref">
+      <div class="tbl"><table class="ref">
         <thead><tr><th>operation</th><th>endpoint</th><th>توضیح</th></tr></thead>
         <tbody>
           <tr><td class="mono">product.read</td><td class="mono">GET /products</td><td>مشاهده‌ی محصولات گیشه بلیط.</td></tr>
@@ -1248,7 +1250,7 @@ if (! hash_equals($expected, $signatureHeader)) {
           <tr><td class="mono">document.read</td><td class="mono">GET /documents/{id}/download</td><td>دانلود سند.</td></tr>
           <tr><td class="mono">webhook.manage</td><td class="mono">POST|GET|DELETE /webhooks</td><td>ثبت/فهرست/حذف اشتراک وب‌هوک.</td></tr>
         </tbody>
-      </table>
+      </table></div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
         <div>
