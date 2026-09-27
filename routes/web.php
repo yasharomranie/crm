@@ -48,3 +48,16 @@ Route::middleware('auth')->group(function () {
     Route::post('/gate-scanner/{gate}/sync-scans', [GateOfflineSyncController::class, 'pushScans'])
         ->name('gate-scanner.sync-scans');
 });
+
+// Screenshot-illustrated walkthrough of the panel, linked from the admin
+// user menu (see AdminPanelProvider) - a plain static view, not a Filament
+// page, so it renders as its own full document instead of being wrapped in
+// the panel's chrome. Kept out of the 'auth' group above: that middleware's
+// default guest redirect targets a route named 'login', which doesn't
+// exist in this app (Filament's own is 'filament.admin.auth.login'), so it
+// 500s instead of redirecting - checking manually here sidesteps that.
+Route::get('/system-guide', function () {
+    return auth()->check()
+        ? view('system-guide')
+        : redirect()->route('filament.admin.auth.login');
+})->name('system-guide');

@@ -49,14 +49,15 @@ class AdminPanelProvider extends PanelProvider
                 'primary' => Color::Amber,
             ])
             ->userMenuItems([
-                // Points at a Claude-published Artifact (a screenshot-illustrated
-                // walkthrough of every module), not a page in this app - kept
-                // up to date by hand alongside new features, so its URL isn't
-                // stored anywhere more structured than this one line.
+                // A screenshot-illustrated walkthrough of every module - a
+                // plain static view (resources/views/system-guide.blade.php),
+                // not a Filament page, so it renders as its own full
+                // document instead of being wrapped in the panel's chrome.
+                // Kept up to date by hand alongside new features.
                 MenuItem::make()
                     ->label('راهنمای سیستم')
                     ->icon(Heroicon::OutlinedBookOpen)
-                    ->url('https://claude.ai/artifact/LaYcaduHmsj2uh3hjqqruN')
+                    ->url(fn () => route('system-guide'))
                     ->openUrlInNewTab(),
                 MenuItem::make()
                     ->label('تنظیمات هوش مصنوعی')
