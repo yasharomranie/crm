@@ -830,7 +830,7 @@
       <div class="feature-grid">
         <div class="feature-card"><div class="name">پیام‌رسان</div><div class="desc">گفتگوی مستقیم بین اعضای تیم، با پیوست فایل و تصویر.</div></div>
         <div class="feature-card"><div class="name">پیام صوتی</div><div class="desc">ضبط، پیش‌نمایش قبل از ارسال و پخش پیام‌های صوتی، با نمایش زمان ضبط.</div></div>
-        <div class="feature-card"><div class="name">رویدادها</div><div class="desc">ثبت و اطلاع‌رسانی رویدادهای داخلی سازمان.</div></div>
+        <div class="feature-card"><div class="name">رویدادها</div><div class="desc">ثبت رویدادهای داخلی سازمان با یادآوری‌های دلخواه و چندگانه (مثلاً ۱ هفته، ۲۴ ساعت و ۱ ساعت قبل)، از طریق پوش/پیامک/ایمیل.</div></div>
       </div>
       <div class="howto">
         <div class="howto-label">مراحل استفاده</div>

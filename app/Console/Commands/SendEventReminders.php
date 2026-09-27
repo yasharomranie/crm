@@ -23,8 +23,8 @@ class SendEventReminders extends Command
 
         // duePending() only filters on cheap, indexable columns (sent_at,
         // the event's own starts_at) - the exact "is it time yet" check
-        // needs days_before + remind_time combined, which isn't something
-        // a portable query can express, so it's done in PHP below instead.
+        // needs starts_at minus minutes_before, which isn't something a
+        // portable query can express, so it's done in PHP below instead.
         $reminders = EventReminder::query()
             ->duePending($now)
             ->with('event.participants', 'event.creator')
