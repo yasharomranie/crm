@@ -584,6 +584,7 @@
         <div class="feature-card"><div class="name">کدهای تخفیف</div><div class="desc">ساخت و مدیریت کدهای تخفیف قابل اعمال هنگام فروش.</div></div>
         <div class="feature-card"><div class="name">دروازه‌های ورودی</div><div class="desc">تعریف نقاط ورود و قواعد اعتبارسنجی بلیط برای هرکدام.</div></div>
         <div class="feature-card"><div class="name">صندوق فروش (Cashier)</div><div class="desc">صدور بلیط، اعمال تخفیف یا بلیط رایگان، و چاپ بلیط از همان صفحه.</div></div>
+        <div class="feature-card"><div class="name">اسکن با دوربین</div><div class="desc">باز شدن خودکار دوربین گوشی/تبلت برای اسکن زنده‌ی QR بلیط، در کنار ورودی دستی و اسکنر سخت‌افزاری.</div></div>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg>
@@ -605,8 +606,12 @@
             <figcaption><span class="step-n">۲</span> اسکنر گیت: انتخاب دروازه‌ی ورودی و اسکن QR بلیط، با نشانگر وضعیت اتصال (آنلاین/آفلاین).</figcaption>
           </figure>
           <figure class="shot">
+            <img src="/system-guide-assets/shots/33-gate-scanner-camera.png" alt="اسکن بلیط با دوربین">
+            <figcaption><span class="step-n">۳</span> پس از انتخاب دروازه، دوربین گوشی یا تبلت به‌طور خودکار باز می‌شود و QR بلیط را زنده اسکن می‌کند؛ ورودی متنی زیر آن برای اسکنر سخت‌افزاری یا وارد کردن دستی کد همچنان در دسترس است.</figcaption>
+          </figure>
+          <figure class="shot">
             <img src="/system-guide-assets/shots/12-products-list.png" alt="فهرست محصولات و رویدادها">
-            <figcaption><span class="step-n">۳</span> فهرست محصولات: تعریف رویداد و انواع بلیط پیش از فروش.</figcaption>
+            <figcaption><span class="step-n">۴</span> فهرست محصولات: تعریف رویداد و انواع بلیط پیش از فروش.</figcaption>
           </figure>
         </div>
       </div>

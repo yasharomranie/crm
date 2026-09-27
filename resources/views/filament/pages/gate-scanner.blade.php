@@ -1,4 +1,12 @@
 <x-filament-panels::page>
+    {{-- This view is the GateScanner Livewire component's own root render,
+        which Livewire requires to be a single root element - including
+        this above the <x-filament-panels::page> tag (as a sibling) made
+        Livewire treat the script tag as that root instead, silently
+        breaking every $wire call from this page (no request ever left
+        the browser; see the debugging notes in the camera-scan commit). --}}
+    @include('filament.components.qr-scanner-assets')
+
     <div x-data="gateScanner()" class="mx-auto max-w-lg space-y-4">
         {{-- Online/offline status + pending-sync count. The scanner never
             blocks on this - it's purely informational, see handleScan(). --}}
@@ -35,15 +43,44 @@
             @endforeach
         </select>
 
-        <input
-            type="text"
-            x-ref="input"
-            wire:model="qrToken"
-            x-on:keydown.enter.prevent="handleScan($event.target.value)"
-            placeholder="QR بلیت را اسکن کنید..."
-            autofocus
-            class="fi-input w-full rounded-lg py-4 text-center text-base"
-        />
+        {{-- Camera QR reading (qr-scanner library, see qr-scanner-assets.blade.php)
+            - the primary way to scan here. Both this and the manual input
+            below funnel into the exact same handleScan(token), so nothing
+            about the online/offline/sync logic needed to change for this. --}}
+        <div x-show="selectedGateId" x-cloak class="space-y-2">
+            <div class="relative overflow-hidden rounded-2xl bg-gray-950" style="aspect-ratio: 1;">
+                <video x-ref="video" class="h-full w-full object-cover" muted playsinline></video>
+                <div
+                    x-show="!cameraActive"
+                    class="absolute inset-0 flex items-center justify-center p-6 text-center text-sm text-gray-300"
+                >
+                    <span x-text="cameraError || 'در حال باز کردن دوربین...'"></span>
+                </div>
+            </div>
+            <button
+                type="button"
+                x-on:click="cameraActive ? stopCamera() : startCamera()"
+                class="w-full rounded-lg bg-gray-100 py-2 text-sm font-medium text-gray-700 hover:bg-gray-200 dark:bg-gray-800 dark:text-gray-300 dark:hover:bg-gray-700"
+            >
+                <span x-text="cameraActive ? 'بستن دوربین' : 'باز کردن دوربین'"></span>
+            </button>
+        </div>
+
+        <div class="relative">
+            <div class="absolute inset-x-0 -top-2.5 flex justify-center">
+                <span class="bg-white px-2 text-xs text-gray-400 dark:bg-gray-900 dark:text-gray-500">
+                    یا کد را دستی وارد کنید
+                </span>
+            </div>
+            <input
+                type="text"
+                x-ref="input"
+                wire:model="qrToken"
+                x-on:keydown.enter.prevent="handleScan($event.target.value)"
+                placeholder="کد QR بلیت..."
+                class="fi-input w-full rounded-lg py-4 text-center text-base"
+            />
+        </div>
 
         {{-- Offline-computed result (bypasses Livewire entirely - see
             handleScan()). The existing $lastResult block below still
@@ -121,13 +158,24 @@
             offlineResult: null,
             reconciliationWarnings: [],
             db: null,
+            qrScanner: null,
+            cameraActive: false,
+            cameraError: null,
+            lastCameraToken: null,
+            lastCameraTokenAt: 0,
 
             init() {
                 // Keeps the input focused after every Livewire update too
                 // (a scanner "typing" fast right after a result renders
-                // must not need a manual click back into the field).
+                // must not need a manual click back into the field) - still
+                // useful alongside the camera for a physical USB/BT scanner
+                // gun, which works by "typing" into whatever's focused.
                 this.$wire.$on('scan-handled', () => this.$nextTick(() => this.$refs.input?.focus()));
                 this.$refs.input?.focus();
+
+                if (this.selectedGateId) {
+                    this.startCamera();
+                }
 
                 window.addEventListener('online', () => {
                     this.online = true;
@@ -159,6 +207,74 @@
                 } else if (this.selectedGateId) {
                     this.loadCachedPackage();
                 }
+
+                if (this.selectedGateId) {
+                    this.startCamera();
+                } else {
+                    this.stopCamera();
+                }
+            },
+
+            // --- Camera QR reading -----------------------------------------
+
+            async startCamera() {
+                if (this.qrScanner || !window.QrScanner) {
+                    return;
+                }
+
+                this.cameraError = null;
+
+                try {
+                    this.qrScanner = new QrScanner(
+                        this.$refs.video,
+                        (result) => this.onCameraDecode(result.data),
+                        {
+                            preferredCamera: 'environment',
+                            highlightScanRegion: true,
+                            highlightCodeOutline: true,
+                            maxScansPerSecond: 5,
+                        },
+                    );
+
+                    await this.qrScanner.start();
+                    this.cameraActive = true;
+                } catch (e) {
+                    // No camera, permission denied, or an insecure context -
+                    // the manual input below stays fully usable either way.
+                    this.cameraError = 'دوربین در دسترس نیست (دسترسی رد شده یا دستگاهی یافت نشد) - از ورودی دستی استفاده کنید.';
+                    this.qrScanner?.destroy();
+                    this.qrScanner = null;
+                    this.cameraActive = false;
+                }
+            },
+
+            stopCamera() {
+                this.qrScanner?.stop();
+                this.qrScanner?.destroy();
+                this.qrScanner = null;
+                this.cameraActive = false;
+            },
+
+            // The camera keeps decoding every frame the same physical QR
+            // code is still in view, which would otherwise call
+            // handleScan() - and consume a real usage - dozens of times for
+            // one scan. Debounced per-token: the same code is ignored for a
+            // few seconds, but a *different* one (the next guest) is not.
+            onCameraDecode(token) {
+                const now = Date.now();
+
+                if (token === this.lastCameraToken && now - this.lastCameraTokenAt < 3000) {
+                    return;
+                }
+
+                this.lastCameraToken = token;
+                this.lastCameraTokenAt = now;
+
+                this.handleScan(token);
+            },
+
+            destroy() {
+                this.stopCamera();
             },
 
             // --- IndexedDB -----------------------------------------------
@@ -381,6 +497,15 @@
                     // hanging with no result on screen.
                     try {
                         this.offlineResult = null;
+
+                        // wire:model on the manual input keeps $wire.qrToken
+                        // in sync automatically, but the camera path calls
+                        // handleScan() directly without touching that input
+                        // - scan() below reads $wire.qrToken server-side, so
+                        // it has to be set here too or it validates a stale
+                        // (or empty) token.
+                        this.$wire.qrToken = token;
+
                         await Promise.race([
                             this.$wire.scan(),
                             new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 4000)),
