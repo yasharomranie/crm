@@ -4,8 +4,12 @@ namespace App\Providers;
 
 use App\Http\Middleware\EnsureIdempotentLivewireUpdate;
 use App\Livewire\AiAssistantWidget;
+use App\Models\Booking;
+use App\Models\Deal;
 use App\Models\FormSubmission;
 use App\Models\User;
+use App\Observers\BookingObserver;
+use App\Observers\DealObserver;
 use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
 use Illuminate\Support\Carbon;
@@ -59,6 +63,8 @@ class AppServiceProvider extends ServiceProvider
         Livewire::component('ai-assistant-widget', AiAssistantWidget::class);
 
         FormSubmission::observe(FormSubmissionObserver::class);
+        Booking::observe(BookingObserver::class);
+        Deal::observe(DealObserver::class);
 
         $this->attachIdempotencyMiddlewareToLivewireUpdateRoute();
     }

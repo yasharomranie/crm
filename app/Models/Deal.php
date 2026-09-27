@@ -14,7 +14,7 @@ class Deal extends Model
 
     protected $fillable = [
         'guest_id', 'title', 'stage', 'value', 'assigned_to',
-        'source', 'expected_close_date', 'notes', 'created_by',
+        'source', 'external_api_client_id', 'expected_close_date', 'notes', 'created_by',
     ];
 
     protected function casts(): array

@@ -25,6 +25,7 @@ use App\Models\DiscountCode;
 use App\Models\Document;
 use App\Models\DocumentFolder;
 use App\Models\Event;
+use App\Models\ExternalApiClient;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
 use App\Models\Gate;
@@ -105,6 +106,8 @@ return [
         'ticketing-variants' => ['model' => TicketVariant::class, 'label' => 'انواع بلیت', 'group' => 'گیشه بلیط'],
         'ticketing-gates' => ['model' => Gate::class, 'label' => 'گیت‌ها', 'group' => 'گیشه بلیط'],
         'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
+
+        'external-api-clients' => ['model' => ExternalApiClient::class, 'label' => 'اکانت‌های API خارجی', 'group' => 'زیرساخت سازمانی'],
     ],
 
     /*

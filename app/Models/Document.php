@@ -18,6 +18,7 @@ class Document extends Model
     protected $fillable = [
         'folder_id', 'title', 'file_path', 'mime_type', 'size_kb',
         'owner_id', 'owner_type', 'access_level', 'department_id', 'uploaded_by',
+        'external_api_client_id',
     ];
 
     protected function casts(): array

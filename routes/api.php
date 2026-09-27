@@ -1,8 +1,17 @@
 <?php
 
+use App\Http\Controllers\Api\V1\External\BookingController;
+use App\Http\Controllers\Api\V1\External\DealController;
+use App\Http\Controllers\Api\V1\External\DiscountCodeController;
+use App\Http\Controllers\Api\V1\External\DocumentController;
+use App\Http\Controllers\Api\V1\External\FormSubmissionController;
+use App\Http\Controllers\Api\V1\External\GateScanController;
 use App\Http\Controllers\Api\V1\External\ProductController;
+use App\Http\Controllers\Api\V1\External\RefundController;
+use App\Http\Controllers\Api\V1\External\RoomAvailabilityController;
 use App\Http\Controllers\Api\V1\External\TicketController;
 use App\Http\Controllers\Api\V1\External\TicketVariantController;
+use App\Http\Controllers\Api\V1\External\WebhookSubscriptionController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -26,4 +35,23 @@ Route::prefix('v1/external')->middleware('external-api.auth')->group(function ()
     Route::post('/tickets', [TicketController::class, 'store']);
     Route::get('/tickets/{ticketNumber}', [TicketController::class, 'show']);
     Route::post('/tickets/{ticketNumber}/reprint', [TicketController::class, 'reprint']);
+    Route::post('/tickets/{ticketNumber}/refund', [RefundController::class, 'store']);
+    Route::post('/discount-codes/validate', [DiscountCodeController::class, 'validateCode']);
+    Route::post('/gates/{gateCode}/scan', [GateScanController::class, 'store']);
+
+    Route::get('/rooms/availability', [RoomAvailabilityController::class, 'index']);
+    Route::post('/bookings', [BookingController::class, 'store']);
+    Route::get('/bookings/{referenceCode}', [BookingController::class, 'show']);
+
+    Route::post('/deals', [DealController::class, 'store']);
+    Route::get('/deals/{id}', [DealController::class, 'show']);
+
+    Route::post('/form-templates/{formTemplateId}/submissions', [FormSubmissionController::class, 'store']);
+
+    Route::post('/documents', [DocumentController::class, 'store']);
+    Route::get('/documents/{document}/download', [DocumentController::class, 'download']);
+
+    Route::get('/webhooks', [WebhookSubscriptionController::class, 'index']);
+    Route::post('/webhooks', [WebhookSubscriptionController::class, 'store']);
+    Route::delete('/webhooks/{webhookSubscription}', [WebhookSubscriptionController::class, 'destroy']);
 });
