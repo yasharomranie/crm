@@ -6,6 +6,8 @@ use App\Filament\Widgets\DealSourceChart;
 use App\Filament\Widgets\DealWinLossTrendChart;
 use App\Filament\Widgets\SalesFunnelChart;
 use App\Filament\Widgets\SalesPipelineStatsOverview;
+use App\Filament\Widgets\SeoOverviewStatsWidget;
+use App\Filament\Widgets\SeoUpcomingContentWidget;
 use App\Filament\Widgets\StaleDealsWidget;
 use App\Filament\Widgets\TopSalesRepsWidget;
 use Filament\Pages\Dashboard as BaseDashboard;
@@ -13,8 +15,8 @@ use Filament\Pages\Dashboard as BaseDashboard;
 /**
  * Filament\Pages\Dashboard::getWidgets() renders literally every widget
  * registered on the panel (Filament::getWidgets()), which would include
- * the sales pipeline's own report row (SalesPipeline::getHeaderWidgets())
- * unless it's excluded here.
+ * any other page's own report row (SalesPipeline::getHeaderWidgets(),
+ * SeoDashboard::getHeaderWidgets(), ...) unless it's excluded here.
  *
  * An earlier attempt gated those widgets with a canView() that checked the
  * current request's route name - that broke as soon as a widget hydrated
@@ -36,8 +38,17 @@ class Dashboard extends BaseDashboard
         StaleDealsWidget::class,
     ];
 
+    private const SEO_DASHBOARD_ONLY_WIDGETS = [
+        SeoOverviewStatsWidget::class,
+        SeoUpcomingContentWidget::class,
+    ];
+
     public function getWidgets(): array
     {
-        return array_values(array_diff(parent::getWidgets(), self::SALES_PIPELINE_ONLY_WIDGETS));
+        return array_values(array_diff(
+            parent::getWidgets(),
+            self::SALES_PIPELINE_ONLY_WIDGETS,
+            self::SEO_DASHBOARD_ONLY_WIDGETS,
+        ));
     }
 }

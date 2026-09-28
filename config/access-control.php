@@ -11,6 +11,7 @@ use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
+use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
 use App\Filament\Pages\SmsSettings;
 use App\Models\AiProvider;
@@ -152,6 +153,7 @@ return [
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],
+        'seo-dashboard' => ['page' => SeoDashboard::class, 'label' => 'داشبورد سئو', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,
             'label' => 'فروش بلیط (صندوق)',
