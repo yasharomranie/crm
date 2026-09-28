@@ -35,15 +35,4 @@ return [
         ],
     ],
 
-    // Used by App\Services\Seo\GoogleOAuthService for the "مرکز سئو" module's
-    // Search Console (and later GA4) connection - a single OAuth app shared
-    // across every SEO Project, not a per-project credential. Create this as
-    // an OAuth 2.0 Client ID (Web application) in Google Cloud Console, with
-    // this app's /seo/google/callback URL added as an authorized redirect URI.
-    'google' => [
-        'client_id' => env('GOOGLE_CLIENT_ID'),
-        'client_secret' => env('GOOGLE_CLIENT_SECRET'),
-        'redirect' => env('GOOGLE_REDIRECT_URI'),
-    ],
-
 ];

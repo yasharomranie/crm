@@ -11,6 +11,7 @@ use App\Models\SeoCountryMetric;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
 use App\Models\SeoGoogleConnection;
+use App\Models\SeoGoogleSetting;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
@@ -107,10 +108,9 @@ class SyncSearchConsoleDataJobTest extends TestCase
             'status' => SeoConnectionStatus::Connected,
         ]);
 
-        config([
-            'services.google.client_id' => 'test-client-id',
-            'services.google.client_secret' => 'test-client-secret',
-            'services.google.redirect' => 'https://example.com/seo/google/callback',
+        SeoGoogleSetting::current()->update([
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
         ]);
 
         Http::fake([

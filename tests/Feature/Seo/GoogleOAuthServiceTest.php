@@ -4,6 +4,7 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\GoogleOAuthService;
 use App\Exceptions\SeoGoogleException;
+use App\Models\SeoGoogleSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -14,17 +15,14 @@ class GoogleOAuthServiceTest extends TestCase
 
     private function configureGoogle(): void
     {
-        config([
-            'services.google.client_id' => 'test-client-id',
-            'services.google.client_secret' => 'test-client-secret',
-            'services.google.redirect' => 'https://example.com/seo/google/callback',
+        SeoGoogleSetting::current()->update([
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
         ]);
     }
 
     public function test_it_refuses_to_build_an_authorization_url_when_not_configured(): void
     {
-        config(['services.google.client_id' => null, 'services.google.client_secret' => null]);
-
         $this->expectException(SeoGoogleException::class);
 
         (new GoogleOAuthService)->buildAuthorizationUrl(['scope-a'], 'state-123');
