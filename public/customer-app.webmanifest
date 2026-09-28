@@ -1,0 +1,39 @@
+{
+    "name": "گنجنامه",
+    "short_name": "گنجنامه",
+    "description": "بلیت، اقامت، امتیاز و پشتیبانی مجموعه گنجنامه، همه در یک اپ.",
+    "lang": "fa",
+    "dir": "rtl",
+    "start_url": "/app",
+    "scope": "/app",
+    "id": "/app",
+    "display": "standalone",
+    "background_color": "#fff7ed",
+    "theme_color": "#f97316",
+    "icons": [
+        {
+            "src": "/icons/customer-app-icon-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/customer-app-icon-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "any"
+        },
+        {
+            "src": "/icons/customer-app-icon-maskable-192.png",
+            "sizes": "192x192",
+            "type": "image/png",
+            "purpose": "maskable"
+        },
+        {
+            "src": "/icons/customer-app-icon-maskable-512.png",
+            "sizes": "512x512",
+            "type": "image/png",
+            "purpose": "maskable"
+        }
+    ]
+}
