@@ -6,6 +6,12 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
+/**
+ * Unlike this warehouse's other per-day metric tables, `date` here is the
+ * sync window's end date (a snapshot), not a real daily breakdown - see
+ * SyncSearchConsoleDataJob::syncSearchAppearance() for why: Google's API
+ * rejects the searchAppearance dimension combined with date.
+ */
 class SeoSearchAppearanceMetric extends Model
 {
     use HasFactory;

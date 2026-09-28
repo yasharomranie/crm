@@ -190,14 +190,22 @@ class SyncSearchConsoleDataJob implements ShouldQueue
         ]), ['seo_project_id', 'date', 'device']);
     }
 
+    /**
+     * Unlike every other dimension here, Google's API rejects
+     * searchAppearance combined with any other dimension (including date)
+     * with "Cannot group by search appearance dimension together with
+     * another dimension" - so this queries it alone and gets one row per
+     * appearance type aggregated over the whole sync window, stored
+     * against the window's end date rather than broken out per day.
+     */
     private function syncSearchAppearance(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
     {
-        $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'searchAppearance']);
+        $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['searchAppearance']);
 
         $this->upsert(SeoSearchAppearanceMetric::class, collect($rows)->map(fn (array $row) => [
             'seo_project_id' => $project->id,
-            'date' => $row['keys'][0],
-            'search_appearance' => $row['keys'][1],
+            'date' => $endDate->toDateString(),
+            'search_appearance' => $row['keys'][0],
             ...$this->metricValues($row),
         ]), ['seo_project_id', 'date', 'search_appearance']);
     }
