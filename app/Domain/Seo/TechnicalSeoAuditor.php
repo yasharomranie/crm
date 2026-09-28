@@ -29,6 +29,8 @@ class TechnicalSeoAuditor
 
     private const REQUEST_TIMEOUT_SECONDS = 10;
 
+    public function __construct(private readonly PageSpeedInsightsClient $pageSpeed) {}
+
     public function audit(SeoProject $project): SeoTechnicalAudit
     {
         $audit = SeoTechnicalAudit::create([
@@ -46,6 +48,7 @@ class TechnicalSeoAuditor
                 'pages_scanned' => $pagesScanned,
                 'score' => $this->score($audit, $pagesScanned),
                 'completed_at' => now(),
+                ...$this->runPageSpeedCheck($project),
             ]);
         } catch (\Throwable $exception) {
             Log::warning('TechnicalSeoAuditor: audit failed.', [
@@ -176,6 +179,20 @@ class TechnicalSeoAuditor
         if ($imagesWithoutAlt > 0) {
             $this->recordIssue($audit, SeoTechnicalIssueType::MissingAlt, SeoTechnicalIssueSeverity::Info, $url, "{$imagesWithoutAlt} تصویر بدون متن جایگزین (alt).");
         }
+
+        $hasStructuredData = false;
+
+        foreach ($document->getElementsByTagName('script') as $script) {
+            if (strtolower($script->getAttribute('type')) === 'application/ld+json') {
+                $hasStructuredData = true;
+
+                break;
+            }
+        }
+
+        if (! $hasStructuredData) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::MissingStructuredData, SeoTechnicalIssueSeverity::Info, $url, null);
+        }
     }
 
     /**
@@ -292,5 +309,37 @@ class TechnicalSeoAuditor
         $densityPerPage = $totalWeight / max(1, $pagesScanned);
 
         return (int) max(0, min(100, 100 - round($densityPerPage * 5)));
+    }
+
+    /**
+     * Best-effort, same reasoning as CheckKeywordRankJob catching
+     * SeoGoogleException: an unconfigured or failed PageSpeed call must
+     * never fail the whole technical audit, which already has useful
+     * results (the crawl issues + score) without it - performance_score
+     * and core_web_vitals just stay null.
+     *
+     * @return array{performance_score?: ?int, core_web_vitals?: ?array}
+     */
+    private function runPageSpeedCheck(SeoProject $project): array
+    {
+        try {
+            $result = $this->pageSpeed->analyze($project->website_url);
+
+            return [
+                'performance_score' => $result['performance_score'],
+                'core_web_vitals' => [
+                    'lcp_ms' => $result['lcp_ms'],
+                    'cls' => $result['cls'],
+                    'field_data_category' => $result['field_data_category'],
+                ],
+            ];
+        } catch (\Throwable $exception) {
+            Log::warning('TechnicalSeoAuditor: PageSpeed check failed.', [
+                'seo_project_id' => $project->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return [];
+        }
     }
 }

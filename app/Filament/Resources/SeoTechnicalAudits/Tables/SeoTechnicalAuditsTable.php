@@ -37,6 +37,16 @@ class SeoTechnicalAuditsTable
                         default => 'danger',
                     })
                     ->placeholder('—'),
+                TextColumn::make('performance_score')
+                    ->label('امتیاز سرعت (موبایل)')
+                    ->badge()
+                    ->color(fn (?int $state) => match (true) {
+                        $state === null => 'gray',
+                        $state >= 90 => 'success',
+                        $state >= 50 => 'warning',
+                        default => 'danger',
+                    })
+                    ->placeholder('—'),
                 TextColumn::make('issues_count')
                     ->label('تعداد مشکلات')
                     ->counts('issues'),
@@ -66,6 +76,7 @@ class SeoTechnicalAuditsTable
                     ->color('gray')
                     ->modalHeading(fn (SeoTechnicalAudit $record) => 'مشکلات یافت‌شده — '.$record->project->name)
                     ->modalContent(fn (SeoTechnicalAudit $record) => view('filament.seo.technical-audit-issues', [
+                        'audit' => $record,
                         'issues' => $record->issues()->get()->sortBy(fn ($issue) => match ($issue->severity) {
                             SeoTechnicalIssueSeverity::Critical => 0,
                             SeoTechnicalIssueSeverity::Warning => 1,

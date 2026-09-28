@@ -19,7 +19,7 @@ class SeoTechnicalAudit extends Model
     /** @use HasFactory<SeoTechnicalAuditFactory> */
     use HasFactory;
 
-    protected $fillable = ['seo_project_id', 'status', 'score', 'pages_scanned', 'started_at', 'completed_at'];
+    protected $fillable = ['seo_project_id', 'status', 'score', 'pages_scanned', 'started_at', 'completed_at', 'performance_score', 'core_web_vitals'];
 
     protected function casts(): array
     {
@@ -27,6 +27,7 @@ class SeoTechnicalAudit extends Model
             'status' => SeoTechnicalAuditStatus::class,
             'started_at' => 'datetime',
             'completed_at' => 'datetime',
+            'core_web_vitals' => 'array',
         ];
     }
 

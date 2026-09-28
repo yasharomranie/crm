@@ -1,4 +1,27 @@
 <div class="fi-section-content-ctn" dir="rtl">
+    @if ($audit->performance_score !== null)
+        <div class="mb-4 grid grid-cols-3 gap-3 text-sm">
+            <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                <p class="text-xs text-gray-500 dark:text-gray-400">امتیاز سرعت (موبایل)</p>
+                <p class="mt-1 text-lg font-bold text-gray-950 dark:text-white">{{ $audit->performance_score }}/۱۰۰</p>
+            </div>
+            @if ($audit->core_web_vitals)
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">LCP</p>
+                    <p class="mt-1 text-lg font-bold text-gray-950 dark:text-white" dir="ltr">
+                        {{ $audit->core_web_vitals['lcp_ms'] !== null ? round($audit->core_web_vitals['lcp_ms'] / 1000, 1).'s' : '—' }}
+                    </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                    <p class="text-xs text-gray-500 dark:text-gray-400">CLS</p>
+                    <p class="mt-1 text-lg font-bold text-gray-950 dark:text-white" dir="ltr">
+                        {{ $audit->core_web_vitals['cls'] ?? '—' }}
+                    </p>
+                </div>
+            @endif
+        </div>
+    @endif
+
     @if ($issues->isEmpty())
         <p class="text-sm text-gray-500 dark:text-gray-400">هیچ مشکلی در این بررسی یافت نشد.</p>
     @else

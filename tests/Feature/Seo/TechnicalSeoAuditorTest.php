@@ -6,6 +6,7 @@ use App\Domain\Seo\TechnicalSeoAuditor;
 use App\Enums\SeoTechnicalAuditStatus;
 use App\Enums\SeoTechnicalIssueType;
 use App\Models\SeoProject;
+use App\Models\SeoRankTrackerSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -101,7 +102,7 @@ class TechnicalSeoAuditorTest extends TestCase
             'clean-site.test/robots.txt' => Http::response('User-agent: *', 200),
             'clean-site.test/sitemap.xml' => Http::response('<xml></xml>', 200),
             'clean-site.test*' => Http::response(
-                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><img src="a.jpg" alt="توضیح"></body></html>',
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"Organization"}</script></head><body><img src="a.jpg" alt="توضیح"></body></html>',
                 200,
                 ['Content-Type' => 'text/html'],
             ),
@@ -130,5 +131,96 @@ class TechnicalSeoAuditorTest extends TestCase
         // never crashes the whole run over one bad response.
         $this->assertSame(SeoTechnicalAuditStatus::Completed, $audit->status);
         $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::BrokenLink->value)->exists());
+    }
+
+    public function test_it_flags_a_page_with_no_json_ld_structured_data(): void
+    {
+        Http::fake([
+            'no-ld-site.test/robots.txt' => Http::response('', 200),
+            'no-ld-site.test/sitemap.xml' => Http::response('', 200),
+            'no-ld-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-ld-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::MissingStructuredData->value)->exists());
+    }
+
+    public function test_it_does_not_flag_a_page_that_has_json_ld_structured_data(): void
+    {
+        Http::fake([
+            'has-ld-site.test/robots.txt' => Http::response('', 200),
+            'has-ld-site.test/sitemap.xml' => Http::response('', 200),
+            'has-ld-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"Organization"}</script></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://has-ld-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingStructuredData->value)->exists());
+    }
+
+    public function test_it_records_performance_score_and_core_web_vitals_when_page_speed_is_configured(): void
+    {
+        SeoRankTrackerSetting::current()->update(['api_key' => 'test-key', 'search_engine_id' => 'cx']);
+
+        Http::fake([
+            'www.googleapis.com/pagespeedonline/*' => Http::response([
+                'lighthouseResult' => [
+                    'categories' => ['performance' => ['score' => 0.62]],
+                    'audits' => [
+                        'largest-contentful-paint' => ['numericValue' => 3100.4],
+                        'cumulative-layout-shift' => ['numericValue' => 0.08],
+                    ],
+                ],
+            ]),
+            'speed-site.test/robots.txt' => Http::response('', 200),
+            'speed-site.test/sitemap.xml' => Http::response('', 200),
+            'speed-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://speed-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(62, $audit->performance_score);
+        $this->assertSame(3100.4, $audit->core_web_vitals['lcp_ms']);
+        $this->assertSame(0.08, $audit->core_web_vitals['cls']);
+    }
+
+    public function test_the_audit_still_completes_when_page_speed_is_not_configured(): void
+    {
+        Http::fake([
+            'no-speed-site.test/robots.txt' => Http::response('', 200),
+            'no-speed-site.test/sitemap.xml' => Http::response('', 200),
+            'no-speed-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-speed-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(SeoTechnicalAuditStatus::Completed, $audit->status);
+        $this->assertNull($audit->performance_score);
+        $this->assertNull($audit->core_web_vitals);
     }
 }

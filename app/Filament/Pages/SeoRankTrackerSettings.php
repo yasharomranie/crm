@@ -66,7 +66,7 @@ class SeoRankTrackerSettings extends Page implements HasForms
                     ->password()
                     ->revealable()
                     ->maxLength(500)
-                    ->helperText('از Google Cloud Console، پس از فعال‌سازی Custom Search API، از بخش Credentials بسازید.'),
+                    ->helperText('از Google Cloud Console، پس از فعال‌سازی Custom Search API، از بخش Credentials بسازید. برای فعال شدن تحلیل سرعت صفحه در «ممیزی فنی سئو»، PageSpeed Insights API را هم روی همین پروژه‌ی گوگل فعال کنید - نیازی به کلید جداگانه نیست.'),
                 TextInput::make('search_engine_id')
                     ->label('Search Engine ID (cx)')
                     ->maxLength(255)
