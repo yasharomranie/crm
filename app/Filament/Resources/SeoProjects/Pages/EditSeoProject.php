@@ -6,8 +6,10 @@ use App\Domain\Seo\SearchConsoleClient;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Filament\Resources\SeoProjects\SeoProjectResource;
+use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\SyncSearchConsoleDataJob;
 use App\Models\SeoProject;
+use App\Models\SeoQueryMetric;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\Select;
@@ -89,6 +91,20 @@ class EditSeoProject extends EditRecord
                     Notification::make()
                         ->title('همگام‌سازی در صف اجرا قرار گرفت.')
                         ->body('چند دقیقه‌ی دیگر داده‌های جدید در گزارش‌ها قابل مشاهده است.')
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('analyzeNow')
+                ->label('تحلیل الان')
+                ->icon(Heroicon::OutlinedSparkles)
+                ->tooltip('پروفایل کلمات کلیدی را بازسازی و فرصت‌های سئو را دوباره اسکن می‌کند - بدون تماس جدید با Search Console.')
+                ->visible(fn (SeoProject $record) => SeoQueryMetric::where('seo_project_id', $record->id)->exists())
+                ->action(function (SeoProject $record) {
+                    AnalyzeSeoProjectJob::dispatch($record->id);
+
+                    Notification::make()
+                        ->title('تحلیل در صف اجرا قرار گرفت.')
                         ->success()
                         ->send();
                 }),

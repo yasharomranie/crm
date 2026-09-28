@@ -38,6 +38,8 @@ use App\Models\Project;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
+use App\Models\SeoKeywordProfile;
+use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
 use App\Models\Tag;
 use App\Models\Task;
@@ -111,6 +113,8 @@ return [
         'external-api-clients' => ['model' => ExternalApiClient::class, 'label' => 'اکانت‌های API خارجی', 'group' => 'زیرساخت سازمانی'],
 
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
+        'seo-opportunities' => ['model' => SeoOpportunity::class, 'label' => 'فرصت‌های سئو', 'group' => 'مرکز سئو'],
+        'seo-keyword-profiles' => ['model' => SeoKeywordProfile::class, 'label' => 'کلمات کلیدی', 'group' => 'مرکز سئو'],
     ],
 
     /*

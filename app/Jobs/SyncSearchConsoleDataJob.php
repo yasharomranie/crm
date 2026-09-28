@@ -80,6 +80,8 @@ class SyncSearchConsoleDataJob implements ShouldQueue
                 'last_synced_at' => now(),
                 'last_sync_error' => null,
             ]);
+
+            AnalyzeSeoProjectJob::dispatch($project->id);
         } catch (SeoGoogleException $exception) {
             $connection->update([
                 'status' => SeoConnectionStatus::Error,

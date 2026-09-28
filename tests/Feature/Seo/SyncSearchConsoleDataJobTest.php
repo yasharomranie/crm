@@ -5,6 +5,7 @@ namespace Tests\Feature\Seo;
 use App\Domain\Seo\GoogleOAuthService;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
+use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\SyncSearchConsoleDataJob;
 use App\Models\SeoCountryMetric;
 use App\Models\SeoDailyMetric;
@@ -17,6 +18,7 @@ use App\Models\SeoQueryPageMetric;
 use App\Models\SeoSearchAppearanceMetric;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class SyncSearchConsoleDataJobTest extends TestCase
@@ -122,6 +124,18 @@ class SyncSearchConsoleDataJobTest extends TestCase
 
         Http::assertSent(fn ($request) => str_contains($request->url(), 'searchAnalytics/query')
             && $request->hasHeader('Authorization', 'Bearer fresh-token'));
+    }
+
+    public function test_a_successful_sync_chains_an_analysis_job(): void
+    {
+        Queue::fake();
+
+        $project = $this->connectedProject();
+        $this->fakeSearchAnalytics();
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        Queue::assertPushed(AnalyzeSeoProjectJob::class, fn ($job) => $job->seoProjectId === $project->id);
     }
 
     public function test_it_records_the_failure_and_rethrows_when_the_project_has_no_selected_site(): void
