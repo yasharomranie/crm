@@ -6,6 +6,7 @@ use App\Filament\Widgets\DealSourceChart;
 use App\Filament\Widgets\DealWinLossTrendChart;
 use App\Filament\Widgets\SalesFunnelChart;
 use App\Filament\Widgets\SalesPipelineStatsOverview;
+use App\Filament\Widgets\SeoKeywordProfileStatsWidget;
 use App\Filament\Widgets\SeoOverviewStatsWidget;
 use App\Filament\Widgets\SeoUpcomingContentWidget;
 use App\Filament\Widgets\StaleDealsWidget;
@@ -38,9 +39,11 @@ class Dashboard extends BaseDashboard
         StaleDealsWidget::class,
     ];
 
-    private const SEO_DASHBOARD_ONLY_WIDGETS = [
+    /** Scoped to their own مرکز سئو pages (SeoDashboard, Keyword Profiles), never the main dashboard. */
+    private const SEO_PAGE_ONLY_WIDGETS = [
         SeoOverviewStatsWidget::class,
         SeoUpcomingContentWidget::class,
+        SeoKeywordProfileStatsWidget::class,
     ];
 
     public function getWidgets(): array
@@ -48,7 +51,7 @@ class Dashboard extends BaseDashboard
         return array_values(array_diff(
             parent::getWidgets(),
             self::SALES_PIPELINE_ONLY_WIDGETS,
-            self::SEO_DASHBOARD_ONLY_WIDGETS,
+            self::SEO_PAGE_ONLY_WIDGETS,
         ));
     }
 }
