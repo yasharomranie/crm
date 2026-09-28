@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
+use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
@@ -66,3 +67,10 @@ Route::get('/system-guide', function () {
 // into system-guide's own "REST API برای سامانه‌های بیرونی" chapter, so
 // any bookmarked/shared link still lands somewhere useful instead of 404ing.
 Route::redirect('/api-docs', '/system-guide#ch-13');
+
+// The public, installable گنجنامه customer app - its own PWA identity
+// (separate manifest/service worker from the staff admin one; see
+// resources/views/partials/customer-app-pwa-head.blade.php), no login.
+// Content is fully admin-managed via the "وب‌اپ مشتریان" Filament
+// resources (WebAppBanner/WebAppSection/WebAppSectionItem).
+Route::get('/app', [CustomerAppController::class, 'index'])->name('customer-app');
