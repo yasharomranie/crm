@@ -3,6 +3,7 @@
 namespace Tests\Feature\Seo;
 
 use App\Enums\SeoConnectionStatus;
+use App\Models\SeoGoogleSetting;
 use App\Models\SeoProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -20,6 +21,14 @@ class GoogleOAuthControllerTest extends TestCase
         $admin->assignRole(Role::firstOrCreate(['name' => 'admin']));
 
         return $admin;
+    }
+
+    private function configureGoogle(): void
+    {
+        SeoGoogleSetting::current()->update([
+            'client_id' => 'test-client-id',
+            'client_secret' => 'test-client-secret',
+        ]);
     }
 
     /**
@@ -40,8 +49,6 @@ class GoogleOAuthControllerTest extends TestCase
 
     public function test_redirect_flashes_a_friendly_error_when_google_is_not_configured(): void
     {
-        config(['services.google.client_id' => null, 'services.google.client_secret' => null]);
-
         $project = SeoProject::factory()->create();
 
         $response = $this->actingAs($this->admin())
@@ -54,11 +61,7 @@ class GoogleOAuthControllerTest extends TestCase
 
     public function test_redirect_sends_the_user_to_google_when_configured(): void
     {
-        config([
-            'services.google.client_id' => 'test-client-id',
-            'services.google.client_secret' => 'test-client-secret',
-            'services.google.redirect' => 'https://example.com/seo/google/callback',
-        ]);
+        $this->configureGoogle();
 
         $project = SeoProject::factory()->create();
 
@@ -79,11 +82,7 @@ class GoogleOAuthControllerTest extends TestCase
 
     public function test_callback_creates_a_connected_google_connection_on_success(): void
     {
-        config([
-            'services.google.client_id' => 'test-client-id',
-            'services.google.client_secret' => 'test-client-secret',
-            'services.google.redirect' => 'https://example.com/seo/google/callback',
-        ]);
+        $this->configureGoogle();
 
         $project = SeoProject::factory()->create();
 

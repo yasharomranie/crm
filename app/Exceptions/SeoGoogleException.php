@@ -8,7 +8,7 @@ class SeoGoogleException extends RuntimeException
 {
     public static function notConfigured(): self
     {
-        return new self('اتصال گوگل تنظیم نشده است. مقادیر GOOGLE_CLIENT_ID و GOOGLE_CLIENT_SECRET را در تنظیمات محیطی وارد کنید.');
+        return new self('اتصال گوگل تنظیم نشده است. از منوی «تنظیمات اتصال گوگل» شناسه و کلید مخفی OAuth را وارد کنید.');
     }
 
     public static function requestFailed(string $reason): self
