@@ -91,4 +91,9 @@ class SeoProject extends Model
     {
         return $this->hasMany(SeoContentItem::class);
     }
+
+    public function trackedKeywords(): HasMany
+    {
+        return $this->hasMany(SeoTrackedKeyword::class);
+    }
 }
