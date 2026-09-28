@@ -104,4 +104,19 @@ class SeoContentItemResourceTest extends TestCase
             ->test(ListSeoContentItems::class)
             ->assertTableActionHidden('publish', $item);
     }
+
+    public function test_the_performance_action_is_only_available_for_published_items(): void
+    {
+        $idea = SeoContentItem::factory()->create(['status' => SeoContentItemStatus::Idea]);
+        $published = SeoContentItem::factory()->create([
+            'status' => SeoContentItemStatus::Published,
+            'published_url' => 'https://ganjnameh.example.com/guide',
+            'published_at' => now()->subDays(3),
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListSeoContentItems::class)
+            ->assertTableActionHidden('viewPerformance', $idea)
+            ->assertTableActionVisible('viewPerformance', $published);
+    }
 }
