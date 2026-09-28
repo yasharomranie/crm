@@ -47,3 +47,13 @@ Schedule::command('seo:evaluate-opportunity-outcomes')
     ->dailyAt('02:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// ترکر کلمه کلیدی: one Google Custom Search query per active tracked
+// keyword, once a day - the free tier's 100/day quota is shared across
+// the whole app, so this runs once, early, rather than spread through
+// the day where it could collide with anything else that calls the same
+// API key/quota.
+Schedule::command('seo:check-tracked-keyword-ranks')
+    ->dailyAt('06:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();

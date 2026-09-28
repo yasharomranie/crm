@@ -13,6 +13,7 @@ use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
 use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
+use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SmsSettings;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
@@ -45,6 +46,7 @@ use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
+use App\Models\SeoTrackedKeyword;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
@@ -121,6 +123,7 @@ return [
         'seo-keyword-profiles' => ['model' => SeoKeywordProfile::class, 'label' => 'کلمات کلیدی', 'group' => 'مرکز سئو'],
         'seo-keyword-suggestions' => ['model' => SeoKeywordSuggestion::class, 'label' => 'پیشنهادهای کلمات کلیدی', 'group' => 'مرکز سئو'],
         'seo-content-items' => ['model' => SeoContentItem::class, 'label' => 'تقویم محتوا', 'group' => 'مرکز سئو'],
+        'seo-tracked-keywords' => ['model' => SeoTrackedKeyword::class, 'label' => 'ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
     ],
 
     /*
@@ -154,6 +157,7 @@ return [
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],
         'seo-dashboard' => ['page' => SeoDashboard::class, 'label' => 'داشبورد سئو', 'group' => 'مرکز سئو'],
+        'seo-rank-tracker-settings' => ['page' => SeoRankTrackerSettings::class, 'label' => 'تنظیمات ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,
             'label' => 'فروش بلیط (صندوق)',
