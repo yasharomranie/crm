@@ -47,5 +47,7 @@ class DatabaseSeeder extends Seeder
             'default_model' => 'gpt-4o-mini',
             'is_active' => true,
         ]);
+
+        $this->call(WebAppContentSeeder::class);
     }
 }
