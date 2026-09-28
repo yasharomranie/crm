@@ -15,10 +15,22 @@ use App\Models\SeoTrackedKeyword;
  */
 class RankCheckService
 {
-    public function __construct(private readonly GoogleCustomSearchClient $client) {}
+    public function __construct(
+        private readonly GoogleCustomSearchClient $client,
+        private readonly SeoAlertService $alerts,
+    ) {}
 
     public function check(SeoTrackedKeyword $trackedKeyword): SeoKeywordRankCheck
     {
+        // Captured before today's row is written - the most recent *prior
+        // day's* position, not whatever today's row already held from an
+        // earlier "بررسی الان" click the same day, which wouldn't reflect
+        // an actual day-over-day drop.
+        $previousPosition = SeoKeywordRankCheck::where('seo_tracked_keyword_id', $trackedKeyword->id)
+            ->whereDate('date', '<', now()->toDateString())
+            ->orderByDesc('date')
+            ->value('position');
+
         $urls = $this->client->search($trackedKeyword->keyword);
         $targetHost = $this->hostOf($trackedKeyword->project->website_url);
 
@@ -48,6 +60,8 @@ class RankCheckService
             ]);
 
         $check->fill(['position' => $position, 'found_url' => $foundUrl, 'checked_at' => now()])->save();
+
+        $this->alerts->notifyRankDropIfNeeded($trackedKeyword, $previousPosition, $position);
 
         return $check;
     }

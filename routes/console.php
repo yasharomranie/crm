@@ -57,3 +57,18 @@ Schedule::command('seo:check-tracked-keyword-ranks')
     ->dailyAt('06:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// یک کرال کامل کندتر و سنگین‌تر از چک روزانهٔ رتبه است، پس هفتگی کافی است
+// - جمعه سحر (کم‌ترین بازدید سایت‌های ایرانی) تا بار اضافیِ کرال کمترین
+// تأثیر را روی سایت واقعی مشتری داشته باشد.
+Schedule::command('seo:run-technical-audits')
+    ->weeklyOn(5, '03:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// اولین روز هر ماه، گزارش اجرایی ماه گذشته را برای هر پروژه می‌سازد - نه
+// زودتر، چون هنوز داده‌ی ماه در حال گذر کامل نیست.
+Schedule::command('seo:generate-periodic-reports')
+    ->monthlyOn(1, '04:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();

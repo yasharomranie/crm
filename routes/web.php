@@ -11,6 +11,7 @@ use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
 use App\Http\Controllers\Seo\GoogleOAuthController;
+use App\Http\Controllers\SeoPeriodicReportPrintController;
 use App\Http\Controllers\VoiceMessageController;
 use Illuminate\Support\Facades\Route;
 
@@ -58,6 +59,8 @@ Route::middleware('auth')->group(function () {
         ->name('seo.google.redirect');
     Route::get('/seo/google/callback', [GoogleOAuthController::class, 'callback'])
         ->name('seo.google.callback');
+    Route::get('/seo-periodic-reports/{seoPeriodicReport}/print', [SeoPeriodicReportPrintController::class, 'show'])
+        ->name('seo-periodic-reports.print');
 });
 
 // Screenshot-illustrated walkthrough of the panel, linked from the admin

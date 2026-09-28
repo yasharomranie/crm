@@ -16,6 +16,11 @@ class SeoGoogleException extends RuntimeException
         return new self('ترکر کلمه کلیدی تنظیم نشده است. از منوی «تنظیمات ترکر کلمه کلیدی» کلید API و Search Engine ID را وارد کنید.');
     }
 
+    public static function pageSpeedNotConfigured(): self
+    {
+        return new self('کلید API برای تحلیل سرعت صفحه تنظیم نشده است. از منوی «تنظیمات ترکر کلمه کلیدی» کلید API را وارد کنید و مطمئن شوید PageSpeed Insights API روی همان پروژه‌ی گوگل فعال است.');
+    }
+
     public static function requestFailed(string $reason): self
     {
         return new self("درخواست به سرویس گوگل ناموفق بود: {$reason}");

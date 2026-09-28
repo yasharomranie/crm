@@ -56,7 +56,7 @@ class OpportunityEngineTest extends TestCase
         }
 
         (new KeywordIntelligenceService)->rebuildProfiles($project);
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::CtrOpportunity->value)->firstOrFail();
 
@@ -80,7 +80,7 @@ class OpportunityEngineTest extends TestCase
         ]);
 
         (new KeywordIntelligenceService)->rebuildProfiles($project);
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $this->assertSame(0, $project->opportunities()->count());
     }
@@ -96,7 +96,7 @@ class OpportunityEngineTest extends TestCase
             SeoDailyMetric::create(['seo_project_id' => $project->id, 'date' => $date->toDateString(), 'clicks' => $clicks, 'impressions' => $clicks * 20, 'ctr' => 0.05, 'position' => 10]);
         }
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::TrafficDrop->value)->firstOrFail();
 
@@ -118,7 +118,7 @@ class OpportunityEngineTest extends TestCase
             SeoDailyMetric::create(['seo_project_id' => $project->id, 'date' => $referenceDate->clone()->subDays($i)->toDateString(), 'clicks' => 0, 'impressions' => 5, 'ctr' => 0, 'position' => 10]);
         }
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::TrafficDrop->value)->count());
     }
@@ -131,7 +131,7 @@ class OpportunityEngineTest extends TestCase
         $this->fillDailyMetrics($project, $referenceDate->clone()->subDay(), 28, 50);
         SeoDailyMetric::create(['seo_project_id' => $project->id, 'date' => $referenceDate->toDateString(), 'clicks' => 500, 'impressions' => 5000, 'ctr' => 0.1, 'position' => 5]);
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::AnomalyPositive->value)->firstOrFail();
 
@@ -144,7 +144,7 @@ class OpportunityEngineTest extends TestCase
         $project = SeoProject::factory()->create();
         $this->fillDailyMetrics($project, Carbon::parse('2026-09-28'), 5, 50);
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $this->assertSame(0, $project->opportunities()->whereIn('type', [
             SeoOpportunityType::AnomalyPositive->value,
@@ -167,7 +167,7 @@ class OpportunityEngineTest extends TestCase
         }
 
         (new KeywordIntelligenceService)->rebuildProfiles($project);
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::Cannibalization->value)->firstOrFail();
         $this->assertSame($query, $opportunity->subject_query);
@@ -185,7 +185,7 @@ class OpportunityEngineTest extends TestCase
 
         SeoQueryPageMetric::create(['seo_project_id' => $project->id, 'date' => '2026-09-28', 'query' => $query, 'query_hash' => sha1($query), 'page_url' => $page, 'page_url_hash' => sha1($page), 'clicks' => 50, 'impressions' => 500, 'ctr' => 0.1, 'position' => 3]);
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::Cannibalization->value)->count());
     }
@@ -200,7 +200,7 @@ class OpportunityEngineTest extends TestCase
             SeoQueryMetric::create(['seo_project_id' => $project->id, 'date' => $date->toDateString(), 'query' => $query, 'query_hash' => sha1($query), 'clicks' => 1, 'impressions' => 100, 'ctr' => 0.01, 'position' => 8.0]);
         }
 
-        $engine = new OpportunityEngine;
+        $engine = app(OpportunityEngine::class);
         (new KeywordIntelligenceService)->rebuildProfiles($project);
         $engine->scan($project);
         $engine->scan($project);
@@ -227,12 +227,12 @@ class OpportunityEngineTest extends TestCase
         }
 
         (new KeywordIntelligenceService)->rebuildProfiles($project);
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $dismissed = $project->opportunities()->first();
         $dismissed->update(['status' => SeoOpportunityStatus::Dismissed]);
 
-        (new OpportunityEngine)->scan($project);
+        (app(OpportunityEngine::class))->scan($project);
 
         $this->assertSame(2, $project->opportunities()->count());
         $this->assertSame(SeoOpportunityStatus::Dismissed, $dismissed->fresh()->status);
