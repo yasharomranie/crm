@@ -5,9 +5,14 @@ namespace App\Filament\Resources\SeoOpportunities\Tables;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Models\SeoContentItem;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
+use App\Models\User;
 use Filament\Actions\Action;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -91,6 +96,40 @@ class SeoOpportunitiesTable
                     ->requiresConfirmation()
                     ->visible(fn (SeoOpportunity $record) => in_array($record->status, [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed]))
                     ->action(fn (SeoOpportunity $record) => $record->update(['status' => SeoOpportunityStatus::Dismissed])),
+                Action::make('planContent')
+                    ->label('برنامه‌ریزی محتوا')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->color('info')
+                    ->schema(fn (SeoOpportunity $record) => [
+                        TextInput::make('title')
+                            ->label('عنوان محتوا')
+                            ->default($record->title)
+                            ->required()
+                            ->maxLength(255),
+                        TextInput::make('content_type')
+                            ->label('نوع محتوا')
+                            ->helperText('مثلاً «مقاله وبلاگ»، «صفحه فرود»، «بروزرسانی محتوای موجود».'),
+                        Select::make('assigned_to')
+                            ->label('مسئول نگارش')
+                            ->options(fn () => User::pluck('name', 'id')),
+                        DatePicker::make('due_date')
+                            ->label('مهلت انجام')
+                            ->jalali()
+                            ->displayFormat('Y/m/d'),
+                    ])
+                    ->action(function (array $data, SeoOpportunity $record) {
+                        SeoContentItem::create([
+                            'seo_project_id' => $record->seo_project_id,
+                            'seo_opportunity_id' => $record->id,
+                            'title' => $data['title'],
+                            'target_keyword' => $record->subject_query,
+                            'content_type' => $data['content_type'],
+                            'assigned_to' => $data['assigned_to'] ?? null,
+                            'due_date' => $data['due_date'] ?? null,
+                        ]);
+
+                        Notification::make()->title('آیتم محتوا در تقویم محتوا ایجاد شد.')->success()->send();
+                    }),
             ]);
     }
 }

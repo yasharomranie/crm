@@ -4,11 +4,16 @@ namespace App\Filament\Resources\SeoKeywordSuggestions\Tables;
 
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoSearchIntent;
+use App\Models\SeoContentItem;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
@@ -76,6 +81,38 @@ class SeoKeywordSuggestionsTable
                     ->requiresConfirmation()
                     ->visible(fn (SeoKeywordSuggestion $record) => $record->status === SeoKeywordSuggestionStatus::New)
                     ->action(fn (SeoKeywordSuggestion $record) => $record->update(['status' => SeoKeywordSuggestionStatus::Rejected])),
+                Action::make('createContentItem')
+                    ->label('ایجاد آیتم محتوا')
+                    ->icon(Heroicon::OutlinedCalendarDays)
+                    ->color('info')
+                    ->visible(fn (SeoKeywordSuggestion $record) => $record->status === SeoKeywordSuggestionStatus::Approved)
+                    ->schema(fn (SeoKeywordSuggestion $record) => [
+                        TextInput::make('title')
+                            ->label('عنوان محتوا')
+                            ->default($record->keyword)
+                            ->required()
+                            ->maxLength(255),
+                        Select::make('assigned_to')
+                            ->label('مسئول نگارش')
+                            ->options(fn () => User::pluck('name', 'id')),
+                        DatePicker::make('due_date')
+                            ->label('مهلت انجام')
+                            ->jalali()
+                            ->displayFormat('Y/m/d'),
+                    ])
+                    ->action(function (array $data, SeoKeywordSuggestion $record) {
+                        SeoContentItem::create([
+                            'seo_project_id' => $record->seo_project_id,
+                            'keyword_suggestion_id' => $record->id,
+                            'title' => $data['title'],
+                            'target_keyword' => $record->keyword,
+                            'content_type' => $record->suggested_content_type,
+                            'assigned_to' => $data['assigned_to'] ?? null,
+                            'due_date' => $data['due_date'] ?? null,
+                        ]);
+
+                        Notification::make()->title('آیتم محتوا در تقویم محتوا ایجاد شد.')->success()->send();
+                    }),
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
