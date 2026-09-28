@@ -2,10 +2,12 @@
 
 namespace Tests\Feature\Seo;
 
+use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Enums\SeoOpportunityStatus;
 use App\Filament\Resources\SeoOpportunities\Pages\ManageSeoOpportunities;
 use App\Models\SeoContentItem;
 use App\Models\SeoOpportunity;
+use App\Models\SeoOpportunityOutcome;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -55,6 +57,32 @@ class SeoOpportunityResourceTest extends TestCase
         $fresh = $opportunity->fresh();
         $this->assertSame(SeoOpportunityStatus::Resolved, $fresh->status);
         $this->assertNotNull($fresh->resolved_at);
+    }
+
+    public function test_marking_an_opportunity_resolved_captures_an_outcome_baseline(): void
+    {
+        $opportunity = SeoOpportunity::factory()->create(['status' => SeoOpportunityStatus::Detected]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoOpportunities::class)
+            ->callTableAction('markResolved', $opportunity);
+
+        $outcome = $opportunity->fresh()->outcome;
+        $this->assertNotNull($outcome);
+        $this->assertSame(SeoOpportunityOutcomeVerdict::Pending, $outcome->verdict);
+        $this->assertNull($outcome->followup_measured_at);
+    }
+
+    public function test_the_view_outcome_action_is_only_available_once_an_outcome_exists(): void
+    {
+        $withoutOutcome = SeoOpportunity::factory()->create();
+        $withOutcome = SeoOpportunity::factory()->create();
+        SeoOpportunityOutcome::factory()->create(['seo_opportunity_id' => $withOutcome->id]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoOpportunities::class)
+            ->assertTableActionHidden('viewOutcome', $withoutOutcome)
+            ->assertTableActionVisible('viewOutcome', $withOutcome);
     }
 
     public function test_dismissing_an_opportunity_updates_its_status(): void
