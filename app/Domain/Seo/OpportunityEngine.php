@@ -59,6 +59,8 @@ class OpportunityEngine
 
     private const CANNIBALIZATION_MIN_IMPRESSIONS = 20;
 
+    public function __construct(private readonly SeoAlertService $alerts) {}
+
     public function scan(SeoProject $project): void
     {
         $this->detectCtrOpportunities($project);
@@ -392,7 +394,7 @@ class OpportunityEngine
             return;
         }
 
-        SeoOpportunity::create([
+        $opportunity = SeoOpportunity::create([
             'seo_project_id' => $project->id,
             'type' => $type->value,
             'subject_query' => $subjectQuery,
@@ -400,5 +402,11 @@ class OpportunityEngine
             'status' => SeoOpportunityStatus::Detected->value,
             ...$attributes,
         ]);
+
+        // Only a genuinely new opportunity pages anyone - refreshing an
+        // existing one's numbers above (the $existing branch) never does,
+        // or every daily rescan of the same still-open opportunity would
+        // send a fresh alert.
+        $this->alerts->notifyOpportunityDetected($opportunity);
     }
 }

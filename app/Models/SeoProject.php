@@ -96,4 +96,14 @@ class SeoProject extends Model
     {
         return $this->hasMany(SeoTrackedKeyword::class);
     }
+
+    public function technicalAudits(): HasMany
+    {
+        return $this->hasMany(SeoTechnicalAudit::class);
+    }
+
+    public function periodicReports(): HasMany
+    {
+        return $this->hasMany(SeoPeriodicReport::class);
+    }
 }

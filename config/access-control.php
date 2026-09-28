@@ -11,6 +11,7 @@ use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
+use App\Filament\Pages\SeoAlertSettings;
 use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
 use App\Filament\Pages\SeoRankTrackerSettings;
@@ -45,7 +46,9 @@ use App\Models\SeoContentItem;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
+use App\Models\SeoPeriodicReport;
 use App\Models\SeoProject;
+use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTrackedKeyword;
 use App\Models\Tag;
 use App\Models\Task;
@@ -124,6 +127,8 @@ return [
         'seo-keyword-suggestions' => ['model' => SeoKeywordSuggestion::class, 'label' => 'پیشنهادهای کلمات کلیدی', 'group' => 'مرکز سئو'],
         'seo-content-items' => ['model' => SeoContentItem::class, 'label' => 'تقویم محتوا', 'group' => 'مرکز سئو'],
         'seo-tracked-keywords' => ['model' => SeoTrackedKeyword::class, 'label' => 'ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
+        'seo-technical-audits' => ['model' => SeoTechnicalAudit::class, 'label' => 'ممیزی فنی سئو', 'group' => 'مرکز سئو'],
+        'seo-periodic-reports' => ['model' => SeoPeriodicReport::class, 'label' => 'گزارش دوره‌ای مدیریتی', 'group' => 'مرکز سئو'],
     ],
 
     /*
@@ -158,6 +163,7 @@ return [
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],
         'seo-dashboard' => ['page' => SeoDashboard::class, 'label' => 'داشبورد سئو', 'group' => 'مرکز سئو'],
         'seo-rank-tracker-settings' => ['page' => SeoRankTrackerSettings::class, 'label' => 'تنظیمات ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
+        'seo-alert-settings' => ['page' => SeoAlertSettings::class, 'label' => 'تنظیمات هشدار سئو', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,
             'label' => 'فروش بلیط (صندوق)',
