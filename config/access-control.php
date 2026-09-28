@@ -38,6 +38,7 @@ use App\Models\Project;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
+use App\Models\SeoProject;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
@@ -108,6 +109,8 @@ return [
         'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
 
         'external-api-clients' => ['model' => ExternalApiClient::class, 'label' => 'اکانت‌های API خارجی', 'group' => 'زیرساخت سازمانی'],
+
+        'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
     ],
 
     /*

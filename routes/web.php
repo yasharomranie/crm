@@ -10,6 +10,7 @@ use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
+use App\Http\Controllers\Seo\GoogleOAuthController;
 use App\Http\Controllers\VoiceMessageController;
 use Illuminate\Support\Facades\Route;
 
@@ -48,6 +49,15 @@ Route::middleware('auth')->group(function () {
         ->name('gate-scanner.sync-package');
     Route::post('/gate-scanner/{gate}/sync-scans', [GateOfflineSyncController::class, 'pushScans'])
         ->name('gate-scanner.sync-scans');
+
+    // مرکز سئو: Search Console OAuth. The callback has no {project}
+    // route parameter - Google redirects here with only ?state=&code=,
+    // so GoogleOAuthController::callback() recovers the project id from
+    // the state value it itself generated in redirect().
+    Route::get('/seo/google/redirect/{project}', [GoogleOAuthController::class, 'redirect'])
+        ->name('seo.google.redirect');
+    Route::get('/seo/google/callback', [GoogleOAuthController::class, 'callback'])
+        ->name('seo.google.callback');
 });
 
 // Screenshot-illustrated walkthrough of the panel, linked from the admin
