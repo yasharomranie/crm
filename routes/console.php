@@ -38,3 +38,12 @@ Schedule::command('queue:work --stop-when-empty --max-time=50')
 Schedule::command('events:send-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping();
+
+// مرکز سئو "learning" step: re-measures every resolved opportunity whose
+// baseline is old enough (OpportunityOutcomeService::FOLLOWUP_WINDOW_DAYS)
+// and records whether it actually helped. Daily is plenty - the
+// underlying warehouse itself only updates when someone triggers a sync.
+Schedule::command('seo:evaluate-opportunity-outcomes')
+    ->dailyAt('02:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();

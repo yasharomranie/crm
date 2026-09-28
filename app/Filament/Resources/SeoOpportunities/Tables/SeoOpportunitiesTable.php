@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SeoOpportunities\Tables;
 
+use App\Domain\Seo\OpportunityOutcomeService;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
@@ -45,6 +46,10 @@ class SeoOpportunitiesTable
                 TextColumn::make('status')
                     ->label('وضعیت')
                     ->badge(),
+                TextColumn::make('outcome.verdict')
+                    ->label('نتیجه')
+                    ->badge()
+                    ->placeholder('—'),
                 TextColumn::make('detected_at')
                     ->label('تاریخ شناسایی')
                     ->dateTime('Y/m/d H:i')
@@ -84,11 +89,25 @@ class SeoOpportunitiesTable
                     ->icon(Heroicon::OutlinedCheckCircle)
                     ->color('success')
                     ->visible(fn (SeoOpportunity $record) => in_array($record->status, [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed]))
-                    ->action(function (SeoOpportunity $record) {
+                    ->action(function (SeoOpportunity $record, OpportunityOutcomeService $outcomes) {
                         $record->update(['status' => SeoOpportunityStatus::Resolved, 'resolved_at' => now()]);
+                        $outcomes->captureBaseline($record);
 
-                        Notification::make()->title('فرصت به‌عنوان برطرف‌شده علامت‌گذاری شد.')->success()->send();
+                        Notification::make()
+                            ->title('فرصت به‌عنوان برطرف‌شده علامت‌گذاری شد.')
+                            ->body('نتیجه‌ی واقعی این اقدام حدود ۲۸ روز دیگر قابل بررسی خواهد بود.')
+                            ->success()
+                            ->send();
                     }),
+                Action::make('viewOutcome')
+                    ->label('نتیجه اقدام')
+                    ->icon(Heroicon::OutlinedChartBar)
+                    ->color('gray')
+                    ->visible(fn (SeoOpportunity $record) => $record->outcome !== null)
+                    ->modalHeading(fn (SeoOpportunity $record) => $record->title)
+                    ->modalContent(fn (SeoOpportunity $record) => view('filament.seo.opportunity-outcome', ['outcome' => $record->outcome]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('بستن'),
                 Action::make('dismiss')
                     ->label('رد کردن')
                     ->icon(Heroicon::OutlinedXCircle)
