@@ -39,7 +39,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
                     ['date', 'query', 'page'] => ['keys' => ['2026-09-01', 'تله کابین گنجنامه', 'https://ganjnameh.example.com/telecabin'], 'clicks' => 10, 'impressions' => 250, 'ctr' => 0.04, 'position' => 5.0],
                     ['date', 'country'] => ['keys' => ['2026-09-01', 'irn'], 'clicks' => 35, 'impressions' => 900, 'ctr' => 0.04, 'position' => 6.0],
                     ['date', 'device'] => ['keys' => ['2026-09-01', 'MOBILE'], 'clicks' => 25, 'impressions' => 700, 'ctr' => 0.04, 'position' => 6.5],
-                    ['date', 'searchAppearance'] => ['keys' => ['2026-09-01', 'RICHCARD'], 'clicks' => 3, 'impressions' => 50, 'ctr' => 0.06, 'position' => 3.0],
+                    ['searchAppearance'] => ['keys' => ['RICHCARD'], 'clicks' => 3, 'impressions' => 50, 'ctr' => 0.06, 'position' => 3.0],
                     default => null,
                 };
 

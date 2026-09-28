@@ -37,7 +37,7 @@ class NewMessageReceived extends Notification implements ShouldQueue
     {
         return (new WebPushMessage)
             ->title($this->message->sender->name)
-            ->body(Str::limit($this->message->body, 90))
+            ->body(Str::limit($this->message->previewText(), 90))
             ->icon('/icons/icon-192.png')
             ->badge('/icons/icon-192.png')
             ->dir('rtl')

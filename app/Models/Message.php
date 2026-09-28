@@ -32,6 +32,25 @@ class Message extends Model
     }
 
     /**
+     * Plain-text summary for contexts that can't render an attachment icon
+     * (push notification body) - mirrors the audio/file/text priority the
+     * messenger conversation list already uses, since an attachment-only
+     * message has a null body.
+     */
+    public function previewText(): string
+    {
+        if ($this->attachmentIsAudio()) {
+            return 'پیام صوتی';
+        }
+
+        if ($this->file_path) {
+            return $this->file_name ?: 'فایل';
+        }
+
+        return (string) $this->body;
+    }
+
+    /**
      * Bumps the parent conversation's updated_at whenever a message is
      * created, so the conversation list can simply order by conversations
      * updated_at desc to show the most recently active thread first.
