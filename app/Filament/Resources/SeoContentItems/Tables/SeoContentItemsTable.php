@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\SeoContentItems\Tables;
 
+use App\Domain\Seo\ContentPerformanceService;
 use App\Enums\SeoContentItemStatus;
 use App\Models\SeoContentItem;
 use App\Models\SeoProject;
@@ -11,6 +12,7 @@ use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -86,6 +88,18 @@ class SeoContentItemsTable
 
                         Notification::make()->title('محتوا به‌عنوان منتشرشده علامت‌گذاری شد.')->success()->send();
                     }),
+                Action::make('viewPerformance')
+                    ->label('عملکرد')
+                    ->icon(Heroicon::OutlinedChartBar)
+                    ->color('gray')
+                    ->visible(fn (SeoContentItem $record) => $record->status === SeoContentItemStatus::Published)
+                    ->modalHeading(fn (SeoContentItem $record) => $record->title)
+                    ->modalContent(fn (SeoContentItem $record) => view('filament.seo.content-item-performance', [
+                        'item' => $record,
+                        'summary' => app(ContentPerformanceService::class)->summarize($record),
+                    ]))
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('بستن'),
                 EditAction::make(),
             ])
             ->toolbarActions([
