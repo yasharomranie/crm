@@ -81,4 +81,9 @@ class SeoProject extends Model
     {
         return $this->hasMany(SeoOpportunity::class);
     }
+
+    public function keywordSuggestions(): HasMany
+    {
+        return $this->hasMany(SeoKeywordSuggestion::class);
+    }
 }

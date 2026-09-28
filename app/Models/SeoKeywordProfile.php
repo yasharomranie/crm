@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\SeoBusinessValue;
 use App\Enums\SeoCannibalizationRisk;
 use App\Enums\SeoKeywordTrend;
+use App\Enums\SeoSearchIntent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -17,7 +18,7 @@ class SeoKeywordProfile extends Model
         'seo_project_id', 'query', 'query_hash', 'current_position', 'previous_position',
         'best_position', 'worst_position', 'clicks_28d', 'impressions_28d', 'ctr_28d',
         'trend', 'landing_page', 'topic_cluster_id', 'business_value', 'opportunity_score',
-        'cannibalization_risk', 'last_analyzed_at',
+        'cannibalization_risk', 'intent', 'last_analyzed_at', 'classified_at',
     ];
 
     protected function casts(): array
@@ -34,7 +35,9 @@ class SeoKeywordProfile extends Model
             'business_value' => SeoBusinessValue::class,
             'opportunity_score' => 'decimal:2',
             'cannibalization_risk' => SeoCannibalizationRisk::class,
+            'intent' => SeoSearchIntent::class,
             'last_analyzed_at' => 'datetime',
+            'classified_at' => 'datetime',
         ];
     }
 

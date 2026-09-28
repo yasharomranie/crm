@@ -6,10 +6,12 @@ use App\Domain\Seo\KeywordIntelligenceService;
 use App\Domain\Seo\OpportunityEngine;
 use App\Enums\SeoOpportunityType;
 use App\Jobs\AnalyzeSeoProjectJob;
+use App\Jobs\ClassifySeoKeywordsJob;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class AnalyzeSeoProjectJobTest extends TestCase
@@ -36,5 +38,19 @@ class AnalyzeSeoProjectJobTest extends TestCase
 
         $this->assertSame(1, $project->keywordProfiles()->count());
         $this->assertSame(1, $project->opportunities()->where('type', SeoOpportunityType::CtrOpportunity->value)->count());
+    }
+
+    public function test_it_chains_a_classification_job(): void
+    {
+        Queue::fake();
+
+        $project = SeoProject::factory()->create();
+
+        (new AnalyzeSeoProjectJob($project->id))->handle(
+            app(KeywordIntelligenceService::class),
+            app(OpportunityEngine::class),
+        );
+
+        Queue::assertPushed(ClassifySeoKeywordsJob::class, fn ($job) => $job->seoProjectId === $project->id);
     }
 }

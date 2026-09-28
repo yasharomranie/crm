@@ -39,6 +39,7 @@ use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
 use App\Models\SeoKeywordProfile;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
 use App\Models\Tag;
@@ -115,6 +116,7 @@ return [
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
         'seo-opportunities' => ['model' => SeoOpportunity::class, 'label' => 'فرصت‌های سئو', 'group' => 'مرکز سئو'],
         'seo-keyword-profiles' => ['model' => SeoKeywordProfile::class, 'label' => 'کلمات کلیدی', 'group' => 'مرکز سئو'],
+        'seo-keyword-suggestions' => ['model' => SeoKeywordSuggestion::class, 'label' => 'پیشنهادهای کلمات کلیدی', 'group' => 'مرکز سئو'],
     ],
 
     /*

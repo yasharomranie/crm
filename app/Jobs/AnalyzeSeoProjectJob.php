@@ -30,5 +30,11 @@ class AnalyzeSeoProjectJob implements ShouldQueue
 
         $keywordIntelligence->rebuildProfiles($project);
         $opportunityEngine->scan($project);
+
+        // Best-effort enrichment, not required for the above to be
+        // useful - see ClassifySeoKeywordsJob's own doc comment for why a
+        // missing AiProvider is left to fail quietly here rather than
+        // interrupting analysis.
+        ClassifySeoKeywordsJob::dispatch($project->id);
     }
 }
