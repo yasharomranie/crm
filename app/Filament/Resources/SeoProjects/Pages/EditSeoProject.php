@@ -7,12 +7,15 @@ use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Filament\Resources\SeoProjects\SeoProjectResource;
 use App\Jobs\AnalyzeSeoProjectJob;
+use App\Jobs\ClassifySeoKeywordsJob;
+use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Jobs\SyncSearchConsoleDataJob;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use Filament\Actions\Action;
 use Filament\Actions\DeleteAction;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 use Filament\Support\Icons\Heroicon;
@@ -105,6 +108,43 @@ class EditSeoProject extends EditRecord
 
                     Notification::make()
                         ->title('تحلیل در صف اجرا قرار گرفت.')
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('classifyNow')
+                ->label('طبقه‌بندی هوشمند کلمات')
+                ->icon(Heroicon::OutlinedTag)
+                ->tooltip('Intent، ارزش تجاری و خوشه‌ی موضوعی کلمات کلیدی هنوز طبقه‌بندی‌نشده را با هوش مصنوعی مشخص می‌کند.')
+                ->visible(fn (SeoProject $record) => SeoQueryMetric::where('seo_project_id', $record->id)->exists())
+                ->action(function (SeoProject $record) {
+                    ClassifySeoKeywordsJob::dispatch($record->id);
+
+                    Notification::make()
+                        ->title('طبقه‌بندی هوشمند در صف اجرا قرار گرفت.')
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('discoverKeywords')
+                ->label('کشف کلمات کلیدی جدید')
+                ->icon(Heroicon::OutlinedLightBulb)
+                ->tooltip('با هوش مصنوعی و بر اساس اطلاعات کسب‌وکار پروژه، ایده‌ی کلمات کلیدی جدید تولید می‌کند - این‌ها حدس هستند، نه داده‌ی واقعی، و باید توسط شما تأیید شوند.')
+                ->schema([
+                    TextInput::make('count')
+                        ->label('تعداد پیشنهاد')
+                        ->numeric()
+                        ->default(20)
+                        ->minValue(5)
+                        ->maxValue(50)
+                        ->required(),
+                ])
+                ->action(function (array $data, SeoProject $record) {
+                    DiscoverSeoKeywordsJob::dispatch($record->id, (int) $data['count']);
+
+                    Notification::make()
+                        ->title('کشف کلمات کلیدی جدید در صف اجرا قرار گرفت.')
+                        ->body('نتایج در بخش «پیشنهادهای کلمات کلیدی» قابل بررسی و تأیید خواهند بود.')
                         ->success()
                         ->send();
                 }),
