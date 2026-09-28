@@ -66,4 +66,19 @@ class SeoProject extends Model
     {
         return $this->hasMany(SeoSearchAppearanceMetric::class);
     }
+
+    public function topicClusters(): HasMany
+    {
+        return $this->hasMany(SeoTopicCluster::class);
+    }
+
+    public function keywordProfiles(): HasMany
+    {
+        return $this->hasMany(SeoKeywordProfile::class);
+    }
+
+    public function opportunities(): HasMany
+    {
+        return $this->hasMany(SeoOpportunity::class);
+    }
 }
