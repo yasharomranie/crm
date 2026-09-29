@@ -16,6 +16,7 @@ use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
 use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\WebAppDomainSettings;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
@@ -174,5 +175,6 @@ return [
             ],
         ],
         'gate-scanner' => ['page' => GateScanner::class, 'label' => 'اسکن بلیط (گیت)', 'group' => 'گیشه بلیط'],
+        'web-app-domain-settings' => ['page' => WebAppDomainSettings::class, 'label' => 'دامنه اختصاصی', 'group' => 'وب‌اپ مشتریان'],
     ],
 ];
