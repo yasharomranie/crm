@@ -18,6 +18,16 @@ class SeoTrackedKeywordResource extends Resource
 {
     protected static ?string $model = SeoTrackedKeyword::class;
 
+    /**
+     * Hidden from the nav menu - this feature depends on Google's Custom
+     * Search JSON API "search the entire web" mode, which Google has
+     * permanently disabled for new/existing Programmable Search Engines,
+     * so rank checks here can no longer actually work. Kept registered
+     * (not deleted) so existing tracked-keyword data stays reachable by
+     * direct URL and nothing here has to be migrated/dropped.
+     */
+    protected static bool $shouldRegisterNavigation = false;
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedRectangleStack;
 
     protected static string|\UnitEnum|null $navigationGroup = 'مرکز سئو';

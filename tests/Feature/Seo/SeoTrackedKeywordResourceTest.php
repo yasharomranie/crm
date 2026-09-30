@@ -5,6 +5,7 @@ namespace Tests\Feature\Seo;
 use App\Filament\Resources\SeoTrackedKeywords\Pages\CreateSeoTrackedKeyword;
 use App\Filament\Resources\SeoTrackedKeywords\Pages\EditSeoTrackedKeyword;
 use App\Filament\Resources\SeoTrackedKeywords\Pages\ListSeoTrackedKeywords;
+use App\Filament\Resources\SeoTrackedKeywords\SeoTrackedKeywordResource;
 use App\Jobs\CheckKeywordRankJob;
 use App\Models\SeoProject;
 use App\Models\SeoTrackedKeyword;
@@ -162,5 +163,14 @@ class SeoTrackedKeywordResourceTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(ListSeoTrackedKeywords::class)
             ->assertTableActionVisible('viewHistory', $keyword);
+    }
+
+    public function test_the_resource_is_hidden_from_the_navigation_menu(): void
+    {
+        // Google permanently disabled the Custom Search "search the
+        // entire web" mode this feature depends on, so rank checks can
+        // no longer actually work - hidden from the menu, but the pages
+        // above stay directly reachable so existing data isn't orphaned.
+        $this->assertFalse(SeoTrackedKeywordResource::shouldRegisterNavigation());
     }
 }

@@ -15,11 +15,14 @@ use Filament\Support\Icons\Heroicon;
 
 /**
  * A singleton settings screen (backs the single SeoRankTrackerSetting
- * row, see that model), not a CRUD resource -
- * App\Domain\Seo\GoogleCustomSearchClient reads the Custom Search JSON
- * API credentials from here rather than .env, so they only ever need to
- * be entered once, by an admin, from the panel - no server/terminal
- * access required.
+ * row, see that model), not a CRUD resource. Despite the model/route name
+ * (kept as-is to avoid a migration), this page's real remaining purpose is
+ * the api_key field alone: App\Domain\Seo\PageSpeedInsightsClient reads it
+ * for the (working) page-speed check in «ممیزی فنی سئو». The keyword rank
+ * tracker this page used to configure is hidden from navigation
+ * (App\Filament\Resources\SeoTrackedKeywords\SeoTrackedKeywordResource) -
+ * Google's Custom Search JSON API "search the entire web" mode, which it
+ * depended on, was permanently disabled by Google.
  */
 class SeoRankTrackerSettings extends Page implements HasForms
 {
@@ -32,9 +35,9 @@ class SeoRankTrackerSettings extends Page implements HasForms
 
     protected static string|\UnitEnum|null $navigationGroup = 'مرکز سئو';
 
-    protected static ?string $navigationLabel = 'تنظیمات ترکر کلمه کلیدی';
+    protected static ?string $navigationLabel = 'تنظیمات PageSpeed Insights';
 
-    protected static ?string $title = 'تنظیمات ترکر کلمه کلیدی (Google Custom Search)';
+    protected static ?string $title = 'تنظیمات PageSpeed Insights (تحلیل سرعت صفحه)';
 
     /**
      * @var array<string, mixed>
@@ -66,11 +69,11 @@ class SeoRankTrackerSettings extends Page implements HasForms
                     ->password()
                     ->revealable()
                     ->maxLength(500)
-                    ->helperText('از Google Cloud Console، پس از فعال‌سازی Custom Search API، از بخش Credentials بسازید. برای فعال شدن تحلیل سرعت صفحه در «ممیزی فنی سئو»، PageSpeed Insights API را هم روی همین پروژه‌ی گوگل فعال کنید - نیازی به کلید جداگانه نیست.'),
+                    ->helperText('از Google Cloud Console بسازید و مطمئن شوید PageSpeed Insights API روی همین پروژه‌ی گوگل فعال است - این کلید همان چیزی است که تحلیل سرعت صفحه در «ممیزی فنی سئو» استفاده می‌کند.'),
                 TextInput::make('search_engine_id')
                     ->label('Search Engine ID (cx)')
                     ->maxLength(255)
-                    ->helperText('از programmablesearchengine.google.com، یک موتور جستجوی جدید با گزینه‌ی «جستجو در کل وب» بسازید و این مقدار را از تنظیمات آن کپی کنید.'),
+                    ->helperText('این فیلد فقط برای ترکر کلمه کلیدی (که غیرفعال شده) بود؛ خودش هیچ اثری روی PageSpeed Insights ندارد، ولی همچنان باید پر باشد وگرنه سیستم این تنظیمات را «کامل نشده» تشخیص می‌دهد - هر مقداری کافی است.'),
             ]);
     }
 
