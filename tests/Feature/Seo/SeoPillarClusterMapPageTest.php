@@ -112,7 +112,37 @@ class SeoPillarClusterMapPageTest extends TestCase
 
         Livewire::actingAs($this->admin())
             ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
-            ->assertDontSee('فرصت رشد و کلیک بیشتر');
+            // The legend at the bottom of the tree tab always mentions
+            // "فرصت رشد و کلیک بیشتر", so assert on the per-keyword
+            // tooltip text instead of that phrase.
+            ->assertDontSee('این کلمه در رتبه');
+    }
+
+    public function test_tree_data_marks_only_profiles_with_a_positive_opportunity_score(): void
+    {
+        $project = SeoProject::factory()->create(['name' => 'گنج‌نامه']);
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'غار علیصدر']);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'قیمت بلیط غار علیصدر',
+            'opportunity_score' => 42,
+        ]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'ساعت کاری غار علیصدر',
+            'opportunity_score' => null,
+        ]);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id]);
+
+        $tree = $component->instance()->treeData();
+
+        $leaves = collect($tree['children'][0]['children'])->keyBy('name');
+        $this->assertTrue($leaves['قیمت بلیط غار علیصدر']['hasOpportunity']);
+        $this->assertFalse($leaves['ساعت کاری غار علیصدر']['hasOpportunity']);
     }
 
     public function test_tree_data_marks_only_keywords_that_are_in_a_warning_pair(): void

@@ -39,7 +39,8 @@
 
             {{-- نمای درختی: یک نمودار درختی شعاعی (radial tree) با D3.js که
                  تمام خوشه‌های موضوعی و کلمات زیرشان را یک‌جا نشان می‌دهد -
-                 نقطه‌ی قرمزتر یعنی آن کلمه در هشدار هم‌خواری هم هست. --}}
+                 نقطه‌ی قرمزتر یعنی آن کلمه در هشدار هم‌خواری هم هست، و حلقه‌ی
+                 صورتی دور نقطه یعنی آن کلمه فرصت رشد و کلیک بیشتر دارد. --}}
             <div x-show="tab === 'tree'" x-cloak>
                 @include('filament.components.d3-assets')
 
@@ -123,7 +124,13 @@
                                     }
 
                                     return d.data.hasWarning ? '#dc2626' : '#fecaca';
-                                });
+                                })
+                                // A pink ring next to (around) the node marks a
+                                // CTR growth opportunity - independent of the
+                                // warning fill color above, since a keyword can
+                                // have either signal, both, or neither.
+                                .attr('stroke', function (d) { return d.data.hasOpportunity ? '#db2777' : 'none'; })
+                                .attr('stroke-width', function (d) { return d.data.hasOpportunity ? 2 : 0; });
 
                             node.append('text')
                                 .attr('dy', '0.31em')
@@ -179,6 +186,7 @@
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#f97316"></span> خوشه‌ی موضوعی</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#dc2626"></span> کلمه با هشدار هم‌خواری</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca"></span> کلمه بدون هشدار</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca; box-shadow: 0 0 0 2px #db2777;"></span> کلمه با فرصت رشد و کلیک بیشتر (حلقه‌ی صورتی)</span>
                 </div>
             </div>
 
