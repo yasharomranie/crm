@@ -20,6 +20,11 @@
                 </div>
             @endif
         </div>
+    @elseif ($audit->performance_error)
+        <div class="mb-4 flex items-start gap-2 rounded-md bg-danger-50 px-3 py-2 text-xs text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">
+            <span>⚠</span>
+            <span>تحلیل سرعت صفحه (PageSpeed Insights) ناموفق بود: {{ $audit->performance_error }}</span>
+        </div>
     @endif
 
     @if ($issues->isEmpty())
