@@ -198,6 +198,11 @@
                                             ⚠ {{ count($group['warnings']) }} هشدار
                                         </span>
                                     @endif
+                                    @if ($group['suggestions']->isNotEmpty())
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-info-50 px-2 py-0.5 text-xs text-info-700 dark:bg-info-500/10 dark:text-info-400">
+                                            ✨ {{ $group['suggestions']->count() }} پیشنهاد کلمه‌ی جدید
+                                        </span>
+                                    @endif
                                 </div>
                                 @php
                                     $livePagesCount = $group['profiles']->pluck('landing_page')->filter()->unique()->count();
