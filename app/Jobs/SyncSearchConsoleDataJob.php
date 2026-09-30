@@ -5,16 +5,17 @@ namespace App\Jobs;
 use App\Domain\Seo\GoogleOAuthService;
 use App\Domain\Seo\SearchConsoleClient;
 use App\Enums\SeoConnectionStatus;
+use App\Enums\SeoSearchType;
 use App\Exceptions\SeoGoogleException;
 use App\Models\SeoCountryMetric;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
-use App\Models\SeoGoogleConnection;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
 use App\Models\SeoSearchAppearanceMetric;
+use App\Models\SeoSearchTypeMetric;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Foundation\Queue\Queueable;
@@ -44,7 +45,17 @@ class SyncSearchConsoleDataJob implements ShouldQueue
      */
     public array $backoff = [30, 120, 600];
 
-    private const SYNC_WINDOW_DAYS = 90;
+    /** Google keeps roughly 16 months of Search Analytics data. */
+    private const SYNC_WINDOW_DAYS = 365;
+
+    /**
+     * GSC caps a single response at SearchConsoleClient::MAX_ROW_LIMIT
+     * (25,000) rows - this caps how many pages of that a sync will fetch
+     * for the per-keyword/per-page breakdowns, so a very large site's tail
+     * of low-traffic queries/pages doesn't turn one sync into an unbounded
+     * number of requests.
+     */
+    private const MAX_PAGES = 4;
 
     /** GSC typically has no data for the most recent 1-3 days yet. */
     private const REPORTING_LAG_DAYS = 3;
@@ -61,7 +72,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
         }
 
         try {
-            $accessToken = $this->freshAccessToken($connection, $oauth);
+            $accessToken = $oauth->freshAccessTokenFor($connection);
             $client = new SearchConsoleClient($accessToken);
 
             $endDate = now()->subDays(self::REPORTING_LAG_DAYS);
@@ -74,6 +85,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
             $this->syncCountries($client, $project, $connection->gsc_site_url, $startDate, $endDate);
             $this->syncDevices($client, $project, $connection->gsc_site_url, $startDate, $endDate);
             $this->syncSearchAppearance($client, $project, $connection->gsc_site_url, $startDate, $endDate);
+            $this->syncSearchTypes($client, $project, $connection->gsc_site_url, $startDate, $endDate);
 
             $connection->update([
                 'status' => SeoConnectionStatus::Connected,
@@ -92,28 +104,6 @@ class SyncSearchConsoleDataJob implements ShouldQueue
         }
     }
 
-    private function freshAccessToken(SeoGoogleConnection $connection, GoogleOAuthService $oauth): string
-    {
-        if (! $connection->isTokenExpired()) {
-            return $connection->access_token;
-        }
-
-        if (blank($connection->refresh_token)) {
-            $connection->update(['status' => SeoConnectionStatus::TokenExpired]);
-
-            throw SeoGoogleException::requestFailed('نشست منقضی شده و Refresh Token موجود نیست - نیاز به اتصال مجدد.');
-        }
-
-        $tokens = $oauth->refreshAccessToken($connection->refresh_token);
-
-        $connection->update([
-            'access_token' => $tokens['access_token'],
-            'token_expires_at' => now()->addSeconds($tokens['expires_in']),
-        ]);
-
-        return $tokens['access_token'];
-    }
-
     private function syncDaily(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
     {
         $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date']);
@@ -127,7 +117,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
 
     private function syncQueries(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
     {
-        $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'query']);
+        $rows = $this->queryAllPages($client, $siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'query'], $this->excludedTermFilters($project));
 
         $this->upsert(SeoQueryMetric::class, collect($rows)->map(fn (array $row) => [
             'seo_project_id' => $project->id,
@@ -140,7 +130,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
 
     private function syncPages(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
     {
-        $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'page']);
+        $rows = $this->queryAllPages($client, $siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'page']);
 
         $this->upsert(SeoPageMetric::class, collect($rows)->map(fn (array $row) => [
             'seo_project_id' => $project->id,
@@ -153,7 +143,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
 
     private function syncQueryPages(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
     {
-        $rows = $client->querySearchAnalytics($siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'query', 'page']);
+        $rows = $this->queryAllPages($client, $siteUrl, $startDate->toDateString(), $endDate->toDateString(), ['date', 'query', 'page'], $this->excludedTermFilters($project));
 
         $this->upsert(SeoQueryPageMetric::class, collect($rows)->map(fn (array $row) => [
             'seo_project_id' => $project->id,
@@ -208,6 +198,71 @@ class SyncSearchConsoleDataJob implements ShouldQueue
             'search_appearance' => $row['keys'][0],
             ...$this->metricValues($row),
         ]), ['seo_project_id', 'date', 'search_appearance']);
+    }
+
+    /**
+     * GSC's "web" search (everything above) is the default `type`; these
+     * other verticals need a separate request per type, each queried
+     * alone with ['date'] (GSC's own dashboard only ever breaks these
+     * down by day, not by query/page) - see App\Enums\SeoSearchType.
+     */
+    private function syncSearchTypes(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
+    {
+        foreach (SeoSearchType::cases() as $searchType) {
+            $rows = $client->querySearchAnalytics(
+                $siteUrl,
+                $startDate->toDateString(),
+                $endDate->toDateString(),
+                ['date'],
+                searchType: $searchType->value,
+            );
+
+            $this->upsert(SeoSearchTypeMetric::class, collect($rows)->map(fn (array $row) => [
+                'seo_project_id' => $project->id,
+                'date' => $row['keys'][0],
+                'search_type' => $searchType->value,
+                ...$this->metricValues($row),
+            ]), ['seo_project_id', 'date', 'search_type']);
+        }
+    }
+
+    /**
+     * @param  array<int, string>  $dimensions
+     * @param  array<int, array{dimension: string, operator: string, expression: string}>  $filters
+     * @return array<int, array{keys: array<int, string>, clicks: int, impressions: int, ctr: float, position: float}>
+     */
+    private function queryAllPages(SearchConsoleClient $client, string $siteUrl, string $startDate, string $endDate, array $dimensions, array $filters = []): array
+    {
+        $allRows = [];
+
+        for ($page = 0; $page < self::MAX_PAGES; $page++) {
+            $rows = $client->querySearchAnalytics(
+                $siteUrl,
+                $startDate,
+                $endDate,
+                $dimensions,
+                startRow: $page * SearchConsoleClient::MAX_ROW_LIMIT,
+                filters: $filters,
+            );
+
+            $allRows = [...$allRows, ...$rows];
+
+            if (count($rows) < SearchConsoleClient::MAX_ROW_LIMIT) {
+                break;
+            }
+        }
+
+        return $allRows;
+    }
+
+    /**
+     * @return array<int, array{dimension: string, operator: string, expression: string}>
+     */
+    private function excludedTermFilters(SeoProject $project): array
+    {
+        return collect($project->excludedQueryTermsList())
+            ->map(fn (string $term) => ['dimension' => 'query', 'operator' => 'notContains', 'expression' => $term])
+            ->all();
     }
 
     /**

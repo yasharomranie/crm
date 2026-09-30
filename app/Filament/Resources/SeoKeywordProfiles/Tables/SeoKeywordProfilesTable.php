@@ -2,10 +2,16 @@
 
 namespace App\Filament\Resources\SeoKeywordProfiles\Tables;
 
+use App\Domain\Seo\UrlInspectionService;
 use App\Enums\SeoCannibalizationRisk;
 use App\Enums\SeoKeywordTrend;
 use App\Enums\SeoSearchIntent;
+use App\Exceptions\SeoGoogleException;
+use App\Models\SeoKeywordProfile;
 use App\Models\SeoProject;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
@@ -81,6 +87,32 @@ class SeoKeywordProfilesTable
                 SelectFilter::make('cannibalization_risk')
                     ->label('کانیبالیزیشن')
                     ->options(fn () => collect(SeoCannibalizationRisk::cases())->mapWithKeys(fn ($case) => [$case->value => $case->getLabel()])),
+            ])
+            ->recordActions([
+                Action::make('inspectIndexing')
+                    ->label('بررسی ایندکس')
+                    ->icon(Heroicon::OutlinedMagnifyingGlass)
+                    ->color('gray')
+                    ->visible(fn (SeoKeywordProfile $record) => filled($record->landing_page)
+                        && filled($record->project?->googleConnection?->gsc_site_url))
+                    ->modalHeading('وضعیت ایندکس این صفحه در گوگل')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('بستن')
+                    ->modalContent(function (SeoKeywordProfile $record) {
+                        try {
+                            $inspection = app(UrlInspectionService::class)->inspect($record->project, $record->landing_page);
+
+                            return view('filament.seo.url-inspection-result', ['inspection' => $inspection]);
+                        } catch (SeoGoogleException $exception) {
+                            Notification::make()
+                                ->title('بررسی ایندکس ناموفق بود')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return view('filament.seo.url-inspection-result', ['error' => $exception->getMessage()]);
+                        }
+                    }),
             ]);
     }
 }

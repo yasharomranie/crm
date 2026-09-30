@@ -2,7 +2,9 @@
 
 namespace App\Domain\Seo;
 
+use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoGoogleSetting;
 use Illuminate\Support\Facades\Http;
 
@@ -90,6 +92,35 @@ class GoogleOAuthService
         }
 
         return $response->json();
+    }
+
+    /**
+     * Returns the connection's current access token as-is if it's still
+     * valid, otherwise refreshes it via refreshAccessToken() and persists
+     * the new token/expiry onto the connection first - the one shared
+     * place this happens, used by both SyncSearchConsoleDataJob and
+     * UrlInspectionService so a token refresh is never duplicated.
+     */
+    public function freshAccessTokenFor(SeoGoogleConnection $connection): string
+    {
+        if (! $connection->isTokenExpired()) {
+            return $connection->access_token;
+        }
+
+        if (blank($connection->refresh_token)) {
+            $connection->update(['status' => SeoConnectionStatus::TokenExpired]);
+
+            throw SeoGoogleException::requestFailed('نشست منقضی شده و Refresh Token موجود نیست - نیاز به اتصال مجدد.');
+        }
+
+        $tokens = $this->refreshAccessToken($connection->refresh_token);
+
+        $connection->update([
+            'access_token' => $tokens['access_token'],
+            'token_expires_at' => now()->addSeconds($tokens['expires_in']),
+        ]);
+
+        return $tokens['access_token'];
     }
 
     public function redirectUri(): string
