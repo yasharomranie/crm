@@ -6,6 +6,7 @@ use App\Domain\Seo\PillarClusterMapBuilder;
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\SeoContentItem;
+use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
 use App\Models\User;
@@ -81,7 +82,12 @@ class SeoPillarClusterMap extends Page implements HasActions
      * leaf's `hasWarning` flag drives its dot color on the client - true
      * when that exact keyword text appears in its cluster's lexical
      * cannibalization warnings (see PillarClusterMapBuilder), since real
-     * search volume isn't data this app has.
+     * search volume isn't data this app has. `hasOpportunity` is
+     * independent of that - true when the same query has a positive
+     * SeoKeywordProfile::opportunity_score (a real CTR-improvement
+     * opportunity from OpportunityEngine), so a keyword can carry either
+     * signal, both, or neither; only real profiles can have it, never AI
+     * suggestions, since they have no Search Console data yet.
      *
      * @return array<string, mixed>|null
      */
@@ -101,6 +107,10 @@ class SeoPillarClusterMap extends Page implements HasActions
                     ->flatMap(fn (array $warning) => [$warning['a'], $warning['b']])
                     ->unique();
 
+                $keywordsWithOpportunity = $group['profiles']
+                    ->filter(fn (SeoKeywordProfile $profile) => $profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)
+                    ->pluck('query');
+
                 $keywords = $group['profiles']->pluck('query')
                     ->merge($group['suggestions']->pluck('keyword'))
                     ->unique()
@@ -111,6 +121,7 @@ class SeoPillarClusterMap extends Page implements HasActions
                     'children' => $keywords->map(fn (string $keyword) => [
                         'name' => $keyword,
                         'hasWarning' => $keywordsWithWarnings->contains($keyword),
+                        'hasOpportunity' => $keywordsWithOpportunity->contains($keyword),
                     ])->all(),
                 ];
             })->values()->all(),
