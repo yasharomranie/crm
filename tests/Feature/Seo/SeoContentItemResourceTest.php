@@ -7,9 +7,12 @@ use App\Filament\Resources\SeoContentItems\Pages\CreateSeoContentItem;
 use App\Filament\Resources\SeoContentItems\Pages\EditSeoContentItem;
 use App\Filament\Resources\SeoContentItems\Pages\ListSeoContentItems;
 use App\Models\SeoContentItem;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoProject;
+use App\Models\SeoUrlInspection;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -118,5 +121,65 @@ class SeoContentItemResourceTest extends TestCase
             ->test(ListSeoContentItems::class)
             ->assertTableActionHidden('viewPerformance', $idea)
             ->assertTableActionVisible('viewPerformance', $published);
+    }
+
+    public function test_the_inspect_indexing_action_is_available_for_a_published_item_with_a_google_connection(): void
+    {
+        // This is the case «بررسی ایندکس» on Keyword Profiles can't cover:
+        // a freshly-published page has no Search Console history yet
+        // (that takes weeks), so this is the only way to confirm Google
+        // has even seen it.
+        $item = SeoContentItem::factory()->create([
+            'status' => SeoContentItemStatus::Published,
+            'published_url' => 'https://ganjnameh.example.com/telecabin-guide',
+        ]);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $item->seo_project_id,
+            'access_token' => 'valid-token',
+            'token_expires_at' => now()->addHour(),
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+        ]);
+
+        Http::fake([
+            'searchconsole.googleapis.com/*' => Http::response([
+                'inspectionResult' => ['indexStatusResult' => ['verdict' => 'NEUTRAL']],
+            ]),
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListSeoContentItems::class)
+            ->assertTableActionVisible('inspectIndexing', $item)
+            ->mountTableAction('inspectIndexing', $item);
+
+        $this->assertDatabaseHas(SeoUrlInspection::class, [
+            'seo_project_id' => $item->seo_project_id,
+            'page_url' => 'https://ganjnameh.example.com/telecabin-guide',
+            'verdict' => 'NEUTRAL',
+        ]);
+    }
+
+    public function test_the_inspect_indexing_action_is_hidden_without_a_google_connection(): void
+    {
+        $item = SeoContentItem::factory()->create([
+            'status' => SeoContentItemStatus::Published,
+            'published_url' => 'https://ganjnameh.example.com/telecabin-guide',
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListSeoContentItems::class)
+            ->assertTableActionHidden('inspectIndexing', $item);
+    }
+
+    public function test_the_inspect_indexing_action_is_hidden_without_a_published_url(): void
+    {
+        $item = SeoContentItem::factory()->create(['status' => SeoContentItemStatus::Idea, 'published_url' => null]);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $item->seo_project_id,
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListSeoContentItems::class)
+            ->assertTableActionHidden('inspectIndexing', $item);
     }
 }

@@ -3,7 +3,9 @@
 namespace App\Filament\Resources\SeoContentItems\Tables;
 
 use App\Domain\Seo\ContentPerformanceService;
+use App\Domain\Seo\UrlInspectionService;
 use App\Enums\SeoContentItemStatus;
+use App\Exceptions\SeoGoogleException;
 use App\Models\SeoContentItem;
 use App\Models\SeoProject;
 use Filament\Actions\Action;
@@ -100,6 +102,36 @@ class SeoContentItemsTable
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('بستن'),
+                // Unlike کلمات کلیدی's own "بررسی ایندکس" (which only ever
+                // shows up for pages Search Console already has traffic
+                // data for - so already proven indexed), this is the one
+                // place that matters for a just-published page: it has no
+                // Search Console history yet (that takes weeks to appear),
+                // so this is the only way to confirm Google has even seen it.
+                Action::make('inspectIndexing')
+                    ->label('بررسی ایندکس')
+                    ->icon(Heroicon::OutlinedMagnifyingGlass)
+                    ->color('gray')
+                    ->visible(fn (SeoContentItem $record) => filled($record->published_url)
+                        && filled($record->project?->googleConnection?->gsc_site_url))
+                    ->modalHeading('وضعیت ایندکس این صفحه در گوگل')
+                    ->modalSubmitAction(false)
+                    ->modalCancelActionLabel('بستن')
+                    ->modalContent(function (SeoContentItem $record) {
+                        try {
+                            $inspection = app(UrlInspectionService::class)->inspect($record->project, $record->published_url);
+
+                            return view('filament.seo.url-inspection-result', ['inspection' => $inspection]);
+                        } catch (SeoGoogleException $exception) {
+                            Notification::make()
+                                ->title('بررسی ایندکس ناموفق بود')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return view('filament.seo.url-inspection-result', ['error' => $exception->getMessage()]);
+                        }
+                    }),
                 EditAction::make(),
             ])
             ->toolbarActions([
