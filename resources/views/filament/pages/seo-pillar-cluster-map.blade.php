@@ -1,5 +1,5 @@
 <x-filament-panels::page>
-    <div dir="rtl" class="space-y-6">
+    <div dir="rtl" class="space-y-6" x-data="{ tab: 'tree' }">
         <div class="max-w-sm">
             <label class="fi-fo-field-wrp-label text-sm font-medium text-gray-950 dark:text-white">پروژه</label>
             <select
@@ -18,92 +18,205 @@
         @elseif ($this->map()?->isEmpty())
             <p class="text-sm text-gray-500 dark:text-gray-400">این پروژه هنوز هیچ خوشه‌ی موضوعی یا کلمه‌ی کلیدی‌ای ندارد.</p>
         @else
-            <div class="space-y-3">
-                @foreach ($this->map() as $group)
-                    <details class="group rounded-lg border border-gray-200 dark:border-white/10">
-                        <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
-                            <div class="flex items-center gap-2">
-                                <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:-rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
-                                    <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
-                                </svg>
-                                <h3 class="text-base font-bold text-gray-950 dark:text-white">{{ $group['name'] }}</h3>
+            <div class="flex gap-1 border-b border-gray-200 dark:border-white/10">
+                <button
+                    type="button"
+                    @click="tab = 'tree'"
+                    :class="tab === 'tree' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                    class="border-b-2 px-3 py-2 text-sm font-medium"
+                >
+                    نمای درختی
+                </button>
+                <button
+                    type="button"
+                    @click="tab = 'list'"
+                    :class="tab === 'list' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
+                    class="border-b-2 px-3 py-2 text-sm font-medium"
+                >
+                    لیست خوشه‌ها
+                </button>
+            </div>
+
+            {{-- نمای درختی: یک نمودار درختی شعاعی (radial tree) با D3.js که
+                 تمام خوشه‌های موضوعی و کلمات زیرشان را یک‌جا نشان می‌دهد -
+                 نقطه‌ی قرمزتر یعنی آن کلمه در هشدار هم‌خواری هم هست. --}}
+            <div x-show="tab === 'tree'" x-cloak>
+                @include('filament.components.d3-assets')
+
+                @php $treeContainerId = 'seo-pillar-tree-'.\Illuminate\Support\Str::random(8); @endphp
+
+                <div wire:key="pillar-tree-{{ $projectId }}">
+                    <div id="{{ $treeContainerId }}" class="mx-auto" style="max-width: 900px;"></div>
+
+                    <script>
+                        (function () {
+                            var data = @json($this->treeData());
+                            var container = document.getElementById('{{ $treeContainerId }}');
+
+                            if (! data || ! container || ! window.d3) {
+                                return;
+                            }
+
+                            var width = Math.min(container.clientWidth || 900, 900);
+                            var radius = width / 2;
+
+                            var root = d3.hierarchy(data);
+                            var tree = d3.tree()
+                                .size([2 * Math.PI, radius - 110])
+                                .separation(function (a, b) {
+                                    return (a.parent === b.parent ? 1 : 2) / a.depth;
+                                });
+                            tree(root);
+
+                            var svg = d3.select(container).append('svg')
+                                .attr('viewBox', [-radius, -radius, width, width])
+                                .attr('width', width)
+                                .attr('height', width)
+                                .attr('style', 'max-width: 100%; height: auto; font: 11px "Vazirmatn", sans-serif;');
+
+                            var g = svg.append('g');
+
+                            g.append('g')
+                                .attr('fill', 'none')
+                                .attr('stroke', '#d1d5db')
+                                .attr('stroke-width', 1.2)
+                                .selectAll('path')
+                                .data(root.links())
+                                .join('path')
+                                .attr('d', d3.linkRadial().angle(function (d) { return d.x; }).radius(function (d) { return d.y; }));
+
+                            var node = g.append('g')
+                                .selectAll('g')
+                                .data(root.descendants())
+                                .join('g')
+                                .attr('transform', function (d) {
+                                    return 'rotate(' + (d.x * 180 / Math.PI - 90) + ') translate(' + d.y + ',0)';
+                                });
+
+                            node.append('circle')
+                                .attr('r', function (d) { return d.depth === 0 ? 6 : (d.children ? 5 : 4); })
+                                .attr('fill', function (d) {
+                                    if (d.depth === 0) {
+                                        return '#57534e';
+                                    }
+
+                                    if (d.children) {
+                                        return '#f97316';
+                                    }
+
+                                    return d.data.hasWarning ? '#dc2626' : '#fecaca';
+                                });
+
+                            node.append('text')
+                                .attr('dy', '0.31em')
+                                .attr('x', function (d) { return d.x < Math.PI ? 6 : -6; })
+                                .attr('text-anchor', function (d) { return d.x < Math.PI ? 'start' : 'end'; })
+                                .attr('transform', function (d) { return d.x >= Math.PI ? 'rotate(180)' : null; })
+                                .text(function (d) { return d.data.name; })
+                                .attr('fill', '#111827')
+                                .clone(true).lower()
+                                .attr('stroke', 'white')
+                                .attr('stroke-width', 3);
+                        })();
+                    </script>
+                </div>
+
+                <div class="mt-4 flex flex-wrap items-center gap-4 text-xs text-gray-500 dark:text-gray-400">
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#f97316"></span> خوشه‌ی موضوعی</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#dc2626"></span> کلمه با هشدار هم‌خواری</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca"></span> کلمه بدون هشدار</span>
+                </div>
+            </div>
+
+            {{-- لیست خوشه‌ها: همان نمای آکاردئونی قبلی، بدون تغییر. --}}
+            <div x-show="tab === 'list'" x-cloak>
+                <div class="space-y-3">
+                    @foreach ($this->map() as $group)
+                        <details class="group rounded-lg border border-gray-200 dark:border-white/10">
+                            <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
+                                <div class="flex items-center gap-2">
+                                    <svg class="h-4 w-4 shrink-0 text-gray-400 transition-transform group-open:-rotate-90" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+                                        <path stroke-linecap="round" stroke-linejoin="round" d="M15 19l-7-7 7-7" />
+                                    </svg>
+                                    <h3 class="text-base font-bold text-gray-950 dark:text-white">{{ $group['name'] }}</h3>
+                                    @if (! empty($group['warnings']))
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                                            ⚠ {{ count($group['warnings']) }} هشدار
+                                        </span>
+                                    @endif
+                                </div>
+                                @php
+                                    $livePagesCount = $group['profiles']->pluck('landing_page')->filter()->unique()->count();
+                                @endphp
+                                <span class="text-xs text-gray-500 dark:text-gray-400">
+                                    {{ $group['profiles']->count() + $group['suggestions']->count() }} کلمه ·
+                                    {{ $livePagesCount }} صفحه‌ی زنده (سرچ کنسول) ·
+                                    {{ $group['contentItems']->count() }} محتوای برنامه‌ریزی‌شده
+                                </span>
+                            </summary>
+
+                            <div class="border-t border-gray-200 p-4 dark:border-white/10">
                                 @if (! empty($group['warnings']))
-                                    <span class="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-                                        ⚠ {{ count($group['warnings']) }} هشدار
-                                    </span>
+                                    <div class="space-y-1.5">
+                                        @foreach ($group['warnings'] as $warning)
+                                            <div class="flex items-start gap-2 rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
+                                                <span>⚠</span>
+                                                <span>احتمال هم‌خواری بین «{{ $warning['a'] }}» و «{{ $warning['b'] }}» (شباهت {{ $warning['similarity'] * 100 }}٪) - فقط راهنماست، تصمیم نهایی با شماست.</span>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                @endif
+
+                                @if ($group['profiles']->isNotEmpty())
+                                    <div class="mt-3">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">کلمات واقعی (سرچ کنسول)</p>
+                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                            @foreach ($group['profiles'] as $profile)
+                                                <x-filament::badge :color="$profile->cannibalization_risk?->getColor() ?? 'gray'">
+                                                    {{ $profile->query }}
+                                                    @if ($profile->cannibalization_risk && $profile->cannibalization_risk->value !== 'none')
+                                                        ({{ $profile->cannibalization_risk->getLabel() }})
+                                                    @endif
+                                                    @if ($profile->landing_page)
+                                                        <a href="{{ $profile->landing_page }}" target="_blank" rel="noopener" title="صفحه‌ی زنده‌ای که الان برای این کلمه رتبه دارد" class="mr-1 underline decoration-dotted">
+                                                            🔗 صفحه
+                                                        </a>
+                                                    @endif
+                                                </x-filament::badge>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                @if ($group['suggestions']->isNotEmpty())
+                                    <div class="mt-3">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">پیشنهادهای هوش مصنوعی</p>
+                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                            @foreach ($group['suggestions'] as $suggestion)
+                                                <x-filament::badge color="gray">
+                                                    {{ $suggestion->keyword }} · {{ $suggestion->status->getLabel() }}
+                                                </x-filament::badge>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endif
+
+                                @if ($group['contentItems']->isNotEmpty())
+                                    <div class="mt-3">
+                                        <p class="text-xs font-medium text-gray-500 dark:text-gray-400">محتوا</p>
+                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                            @foreach ($group['contentItems'] as $item)
+                                                <x-filament::badge :color="$item->status->getColor()">
+                                                    {{ $item->title }} · {{ $item->status->getLabel() }}
+                                                </x-filament::badge>
+                                            @endforeach
+                                        </div>
+                                    </div>
                                 @endif
                             </div>
-                            @php
-                                $livePagesCount = $group['profiles']->pluck('landing_page')->filter()->unique()->count();
-                            @endphp
-                            <span class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ $group['profiles']->count() + $group['suggestions']->count() }} کلمه ·
-                                {{ $livePagesCount }} صفحه‌ی زنده (سرچ کنسول) ·
-                                {{ $group['contentItems']->count() }} محتوای برنامه‌ریزی‌شده
-                            </span>
-                        </summary>
-
-                        <div class="border-t border-gray-200 p-4 dark:border-white/10">
-                            @if (! empty($group['warnings']))
-                                <div class="space-y-1.5">
-                                    @foreach ($group['warnings'] as $warning)
-                                        <div class="flex items-start gap-2 rounded-md bg-warning-50 px-3 py-2 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
-                                            <span>⚠</span>
-                                            <span>احتمال هم‌خواری بین «{{ $warning['a'] }}» و «{{ $warning['b'] }}» (شباهت {{ $warning['similarity'] * 100 }}٪) - فقط راهنماست، تصمیم نهایی با شماست.</span>
-                                        </div>
-                                    @endforeach
-                                </div>
-                            @endif
-
-                            @if ($group['profiles']->isNotEmpty())
-                                <div class="mt-3">
-                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">کلمات واقعی (سرچ کنسول)</p>
-                                    <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                        @foreach ($group['profiles'] as $profile)
-                                            <x-filament::badge :color="$profile->cannibalization_risk?->getColor() ?? 'gray'">
-                                                {{ $profile->query }}
-                                                @if ($profile->cannibalization_risk && $profile->cannibalization_risk->value !== 'none')
-                                                    ({{ $profile->cannibalization_risk->getLabel() }})
-                                                @endif
-                                                @if ($profile->landing_page)
-                                                    <a href="{{ $profile->landing_page }}" target="_blank" rel="noopener" title="صفحه‌ی زنده‌ای که الان برای این کلمه رتبه دارد" class="mr-1 underline decoration-dotted">
-                                                        🔗 صفحه
-                                                    </a>
-                                                @endif
-                                            </x-filament::badge>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
-
-                            @if ($group['suggestions']->isNotEmpty())
-                                <div class="mt-3">
-                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">پیشنهادهای هوش مصنوعی</p>
-                                    <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                        @foreach ($group['suggestions'] as $suggestion)
-                                            <x-filament::badge color="gray">
-                                                {{ $suggestion->keyword }} · {{ $suggestion->status->getLabel() }}
-                                            </x-filament::badge>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
-
-                            @if ($group['contentItems']->isNotEmpty())
-                                <div class="mt-3">
-                                    <p class="text-xs font-medium text-gray-500 dark:text-gray-400">محتوا</p>
-                                    <div class="mt-1.5 flex flex-wrap gap-1.5">
-                                        @foreach ($group['contentItems'] as $item)
-                                            <x-filament::badge :color="$item->status->getColor()">
-                                                {{ $item->title }} · {{ $item->status->getLabel() }}
-                                            </x-filament::badge>
-                                        @endforeach
-                                    </div>
-                                </div>
-                            @endif
-                        </div>
-                    </details>
-                @endforeach
+                        </details>
+                    @endforeach
+                </div>
             </div>
         @endif
     </div>

@@ -63,6 +63,41 @@ class SeoPillarClusterMapPageTest extends TestCase
             ->assertSeeHtml('https://ganjnameh.example.com/villa');
     }
 
+    public function test_tree_data_marks_only_keywords_that_are_in_a_warning_pair(): void
+    {
+        $project = SeoProject::factory()->create(['name' => 'گنج‌نامه']);
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'غار علیصدر']);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'keyword' => 'قیمت بلیط غار علیصدر']);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'keyword' => 'ساعت کاری غار علیصدر']);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'keyword' => 'خرید سوغات همدان']);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id]);
+
+        $tree = $component->instance()->treeData();
+
+        $this->assertSame('گنج‌نامه', $tree['name']);
+        $this->assertCount(1, $tree['children']);
+        $this->assertSame('غار علیصدر', $tree['children'][0]['name']);
+
+        $leaves = collect($tree['children'][0]['children'])->keyBy('name');
+        $this->assertTrue($leaves['قیمت بلیط غار علیصدر']['hasWarning']);
+        $this->assertTrue($leaves['ساعت کاری غار علیصدر']['hasWarning']);
+        $this->assertFalse($leaves['خرید سوغات همدان']['hasWarning']);
+    }
+
+    public function test_the_tree_tab_is_shown_alongside_the_list_tab(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'اقامت']);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'query' => 'اجاره ویلا همدان']);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('نمای درختی')
+            ->assertSee('لیست خوشه‌ها');
+    }
+
     public function test_a_user_without_permission_is_forbidden(): void
     {
         $user = User::factory()->create();
