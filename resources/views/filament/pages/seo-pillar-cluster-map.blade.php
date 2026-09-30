@@ -18,22 +18,39 @@
         @elseif ($this->map()?->isEmpty())
             <p class="text-sm text-gray-500 dark:text-gray-400">این پروژه هنوز هیچ خوشه‌ی موضوعی یا کلمه‌ی کلیدی‌ای ندارد.</p>
         @else
+            @php
+                $totalWarningsCount = $this->totalWarningsCount();
+                $totalOpportunitiesCount = $this->totalOpportunitiesCount();
+            @endphp
+
             <div class="flex gap-1 border-b border-gray-200 dark:border-white/10">
                 <button
                     type="button"
                     @click="tab = 'tree'"
                     :class="tab === 'tree' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
-                    class="border-b-2 px-3 py-2 text-sm font-medium"
+                    class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium"
                 >
                     نمای درختی
+                    @if ($totalWarningsCount > 0)
+                        <span class="inline-flex items-center justify-center rounded-full bg-danger-50 px-1.5 py-0.5 text-xs font-semibold text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">{{ $totalWarningsCount }}</span>
+                    @endif
+                    @if ($totalOpportunitiesCount > 0)
+                        <span class="inline-flex items-center justify-center rounded-full bg-pink-50 px-1.5 py-0.5 text-xs font-semibold text-pink-700 dark:bg-pink-500/10 dark:text-pink-400">{{ $totalOpportunitiesCount }}</span>
+                    @endif
                 </button>
                 <button
                     type="button"
                     @click="tab = 'list'"
                     :class="tab === 'list' ? 'border-primary-600 text-primary-600 dark:text-primary-400' : 'border-transparent text-gray-500 dark:text-gray-400'"
-                    class="border-b-2 px-3 py-2 text-sm font-medium"
+                    class="flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium"
                 >
                     لیست خوشه‌ها
+                    @if ($totalWarningsCount > 0)
+                        <span class="inline-flex items-center justify-center rounded-full bg-danger-50 px-1.5 py-0.5 text-xs font-semibold text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">{{ $totalWarningsCount }}</span>
+                    @endif
+                    @if ($totalOpportunitiesCount > 0)
+                        <span class="inline-flex items-center justify-center rounded-full bg-pink-50 px-1.5 py-0.5 text-xs font-semibold text-pink-700 dark:bg-pink-500/10 dark:text-pink-400">{{ $totalOpportunitiesCount }}</span>
+                    @endif
                 </button>
             </div>
 
