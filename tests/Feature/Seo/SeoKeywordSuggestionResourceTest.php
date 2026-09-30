@@ -4,10 +4,13 @@ namespace Tests\Feature\Seo;
 
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Resources\SeoKeywordSuggestions\Pages\ManageSeoKeywordSuggestions;
+use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Models\SeoContentItem;
 use App\Models\SeoKeywordSuggestion;
+use App\Models\SeoProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -84,5 +87,21 @@ class SeoKeywordSuggestionResourceTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(ManageSeoKeywordSuggestions::class)
             ->assertTableActionHidden('createContentItem', $suggestion);
+    }
+
+    public function test_the_discover_keywords_header_action_dispatches_the_job_for_the_chosen_project(): void
+    {
+        Queue::fake();
+
+        $project = SeoProject::factory()->create();
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoKeywordSuggestions::class)
+            ->callAction('discoverKeywords', data: [
+                'seo_project_id' => $project->id,
+                'count' => 10,
+            ]);
+
+        Queue::assertPushed(DiscoverSeoKeywordsJob::class, fn (DiscoverSeoKeywordsJob $job) => $job->seoProjectId === $project->id && $job->count === 10);
     }
 }
