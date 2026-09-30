@@ -142,6 +142,14 @@ class EditSeoProject extends EditRecord
                 ->action(function (array $data, SeoProject $record) {
                     DiscoverSeoKeywordsJob::dispatch($record->id, (int) $data['count']);
 
+                    if (blank($record->real_services)) {
+                        Notification::make()
+                            ->title('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.')
+                            ->body('پیشنهادهای هوش مصنوعی ممکن است با کسب‌وکار واقعی شما همخوانی نداشته باشند - آن را از بخش «اطلاعات کلی» همین صفحه پر کنید.')
+                            ->warning()
+                            ->send();
+                    }
+
                     Notification::make()
                         ->title('کشف کلمات کلیدی جدید در صف اجرا قرار گرفت.')
                         ->body('نتایج در بخش «پیشنهادهای کلمات کلیدی» قابل بررسی و تأیید خواهند بود.')

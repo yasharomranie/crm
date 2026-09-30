@@ -104,4 +104,32 @@ class SeoKeywordSuggestionResourceTest extends TestCase
 
         Queue::assertPushed(DiscoverSeoKeywordsJob::class, fn (DiscoverSeoKeywordsJob $job) => $job->seoProjectId === $project->id && $job->count === 10);
     }
+
+    public function test_the_discover_keywords_action_warns_when_the_chosen_projects_real_services_is_empty(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create(['real_services' => null]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoKeywordSuggestions::class)
+            ->callAction('discoverKeywords', data: [
+                'seo_project_id' => $project->id,
+                'count' => 10,
+            ])
+            ->assertNotified('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.');
+    }
+
+    public function test_the_discover_keywords_action_does_not_warn_when_real_services_is_filled(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create(['real_services' => 'داریم: تله‌کابین']);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoKeywordSuggestions::class)
+            ->callAction('discoverKeywords', data: [
+                'seo_project_id' => $project->id,
+                'count' => 10,
+            ])
+            ->assertNotNotified('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.');
+    }
 }

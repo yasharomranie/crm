@@ -4,10 +4,13 @@ namespace Tests\Feature\Seo;
 
 use App\Enums\SeoProjectGoal;
 use App\Filament\Resources\SeoProjects\Pages\CreateSeoProject;
+use App\Filament\Resources\SeoProjects\Pages\EditSeoProject;
 use App\Filament\Resources\SeoProjects\Pages\ListSeoProjects;
+use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Models\SeoProject;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -54,5 +57,29 @@ class SeoProjectResourceTest extends TestCase
 
         $this->assertSame(SeoProjectGoal::Booking, $project->goal);
         $this->assertCount(2, $project->competitors);
+    }
+
+    public function test_discovering_keywords_warns_when_real_services_is_empty(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create(['real_services' => null]);
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
+            ->callAction('discoverKeywords', data: ['count' => 10])
+            ->assertNotified('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.');
+
+        Queue::assertPushed(DiscoverSeoKeywordsJob::class);
+    }
+
+    public function test_discovering_keywords_does_not_warn_when_real_services_is_filled(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create(['real_services' => 'داریم: تله‌کابین']);
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
+            ->callAction('discoverKeywords', data: ['count' => 10])
+            ->assertNotNotified('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.');
     }
 }

@@ -48,6 +48,14 @@ class ManageSeoKeywordSuggestions extends ManageRecords
                 ->action(function (array $data): void {
                     DiscoverSeoKeywordsJob::dispatch((int) $data['seo_project_id'], (int) $data['count']);
 
+                    if (blank(SeoProject::find($data['seo_project_id'])?->real_services)) {
+                        Notification::make()
+                            ->title('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.')
+                            ->body('پیشنهادهای هوش مصنوعی ممکن است با کسب‌وکار واقعی شما همخوانی نداشته باشند - از صفحه‌ی همان پروژه، بخش «اطلاعات کلی»، آن را پر کنید.')
+                            ->warning()
+                            ->send();
+                    }
+
                     Notification::make()
                         ->title('کشف کلمات کلیدی جدید در صف اجرا قرار گرفت.')
                         ->body('نتایج به‌محض آماده شدن در همین جدول، با وضعیت «جدید»، قابل بررسی و تأیید خواهند بود.')

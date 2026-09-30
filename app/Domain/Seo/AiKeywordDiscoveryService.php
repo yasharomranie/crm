@@ -21,10 +21,26 @@ use App\Models\SeoTopicCluster;
  * (App\Models\SeoKeywordSuggestion, status "new") for a human to approve
  * or reject, never auto-added to the keyword profile table as if it were
  * observed data.
+ *
+ * Runs as two separate AI calls, not one - a lesson learned from an early
+ * version that only forbade repeating *existing* keywords: nothing
+ * stopped the model from generating two near-duplicate ideas within the
+ * SAME batch (e.g. "مسیرهای دسترسی به غار علیصدر" and "راهنمای سفر به
+ * غار علیصدر" in one nineteen-item run), since it never saw its own full
+ * output at once while writing it.
+ * 1. generate(): produce raw candidates, grounded in the project's real
+ *    services (App\Models\SeoProject::real_services) and its full
+ *    pillar/cluster map (App\Domain\Seo\PillarClusterMapBuilder) so it
+ *    already avoids most overlap and irrelevance up front.
+ * 2. review(): hand the *whole* raw batch back to the model as an editor
+ *    pass - merge/drop internal near-duplicates, drop unnatural phrasing,
+ *    drop anything outside real_services - before anything is stored.
  */
 class AiKeywordDiscoveryService
 {
     use ParsesAiJsonArray;
+
+    public function __construct(private readonly PillarClusterMapBuilder $mapBuilder) {}
 
     public function discover(SeoProject $project, int $count = 20): int
     {
@@ -34,19 +50,31 @@ class AiKeywordDiscoveryService
             throw AiProviderException::noActiveProvider();
         }
 
+        $context = $this->businessContext($project);
+
+        $raw = $this->generate($provider, $project, $context, $count);
+
+        if ($raw === []) {
+            return 0;
+        }
+
+        $reviewed = $this->review($provider, $context, $raw);
+
+        return $this->storeSuggestions($project, $reviewed);
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function generate(AiProvider $provider, SeoProject $project, string $context, int $count): array
+    {
         $existingKeywords = $project->keywordProfiles()->pluck('query')->all();
         $existingSuggestions = $project->keywordSuggestions()->pluck('keyword')->all();
-        $topicNames = $project->topicClusters()->pluck('name')->all();
 
         $systemPrompt = <<<TXT
             You are a senior SEO strategist doing keyword discovery for one specific business - suggesting NEW keyword ideas it does not yet rank for or has not yet considered, never restating keywords it already has data for.
 
-            Business context:
-            - Brand: {$project->brand}
-            - Website: {$project->website_url}
-            - Primary business goal: {$project->goal->getLabel()}
-            - Target market: {$project->market}
-            - Audience: {$project->audience}
+            {$context}
 
             Keywords already tracked (never suggest these again):
             {$this->formatList($existingKeywords)}
@@ -54,12 +82,15 @@ class AiKeywordDiscoveryService
             Keywords already suggested previously (never repeat these either):
             {$this->formatList($existingSuggestions)}
 
-            Existing topic clusters (reuse a name below when a new suggestion genuinely belongs to it, otherwise propose a new short Persian topic name):
-            {$this->formatList($topicNames)}
+            Suggest exactly {$count} new, realistic Persian search queries a real customer of this specific business would type into Google. Hard rules:
+            - Each keyword must be phrased exactly as a real person would type it into Google - natural Persian word order, never an awkward or literally-translated phrase.
+            - Do not suggest a keyword that only adds a minor variation to a topic cluster already well covered in the pillar/cluster map above - only suggest it if it adds a genuinely distinct angle.
+            - Within this very batch you are about to produce, no two suggestions may target the same or a very close search intent - if two ideas are essentially the same, keep only the single best phrasing.
+            - Only suggest keywords that plausibly relate to the business's real services/products listed above - never invent an unrelated service.
 
-            Suggest exactly {$count} new, realistic Persian search queries a real customer of this specific business would type into Google. For each, determine:
+            For each suggestion determine:
             - intent: exactly one of informational, commercial, transactional, navigational, local
-            - topic: a short (2-4 word) Persian topic name (reuse an existing one above when it fits)
+            - topic: a short (2-4 word) Persian topic name (reuse an existing cluster name from the map above when it genuinely fits)
             - suggested_content_type: a short Persian label for what kind of page/content would target it (e.g. "مقاله وبلاگ", "صفحه فرود", "صفحه مقایسه", "صفحه سوالات متداول")
             - reason: one short Persian sentence explaining why this keyword matters for this specific business
 
@@ -72,9 +103,93 @@ class AiKeywordDiscoveryService
             ['role' => 'user', 'content' => "لطفاً {$count} پیشنهاد کلمه کلیدی جدید تولید کن."],
         ]);
 
-        $results = $this->parseJsonArray($message['content'] ?? '');
+        return $this->parseJsonArray($message['content'] ?? '');
+    }
 
-        return $this->storeSuggestions($project, $results);
+    /**
+     * @param  array<int, array<string, mixed>>  $raw
+     * @return array<int, array<string, mixed>>
+     */
+    private function review(AiProvider $provider, string $context, array $raw): array
+    {
+        $rawJson = json_encode($raw, JSON_UNESCAPED_UNICODE);
+
+        $systemPrompt = <<<TXT
+            You are a senior SEO editor reviewing a junior colleague's raw keyword-suggestion draft before it ships. Your job is to find and fix problems, not to invent new ideas.
+
+            {$context}
+
+            Raw draft to review:
+            {$rawJson}
+
+            For every item in the draft, check:
+            1. Does it target the same or a very close search intent as another item in this same draft, or as an existing tracked/suggested keyword listed above? If so, keep only the single best, most complete phrasing and drop the rest - never keep both.
+            2. Is it phrased exactly as a real person would type it into Google? If it is awkward or unnatural, fix the phrasing; if it cannot be fixed, drop it.
+            3. Does it genuinely relate to the business's real services/products listed above? If not, drop it.
+            4. Is it so broad and generic that a small business site has no realistic chance of ranking for it, with no business-specific angle at all? If so, either make it more specific to this business or drop it.
+
+            Return ONLY the final, cleaned list - same JSON array shape as the input, nothing that fails any of the four checks above, no markdown fences, no explanation.
+            TXT;
+
+        $message = $provider->chatCompletion([
+            ['role' => 'system', 'content' => $systemPrompt],
+            ['role' => 'user', 'content' => 'لطفاً این پیش‌نویس را بازبینی و پالایش کن.'],
+        ]);
+
+        $reviewed = $this->parseJsonArray($message['content'] ?? '');
+
+        // A review call that returned nothing parseable is a malformed
+        // response, not "everything failed the checks" - falling back to
+        // the raw draft is safer than silently discarding a whole batch.
+        return $reviewed === [] ? $raw : $reviewed;
+    }
+
+    private function businessContext(SeoProject $project): string
+    {
+        $realServices = trim((string) $project->real_services);
+
+        $servicesLine = $realServices !== ''
+            ? $realServices
+            : '(خالی - هشدار: این کسب‌وکار هنوز فهرست خدمات واقعی خودش را مشخص نکرده. فقط بر اساس نام برند و هدف کلی قضاوت کن و از حدس زدن خدمات خیلی خاص خودداری کن.)';
+
+        return <<<TXT
+            Business context:
+            - Brand: {$project->brand}
+            - Website: {$project->website_url}
+            - Primary business goal: {$project->goal->getLabel()}
+            - Target market: {$project->market}
+            - Audience: {$project->audience}
+            - Real services/products (judge relevance ONLY against this list, never invent a service not listed here): {$servicesLine}
+
+            Current pillar/cluster map of this business's content and tracked keywords (shows what's already covered per topic, and where gaps are):
+            {$this->formatPillarMap($project)}
+            TXT;
+    }
+
+    private function formatPillarMap(SeoProject $project): string
+    {
+        $map = $this->mapBuilder->build($project);
+
+        if ($map->isEmpty()) {
+            return '(هنوز هیچ خوشه‌ی موضوعی یا کلمه‌ای برای این پروژه ثبت نشده است.)';
+        }
+
+        $lines = [];
+
+        foreach ($map as $group) {
+            $keywords = $group['profiles']->pluck('query')
+                ->merge($group['suggestions']->pluck('keyword'))
+                ->unique()
+                ->values();
+
+            if ($keywords->isEmpty()) {
+                continue;
+            }
+
+            $lines[] = "- {$group['name']}: ".$keywords->implode('، ');
+        }
+
+        return $lines === [] ? '(هنوز هیچ خوشه‌ی موضوعی یا کلمه‌ای برای این پروژه ثبت نشده است.)' : implode("\n", $lines);
     }
 
     /**
