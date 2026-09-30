@@ -16,7 +16,6 @@ class WebAppSectionsTable
     {
         return $table
             ->defaultSort('sort_order')
-            ->reorderable('sort_order')
             ->columns([
                 TextColumn::make('title')
                     ->label('سرتیتر')

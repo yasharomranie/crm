@@ -19,10 +19,12 @@ class CustomerAppController extends Controller
         return view('customer-app', [
             'banners' => WebAppBanner::where('is_active', true)
                 ->orderBy('sort_order')
+                ->orderBy('id')
                 ->get(),
             'sections' => WebAppSection::where('is_active', true)
                 ->orderBy('sort_order')
-                ->with(['items' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')])
+                ->orderBy('id')
+                ->with(['items' => fn ($query) => $query->where('is_active', true)->orderBy('sort_order')->orderBy('id')])
                 ->get(),
         ]);
     }
