@@ -10,7 +10,6 @@ use App\Exceptions\SeoGoogleException;
 use App\Models\SeoCountryMetric;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
-use App\Models\SeoGoogleConnection;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
@@ -73,7 +72,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
         }
 
         try {
-            $accessToken = $this->freshAccessToken($connection, $oauth);
+            $accessToken = $oauth->freshAccessTokenFor($connection);
             $client = new SearchConsoleClient($accessToken);
 
             $endDate = now()->subDays(self::REPORTING_LAG_DAYS);
@@ -103,28 +102,6 @@ class SyncSearchConsoleDataJob implements ShouldQueue
 
             throw $exception;
         }
-    }
-
-    private function freshAccessToken(SeoGoogleConnection $connection, GoogleOAuthService $oauth): string
-    {
-        if (! $connection->isTokenExpired()) {
-            return $connection->access_token;
-        }
-
-        if (blank($connection->refresh_token)) {
-            $connection->update(['status' => SeoConnectionStatus::TokenExpired]);
-
-            throw SeoGoogleException::requestFailed('نشست منقضی شده و Refresh Token موجود نیست - نیاز به اتصال مجدد.');
-        }
-
-        $tokens = $oauth->refreshAccessToken($connection->refresh_token);
-
-        $connection->update([
-            'access_token' => $tokens['access_token'],
-            'token_expires_at' => now()->addSeconds($tokens['expires_in']),
-        ]);
-
-        return $tokens['access_token'];
     }
 
     private function syncDaily(SearchConsoleClient $client, SeoProject $project, string $siteUrl, $startDate, $endDate): void
