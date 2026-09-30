@@ -12,7 +12,7 @@ class SeoProject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'website_url', 'goal', 'audience', 'market', 'brand', 'notes', 'is_active'];
+    protected $fillable = ['name', 'website_url', 'goal', 'audience', 'real_services', 'market', 'brand', 'notes', 'is_active'];
 
     protected function casts(): array
     {

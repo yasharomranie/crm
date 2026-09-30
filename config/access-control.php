@@ -14,6 +14,7 @@ use App\Filament\Pages\SalesPipeline;
 use App\Filament\Pages\SeoAlertSettings;
 use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
+use App\Filament\Pages\SeoPillarClusterMap;
 use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\WebAppDomainSettings;
@@ -164,6 +165,7 @@ return [
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],
         'seo-dashboard' => ['page' => SeoDashboard::class, 'label' => 'داشبورد سئو', 'group' => 'مرکز سئو'],
         'seo-rank-tracker-settings' => ['page' => SeoRankTrackerSettings::class, 'label' => 'تنظیمات ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
+        'seo-pillar-cluster-map' => ['page' => SeoPillarClusterMap::class, 'label' => 'نقشه موضوعی (پیلار-کلاستر)', 'group' => 'مرکز سئو'],
         'seo-alert-settings' => ['page' => SeoAlertSettings::class, 'label' => 'تنظیمات هشدار سئو', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,
