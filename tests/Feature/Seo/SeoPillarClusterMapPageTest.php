@@ -96,7 +96,31 @@ class SeoPillarClusterMapPageTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
             ->assertSee('فرصت رشد و کلیک بیشتر')
-            ->assertSeeHtml('42 کلیک بیشتر در ماه');
+            ->assertSeeHtml('42 کلیک بیشتر در ماه')
+            ->assertSeeHtml('bg-purple-50');
+    }
+
+    public function test_a_clusters_header_shows_its_opportunity_count_in_purple(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'اقامت']);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره ویلا همدان',
+            'opportunity_score' => 42,
+        ]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره سوییت همدان',
+            'opportunity_score' => 15,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('2 فرصت رشد')
+            ->assertSeeHtml('bg-purple-50');
     }
 
     public function test_a_profile_without_a_ctr_opportunity_score_shows_no_growth_warning(): void
@@ -198,7 +222,7 @@ class SeoPillarClusterMapPageTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
             ->assertDontSeeHtml('bg-danger-50')
-            ->assertDontSeeHtml('bg-pink-50');
+            ->assertDontSeeHtml('bg-purple-50');
     }
 
     public function test_the_tree_tab_is_shown_alongside_the_list_tab(): void

@@ -35,7 +35,7 @@
                         <span class="inline-flex items-center justify-center rounded-full bg-danger-50 px-1.5 py-0.5 text-xs font-semibold text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">{{ $totalWarningsCount }}</span>
                     @endif
                     @if ($totalOpportunitiesCount > 0)
-                        <span class="inline-flex items-center justify-center rounded-full bg-pink-50 px-1.5 py-0.5 text-xs font-semibold text-pink-700 dark:bg-pink-500/10 dark:text-pink-400">{{ $totalOpportunitiesCount }}</span>
+                        <span class="inline-flex items-center justify-center rounded-full bg-purple-50 px-1.5 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">{{ $totalOpportunitiesCount }}</span>
                     @endif
                 </button>
                 <button
@@ -49,7 +49,7 @@
                         <span class="inline-flex items-center justify-center rounded-full bg-danger-50 px-1.5 py-0.5 text-xs font-semibold text-danger-700 dark:bg-danger-500/10 dark:text-danger-400">{{ $totalWarningsCount }}</span>
                     @endif
                     @if ($totalOpportunitiesCount > 0)
-                        <span class="inline-flex items-center justify-center rounded-full bg-pink-50 px-1.5 py-0.5 text-xs font-semibold text-pink-700 dark:bg-pink-500/10 dark:text-pink-400">{{ $totalOpportunitiesCount }}</span>
+                        <span class="inline-flex items-center justify-center rounded-full bg-purple-50 px-1.5 py-0.5 text-xs font-semibold text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">{{ $totalOpportunitiesCount }}</span>
                     @endif
                 </button>
             </div>
@@ -57,7 +57,7 @@
             {{-- نمای درختی: یک نمودار درختی شعاعی (radial tree) با D3.js که
                  تمام خوشه‌های موضوعی و کلمات زیرشان را یک‌جا نشان می‌دهد -
                  نقطه‌ی قرمزتر یعنی آن کلمه در هشدار هم‌خواری هم هست، و حلقه‌ی
-                 صورتی دور نقطه یعنی آن کلمه فرصت رشد و کلیک بیشتر دارد. --}}
+                 بنفش دور نقطه یعنی آن کلمه فرصت رشد و کلیک بیشتر دارد. --}}
             <div x-show="tab === 'tree'" x-cloak>
                 @include('filament.components.d3-assets')
 
@@ -142,11 +142,11 @@
 
                                     return d.data.hasWarning ? '#dc2626' : '#fecaca';
                                 })
-                                // A pink ring next to (around) the node marks a
+                                // A purple ring next to (around) the node marks a
                                 // CTR growth opportunity - independent of the
                                 // warning fill color above, since a keyword can
                                 // have either signal, both, or neither.
-                                .attr('stroke', function (d) { return d.data.hasOpportunity ? '#db2777' : 'none'; })
+                                .attr('stroke', function (d) { return d.data.hasOpportunity ? '#9333ea' : 'none'; })
                                 .attr('stroke-width', function (d) { return d.data.hasOpportunity ? 2 : 0; });
 
                             node.append('text')
@@ -203,7 +203,7 @@
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#f97316"></span> خوشه‌ی موضوعی</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#dc2626"></span> کلمه با هشدار هم‌خواری</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca"></span> کلمه بدون هشدار</span>
-                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca; box-shadow: 0 0 0 2px #db2777;"></span> کلمه با فرصت رشد و کلیک بیشتر (حلقه‌ی صورتی)</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca; box-shadow: 0 0 0 2px #9333ea;"></span> کلمه با فرصت رشد و کلیک بیشتر (حلقه‌ی بنفش)</span>
                 </div>
             </div>
 
@@ -221,6 +221,14 @@
                                     @if (! empty($group['warnings']))
                                         <span class="inline-flex items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">
                                             ⚠ {{ count($group['warnings']) }} هشدار
+                                        </span>
+                                    @endif
+                                    @php
+                                        $groupOpportunityCount = $group['profiles']->filter(fn ($profile) => $profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)->count();
+                                    @endphp
+                                    @if ($groupOpportunityCount > 0)
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">
+                                            ↑ {{ $groupOpportunityCount }} فرصت رشد
                                         </span>
                                     @endif
                                     @if ($group['suggestions']->isNotEmpty())
@@ -274,7 +282,7 @@
 
                                                     @if ($profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)
                                                         <span
-                                                            class="inline-flex cursor-help items-center gap-1 rounded-full bg-pink-50 px-2 py-0.5 text-xs font-medium text-pink-700 dark:bg-pink-500/10 dark:text-pink-400"
+                                                            class="inline-flex cursor-help items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/10 dark:text-purple-400"
                                                             title="این کلمه در رتبه {{ number_format((float) $profile->current_position, 1) }} است اما نرخ کلیک (CTR) آن پایین‌تر از حد انتظار برای همین رتبه است - یعنی صفحه دیده می‌شود ولی کلیک لازم را نمی‌گیرد. تخمین رشد در صورت بهبود عنوان/متادیتا/توضیح جستجو: حدود {{ number_format((float) $profile->opportunity_score, 0) }} کلیک بیشتر در ماه."
                                                         >
                                                             ↑ فرصت رشد و کلیک بیشتر
