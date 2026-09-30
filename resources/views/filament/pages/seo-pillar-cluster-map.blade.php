@@ -45,8 +45,10 @@
 
                 @php $treeContainerId = 'seo-pillar-tree-'.\Illuminate\Support\Str::random(8); @endphp
 
-                <div wire:key="pillar-tree-{{ $projectId }}">
-                    <div id="{{ $treeContainerId }}" class="mx-auto" style="max-width: 900px;"></div>
+                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">برای دیدن جزئیات، داخل نمودار اسکرول کن یا با گرفتن و کشیدن (درگ) جابه‌جا شو - هرچه کلمه بیشتر باشد نمودار بزرگ‌تر می‌شود تا برچسب‌ها روی هم نیفتند.</p>
+
+                <div wire:key="pillar-tree-{{ $projectId }}" style="max-height: 75vh; overflow: auto; border: 1px solid #e5e7eb; border-radius: .5rem;" class="dark:border-white/10">
+                    <div id="{{ $treeContainerId }}" class="mx-auto" style="width: fit-content;"></div>
 
                     <script>
                         (function () {
@@ -57,10 +59,22 @@
                                 return;
                             }
 
-                            var width = Math.min(container.clientWidth || 900, 900);
-                            var radius = width / 2;
-
                             var root = d3.hierarchy(data);
+                            var leafCount = root.leaves().length;
+
+                            // A static viewport is what caused the tangle:
+                            // with a fixed circle and hundreds of leaves
+                            // sharing 2π radians between them, no amount of
+                            // shrinking-to-fit changes how much arc length
+                            // each label actually gets - only a bigger
+                            // radius does. Radius grows linearly with leaf
+                            // count (roughly one line-height of arc per
+                            // leaf, times a legibility margin), and the
+                            // wrapping container above scrolls instead of
+                            // squeezing it back down.
+                            var radius = Math.max(420, leafCount * 4.5);
+                            var size = radius * 2;
+
                             var tree = d3.tree()
                                 .size([2 * Math.PI, radius - 110])
                                 .separation(function (a, b) {
@@ -69,10 +83,10 @@
                             tree(root);
 
                             var svg = d3.select(container).append('svg')
-                                .attr('viewBox', [-radius, -radius, width, width])
-                                .attr('width', width)
-                                .attr('height', width)
-                                .attr('style', 'max-width: 100%; height: auto; font: 11px "Vazirmatn", sans-serif;');
+                                .attr('viewBox', [-radius, -radius, size, size])
+                                .attr('width', size)
+                                .attr('height', size)
+                                .attr('style', 'display: block; font: 11px "Vazirmatn", sans-serif;');
 
                             var g = svg.append('g');
 
