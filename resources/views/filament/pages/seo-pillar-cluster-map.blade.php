@@ -249,10 +249,10 @@
 
                                                     @if ($profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)
                                                         <span
-                                                            class="inline-flex cursor-help items-center gap-1 rounded-full bg-warning-50 px-2 py-0.5 text-xs text-warning-700 dark:bg-warning-500/10 dark:text-warning-400"
+                                                            class="inline-flex cursor-help items-center gap-1 rounded-full bg-pink-50 px-2 py-0.5 text-xs font-medium text-pink-700 dark:bg-pink-500/10 dark:text-pink-400"
                                                             title="این کلمه در رتبه {{ number_format((float) $profile->current_position, 1) }} است اما نرخ کلیک (CTR) آن پایین‌تر از حد انتظار برای همین رتبه است - یعنی صفحه دیده می‌شود ولی کلیک لازم را نمی‌گیرد. تخمین رشد در صورت بهبود عنوان/متادیتا/توضیح جستجو: حدود {{ number_format((float) $profile->opportunity_score, 0) }} کلیک بیشتر در ماه."
                                                         >
-                                                            ⚠ فرصت رشد و کلیک بیشتر
+                                                            ↑ فرصت رشد و کلیک بیشتر
                                                         </span>
                                                     @endif
                                                 </span>
