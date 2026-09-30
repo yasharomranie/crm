@@ -3,9 +3,20 @@
 namespace App\Filament\Pages;
 
 use App\Domain\Seo\PillarClusterMapBuilder;
+use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Models\SeoContentItem;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\User;
 use BackedEnum;
+use Filament\Actions\Action;
+use Filament\Actions\Concerns\InteractsWithActions;
+use Filament\Actions\Contracts\HasActions;
+use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Select;
+use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Collection;
@@ -21,9 +32,10 @@ use Livewire\Attributes\Url;
  * App\Domain\Seo\PillarClusterMapBuilder for how the grouping and the
  * lexical-overlap warnings are built.
  */
-class SeoPillarClusterMap extends Page
+class SeoPillarClusterMap extends Page implements HasActions
 {
     use HasAccessControlledPage;
+    use InteractsWithActions;
 
     protected string $view = 'filament.pages.seo-pillar-cluster-map';
 
@@ -103,5 +115,53 @@ class SeoPillarClusterMap extends Page
                 ];
             })->values()->all(),
         ];
+    }
+
+    /**
+     * A shortcut next to a suggested keyword's badge in the "لیست
+     * خوشه‌ها" tab, so committing to write for it doesn't require a trip
+     * to the keyword-suggestions resource first. Unlike that resource's
+     * own "ایجاد آیتم محتوا" action, this one doesn't require the
+     * suggestion to already be Approved - clicking it here IS the
+     * operator's approval, so it sets that status too.
+     */
+    public function addSuggestionToContentCalendarAction(): Action
+    {
+        return Action::make('addSuggestionToContentCalendar')
+            ->label('افزودن به تقویم محتوایی')
+            ->icon(Heroicon::OutlinedCalendarDays)
+            ->color('info')
+            ->size('xs')
+            ->schema(fn (array $arguments): array => [
+                TextInput::make('title')
+                    ->label('عنوان محتوا')
+                    ->default(SeoKeywordSuggestion::find($arguments['suggestionId'])?->keyword)
+                    ->required()
+                    ->maxLength(255),
+                Select::make('assigned_to')
+                    ->label('مسئول نگارش')
+                    ->options(fn () => User::pluck('name', 'id')),
+                DatePicker::make('due_date')
+                    ->label('مهلت انجام')
+                    ->jalali()
+                    ->displayFormat('Y/m/d'),
+            ])
+            ->action(function (array $data, array $arguments): void {
+                $suggestion = SeoKeywordSuggestion::findOrFail($arguments['suggestionId']);
+
+                $suggestion->update(['status' => SeoKeywordSuggestionStatus::Approved]);
+
+                SeoContentItem::create([
+                    'seo_project_id' => $suggestion->seo_project_id,
+                    'keyword_suggestion_id' => $suggestion->id,
+                    'title' => $data['title'],
+                    'target_keyword' => $suggestion->keyword,
+                    'content_type' => $suggestion->suggested_content_type,
+                    'assigned_to' => $data['assigned_to'] ?? null,
+                    'due_date' => $data['due_date'] ?? null,
+                ]);
+
+                Notification::make()->title('آیتم محتوا در تقویم محتوا ایجاد شد.')->success()->send();
+            });
     }
 }
