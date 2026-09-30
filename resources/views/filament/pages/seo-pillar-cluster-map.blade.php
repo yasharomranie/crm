@@ -33,8 +33,13 @@
                                     </span>
                                 @endif
                             </div>
+                            @php
+                                $livePagesCount = $group['profiles']->pluck('landing_page')->filter()->unique()->count();
+                            @endphp
                             <span class="text-xs text-gray-500 dark:text-gray-400">
-                                {{ $group['profiles']->count() + $group['suggestions']->count() }} کلمه · {{ $group['contentItems']->count() }} محتوا
+                                {{ $group['profiles']->count() + $group['suggestions']->count() }} کلمه ·
+                                {{ $livePagesCount }} صفحه‌ی زنده (سرچ کنسول) ·
+                                {{ $group['contentItems']->count() }} محتوای برنامه‌ریزی‌شده
                             </span>
                         </summary>
 
@@ -59,6 +64,11 @@
                                                 {{ $profile->query }}
                                                 @if ($profile->cannibalization_risk && $profile->cannibalization_risk->value !== 'none')
                                                     ({{ $profile->cannibalization_risk->getLabel() }})
+                                                @endif
+                                                @if ($profile->landing_page)
+                                                    <a href="{{ $profile->landing_page }}" target="_blank" rel="noopener" title="صفحه‌ی زنده‌ای که الان برای این کلمه رتبه دارد" class="mr-1 underline decoration-dotted">
+                                                        🔗 صفحه
+                                                    </a>
                                                 @endif
                                             </x-filament::badge>
                                         @endforeach

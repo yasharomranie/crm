@@ -46,6 +46,23 @@ class SeoPillarClusterMapPageTest extends TestCase
             ->assertSee('بهترین ویلاهای همدان');
     }
 
+    public function test_a_profile_with_a_landing_page_shows_a_link_to_it(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره ویلا همدان',
+            'landing_page' => 'https://ganjnameh.example.com/villa',
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('1 صفحه‌ی زنده')
+            ->assertSeeHtml('https://ganjnameh.example.com/villa');
+    }
+
     public function test_a_user_without_permission_is_forbidden(): void
     {
         $user = User::factory()->create();
