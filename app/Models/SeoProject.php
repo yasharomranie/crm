@@ -12,7 +12,7 @@ class SeoProject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'website_url', 'goal', 'audience', 'real_services', 'market', 'brand', 'notes', 'is_active'];
+    protected $fillable = ['name', 'website_url', 'goal', 'audience', 'real_services', 'excluded_query_terms', 'market', 'brand', 'notes', 'is_active'];
 
     protected function casts(): array
     {
@@ -20,6 +20,24 @@ class SeoProject extends Model
             'goal' => SeoProjectGoal::class,
             'is_active' => 'boolean',
         ];
+    }
+
+    /**
+     * Brand/noise terms (one per line) the admin wants excluded from
+     * keyword-level Search Console sync (see SyncSearchConsoleDataJob) -
+     * e.g. the brand name itself, so "گنجنامه بلیط" doesn't clutter the
+     * keyword-opportunity list with traffic that was never really about
+     * discovering the business.
+     *
+     * @return array<int, string>
+     */
+    public function excludedQueryTermsList(): array
+    {
+        return collect(preg_split('/[\r\n,]+/', (string) $this->excluded_query_terms))
+            ->map(fn (string $term) => trim($term))
+            ->filter()
+            ->values()
+            ->all();
     }
 
     public function competitors(): HasMany
@@ -65,6 +83,11 @@ class SeoProject extends Model
     public function searchAppearanceMetrics(): HasMany
     {
         return $this->hasMany(SeoSearchAppearanceMetric::class);
+    }
+
+    public function searchTypeMetrics(): HasMany
+    {
+        return $this->hasMany(SeoSearchTypeMetric::class);
     }
 
     public function topicClusters(): HasMany

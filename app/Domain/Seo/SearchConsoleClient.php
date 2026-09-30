@@ -42,6 +42,8 @@ class SearchConsoleClient
 
     /**
      * @param  array<int, string>  $dimensions  e.g. ['date'], ['query'], ['page'], ['query', 'page'], ['country'], ['device'], ['searchAppearance']
+     * @param  array<int, array{dimension: string, operator: string, expression: string}>  $filters  ANDed together (one dimensionFilterGroup) - e.g. [['dimension' => 'query', 'operator' => 'notContains', 'expression' => 'برند']]
+     * @param  string  $searchType  web|image|video|news|discover|googleNews - GSC calls this "type" in the request, not a "dimension"
      * @return array<int, array{keys: array<int, string>, clicks: int, impressions: int, ctr: float, position: float}>
      */
     public function querySearchAnalytics(
@@ -51,6 +53,8 @@ class SearchConsoleClient
         array $dimensions,
         int $rowLimit = self::MAX_ROW_LIMIT,
         int $startRow = 0,
+        array $filters = [],
+        string $searchType = 'web',
     ): array {
         $response = Http::withToken($this->accessToken)
             ->post(self::BASE_URL.'/sites/'.rawurlencode($siteUrl).'/searchAnalytics/query', [
@@ -60,6 +64,8 @@ class SearchConsoleClient
                 'rowLimit' => min($rowLimit, self::MAX_ROW_LIMIT),
                 'startRow' => $startRow,
                 'dataState' => 'all',
+                'type' => $searchType,
+                ...(filled($filters) ? ['dimensionFilterGroups' => [['filters' => $filters]]] : []),
             ]);
 
         if ($response->failed()) {

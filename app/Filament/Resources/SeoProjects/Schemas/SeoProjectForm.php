@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SeoProjects\Schemas;
 
 use App\Enums\SeoProjectGoal;
+use App\Enums\SeoSearchType;
 use App\Models\SeoProject;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
@@ -38,6 +39,22 @@ class SeoProjectForm
                             ->visible(fn (?SeoProject $record) => filled($record?->googleConnection?->last_sync_error))
                             ->content(fn (?SeoProject $record) => new HtmlString('<span class="text-danger-600">'.e($record?->googleConnection?->last_sync_error).'</span>')),
                     ]),
+
+                Section::make('ترافیک بر اساس نوع جستجو (۲۸ روز اخیر)')
+                    ->description('علاوه بر جستجوی وب معمولی (که در بقیه‌ی گزارش‌های سئو دیده می‌شود)، سرچ کنسول این وب‌سایت را در این حالت‌های جستجوی گوگل هم جدا رصد می‌کند.')
+                    ->visible(fn (?SeoProject $record) => $record?->searchTypeMetrics()->exists())
+                    ->columns(4)
+                    ->schema(
+                        collect(SeoSearchType::cases())
+                            ->map(fn (SeoSearchType $type) => Placeholder::make("search_type_{$type->value}")
+                                ->label($type->getLabel())
+                                ->content(fn (?SeoProject $record) => number_format((int) $record
+                                    ?->searchTypeMetrics()
+                                    ->where('search_type', $type->value)
+                                    ->where('date', '>=', now()->subDays(28))
+                                    ->sum('clicks')).' کلیک'))
+                            ->all()
+                    ),
 
                 Section::make('اطلاعات کلی')
                     ->columns(2)
@@ -76,6 +93,11 @@ class SeoProjectForm
                             ->label('خدمات و محصولات واقعی')
                             ->helperText('دقیقاً بنویس چه خدمات/محصولاتی واقعاً ارائه می‌دهی و چه چیزهایی مرتبط با حوزه‌ی کاری‌ات هستند ولی نداری - مثال: «داریم: تله‌کابین، اجاره ویلا، تور غار علیصدر - نداریم: پیست اسکی، فروش سوغات». هوش مصنوعی موقع پیشنهاد کلمه‌ی کلیدی جدید فقط بر همین اساس قضاوت می‌کند.')
                             ->rows(3)
+                            ->columnSpanFull(),
+                        Textarea::make('excluded_query_terms')
+                            ->label('کلمات برند/حذف‌شونده از سینک')
+                            ->helperText('یک عبارت در هر سطر (یا با کاما جدا). هر کلمه‌ی کلیدی واقعی که شامل یکی از این عبارت‌ها باشد، از سینک بعدی کلمات کلیدی سرچ کنسول کنار گذاشته می‌شود - مثلاً نام برند خودت، تا در لیست کلمات کلیدی و فرصت‌ها با نویز جستجوهای برندی شلوغ نشود. روی متریک‌های کلی روزانه/کشور/دستگاه اثر نمی‌گذارد.')
+                            ->rows(2)
                             ->columnSpanFull(),
                         Textarea::make('notes')
                             ->label('یادداشت‌ها')

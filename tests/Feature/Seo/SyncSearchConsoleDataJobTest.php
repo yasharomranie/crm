@@ -3,6 +3,7 @@
 namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\GoogleOAuthService;
+use App\Domain\Seo\SearchConsoleClient;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Jobs\AnalyzeSeoProjectJob;
@@ -17,6 +18,7 @@ use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
 use App\Models\SeoSearchAppearanceMetric;
+use App\Models\SeoSearchTypeMetric;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
@@ -136,6 +138,108 @@ class SyncSearchConsoleDataJobTest extends TestCase
         (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
 
         Queue::assertPushed(AnalyzeSeoProjectJob::class, fn ($job) => $job->seoProjectId === $project->id);
+    }
+
+    public function test_it_excludes_configured_brand_terms_from_the_query_level_sync(): void
+    {
+        $project = $this->connectedProject();
+        $project->update(['excluded_query_terms' => "گنجنامه\nهمدان"]);
+        $this->fakeSearchAnalytics();
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query']
+            && ($request['dimensionFilterGroups'][0]['filters'] ?? null) === [
+                ['dimension' => 'query', 'operator' => 'notContains', 'expression' => 'گنجنامه'],
+                ['dimension' => 'query', 'operator' => 'notContains', 'expression' => 'همدان'],
+            ]);
+
+        Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query', 'page']
+            && filled($request['dimensionFilterGroups'] ?? null));
+
+        // Dimensions that never carry a "query" key shouldn't get the filter at all.
+        Http::assertSent(fn ($request) => $request['dimensions'] === ['date']
+            && ! array_key_exists('dimensionFilterGroups', $request->data()));
+    }
+
+    public function test_it_sends_no_filter_group_when_no_terms_are_excluded(): void
+    {
+        $project = $this->connectedProject();
+        $this->fakeSearchAnalytics();
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query']
+            && ! array_key_exists('dimensionFilterGroups', $request->data()));
+    }
+
+    public function test_it_paginates_the_query_sync_past_the_25000_row_limit(): void
+    {
+        $project = $this->connectedProject();
+
+        $fullPage = collect(range(1, SearchConsoleClient::MAX_ROW_LIMIT))
+            ->map(fn (int $i) => ['keys' => ['2026-09-01', "کلمه شماره {$i}"], 'clicks' => 1, 'impressions' => 1, 'ctr' => 1.0, 'position' => 1.0])
+            ->all();
+
+        Http::fake([
+            '*searchAnalytics/query' => function ($request) use ($fullPage) {
+                if ($request['dimensions'] !== ['date', 'query']) {
+                    return Http::response(['rows' => []]);
+                }
+
+                return $request['startRow'] === 0
+                    ? Http::response(['rows' => $fullPage])
+                    : Http::response(['rows' => [['keys' => ['2026-09-01', 'آخرین کلمه'], 'clicks' => 2, 'impressions' => 2, 'ctr' => 1.0, 'position' => 1.0]]]);
+            },
+        ]);
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        $this->assertSame(SearchConsoleClient::MAX_ROW_LIMIT + 1, SeoQueryMetric::where('seo_project_id', $project->id)->count());
+        $this->assertDatabaseHas(SeoQueryMetric::class, ['seo_project_id' => $project->id, 'query' => 'آخرین کلمه']);
+
+        Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query'] && $request['startRow'] === SearchConsoleClient::MAX_ROW_LIMIT);
+    }
+
+    public function test_the_sync_window_covers_a_full_year(): void
+    {
+        $project = $this->connectedProject();
+        $this->fakeSearchAnalytics();
+
+        $expectedEndDate = now()->subDays(3)->toDateString();
+        $expectedStartDate = now()->subDays(3)->subDays(365)->toDateString();
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        Http::assertSent(fn ($request) => $request['startDate'] === $expectedStartDate && $request['endDate'] === $expectedEndDate);
+    }
+
+    public function test_it_syncs_each_search_type_into_its_own_row(): void
+    {
+        $project = $this->connectedProject();
+
+        Http::fake([
+            '*searchAnalytics/query' => function ($request) {
+                if ($request['dimensions'] !== ['date']) {
+                    return Http::response(['rows' => []]);
+                }
+
+                $clicksByType = ['web' => 40, 'image' => 5, 'video' => 2, 'news' => 1, 'discover' => 8];
+                $clicks = $clicksByType[$request['type']] ?? 0;
+
+                return Http::response(['rows' => [
+                    ['keys' => ['2026-09-01'], 'clicks' => $clicks, 'impressions' => $clicks * 10, 'ctr' => 0.1, 'position' => 5.0],
+                ]]);
+            },
+        ]);
+
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+
+        $this->assertSame(4, SeoSearchTypeMetric::where('seo_project_id', $project->id)->count());
+        $this->assertDatabaseHas(SeoSearchTypeMetric::class, ['seo_project_id' => $project->id, 'search_type' => 'image', 'clicks' => 5]);
+        $this->assertDatabaseHas(SeoSearchTypeMetric::class, ['seo_project_id' => $project->id, 'search_type' => 'discover', 'clicks' => 8]);
+        // "web" is never stored here - it's SeoDailyMetric's whole table.
+        $this->assertDatabaseMissing(SeoSearchTypeMetric::class, ['seo_project_id' => $project->id, 'search_type' => 'web']);
     }
 
     public function test_it_records_the_failure_and_rethrows_when_the_project_has_no_selected_site(): void
