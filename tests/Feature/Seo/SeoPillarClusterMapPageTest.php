@@ -168,6 +168,39 @@ class SeoPillarClusterMapPageTest extends TestCase
         $this->assertFalse($leaves['خرید سوغات همدان']['hasWarning']);
     }
 
+    public function test_tab_labels_show_the_total_warning_and_opportunity_counts(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        // Only these two overlap (share "بلیط" and "استخر") - everything
+        // else below uses unrelated words so it doesn't add extra,
+        // unintended warnings on top of this one pair.
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'keyword' => 'قیمت بلیط استخر']);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'keyword' => 'نرخ بلیط استخر']);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'query' => 'خرید لوازم آرایشی زنانه', 'opportunity_score' => 10]);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'query' => 'فروش عطر مردانه', 'opportunity_score' => 25]);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id]);
+
+        $this->assertSame(1, $component->instance()->totalWarningsCount());
+        $this->assertSame(2, $component->instance()->totalOpportunitiesCount());
+
+        $component->assertSeeHtmlInOrder(['نمای درختی', '1', '2', 'لیست خوشه‌ها', '1', '2']);
+    }
+
+    public function test_tab_labels_show_no_count_badges_when_there_are_none(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertDontSeeHtml('bg-danger-50')
+            ->assertDontSeeHtml('bg-pink-50');
+    }
+
     public function test_the_tree_tab_is_shown_alongside_the_list_tab(): void
     {
         $project = SeoProject::factory()->create();

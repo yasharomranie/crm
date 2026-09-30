@@ -77,6 +77,30 @@ class SeoPillarClusterMap extends Page implements HasActions
     }
 
     /**
+     * Total cannibalization warnings across every cluster - shown next
+     * to both tab labels so switching to "لیست خوشه‌ها" isn't needed
+     * just to find out whether there's anything to look at.
+     */
+    public function totalWarningsCount(): int
+    {
+        return (int) $this->map()?->sum(fn (array $group) => count($group['warnings']));
+    }
+
+    /**
+     * Total real keywords with a positive CTR growth-opportunity score
+     * across every cluster (see treeData()'s `hasOpportunity` for the
+     * same underlying signal).
+     */
+    public function totalOpportunitiesCount(): int
+    {
+        return (int) $this->map()?->sum(
+            fn (array $group) => $group['profiles']
+                ->filter(fn (SeoKeywordProfile $profile) => $profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)
+                ->count()
+        );
+    }
+
+    /**
      * A d3.hierarchy()-shaped tree for the radial view: project name at
      * the root, one branch per topic cluster, one leaf per keyword. A
      * leaf's `hasWarning` flag drives its dot color on the client - true
