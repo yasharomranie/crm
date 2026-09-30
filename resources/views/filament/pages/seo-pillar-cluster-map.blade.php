@@ -45,10 +45,16 @@
 
                 @php $treeContainerId = 'seo-pillar-tree-'.\Illuminate\Support\Str::random(8); @endphp
 
-                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">برای دیدن جزئیات، داخل نمودار اسکرول کن یا با گرفتن و کشیدن (درگ) جابه‌جا شو - هرچه کلمه بیشتر باشد نمودار بزرگ‌تر می‌شود تا برچسب‌ها روی هم نیفتند.</p>
+                <p class="mb-2 text-xs text-gray-500 dark:text-gray-400">با اسکرول ماوس یا پینچ زوم کن، با گرفتن و کشیدن (درگ) جابه‌جا شو - یا از دکمه‌های کنار نمودار استفاده کن.</p>
 
-                <div wire:key="pillar-tree-{{ $projectId }}" style="max-height: 75vh; overflow: auto; border: 1px solid #e5e7eb; border-radius: .5rem;" class="dark:border-white/10">
-                    <div id="{{ $treeContainerId }}" class="mx-auto" style="width: fit-content;"></div>
+                <div wire:key="pillar-tree-{{ $projectId }}" style="position: relative; border: 1px solid #e5e7eb; border-radius: .5rem; overflow: hidden;" class="dark:border-white/10">
+                    <div class="absolute left-2 top-2 z-10 flex flex-col gap-1" style="position: absolute;">
+                        <button type="button" id="{{ $treeContainerId }}-zoom-in" title="زوم این" class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">+</button>
+                        <button type="button" id="{{ $treeContainerId }}-zoom-out" title="زوم اوت" class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-lg font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">−</button>
+                        <button type="button" id="{{ $treeContainerId }}-zoom-reset" title="بازنشانی نما" class="flex h-8 w-8 items-center justify-center rounded-md border border-gray-200 bg-white text-xs font-bold text-gray-700 shadow-sm hover:bg-gray-50 dark:border-white/10 dark:bg-gray-800 dark:text-white dark:hover:bg-gray-700">⟲</button>
+                    </div>
+
+                    <div id="{{ $treeContainerId }}" style="width: 100%; height: 75vh;"></div>
 
                     <script>
                         (function () {
@@ -62,18 +68,14 @@
                             var root = d3.hierarchy(data);
                             var leafCount = root.leaves().length;
 
-                            // A static viewport is what caused the tangle:
-                            // with a fixed circle and hundreds of leaves
-                            // sharing 2π radians between them, no amount of
-                            // shrinking-to-fit changes how much arc length
-                            // each label actually gets - only a bigger
-                            // radius does. Radius grows linearly with leaf
-                            // count (roughly one line-height of arc per
-                            // leaf, times a legibility margin), and the
-                            // wrapping container above scrolls instead of
-                            // squeezing it back down.
+                            // The layout radius still grows with leaf count so
+                            // labels keep enough arc length between them - but
+                            // it no longer dictates the SVG's own pixel size.
+                            // The viewport below stays a fixed size and the
+                            // user zooms/pans into the (possibly much larger)
+                            // drawing instead of the whole thing being
+                            // shrunk-to-fit or requiring a scrollbar.
                             var radius = Math.max(420, leafCount * 4.5);
-                            var size = radius * 2;
 
                             var tree = d3.tree()
                                 .size([2 * Math.PI, radius - 110])
@@ -82,11 +84,13 @@
                                 });
                             tree(root);
 
+                            var viewport = Math.max(320, Math.min(container.clientWidth || 700, 700));
+
                             var svg = d3.select(container).append('svg')
-                                .attr('viewBox', [-radius, -radius, size, size])
-                                .attr('width', size)
-                                .attr('height', size)
-                                .attr('style', 'display: block; font: 11px "Vazirmatn", sans-serif;');
+                                .attr('width', '100%')
+                                .attr('height', '100%')
+                                .attr('viewBox', [-viewport / 2, -viewport / 2, viewport, viewport])
+                                .attr('style', 'display: block; font: 11px "Vazirmatn", sans-serif; cursor: grab;');
 
                             var g = svg.append('g');
 
@@ -131,6 +135,42 @@
                                 .clone(true).lower()
                                 .attr('stroke', 'white')
                                 .attr('stroke-width', 3);
+
+                            // Whole tree (data-space diameter ~2*radius) scaled
+                            // down to just fit the fixed viewport on first
+                            // paint, then the user zooms in from there.
+                            var initialScale = Math.min(1, (viewport * 0.92) / (radius * 2));
+
+                            var zoom = d3.zoom()
+                                .scaleExtent([initialScale * 0.4, 6])
+                                .on('zoom', function (event) {
+                                    g.attr('transform', event.transform);
+                                });
+
+                            svg.call(zoom);
+                            svg.call(zoom.transform, d3.zoomIdentity.scale(initialScale));
+
+                            var zoomInBtn = document.getElementById('{{ $treeContainerId }}-zoom-in');
+                            var zoomOutBtn = document.getElementById('{{ $treeContainerId }}-zoom-out');
+                            var zoomResetBtn = document.getElementById('{{ $treeContainerId }}-zoom-reset');
+
+                            if (zoomInBtn) {
+                                zoomInBtn.addEventListener('click', function () {
+                                    svg.transition().duration(200).call(zoom.scaleBy, 1.4);
+                                });
+                            }
+
+                            if (zoomOutBtn) {
+                                zoomOutBtn.addEventListener('click', function () {
+                                    svg.transition().duration(200).call(zoom.scaleBy, 1 / 1.4);
+                                });
+                            }
+
+                            if (zoomResetBtn) {
+                                zoomResetBtn.addEventListener('click', function () {
+                                    svg.transition().duration(200).call(zoom.transform, d3.zoomIdentity.scale(initialScale));
+                                });
+                            }
                         })();
                     </script>
                 </div>
