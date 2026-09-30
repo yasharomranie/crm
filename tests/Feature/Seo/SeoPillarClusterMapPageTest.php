@@ -65,6 +65,56 @@ class SeoPillarClusterMapPageTest extends TestCase
             ->assertSeeHtml('https://ganjnameh.example.com/villa');
     }
 
+    public function test_a_profiles_current_position_is_shown_next_to_it(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره ویلا همدان',
+            'current_position' => 6.4,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('رتبه 6.4');
+    }
+
+    public function test_a_profile_with_a_ctr_opportunity_score_shows_a_growth_warning(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره ویلا همدان',
+            'current_position' => 6.4,
+            'opportunity_score' => 42,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('فرصت رشد و کلیک بیشتر')
+            ->assertSeeHtml('42 کلیک بیشتر در ماه');
+    }
+
+    public function test_a_profile_without_a_ctr_opportunity_score_shows_no_growth_warning(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'query' => 'اجاره ویلا همدان',
+            'opportunity_score' => null,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertDontSee('فرصت رشد و کلیک بیشتر');
+    }
+
     public function test_tree_data_marks_only_keywords_that_are_in_a_warning_pair(): void
     {
         $project = SeoProject::factory()->create(['name' => 'گنج‌نامه']);
