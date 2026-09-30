@@ -222,5 +222,32 @@ class TechnicalSeoAuditorTest extends TestCase
         $this->assertSame(SeoTechnicalAuditStatus::Completed, $audit->status);
         $this->assertNull($audit->performance_score);
         $this->assertNull($audit->core_web_vitals);
+        $this->assertStringContainsString('تنظیم نشده', $audit->performance_error);
+    }
+
+    public function test_a_rejected_page_speed_api_key_is_recorded_as_a_readable_error(): void
+    {
+        // Regression: this used to only go to the log - the admin had no
+        // way to tell from the panel why the score never showed up.
+        SeoRankTrackerSetting::current()->update(['api_key' => 'bad-key', 'search_engine_id' => 'cx']);
+
+        Http::fake([
+            'www.googleapis.com/pagespeedonline/*' => Http::response(['error' => ['message' => 'API key not valid.']], 400),
+            'bad-key-site.test/robots.txt' => Http::response('', 200),
+            'bad-key-site.test/sitemap.xml' => Http::response('', 200),
+            'bad-key-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://bad-key-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(SeoTechnicalAuditStatus::Completed, $audit->status);
+        $this->assertNull($audit->performance_score);
+        $this->assertStringContainsString('API key not valid.', $audit->performance_error);
     }
 }

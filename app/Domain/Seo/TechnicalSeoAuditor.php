@@ -316,9 +316,13 @@ class TechnicalSeoAuditor
      * SeoGoogleException: an unconfigured or failed PageSpeed call must
      * never fail the whole technical audit, which already has useful
      * results (the crawl issues + score) without it - performance_score
-     * and core_web_vitals just stay null.
+     * and core_web_vitals just stay null. The failure itself is still
+     * surfaced via performance_error though (shown in the "مشاهده
+     * مشکلات" modal) - it used to only go to the log, which left the
+     * admin with no way to tell "not configured" apart from "API key
+     * rejected" apart from "quota exceeded" from the panel.
      *
-     * @return array{performance_score?: ?int, core_web_vitals?: ?array}
+     * @return array{performance_score?: ?int, core_web_vitals?: ?array, performance_error?: ?string}
      */
     private function runPageSpeedCheck(SeoProject $project): array
     {
@@ -332,6 +336,7 @@ class TechnicalSeoAuditor
                     'cls' => $result['cls'],
                     'field_data_category' => $result['field_data_category'],
                 ],
+                'performance_error' => null,
             ];
         } catch (\Throwable $exception) {
             Log::warning('TechnicalSeoAuditor: PageSpeed check failed.', [
@@ -339,7 +344,7 @@ class TechnicalSeoAuditor
                 'exception' => $exception->getMessage(),
             ]);
 
-            return [];
+            return ['performance_error' => $exception->getMessage()];
         }
     }
 }
