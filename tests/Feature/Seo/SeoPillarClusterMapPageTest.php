@@ -2,7 +2,9 @@
 
 namespace Tests\Feature\Seo;
 
+use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Pages\SeoPillarClusterMap;
+use App\Models\SeoContentItem;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
@@ -96,6 +98,34 @@ class SeoPillarClusterMapPageTest extends TestCase
             ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
             ->assertSee('نمای درختی')
             ->assertSee('لیست خوشه‌ها');
+    }
+
+    public function test_adding_a_suggestion_to_the_content_calendar_creates_a_content_item_and_approves_it(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        $suggestion = SeoKeywordSuggestion::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'keyword' => 'اجاره ویلا نزدیک غار علیصدر',
+            'suggested_content_type' => 'صفحه فرود',
+            'status' => SeoKeywordSuggestionStatus::New,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->callAction('addSuggestionToContentCalendar', data: [
+                'title' => 'صفحه فرود اجاره ویلا',
+            ], arguments: ['suggestionId' => $suggestion->id]);
+
+        $item = SeoContentItem::firstOrFail();
+        $this->assertSame($suggestion->id, $item->keyword_suggestion_id);
+        $this->assertSame($project->id, $item->seo_project_id);
+        $this->assertSame('صفحه فرود اجاره ویلا', $item->title);
+        $this->assertSame('اجاره ویلا نزدیک غار علیصدر', $item->target_keyword);
+        $this->assertSame('صفحه فرود', $item->content_type);
+
+        $this->assertSame(SeoKeywordSuggestionStatus::Approved, $suggestion->refresh()->status);
     }
 
     public function test_a_user_without_permission_is_forbidden(): void

@@ -250,11 +250,14 @@
                                 @if ($group['suggestions']->isNotEmpty())
                                     <div class="mt-3">
                                         <p class="text-xs font-medium text-gray-500 dark:text-gray-400">پیشنهادهای هوش مصنوعی</p>
-                                        <div class="mt-1.5 flex flex-wrap gap-1.5">
+                                        <div class="mt-1.5 flex flex-wrap items-center gap-1.5">
                                             @foreach ($group['suggestions'] as $suggestion)
-                                                <x-filament::badge color="gray">
-                                                    {{ $suggestion->keyword }} · {{ $suggestion->status->getLabel() }}
-                                                </x-filament::badge>
+                                                <span class="inline-flex items-center gap-1">
+                                                    <x-filament::badge color="gray">
+                                                        {{ $suggestion->keyword }} · {{ $suggestion->status->getLabel() }}
+                                                    </x-filament::badge>
+                                                    {{ ($this->addSuggestionToContentCalendarAction)(arguments: ['suggestionId' => $suggestion->id]) }}
+                                                </span>
                                             @endforeach
                                         </div>
                                     </div>
