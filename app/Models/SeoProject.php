@@ -7,12 +7,13 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Collection;
 
 class SeoProject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'website_url', 'goal', 'audience', 'real_services', 'excluded_query_terms', 'market', 'brand', 'notes', 'is_active'];
+    protected $fillable = ['name', 'website_url', 'sitemap_url', 'goal', 'audience', 'real_services', 'excluded_query_terms', 'market', 'brand', 'notes', 'is_active'];
 
     protected function casts(): array
     {
@@ -123,6 +124,41 @@ class SeoProject extends Model
     public function technicalAudits(): HasMany
     {
         return $this->hasMany(SeoTechnicalAudit::class);
+    }
+
+    public function sitemapEntries(): HasMany
+    {
+        return $this->hasMany(SeoSitemapEntry::class);
+    }
+
+    /**
+     * @return Collection<int, SeoSitemapEntry>
+     */
+    public function recentlyAddedSitemapPages(int $limit = 5): Collection
+    {
+        return $this->sitemapEntries()->orderByDesc('first_seen_at')->limit($limit)->get();
+    }
+
+    /**
+     * Only entries whose lastmod actually changed after they were first
+     * discovered - see App\Domain\Seo\SitemapMonitorService.
+     *
+     * @return Collection<int, SeoSitemapEntry>
+     */
+    public function recentlyEditedSitemapPages(int $limit = 5): Collection
+    {
+        return $this->sitemapEntries()
+            ->whereColumn('last_changed_at', '>', 'first_seen_at')
+            ->orderByDesc('last_changed_at')
+            ->limit($limit)
+            ->get();
+    }
+
+    public function sitemapContentVolumeThisMonth(): int
+    {
+        return $this->sitemapEntries()
+            ->whereBetween('first_seen_at', [now()->startOfMonth(), now()->endOfMonth()])
+            ->count();
     }
 
     public function periodicReports(): HasMany

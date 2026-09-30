@@ -72,3 +72,11 @@ Schedule::command('seo:generate-periodic-reports')
     ->monthlyOn(1, '04:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// sitemap.xml معمولاً چند بار در روز هم تغییر نمی‌کند، پس یک بار در روز
+// برای تشخیص صفحات تازه‌اضافه‌شده/ویرایش‌شده کافی است - سحرگاه، مثل
+// همگام‌سازی هفتگیِ آدیت تکنیکال، تا کمترین بار را روی سایت مشتری بگذارد.
+Schedule::command('seo:sync-sitemaps')
+    ->dailyAt('05:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();

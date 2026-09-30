@@ -5,6 +5,7 @@ namespace App\Filament\Resources\SeoProjects\Schemas;
 use App\Enums\SeoProjectGoal;
 use App\Enums\SeoSearchType;
 use App\Models\SeoProject;
+use App\Models\SeoSitemapEntry;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -13,6 +14,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Collection;
 use Illuminate\Support\HtmlString;
 
 class SeoProjectForm
@@ -38,6 +40,24 @@ class SeoProjectForm
                             ->label('آخرین خطا')
                             ->visible(fn (?SeoProject $record) => filled($record?->googleConnection?->last_sync_error))
                             ->content(fn (?SeoProject $record) => new HtmlString('<span class="text-danger-600">'.e($record?->googleConnection?->last_sync_error).'</span>')),
+                    ]),
+
+                Section::make('پایش Sitemap')
+                    ->description('مستقیماً از تجزیه‌ی فایل sitemap.xml این پروژه استخراج شده (نه از Search Console) - صفحات تازه اضافه‌شده، ویرایش‌شده، و حجم محتوای این ماه.')
+                    ->visible(fn (?SeoProject $record) => $record?->sitemapEntries()->exists())
+                    ->columns(3)
+                    ->schema([
+                        Placeholder::make('sitemap_monthly_volume')
+                            ->label('صفحات جدید این ماه')
+                            ->content(fn (?SeoProject $record) => number_format($record?->sitemapContentVolumeThisMonth() ?? 0).' صفحه'),
+                        Placeholder::make('sitemap_recently_added')
+                            ->label('تازه‌ترین صفحات اضافه‌شده')
+                            ->columnSpanFull()
+                            ->content(fn (?SeoProject $record) => self::renderSitemapEntryList($record?->recentlyAddedSitemapPages() ?? collect())),
+                        Placeholder::make('sitemap_recently_edited')
+                            ->label('تازه‌ترین صفحات ویرایش‌شده')
+                            ->columnSpanFull()
+                            ->content(fn (?SeoProject $record) => self::renderSitemapEntryList($record?->recentlyEditedSitemapPages() ?? collect(), edited: true)),
                     ]),
 
                 Section::make('ترافیک بر اساس نوع جستجو (۲۸ روز اخیر)')
@@ -68,6 +88,11 @@ class SeoProjectForm
                             ->label('آدرس وب‌سایت')
                             ->url()
                             ->required()
+                            ->maxLength(255),
+                        TextInput::make('sitemap_url')
+                            ->label('آدرس Sitemap')
+                            ->helperText('آدرس کامل فایل sitemap.xml این سایت (یا sitemap index آن). اگر ثبت شود، هر روز صفحات تازه اضافه‌شده/ویرایش‌شده و حجم محتوای ماهانه از روی آن استخراج و در بالای همین فرم نمایش داده می‌شود.')
+                            ->url()
                             ->maxLength(255),
                         Select::make('goal')
                             ->label('هدف اصلی کسب‌وکار')
@@ -125,5 +150,26 @@ class SeoProjectForm
                     ])
                     ->columnSpanFull(),
             ]);
+    }
+
+    /**
+     * @param  Collection<int, SeoSitemapEntry>  $entries
+     * @param  bool  $edited  whether to show each entry's last_changed_at (edited list) or first_seen_at (added list)
+     */
+    private static function renderSitemapEntryList(Collection $entries, bool $edited = false): HtmlString
+    {
+        if ($entries->isEmpty()) {
+            return new HtmlString('<span class="text-gray-400">موردی یافت نشد.</span>');
+        }
+
+        $items = $entries->map(function (SeoSitemapEntry $entry) use ($edited) {
+            $date = ($edited ? $entry->last_changed_at : $entry->first_seen_at)?->translatedFormat('Y/m/d H:i');
+            $title = e($entry->title ?? '(بدون عنوان)');
+            $url = e($entry->url);
+
+            return "<li><a href=\"{$url}\" target=\"_blank\" rel=\"noopener\" class=\"text-primary-600 hover:underline\">{$title}</a> <span class=\"text-gray-400\" dir=\"ltr\">— {$url}</span> <span class=\"text-gray-400\">({$date})</span></li>";
+        })->implode('');
+
+        return new HtmlString("<ul class=\"list-disc pr-4 space-y-1 text-sm\">{$items}</ul>");
     }
 }

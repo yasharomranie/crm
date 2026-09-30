@@ -10,6 +10,7 @@ use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\ClassifySeoKeywordsJob;
 use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Jobs\SyncSearchConsoleDataJob;
+use App\Jobs\SyncSitemapDataJob;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use Filament\Actions\Action;
@@ -94,6 +95,19 @@ class EditSeoProject extends EditRecord
                     Notification::make()
                         ->title('همگام‌سازی در صف اجرا قرار گرفت.')
                         ->body('چند دقیقه‌ی دیگر داده‌های جدید در گزارش‌ها قابل مشاهده است.')
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('syncSitemapNow')
+                ->label('همگام‌سازی Sitemap الان')
+                ->icon(Heroicon::OutlinedDocumentText)
+                ->visible(fn (SeoProject $record) => filled($record->sitemap_url))
+                ->action(function (SeoProject $record) {
+                    SyncSitemapDataJob::dispatch($record->id);
+
+                    Notification::make()
+                        ->title('همگام‌سازی Sitemap در صف اجرا قرار گرفت.')
                         ->success()
                         ->send();
                 }),
