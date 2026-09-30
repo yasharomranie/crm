@@ -62,4 +62,46 @@ class SeoPillarClusterMap extends Page
 
         return $project ? app(PillarClusterMapBuilder::class)->build($project) : null;
     }
+
+    /**
+     * A d3.hierarchy()-shaped tree for the radial view: project name at
+     * the root, one branch per topic cluster, one leaf per keyword. A
+     * leaf's `hasWarning` flag drives its dot color on the client - true
+     * when that exact keyword text appears in its cluster's lexical
+     * cannibalization warnings (see PillarClusterMapBuilder), since real
+     * search volume isn't data this app has.
+     *
+     * @return array<string, mixed>|null
+     */
+    public function treeData(): ?array
+    {
+        $project = $this->selectedProject();
+        $map = $this->map();
+
+        if (! $project || ! $map) {
+            return null;
+        }
+
+        return [
+            'name' => $project->name,
+            'children' => $map->map(function (array $group): array {
+                $keywordsWithWarnings = collect($group['warnings'])
+                    ->flatMap(fn (array $warning) => [$warning['a'], $warning['b']])
+                    ->unique();
+
+                $keywords = $group['profiles']->pluck('query')
+                    ->merge($group['suggestions']->pluck('keyword'))
+                    ->unique()
+                    ->values();
+
+                return [
+                    'name' => $group['name'],
+                    'children' => $keywords->map(fn (string $keyword) => [
+                        'name' => $keyword,
+                        'hasWarning' => $keywordsWithWarnings->contains($keyword),
+                    ])->all(),
+                ];
+            })->values()->all(),
+        ];
+    }
 }
