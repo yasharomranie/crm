@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\WebAppSections\Schemas;
 
 use App\Enums\WebAppTileAccent;
+use App\Models\WebAppSection as WebAppSectionModel;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
@@ -24,7 +25,7 @@ class WebAppSectionForm
                 TextInput::make('sort_order')
                     ->label('ترتیب نمایش بخش')
                     ->numeric()
-                    ->default(0)
+                    ->default(fn () => WebAppSectionModel::max('sort_order') + 1)
                     ->required(),
                 Toggle::make('is_active')
                     ->label('نمایش در اپ')
@@ -62,14 +63,13 @@ class WebAppSectionForm
                                 TextInput::make('sort_order')
                                     ->label('ترتیب')
                                     ->numeric()
-                                    ->default(0)
+                                    ->default(fn (?WebAppSectionModel $record) => ($record?->items()->max('sort_order') ?? -1) + 1)
                                     ->required(),
                                 Toggle::make('is_active')
                                     ->label('نمایش در اپ')
                                     ->default(true),
                             ])
                             ->columns(2)
-                            ->orderColumn('sort_order')
                             ->itemLabel(fn (array $state): ?string => $state['label'] ?? null)
                             ->addActionLabel('افزودن آیتم')
                             ->defaultItems(0),

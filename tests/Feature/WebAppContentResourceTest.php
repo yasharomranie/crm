@@ -8,6 +8,7 @@ use App\Filament\Resources\WebAppSections\Pages\ManageWebAppSections;
 use App\Models\User;
 use App\Models\WebAppBanner;
 use App\Models\WebAppSection;
+use App\Models\WebAppSectionItem;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
@@ -95,5 +96,43 @@ class WebAppContentResourceTest extends TestCase
             ['بلیت و چک‌این', 'رزرو اقامت'],
             $section->items->pluck('label')->all(),
         );
+    }
+
+    public function test_editing_an_items_sort_order_inside_a_section_keeps_the_typed_value(): void
+    {
+        // Regression test: the repeater used to have ->orderColumn('sort_order'),
+        // which made Filament silently overwrite this field with the item's
+        // position in the list on every save - discarding whatever number
+        // the admin actually typed into "ترتیب".
+        $section = WebAppSection::factory()->create();
+        $itemA = $section->items()->create(['label' => 'آ', 'accent' => WebAppTileAccent::Orange, 'sort_order' => 0]);
+        $itemB = $section->items()->create(['label' => 'ب', 'accent' => WebAppTileAccent::Orange, 'sort_order' => 1]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageWebAppSections::class)
+            ->mountTableAction('edit', $section)
+            ->setActionData([
+                'title' => $section->title,
+                'sort_order' => $section->sort_order,
+                'is_active' => $section->is_active,
+                'items' => [
+                    "record-{$itemA->getKey()}" => ['label' => 'آ', 'accent' => WebAppTileAccent::Orange->value, 'sort_order' => 40, 'is_active' => true],
+                    "record-{$itemB->getKey()}" => ['label' => 'ب', 'accent' => WebAppTileAccent::Orange->value, 'sort_order' => 10, 'is_active' => true],
+                ],
+            ])
+            ->callMountedTableAction()
+            ->assertHasNoTableActionErrors();
+
+        $this->assertSame(40, $itemA->refresh()->sort_order);
+        $this->assertSame(10, $itemB->refresh()->sort_order);
+    }
+
+    public function test_a_sections_items_are_returned_ordered_by_sort_order(): void
+    {
+        $section = WebAppSection::factory()->create();
+        $second = WebAppSectionItem::factory()->create(['web_app_section_id' => $section->id, 'sort_order' => 10]);
+        $first = WebAppSectionItem::factory()->create(['web_app_section_id' => $section->id, 'sort_order' => 5]);
+
+        $this->assertSame([$first->id, $second->id], $section->items()->pluck('id')->all());
     }
 }

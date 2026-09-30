@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\WebAppBanners\Schemas;
 
+use App\Models\WebAppBanner;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
@@ -41,7 +42,7 @@ class WebAppBannerForm
                 TextInput::make('sort_order')
                     ->label('ترتیب نمایش')
                     ->numeric()
-                    ->default(0)
+                    ->default(fn () => WebAppBanner::max('sort_order') + 1)
                     ->required(),
                 Toggle::make('is_active')
                     ->label('نمایش در اپ')

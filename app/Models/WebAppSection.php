@@ -22,6 +22,6 @@ class WebAppSection extends Model
 
     public function items(): HasMany
     {
-        return $this->hasMany(WebAppSectionItem::class)->orderBy('sort_order');
+        return $this->hasMany(WebAppSectionItem::class)->orderBy('sort_order')->orderBy('id');
     }
 }
