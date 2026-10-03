@@ -82,6 +82,13 @@ class SeoTechnicalAuditsTable
                             SeoTechnicalIssueSeverity::Warning => 1,
                             SeoTechnicalIssueSeverity::Info => 2,
                         }),
+                        'weakestLinkedPages' => $record->internalLinks()
+                            ->selectRaw('to_url, count(distinct from_url) as incoming')
+                            ->groupBy('to_url')
+                            ->havingRaw('count(distinct from_url) <= 1')
+                            ->orderBy('incoming')
+                            ->limit(10)
+                            ->get(),
                     ]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('بستن'),

@@ -27,6 +27,22 @@
         </div>
     @endif
 
+    @if ($weakestLinkedPages->isNotEmpty())
+        <div class="mb-4">
+            <p class="mb-1.5 text-xs font-medium text-gray-500 dark:text-gray-400">ضعیف‌ترین پیوندهای داخلی (صفحاتی که در این بررسی حداکثر یک لینک داخلی به آن‌ها پیدا شد)</p>
+            <table class="w-full text-sm">
+                <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+                    @foreach ($weakestLinkedPages as $page)
+                        <tr>
+                            <td class="py-1.5 max-w-xs truncate text-xs text-gray-500 dark:text-gray-400" dir="ltr">{{ $page->to_url }}</td>
+                            <td class="py-1.5 text-xs text-gray-500 dark:text-gray-400">{{ \Illuminate\Support\Number::toPersian($page->incoming) }} لینک داخلی</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        </div>
+    @endif
+
     @if ($issues->isEmpty())
         <p class="text-sm text-gray-500 dark:text-gray-400">هیچ مشکلی در این بررسی یافت نشد.</p>
     @else

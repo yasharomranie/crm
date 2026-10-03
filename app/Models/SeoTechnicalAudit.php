@@ -40,4 +40,9 @@ class SeoTechnicalAudit extends Model
     {
         return $this->hasMany(SeoTechnicalAuditIssue::class);
     }
+
+    public function internalLinks(): HasMany
+    {
+        return $this->hasMany(SeoInternalLink::class);
+    }
 }
