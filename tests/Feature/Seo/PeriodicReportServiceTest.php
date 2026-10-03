@@ -4,6 +4,7 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\PeriodicReportService;
 use App\Enums\SeoOpportunityOutcomeVerdict;
+use App\Models\AiProvider;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoKeywordRankCheck;
@@ -13,6 +14,7 @@ use App\Models\SeoProject;
 use App\Models\SeoTrackedKeyword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class PeriodicReportServiceTest extends TestCase
@@ -72,5 +74,58 @@ class PeriodicReportServiceTest extends TestCase
         $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
 
         $this->assertStringContainsString('کلمهٔ نمونه', $report->html);
+    }
+
+    public function test_it_includes_no_narrative_section_when_no_ai_provider_is_active(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringNotContainsString('class="narrative"', $report->html);
+    }
+
+    public function test_it_includes_the_ai_narrative_when_a_provider_is_active(): void
+    {
+        AiProvider::create([
+            'name' => 'Test Provider',
+            'base_url' => 'https://api.test-provider.example/v1',
+            'api_key' => 'test-key',
+            'default_model' => 'gpt-test',
+            'is_active' => true,
+        ]);
+
+        Http::fake([
+            'api.test-provider.example/*' => Http::response([
+                'choices' => [['message' => ['content' => 'این متن خلاصه‌ی روایی گزارش است.']]],
+            ]),
+        ]);
+
+        $project = SeoProject::factory()->create();
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('این متن خلاصه‌ی روایی گزارش است.', $report->html);
+    }
+
+    public function test_it_includes_a_daily_clicks_chart_when_there_is_more_than_one_days_data(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-10', 'clicks' => 10]);
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-11', 'clicks' => 20]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('periodic-report-clicks-chart', $report->html);
+    }
+
+    public function test_it_omits_the_chart_when_there_is_at_most_one_days_data(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-10', 'clicks' => 10]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringNotContainsString('periodic-report-clicks-chart', $report->html);
     }
 }

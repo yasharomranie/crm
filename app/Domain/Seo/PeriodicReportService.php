@@ -14,6 +14,7 @@ use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTrackedKeyword;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Builds one project's periodic executive summary - ties together every
@@ -27,12 +28,16 @@ class PeriodicReportService
 {
     public function generate(SeoProject $project, Carbon $periodStart, Carbon $periodEnd): SeoPeriodicReport
     {
+        $search = $this->searchPerformance($project, $periodStart, $periodEnd);
+        $opportunities = $this->opportunitySummary($project, $periodStart, $periodEnd);
+        $actionItems = app(SeoActionQueueService::class)->items($project);
+
         $data = [
             'project' => $project,
             'periodStart' => $periodStart,
             'periodEnd' => $periodEnd,
-            'search' => $this->searchPerformance($project, $periodStart, $periodEnd),
-            'opportunities' => $this->opportunitySummary($project, $periodStart, $periodEnd),
+            'search' => $search,
+            'opportunities' => $opportunities,
             'contentPublishedCount' => SeoContentItem::where('seo_project_id', $project->id)
                 ->whereBetween('published_at', [$periodStart->clone()->startOfDay(), $periodEnd->clone()->endOfDay()])
                 ->count(),
@@ -42,6 +47,8 @@ class PeriodicReportService
                 ->where('completed_at', '<=', $periodEnd->clone()->endOfDay())
                 ->orderByDesc('completed_at')
                 ->first(),
+            'narrative' => $this->narrative($project, $search, $opportunities, $actionItems),
+            'dailySeries' => $this->dailySeries($project, $periodStart, $periodEnd),
         ];
 
         $html = view('seo.periodic-report', $data)->render();
@@ -147,5 +154,49 @@ class PeriodicReportService
             ->filter()
             ->sortByDesc(fn ($row) => $row['delta'] ?? -100)
             ->values();
+    }
+
+    /**
+     * Best-effort, same reasoning as TechnicalSeoAuditor's own PageSpeed
+     * check: a missing/failed AI provider must never break a report that
+     * already has useful numbers without it - the narrative section is
+     * just left out.
+     *
+     * @param  array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, percent_change: ?float}  $search
+     * @param  array{detected: int, resolved: int, improved: int, unchanged: int, declined: int}  $opportunities
+     * @param  Collection<int, SeoActionItem>  $actionItems
+     */
+    private function narrative(SeoProject $project, array $search, array $opportunities, Collection $actionItems): ?string
+    {
+        try {
+            return app(SeoAiAnalystService::class)->narrativeFor($project, $search, $opportunities, $actionItems);
+        } catch (\Throwable $exception) {
+            Log::warning('PeriodicReportService: AI narrative failed.', [
+                'seo_project_id' => $project->id,
+                'exception' => $exception->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
+    /**
+     * The raw series the report's daily-clicks chart draws - baked into
+     * the stored HTML at generation time (see this class's own doc
+     * comment), not fetched live when the report is viewed later.
+     *
+     * @return array<int, array{date: string, clicks: int}>
+     */
+    private function dailySeries(SeoProject $project, Carbon $start, Carbon $end): array
+    {
+        return SeoDailyMetric::where('seo_project_id', $project->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('date')
+            ->get(['date', 'clicks'])
+            ->map(fn (SeoDailyMetric $row) => [
+                'date' => Carbon::parse($row->date)->format('m/d'),
+                'clicks' => $row->clicks,
+            ])
+            ->all();
     }
 }

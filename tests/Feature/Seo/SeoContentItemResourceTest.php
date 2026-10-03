@@ -38,6 +38,29 @@ class SeoContentItemResourceTest extends TestCase
             ->assertCanSeeTableRecords([$item]);
     }
 
+    public function test_the_propose_schedule_action_schedules_the_projects_backlog(): void
+    {
+        $project = SeoProject::factory()->create();
+        $item = SeoContentItem::factory()->create([
+            'seo_project_id' => $project->id,
+            'status' => SeoContentItemStatus::Idea,
+            'due_date' => null,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListSeoContentItems::class)
+            ->callAction('proposeSchedule', data: [
+                'seo_project_id' => $project->id,
+                'period_start' => now()->toDateString(),
+                'period_end' => now()->addMonth()->toDateString(),
+                'volume' => 1,
+            ])
+            ->assertHasNoActionErrors();
+
+        $this->assertSame(SeoContentItemStatus::Planned, $item->refresh()->status);
+        $this->assertNotNull($item->due_date);
+    }
+
     public function test_creating_a_content_item(): void
     {
         $project = SeoProject::factory()->create();
