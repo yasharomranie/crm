@@ -13,6 +13,7 @@ use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
+use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
@@ -87,6 +88,60 @@ class SeoOpportunitiesTable
                     ->modalContent(fn (SeoOpportunity $record) => view('filament.seo.opportunity-evidence', ['opportunity' => $record]))
                     ->modalSubmitAction(false)
                     ->modalCancelActionLabel('بستن'),
+                Action::make('resolveCannibalization')
+                    ->label('تعیین صفحه‌ی اصلی')
+                    ->icon(Heroicon::OutlinedFlag)
+                    ->color('warning')
+                    ->visible(fn (SeoOpportunity $record) => $record->type === SeoOpportunityType::Cannibalization)
+                    // Stored on its own column, never inside `evidence` -
+                    // OpportunityEngine overwrites `evidence` wholesale on
+                    // every re-scan, which would silently wipe this the
+                    // next time the same query gets re-detected.
+                    ->schema(fn (SeoOpportunity $record) => [
+                        Select::make('primary_page_url')
+                            ->label('صفحه‌ی اصلی (برنده)')
+                            ->options(fn () => collect($record->evidence['pages'] ?? [])
+                                ->mapWithKeys(fn (array $page) => [
+                                    $page['page_url'] => sprintf('%s (سهم کلیک %d٪)', urldecode($page['page_url']), $page['share'] * 100),
+                                ]))
+                            ->required()
+                            ->searchable(),
+                        Select::make('action_type')
+                            ->label('اقدام برای صفحه(های) دیگر')
+                            ->options([
+                                'redirect_301' => 'ریدایرکت ۳۰۱ به صفحه‌ی اصلی',
+                                'canonical' => 'افزودن تگ Canonical به صفحه‌ی اصلی',
+                                'merge_content' => 'ادغام محتوا در صفحه‌ی اصلی و حذف صفحه‌ی دیگر',
+                                'differentiate_content' => 'تمایز محتوا (هدف هرکدام را از هم جدا کردن)',
+                            ])
+                            ->required(),
+                        Textarea::make('notes')
+                            ->label('یادداشت (اختیاری)')
+                            ->rows(2),
+                    ])
+                    ->action(function (array $data, SeoOpportunity $record) {
+                        $actionLabels = [
+                            'redirect_301' => 'ریدایرکت ۳۰۱ به صفحه‌ی اصلی',
+                            'canonical' => 'افزودن تگ Canonical به صفحه‌ی اصلی',
+                            'merge_content' => 'ادغام محتوا در صفحه‌ی اصلی و حذف صفحه‌ی دیگر',
+                            'differentiate_content' => 'تمایز محتوا (هدف هرکدام را از هم جدا کردن)',
+                        ];
+
+                        $note = sprintf(
+                            'صفحه‌ی اصلی انتخاب‌شده: %s — اقدام: %s (در %s)',
+                            urldecode($data['primary_page_url']),
+                            $actionLabels[$data['action_type']] ?? $data['action_type'],
+                            now()->toJalali('Y/m/d H:i'),
+                        );
+
+                        if (filled($data['notes'] ?? null)) {
+                            $note .= "\nیادداشت: {$data['notes']}";
+                        }
+
+                        $record->update(['resolution_notes' => $note]);
+
+                        Notification::make()->title('تصمیم ثبت شد.')->success()->send();
+                    }),
                 Action::make('markReviewed')
                     ->label('بررسی شد')
                     ->icon(Heroicon::OutlinedEye)
