@@ -9,6 +9,7 @@ use App\Enums\SeoSearchIntent;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class SeoKeywordProfile extends Model
 {
@@ -49,5 +50,10 @@ class SeoKeywordProfile extends Model
     public function topicCluster(): BelongsTo
     {
         return $this->belongsTo(SeoTopicCluster::class);
+    }
+
+    public function contentItems(): HasMany
+    {
+        return $this->hasMany(SeoContentItem::class, 'keyword_profile_id');
     }
 }

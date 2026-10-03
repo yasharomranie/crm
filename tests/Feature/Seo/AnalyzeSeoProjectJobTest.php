@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Seo;
 
+use App\Domain\Seo\ContentGapService;
 use App\Domain\Seo\KeywordIntelligenceService;
 use App\Domain\Seo\OpportunityEngine;
 use App\Domain\Seo\UrlOpportunityEngine;
@@ -36,6 +37,7 @@ class AnalyzeSeoProjectJobTest extends TestCase
             app(KeywordIntelligenceService::class),
             app(OpportunityEngine::class),
             app(UrlOpportunityEngine::class),
+            app(ContentGapService::class),
         );
 
         $this->assertSame(1, $project->keywordProfiles()->count());
@@ -52,6 +54,7 @@ class AnalyzeSeoProjectJobTest extends TestCase
             app(KeywordIntelligenceService::class),
             app(OpportunityEngine::class),
             app(UrlOpportunityEngine::class),
+            app(ContentGapService::class),
         );
 
         Queue::assertPushed(ClassifySeoKeywordsJob::class, fn ($job) => $job->seoProjectId === $project->id);
