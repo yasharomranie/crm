@@ -35,6 +35,23 @@ class SeoOpportunityResourceTest extends TestCase
             ->assertCanSeeTableRecords([$opportunity]);
     }
 
+    public function test_the_subject_column_shows_a_decoded_page_url_or_the_query(): void
+    {
+        SeoOpportunity::factory()->create([
+            'subject_page_url' => 'https://ganjnameh.example.com/%D8%AA%D9%84%D9%87-%DA%A9%D8%A7%D8%A8%DB%8C%D9%86',
+            'subject_query' => null,
+        ]);
+        SeoOpportunity::factory()->create([
+            'subject_page_url' => null,
+            'subject_query' => 'تله کابین گنجنامه',
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoOpportunities::class)
+            ->assertSee('https://ganjnameh.example.com/تله-کابین')
+            ->assertSee('تله کابین گنجنامه');
+    }
+
     public function test_marking_an_opportunity_reviewed_updates_its_status(): void
     {
         $opportunity = SeoOpportunity::factory()->create(['status' => SeoOpportunityStatus::Detected]);
