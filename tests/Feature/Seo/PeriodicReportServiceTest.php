@@ -7,6 +7,7 @@ use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Models\AiProvider;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoKeywordRankCheck;
 use App\Models\SeoOpportunity;
 use App\Models\SeoOpportunityOutcome;
@@ -127,5 +128,66 @@ class PeriodicReportServiceTest extends TestCase
         $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
 
         $this->assertStringNotContainsString('periodic-report-clicks-chart', $report->html);
+    }
+
+    public function test_it_refreshes_the_warehouse_from_a_live_search_console_call_before_reading_it(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'access_token' => 'valid-token',
+            'token_expires_at' => now()->addHour(),
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+        ]);
+
+        Http::fake([
+            '*searchAnalytics/query' => Http::response(['rows' => [
+                ['keys' => ['2026-08-30'], 'clicks' => 5, 'impressions' => 100, 'ctr' => 0.05, 'position' => 7.0],
+                ['keys' => ['2026-08-31'], 'clicks' => 7, 'impressions' => 120, 'ctr' => 0.05, 'position' => 6.8],
+                ['keys' => ['2026-09-01'], 'clicks' => 40, 'impressions' => 1000, 'ctr' => 0.04, 'position' => 6.1],
+                ['keys' => ['2026-09-02'], 'clicks' => 10, 'impressions' => 200, 'ctr' => 0.05, 'position' => 6.0],
+            ]]),
+        ]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-02'));
+
+        Http::assertSent(fn ($request) => str_contains($request->url(), 'searchAnalytics/query')
+            && $request['startDate'] === '2026-08-30'
+            && $request['endDate'] === '2026-09-02');
+
+        $this->assertDatabaseHas(SeoDailyMetric::class, [
+            'seo_project_id' => $project->id,
+            'date' => '2026-09-01',
+            'clicks' => 40,
+        ]);
+        $this->assertStringContainsString('۵۰', $report->html);
+    }
+
+    public function test_it_falls_back_to_stored_metrics_when_the_live_refresh_fails(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'access_token' => 'valid-token',
+            'token_expires_at' => now()->addHour(),
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+        ]);
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-10', 'clicks' => 77]);
+
+        Http::fake(['*searchAnalytics/query' => Http::response(['error' => ['message' => 'quota exceeded']], 500)]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('۷۷', $report->html);
+    }
+
+    public function test_it_clamps_the_period_to_googles_reporting_lag_and_discloses_it(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        $report = app(PeriodicReportService::class)->generate($project, now()->subDays(10), now()->addDays(5));
+
+        $this->assertStringContainsString('در دسترس بوده', $report->html);
+        $this->assertSame(now()->addDays(5)->toDateString(), $report->period_end->toDateString());
     }
 }

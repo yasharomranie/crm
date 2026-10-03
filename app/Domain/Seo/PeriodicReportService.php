@@ -26,9 +26,19 @@ use Illuminate\Support\Facades\Log;
  */
 class PeriodicReportService
 {
+    /**
+     * GSC typically has no finalized data for the most recent few days yet
+     * - matches SyncSearchConsoleDataJob::REPORTING_LAG_DAYS. A report must
+     * never compare a partial, still-arriving period against a complete
+     * one, so every date-bound section below is clamped to this horizon.
+     */
+    private const REPORTING_LAG_DAYS = 3;
+
     public function generate(SeoProject $project, Carbon $periodStart, Carbon $periodEnd): SeoPeriodicReport
     {
-        $search = $this->searchPerformance($project, $periodStart, $periodEnd);
+        $effectiveEnd = $this->clampToAvailableData($periodEnd);
+
+        $search = $this->searchPerformance($project, $periodStart, $effectiveEnd);
         $opportunities = $this->opportunitySummary($project, $periodStart, $periodEnd);
         $actionItems = app(SeoActionQueueService::class)->items($project);
 
@@ -36,6 +46,7 @@ class PeriodicReportService
             'project' => $project,
             'periodStart' => $periodStart,
             'periodEnd' => $periodEnd,
+            'dataAvailableThrough' => $effectiveEnd->isSameDay($periodEnd) ? null : $effectiveEnd,
             'search' => $search,
             'opportunities' => $opportunities,
             'contentPublishedCount' => SeoContentItem::where('seo_project_id', $project->id)
@@ -48,7 +59,7 @@ class PeriodicReportService
                 ->orderByDesc('completed_at')
                 ->first(),
             'narrative' => $this->narrative($project, $search, $opportunities, $actionItems),
-            'dailySeries' => $this->dailySeries($project, $periodStart, $periodEnd),
+            'dailySeries' => $this->dailySeries($project, $periodStart, $effectiveEnd),
         ];
 
         $html = view('seo.periodic-report', $data)->render();
@@ -63,18 +74,33 @@ class PeriodicReportService
     }
 
     /**
+     * A requested end date that reaches into GSC's own reporting-lag
+     * window is pulled back to the last day Google could possibly have
+     * data for - never silently left as-is, which would make the current
+     * period partial while any comparison period stays complete.
+     */
+    private function clampToAvailableData(Carbon $end): Carbon
+    {
+        $lastAvailable = now()->subDays(self::REPORTING_LAG_DAYS)->startOfDay();
+
+        return $end->greaterThan($lastAvailable) ? $lastAvailable : $end->clone();
+    }
+
+    /**
      * @return array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, percent_change: ?float}
      */
     private function searchPerformance(SeoProject $project, Carbon $start, Carbon $end): array
     {
+        $periodDays = $start->diffInDays($end) + 1;
+        $previousStart = $start->clone()->subDays($periodDays);
+        $previousEnd = $start->clone()->subDay();
+
+        $this->refreshDailyMetrics($project, $previousStart, $end);
+
         $current = SeoDailyMetric::where('seo_project_id', $project->id)
             ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
             ->selectRaw('sum(clicks) as clicks, sum(impressions) as impressions, avg(position) as avg_position')
             ->first();
-
-        $periodDays = $start->diffInDays($end) + 1;
-        $previousStart = $start->clone()->subDays($periodDays);
-        $previousEnd = $start->clone()->subDay();
 
         $previousClicks = (int) SeoDailyMetric::where('seo_project_id', $project->id)
             ->whereBetween('date', [$previousStart->toDateString(), $previousEnd->toDateString()])
@@ -90,6 +116,59 @@ class PeriodicReportService
             'previous_clicks' => $previousClicks,
             'percent_change' => $percentChange,
         ];
+    }
+
+    /**
+     * Pulls this exact date range fresh from the Search Console API - not
+     * whatever happens to already be sitting in the warehouse - before the
+     * report reads it, so a report is never built on stale or missing days
+     * just because the nightly sync hasn't run recently. Scoped to the
+     * ['date'] dimension only (the one thing this report needs), unlike
+     * SyncSearchConsoleDataJob's full ~20-call sync, so this stays cheap
+     * enough to run inline during report generation. Best-effort: with no
+     * active Google connection, or if the live call fails, the report
+     * simply falls back to whatever is already stored (unchanged from
+     * this service's original behavior).
+     */
+    private function refreshDailyMetrics(SeoProject $project, Carbon $start, Carbon $end): void
+    {
+        $connection = $project->googleConnection;
+
+        if (! $connection || blank($connection->gsc_site_url)) {
+            return;
+        }
+
+        try {
+            $accessToken = app(GoogleOAuthService::class)->freshAccessTokenFor($connection);
+            $rows = (new SearchConsoleClient($accessToken))
+                ->querySearchAnalytics($connection->gsc_site_url, $start->toDateString(), $end->toDateString(), ['date']);
+
+            if (empty($rows)) {
+                return;
+            }
+
+            $now = now();
+
+            SeoDailyMetric::query()->upsert(
+                collect($rows)->map(fn (array $row) => [
+                    'seo_project_id' => $project->id,
+                    'date' => $row['keys'][0],
+                    'clicks' => (int) ($row['clicks'] ?? 0),
+                    'impressions' => (int) ($row['impressions'] ?? 0),
+                    'ctr' => (float) ($row['ctr'] ?? 0),
+                    'position' => (float) ($row['position'] ?? 0),
+                    'created_at' => $now,
+                    'updated_at' => $now,
+                ])->all(),
+                ['seo_project_id', 'date'],
+                ['clicks', 'impressions', 'ctr', 'position', 'updated_at'],
+            );
+        } catch (\Throwable $exception) {
+            Log::warning('PeriodicReportService: live GSC refresh failed; falling back to stored metrics.', [
+                'seo_project_id' => $project->id,
+                'exception' => $exception->getMessage(),
+            ]);
+        }
     }
 
     /**

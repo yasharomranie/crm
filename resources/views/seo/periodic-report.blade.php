@@ -251,6 +251,9 @@
             <div class="meta">
                 بازهٔ گزارش: {{ $periodStart->toJalali('Y/m/d') }} تا {{ $periodEnd->toJalali('Y/m/d') }}<br>
                 تاریخ تهیه: {{ now()->toJalali('Y/m/d H:i') }}
+                @if ($dataAvailableThrough)
+                    <br>داده‌ی گوگل تا {{ $dataAvailableThrough->toJalali('Y/m/d') }} در دسترس بوده (تأخیر گزارش‌دهی سرچ کنسول)
+                @endif
             </div>
         </div>
 
