@@ -66,22 +66,28 @@ class UrlOpportunityEngine
             return;
         }
 
-        $metricsByUrlHash = $this->pageMetricsByUrlHash($project);
+        $metricsByNormalizedUrl = $this->pageMetricsByNormalizedUrl($project);
 
-        $this->detectCtrOpportunities($project, $entries, $metricsByUrlHash);
-        $this->detectStalePages($project, $entries, $metricsByUrlHash);
-        $this->detectInvisibleNewPages($project, $entries, $metricsByUrlHash);
+        $this->detectCtrOpportunities($project, $entries, $metricsByNormalizedUrl);
+        $this->detectStalePages($project, $entries, $metricsByNormalizedUrl);
+        $this->detectInvisibleNewPages($project, $entries, $metricsByNormalizedUrl);
     }
 
     /**
+     * Keyed on SitemapUrlNormalizer::normalize() rather than the raw
+     * page_url_hash column - a sitemap entry's URL and the URL Google
+     * reports for the same page don't always agree on scheme, "www.",
+     * or a trailing slash, and an exact hash match silently drops the
+     * join whenever they don't.
+     *
      * @return Collection<string, array{clicks: int, impressions: int, position: float}>
      */
-    private function pageMetricsByUrlHash(SeoProject $project): Collection
+    private function pageMetricsByNormalizedUrl(SeoProject $project): Collection
     {
         return SeoPageMetric::where('seo_project_id', $project->id)
             ->where('date', '>=', now()->subDays(self::GSC_WINDOW_DAYS)->toDateString())
             ->get()
-            ->groupBy('page_url_hash')
+            ->groupBy(fn (SeoPageMetric $row) => SitemapUrlNormalizer::normalize($row->page_url))
             ->map(fn (Collection $rows) => [
                 'clicks' => (int) $rows->sum('clicks'),
                 'impressions' => (int) $rows->sum('impressions'),
@@ -91,12 +97,12 @@ class UrlOpportunityEngine
 
     /**
      * @param  Collection<int, SeoSitemapEntry>  $entries
-     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByUrlHash
+     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByNormalizedUrl
      */
-    private function detectCtrOpportunities(SeoProject $project, Collection $entries, Collection $metricsByUrlHash): void
+    private function detectCtrOpportunities(SeoProject $project, Collection $entries, Collection $metricsByNormalizedUrl): void
     {
         foreach ($entries as $entry) {
-            $metrics = $metricsByUrlHash->get(sha1($entry->url));
+            $metrics = $metricsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url));
 
             if (! $metrics || $metrics['impressions'] < self::MIN_IMPRESSIONS_FOR_CTR_CHECK) {
                 continue;
@@ -150,16 +156,16 @@ class UrlOpportunityEngine
 
     /**
      * @param  Collection<int, SeoSitemapEntry>  $entries
-     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByUrlHash
+     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByNormalizedUrl
      */
-    private function detectStalePages(SeoProject $project, Collection $entries, Collection $metricsByUrlHash): void
+    private function detectStalePages(SeoProject $project, Collection $entries, Collection $metricsByNormalizedUrl): void
     {
         foreach ($entries as $entry) {
             if ($entry->first_seen_at->diffInDays(now()) < self::STALE_PAGE_MIN_AGE_DAYS) {
                 continue;
             }
 
-            $metrics = $metricsByUrlHash->get(sha1($entry->url));
+            $metrics = $metricsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url));
 
             if (($metrics['clicks'] ?? 0) > 0) {
                 continue;
@@ -185,9 +191,9 @@ class UrlOpportunityEngine
 
     /**
      * @param  Collection<int, SeoSitemapEntry>  $entries
-     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByUrlHash
+     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByNormalizedUrl
      */
-    private function detectInvisibleNewPages(SeoProject $project, Collection $entries, Collection $metricsByUrlHash): void
+    private function detectInvisibleNewPages(SeoProject $project, Collection $entries, Collection $metricsByNormalizedUrl): void
     {
         foreach ($entries as $entry) {
             $ageDays = $entry->first_seen_at->diffInDays(now());
@@ -196,7 +202,7 @@ class UrlOpportunityEngine
                 continue;
             }
 
-            $metrics = $metricsByUrlHash->get(sha1($entry->url));
+            $metrics = $metricsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url));
 
             if (($metrics['impressions'] ?? 0) > 0) {
                 continue;

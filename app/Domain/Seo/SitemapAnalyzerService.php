@@ -74,10 +74,10 @@ class SitemapAnalyzerService
     {
         $windowStart = now()->subDays(self::GSC_WINDOW_DAYS)->toDateString();
 
-        $metricsByUrlHash = SeoPageMetric::where('seo_project_id', $project->id)
+        $metricsByNormalizedUrl = SeoPageMetric::where('seo_project_id', $project->id)
             ->where('date', '>=', $windowStart)
             ->get()
-            ->groupBy('page_url_hash')
+            ->groupBy(fn (SeoPageMetric $row) => SitemapUrlNormalizer::normalize($row->page_url))
             ->map(fn (Collection $rows) => [
                 'clicks' => (int) $rows->sum('clicks'),
                 'impressions' => (int) $rows->sum('impressions'),
@@ -86,8 +86,8 @@ class SitemapAnalyzerService
             ]);
 
         return $project->sitemapEntries()->orderByDesc('first_seen_at')->get()
-            ->map(function (SeoSitemapEntry $entry) use ($metricsByUrlHash) {
-                $metrics = $metricsByUrlHash->get(sha1($entry->url));
+            ->map(function (SeoSitemapEntry $entry) use ($metricsByNormalizedUrl) {
+                $metrics = $metricsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url));
 
                 return [
                     'entry' => $entry,
@@ -109,17 +109,9 @@ class SitemapAnalyzerService
     private function countDuplicates(Collection $entries): int
     {
         return $entries
-            ->groupBy(fn (SeoSitemapEntry $entry) => $this->normalizeForDuplicateCheck($entry->url))
+            ->groupBy(fn (SeoSitemapEntry $entry) => SitemapUrlNormalizer::normalize($entry->url))
             ->filter(fn (Collection $group) => $group->count() > 1)
             ->sum(fn (Collection $group) => $group->count());
-    }
-
-    private function normalizeForDuplicateCheck(string $url): string
-    {
-        $url = preg_replace('#^https?://#i', '', $url);
-        $url = preg_replace('#^www\.#i', '', (string) $url);
-
-        return rtrim(strtolower((string) $url), '/');
     }
 
     /**

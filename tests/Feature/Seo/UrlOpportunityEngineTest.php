@@ -182,4 +182,23 @@ class UrlOpportunityEngineTest extends TestCase
 
         $this->assertSame(0, $project->opportunities()->count());
     }
+
+    /**
+     * Regression: the Search Console join used to be an exact sha1()
+     * match on the raw URL - a page's real click data went invisible to
+     * every detector whenever the sitemap and Google reported the same
+     * page with a different trailing slash/scheme/www.
+     */
+    public function test_it_matches_search_console_data_even_when_the_url_form_differs(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => 'https://ganjnameh.example.com/telecabin/']);
+
+        // Google reported it without the trailing slash and with www.
+        $this->fillPageMetrics($project, 'https://www.ganjnameh.example.com/telecabin', 28, dailyClicks: 1, dailyImpressions: 100, position: 8.0);
+
+        app(UrlOpportunityEngine::class)->scan($project);
+
+        $this->assertNotNull($project->opportunities()->where('type', SeoOpportunityType::UrlCtrOpportunity->value)->first());
+    }
 }
