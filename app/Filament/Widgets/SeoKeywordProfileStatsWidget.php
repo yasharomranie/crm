@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Enums\SeoKeywordTrend;
+use App\Enums\SeoSearchIntent;
 use App\Models\SeoKeywordProfile;
 use Filament\Support\Icons\Heroicon;
 use Filament\Widgets\StatsOverviewWidget;
@@ -26,6 +27,7 @@ class SeoKeywordProfileStatsWidget extends StatsOverviewWidget
             $this->trendStat(SeoKeywordTrend::Rising, 'کلمات در حال رشد', Heroicon::OutlinedArrowTrendingUp, 'success'),
             $this->trendStat(SeoKeywordTrend::Falling, 'کلمات در حال افت', Heroicon::OutlinedArrowTrendingDown, 'danger'),
             $this->trendStat(SeoKeywordTrend::Stable, 'کلمات ثابت', Heroicon::OutlinedMinus, 'gray'),
+            $this->localIntentStat(),
         ];
     }
 
@@ -68,5 +70,24 @@ class SeoKeywordProfileStatsWidget extends StatsOverviewWidget
         return Stat::make($label, Number::toPersian($count))
             ->descriptionIcon($icon)
             ->color($color);
+    }
+
+    /**
+     * Local SEO Layer 1's one piece of keyword visibility - how many
+     * already-classified keywords have local intent ("نزدیک من",
+     * "در همدان" و...) and how much click volume they're pulling in,
+     * reusing the AI intent classification that already runs on sync
+     * rather than adding a second classifier for the same data.
+     */
+    private function localIntentStat(): Stat
+    {
+        $query = SeoKeywordProfile::query()->where('intent', SeoSearchIntent::Local);
+        $count = $query->count();
+        $clicks = (int) $query->sum('clicks_28d');
+
+        return Stat::make('کلمات با نیت محلی', Number::toPersian($count))
+            ->description(sprintf('%s کلیک ۲۸ روز اخیر', Number::toPersian(number_format($clicks))))
+            ->descriptionIcon(Heroicon::OutlinedMapPin)
+            ->color('primary');
     }
 }

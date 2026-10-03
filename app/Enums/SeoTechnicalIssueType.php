@@ -16,6 +16,8 @@ enum SeoTechnicalIssueType: string implements HasLabel
     case MissingSitemap = 'missing_sitemap';
     case MissingStructuredData = 'missing_structured_data';
     case OrphanPage = 'orphan_page';
+    case InconsistentPhoneNumber = 'inconsistent_phone_number';
+    case MissingLocalBusinessSchema = 'missing_local_business_schema';
 
     public function getLabel(): string
     {
@@ -30,6 +32,8 @@ enum SeoTechnicalIssueType: string implements HasLabel
             self::MissingSitemap => 'نقشهٔ سایت (sitemap.xml) یافت نشد',
             self::MissingStructuredData => 'بدون داده‌ی ساخت‌یافته (Schema/JSON-LD)',
             self::OrphanPage => 'صفحهٔ یتیم (بدون لینک داخلی)',
+            self::InconsistentPhoneNumber => 'شماره تماس ناهماهنگ در سایت',
+            self::MissingLocalBusinessSchema => 'بدون Schema کسب‌وکار محلی (LocalBusiness)',
         };
     }
 }

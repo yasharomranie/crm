@@ -3,6 +3,7 @@
 namespace Tests\Feature\Seo;
 
 use App\Enums\SeoKeywordTrend;
+use App\Enums\SeoSearchIntent;
 use App\Filament\Widgets\SeoKeywordProfileStatsWidget;
 use App\Models\SeoKeywordProfile;
 use App\Models\User;
@@ -56,9 +57,9 @@ class SeoKeywordProfileStatsWidgetTest extends TestCase
      */
     public function test_the_stats_correctly_sum_and_count_across_all_profiles(): void
     {
-        SeoKeywordProfile::factory()->create(['clicks_28d' => 40, 'impressions_28d' => 400, 'current_position' => 3.0, 'trend' => SeoKeywordTrend::Rising]);
-        SeoKeywordProfile::factory()->create(['clicks_28d' => 10, 'impressions_28d' => 300, 'current_position' => 12.0, 'trend' => SeoKeywordTrend::Falling]);
-        SeoKeywordProfile::factory()->create(['clicks_28d' => 5, 'impressions_28d' => 100, 'current_position' => 4.5, 'trend' => SeoKeywordTrend::Stable]);
+        SeoKeywordProfile::factory()->create(['clicks_28d' => 40, 'impressions_28d' => 400, 'current_position' => 3.0, 'trend' => SeoKeywordTrend::Rising, 'intent' => SeoSearchIntent::Local]);
+        SeoKeywordProfile::factory()->create(['clicks_28d' => 10, 'impressions_28d' => 300, 'current_position' => 12.0, 'trend' => SeoKeywordTrend::Falling, 'intent' => SeoSearchIntent::Informational]);
+        SeoKeywordProfile::factory()->create(['clicks_28d' => 5, 'impressions_28d' => 100, 'current_position' => 4.5, 'trend' => SeoKeywordTrend::Stable, 'intent' => SeoSearchIntent::Informational]);
 
         $widget = new SeoKeywordProfileStatsWidget;
         $method = new \ReflectionMethod($widget, 'getStats');
@@ -71,6 +72,8 @@ class SeoKeywordProfileStatsWidgetTest extends TestCase
         $this->assertSame('۱', $stats['کلمات در حال رشد']->getValue());
         $this->assertSame('۱', $stats['کلمات در حال افت']->getValue());
         $this->assertSame('۱', $stats['کلمات ثابت']->getValue());
+        $this->assertSame('۱', $stats['کلمات با نیت محلی']->getValue());
+        $this->assertSame('۴۰ کلیک ۲۸ روز اخیر', $stats['کلمات با نیت محلی']->getDescription());
     }
 
     public function test_the_keyword_profiles_page_shows_the_stats_widget(): void
