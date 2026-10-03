@@ -4,14 +4,21 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\PeriodicReportService;
 use App\Enums\SeoOpportunityOutcomeVerdict;
+use App\Enums\SeoTechnicalIssueSeverity;
+use App\Enums\SeoTechnicalIssueType;
 use App\Models\AiProvider;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoDeviceMetric;
 use App\Models\SeoGoogleConnection;
 use App\Models\SeoKeywordRankCheck;
 use App\Models\SeoOpportunity;
 use App\Models\SeoOpportunityOutcome;
+use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
+use App\Models\SeoQueryMetric;
+use App\Models\SeoTechnicalAudit;
+use App\Models\SeoTechnicalAuditIssue;
 use App\Models\SeoTrackedKeyword;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -189,5 +196,82 @@ class PeriodicReportServiceTest extends TestCase
 
         $this->assertStringContainsString('در دسترس بوده', $report->html);
         $this->assertSame(now()->addDays(5)->toDateString(), $report->period_end->toDateString());
+    }
+
+    public function test_it_lists_the_biggest_query_and_page_movers(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        SeoQueryMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-15', 'query' => 'کلمهٔ در حال رشد', 'clicks' => 50]);
+        SeoQueryMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-08-15', 'query' => 'کلمهٔ در حال رشد', 'clicks' => 5]);
+        SeoQueryMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-15', 'query' => 'کلمهٔ در حال افت', 'clicks' => 2]);
+        SeoQueryMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-08-15', 'query' => 'کلمهٔ در حال افت', 'clicks' => 40]);
+
+        SeoPageMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-15', 'page_url' => 'https://ganjnameh.example.com/rising-page', 'clicks' => 60]);
+        SeoPageMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-08-15', 'page_url' => 'https://ganjnameh.example.com/rising-page', 'clicks' => 3]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('کلمهٔ در حال رشد', $report->html);
+        $this->assertStringContainsString('کلمهٔ در حال افت', $report->html);
+        $this->assertStringContainsString('rising-page', $report->html);
+    }
+
+    public function test_it_includes_the_device_breakdown_chart_when_there_is_device_data(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoDeviceMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-15', 'device' => 'MOBILE', 'clicks' => 10]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('periodic-report-device-chart', $report->html);
+    }
+
+    public function test_it_omits_the_device_breakdown_chart_without_device_data(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringNotContainsString('periodic-report-device-chart', $report->html);
+    }
+
+    public function test_it_includes_the_quality_chart_when_there_is_more_than_one_days_data(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-10', 'ctr' => 0.05, 'position' => 6.0]);
+        SeoDailyMetric::factory()->create(['seo_project_id' => $project->id, 'date' => '2026-09-11', 'ctr' => 0.06, 'position' => 5.5]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('periodic-report-quality-chart', $report->html);
+    }
+
+    public function test_it_lists_action_queue_items(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoOpportunity::factory()->create(['seo_project_id' => $project->id, 'title' => 'فرصت تست گزارش']);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('اقدامات پیشنهادی', $report->html);
+        $this->assertStringContainsString('فرصت تست گزارش', $report->html);
+        $this->assertStringContainsString('فرصت سئو', $report->html);
+    }
+
+    public function test_it_lists_technical_issues_from_the_latest_completed_audit(): void
+    {
+        $project = SeoProject::factory()->create();
+        $audit = SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id, 'completed_at' => '2026-09-20']);
+        SeoTechnicalAuditIssue::factory()->create([
+            'seo_technical_audit_id' => $audit->id,
+            'type' => SeoTechnicalIssueType::MissingTitle,
+            'severity' => SeoTechnicalIssueSeverity::Critical,
+        ]);
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('مشکلات فنی شناسایی‌شده', $report->html);
+        $this->assertStringContainsString('بدون عنوان (title)', $report->html);
     }
 }

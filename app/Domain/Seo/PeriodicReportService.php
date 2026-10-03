@@ -4,12 +4,16 @@ namespace App\Domain\Seo;
 
 use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Enums\SeoTechnicalAuditStatus;
+use App\Enums\SeoTechnicalIssueSeverity;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoDeviceMetric;
 use App\Models\SeoOpportunity;
 use App\Models\SeoOpportunityOutcome;
+use App\Models\SeoPageMetric;
 use App\Models\SeoPeriodicReport;
 use App\Models\SeoProject;
+use App\Models\SeoQueryMetric;
 use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTrackedKeyword;
 use Illuminate\Support\Carbon;
@@ -38,9 +42,20 @@ class PeriodicReportService
     {
         $effectiveEnd = $this->clampToAvailableData($periodEnd);
 
-        $search = $this->searchPerformance($project, $periodStart, $effectiveEnd);
+        $periodDays = $periodStart->diffInDays($effectiveEnd) + 1;
+        $previousStart = $periodStart->clone()->subDays($periodDays);
+        $previousEnd = $periodStart->clone()->subDay();
+
+        $this->refreshDailyMetrics($project, $previousStart, $effectiveEnd);
+
+        $search = $this->searchPerformance($project, $periodStart, $effectiveEnd, $previousStart, $previousEnd);
         $opportunities = $this->opportunitySummary($project, $periodStart, $periodEnd);
         $actionItems = app(SeoActionQueueService::class)->items($project);
+        $technicalAudit = SeoTechnicalAudit::where('seo_project_id', $project->id)
+            ->where('status', SeoTechnicalAuditStatus::Completed->value)
+            ->where('completed_at', '<=', $periodEnd->clone()->endOfDay())
+            ->orderByDesc('completed_at')
+            ->first();
 
         $data = [
             'project' => $project,
@@ -53,13 +68,21 @@ class PeriodicReportService
                 ->whereBetween('published_at', [$periodStart->clone()->startOfDay(), $periodEnd->clone()->endOfDay()])
                 ->count(),
             'rankHighlights' => $this->rankHighlights($project, $periodStart, $periodEnd),
-            'technicalAudit' => SeoTechnicalAudit::where('seo_project_id', $project->id)
-                ->where('status', SeoTechnicalAuditStatus::Completed->value)
-                ->where('completed_at', '<=', $periodEnd->clone()->endOfDay())
-                ->orderByDesc('completed_at')
-                ->first(),
+            'technicalAudit' => $technicalAudit,
+            'technicalIssues' => $technicalAudit
+                ? $technicalAudit->issues()
+                    ->whereIn('severity', [SeoTechnicalIssueSeverity::Critical->value, SeoTechnicalIssueSeverity::Warning->value])
+                    ->orderByRaw("case severity when 'critical' then 0 when 'warning' then 1 else 2 end")
+                    ->limit(5)
+                    ->get()
+                : collect(),
             'narrative' => $this->narrative($project, $search, $opportunities, $actionItems),
+            'actionItems' => $actionItems->take(10),
             'dailySeries' => $this->dailySeries($project, $periodStart, $effectiveEnd),
+            'dailyQualitySeries' => $this->dailyQualitySeries($project, $periodStart, $effectiveEnd),
+            'deviceBreakdown' => $this->deviceBreakdown($project, $periodStart, $effectiveEnd),
+            'topQueries' => $this->topMovers(SeoQueryMetric::class, 'query', $project, $periodStart, $effectiveEnd, $previousStart, $previousEnd),
+            'topPages' => $this->topMovers(SeoPageMetric::class, 'page_url', $project, $periodStart, $effectiveEnd, $previousStart, $previousEnd),
         ];
 
         $html = view('seo.periodic-report', $data)->render();
@@ -87,26 +110,22 @@ class PeriodicReportService
     }
 
     /**
-     * @return array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, percent_change: ?float}
+     * @return array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, previous_impressions: int, previous_avg_position: ?float, percent_change: ?float}
      */
-    private function searchPerformance(SeoProject $project, Carbon $start, Carbon $end): array
+    private function searchPerformance(SeoProject $project, Carbon $start, Carbon $end, Carbon $previousStart, Carbon $previousEnd): array
     {
-        $periodDays = $start->diffInDays($end) + 1;
-        $previousStart = $start->clone()->subDays($periodDays);
-        $previousEnd = $start->clone()->subDay();
-
-        $this->refreshDailyMetrics($project, $previousStart, $end);
-
         $current = SeoDailyMetric::where('seo_project_id', $project->id)
             ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
             ->selectRaw('sum(clicks) as clicks, sum(impressions) as impressions, avg(position) as avg_position')
             ->first();
 
-        $previousClicks = (int) SeoDailyMetric::where('seo_project_id', $project->id)
+        $previous = SeoDailyMetric::where('seo_project_id', $project->id)
             ->whereBetween('date', [$previousStart->toDateString(), $previousEnd->toDateString()])
-            ->sum('clicks');
+            ->selectRaw('sum(clicks) as clicks, sum(impressions) as impressions, avg(position) as avg_position')
+            ->first();
 
         $clicks = (int) ($current->clicks ?? 0);
+        $previousClicks = (int) ($previous->clicks ?? 0);
         $percentChange = $previousClicks > 0 ? round((($clicks - $previousClicks) / $previousClicks) * 100, 1) : null;
 
         return [
@@ -114,6 +133,8 @@ class PeriodicReportService
             'impressions' => (int) ($current->impressions ?? 0),
             'avg_position' => $current->avg_position !== null ? round((float) $current->avg_position, 1) : null,
             'previous_clicks' => $previousClicks,
+            'previous_impressions' => (int) ($previous->impressions ?? 0),
+            'previous_avg_position' => $previous->avg_position !== null ? round((float) $previous->avg_position, 1) : null,
             'percent_change' => $percentChange,
         ];
     }
@@ -241,7 +262,7 @@ class PeriodicReportService
      * already has useful numbers without it - the narrative section is
      * just left out.
      *
-     * @param  array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, percent_change: ?float}  $search
+     * @param  array{clicks: int, impressions: int, avg_position: ?float, previous_clicks: int, previous_impressions: int, previous_avg_position: ?float, percent_change: ?float}  $search
      * @param  array{detected: int, resolved: int, improved: int, unchanged: int, declined: int}  $opportunities
      * @param  Collection<int, SeoActionItem>  $actionItems
      */
@@ -277,5 +298,81 @@ class PeriodicReportService
                 'clicks' => $row->clicks,
             ])
             ->all();
+    }
+
+    /**
+     * The series the report's CTR/position quality chart draws, alongside
+     * the clicks chart - a decline isn't always a visibility drop; this
+     * shows whether it tracks a ranking slide (position) or a weaker
+     * listing (CTR) instead.
+     *
+     * @return array<int, array{date: string, ctr: float, position: ?float}>
+     */
+    private function dailyQualitySeries(SeoProject $project, Carbon $start, Carbon $end): array
+    {
+        return SeoDailyMetric::where('seo_project_id', $project->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->orderBy('date')
+            ->get(['date', 'ctr', 'position'])
+            ->map(fn (SeoDailyMetric $row) => [
+                'date' => Carbon::parse($row->date)->format('m/d'),
+                'ctr' => round((float) $row->ctr * 100, 2),
+                'position' => $row->position !== null ? round((float) $row->position, 1) : null,
+            ])
+            ->all();
+    }
+
+    /**
+     * Clicks for the period, by device - lets a decline that's actually
+     * concentrated on one device (commonly mobile) stand out instead of
+     * reading as a uniform site-wide drop.
+     *
+     * @return array<string, int>
+     */
+    private function deviceBreakdown(SeoProject $project, Carbon $start, Carbon $end): array
+    {
+        return SeoDeviceMetric::where('seo_project_id', $project->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->selectRaw('device, sum(clicks) as clicks')
+            ->groupBy('device')
+            ->pluck('clicks', 'device')
+            ->map(fn ($clicks) => (int) $clicks)
+            ->all();
+    }
+
+    /**
+     * The period's biggest click gainers and losers at the given
+     * dimension (query or page) - the "what" behind an aggregate
+     * clicks swing, not just the overall "how much".
+     *
+     * @param  class-string<SeoQueryMetric|SeoPageMetric>  $model
+     * @return array{gainers: array<int, array{label: string, clicks: int, previous_clicks: int, delta: int}>, losers: array<int, array{label: string, clicks: int, previous_clicks: int, delta: int}>}
+     */
+    private function topMovers(string $model, string $column, SeoProject $project, Carbon $start, Carbon $end, Carbon $previousStart, Carbon $previousEnd): array
+    {
+        $current = $model::where('seo_project_id', $project->id)
+            ->whereBetween('date', [$start->toDateString(), $end->toDateString()])
+            ->selectRaw("{$column}, sum(clicks) as clicks")
+            ->groupBy($column)
+            ->pluck('clicks', $column);
+
+        $previous = $model::where('seo_project_id', $project->id)
+            ->whereBetween('date', [$previousStart->toDateString(), $previousEnd->toDateString()])
+            ->selectRaw("{$column}, sum(clicks) as clicks")
+            ->groupBy($column)
+            ->pluck('clicks', $column);
+
+        $movers = $current->keys()->merge($previous->keys())->unique()
+            ->map(fn (string $label) => [
+                'label' => $label,
+                'clicks' => (int) ($current[$label] ?? 0),
+                'previous_clicks' => (int) ($previous[$label] ?? 0),
+                'delta' => (int) ($current[$label] ?? 0) - (int) ($previous[$label] ?? 0),
+            ]);
+
+        return [
+            'gainers' => $movers->filter(fn (array $row) => $row['delta'] > 0)->sortByDesc('delta')->take(5)->values()->all(),
+            'losers' => $movers->filter(fn (array $row) => $row['delta'] < 0)->sortBy('delta')->take(5)->values()->all(),
+        ];
     }
 }
