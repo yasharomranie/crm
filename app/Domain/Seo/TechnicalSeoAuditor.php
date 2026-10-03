@@ -5,8 +5,11 @@ namespace App\Domain\Seo;
 use App\Enums\SeoTechnicalAuditStatus;
 use App\Enums\SeoTechnicalIssueSeverity;
 use App\Enums\SeoTechnicalIssueType;
+use App\Models\SeoInternalLink;
 use App\Models\SeoProject;
+use App\Models\SeoSitemapEntry;
 use App\Models\SeoTechnicalAudit;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -40,8 +43,11 @@ class TechnicalSeoAuditor
         ]);
 
         try {
-            $pagesScanned = $this->crawl($project->website_url, $audit);
+            $crawlResult = $this->crawl($project->website_url, $audit);
+            $pagesScanned = $crawlResult['scanned'];
             $this->checkRootFiles($project->website_url, $audit);
+            $this->storeInternalLinks($audit, $crawlResult['edges']);
+            $this->detectOrphanPages($project, $audit, $crawlResult);
 
             $audit->update([
                 'status' => SeoTechnicalAuditStatus::Completed,
@@ -66,15 +72,20 @@ class TechnicalSeoAuditor
     }
 
     /**
-     * Breadth-first, same-host only. Returns how many pages were actually
-     * fetched (successfully or not - a 404 still counts as "scanned").
+     * Breadth-first, same-host only.
+     *
+     * @return array{scanned: int, visited: array<string, true>, edges: array<string, array{from: string, to: string}>, exhausted: bool}
      */
-    private function crawl(string $startUrl, SeoTechnicalAudit $audit): int
+    private function crawl(string $startUrl, SeoTechnicalAudit $audit): array
     {
         $host = parse_url($startUrl, PHP_URL_HOST);
         $queue = [$startUrl];
         $visited = [];
         $seenTitles = [];
+        // Keyed by "from|to" so the same edge (e.g. a nav link repeated on
+        // every page) is only ever recorded once per audit - see
+        // App\Models\SeoInternalLink's own doc comment.
+        $edges = [];
         $scanned = 0;
 
         while ($queue !== [] && $scanned < self::MAX_PAGES) {
@@ -118,18 +129,37 @@ class TechnicalSeoAuditor
 
             $this->inspectHtml($response->body(), $url, $audit, $seenTitles);
 
-            if ($scanned < self::MAX_PAGES) {
-                foreach ($this->extractSameHostLinks($response->body(), $url, $host) as $link) {
-                    $normalizedLink = $this->normalize($link);
+            foreach ($this->extractSameHostLinks($response->body(), $url, $host) as $link) {
+                $normalizedLink = $this->normalize($link);
 
-                    if (! isset($visited[$normalizedLink])) {
-                        $queue[] = $link;
-                    }
+                // Recorded for every same-host link found, not just ones
+                // that get newly enqueued - a link to an already-visited
+                // page is still a real edge in the graph, and its target's
+                // incoming-link count needs it too.
+                $edges["{$normalized}|{$normalizedLink}"] = ['from' => $normalized, 'to' => $normalizedLink];
+
+                // Always enqueued (never gated on the scanned<MAX_PAGES
+                // count) - the outer while loop's own condition is what
+                // actually stops the crawl, so a page capped out of the
+                // run stays in $queue rather than being silently dropped,
+                // which is what lets 'exhausted' below tell "the whole
+                // site was reached" apart from "the cap cut it short".
+                if (! isset($visited[$normalizedLink])) {
+                    $queue[] = $link;
                 }
             }
         }
 
-        return $scanned;
+        return [
+            'scanned' => $scanned,
+            'visited' => $visited,
+            'edges' => $edges,
+            // The queue only ever empties out on its own if every reachable
+            // page was actually visited - if MAX_PAGES cut the crawl short
+            // instead, $queue still has unvisited URLs in it, which must
+            // never be mistaken for "that page doesn't exist on the site".
+            'exhausted' => $queue === [],
+        ];
     }
 
     /**
@@ -271,6 +301,73 @@ class TechnicalSeoAuditor
                 }
             } catch (\Throwable) {
                 $this->recordIssue($audit, $issueType, SeoTechnicalIssueSeverity::Warning, "{$origin}/{$path}", 'درخواست ناموفق بود.');
+            }
+        }
+    }
+
+    /**
+     * Chunked batch insert, not one SeoInternalLink::create() per edge - a
+     * crawl can easily discover several hundred deduplicated edges across
+     * MAX_PAGES pages, and this only ever needs to run once per audit.
+     *
+     * @param  array<string, array{from: string, to: string}>  $edges
+     */
+    private function storeInternalLinks(SeoTechnicalAudit $audit, array $edges): void
+    {
+        if ($edges === []) {
+            return;
+        }
+
+        $now = now();
+
+        collect($edges)->values()
+            ->map(fn (array $edge) => [
+                'seo_technical_audit_id' => $audit->id,
+                'from_url' => $edge['from'],
+                'to_url' => $edge['to'],
+                'created_at' => $now,
+                'updated_at' => $now,
+            ])
+            ->chunk(500)
+            ->each(fn (Collection $chunk) => SeoInternalLink::query()->insert($chunk->all()));
+    }
+
+    /**
+     * Only ever runs when the crawl queue emptied out on its own (see
+     * crawl()'s own 'exhausted' flag) - a crawl cut short by MAX_PAGES has
+     * only sampled the site, so a sitemap URL it never reached could
+     * easily just be "not reached yet", not actually orphaned. Reporting
+     * that as a false "orphan page" would be worse than not checking at
+     * all - same reasoning as PeriodicReportService never comparing a
+     * partial period against a complete one.
+     *
+     * @param  array{visited: array<string, true>, exhausted: bool}  $crawlResult
+     */
+    private function detectOrphanPages(SeoProject $project, SeoTechnicalAudit $audit, array $crawlResult): void
+    {
+        if (! $crawlResult['exhausted']) {
+            return;
+        }
+
+        $sitemapEntries = SeoSitemapEntry::where('seo_project_id', $project->id)->get();
+
+        if ($sitemapEntries->isEmpty()) {
+            return;
+        }
+
+        $reachable = collect($crawlResult['visited'])->keys()
+            ->map(fn (string $url) => SitemapUrlNormalizer::normalize($url))
+            ->flip();
+
+        foreach ($sitemapEntries as $entry) {
+            if (! isset($reachable[SitemapUrlNormalizer::normalize($entry->url)])) {
+                $this->recordIssue(
+                    $audit,
+                    SeoTechnicalIssueType::OrphanPage,
+                    SeoTechnicalIssueSeverity::Warning,
+                    $entry->url,
+                    'این صفحه در نقشهٔ سایت هست، ولی در بررسی هیچ لینک داخلی از صفحات دیگر به آن پیدا نشد.',
+                );
             }
         }
     }

@@ -5,8 +5,10 @@ namespace Tests\Feature\Seo;
 use App\Domain\Seo\TechnicalSeoAuditor;
 use App\Enums\SeoTechnicalAuditStatus;
 use App\Enums\SeoTechnicalIssueType;
+use App\Models\SeoInternalLink;
 use App\Models\SeoProject;
 use App\Models\SeoRankTrackerSetting;
+use App\Models\SeoSitemapEntry;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
@@ -249,5 +251,113 @@ class TechnicalSeoAuditorTest extends TestCase
         $this->assertSame(SeoTechnicalAuditStatus::Completed, $audit->status);
         $this->assertNull($audit->performance_score);
         $this->assertStringContainsString('API key not valid.', $audit->performance_error);
+    }
+
+    public function test_it_stores_the_internal_link_graph_deduplicated(): void
+    {
+        Http::fake([
+            'graph-site.test/robots.txt' => Http::response('', 200),
+            'graph-site.test/sitemap.xml' => Http::response('', 200),
+            'graph-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'graph-site.test*' => Http::response(
+                // Two links to /about in the same page (e.g. nav + footer) -
+                // must collapse into a single stored edge.
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><a href="/about">۱</a><a href="/about">۲</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://graph-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(1, SeoInternalLink::where('seo_technical_audit_id', $audit->id)->count());
+        $this->assertDatabaseHas(SeoInternalLink::class, [
+            'seo_technical_audit_id' => $audit->id,
+            'from_url' => 'https://graph-site.test',
+            'to_url' => 'https://graph-site.test/about',
+        ]);
+    }
+
+    public function test_it_flags_a_sitemap_url_the_crawl_never_reached_as_an_orphan_page(): void
+    {
+        Http::fake([
+            'orphan-site.test/robots.txt' => Http::response('', 200),
+            'orphan-site.test/sitemap.xml' => Http::response('', 200),
+            'orphan-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'orphan-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><a href="/about">دربارهٔ ما</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://orphan-site.test']);
+        SeoSitemapEntry::factory()->create([
+            'seo_project_id' => $project->id,
+            'url' => 'https://orphan-site.test/secret-page',
+        ]);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::OrphanPage->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertSame('https://orphan-site.test/secret-page', $issue->url);
+
+        // /about WAS reached via an internal link, so it must never be
+        // flagged even though it's also in the sitemap.
+        $this->assertFalse(
+            $audit->issues()
+                ->where('type', SeoTechnicalIssueType::OrphanPage->value)
+                ->where('url', 'https://orphan-site.test/about')
+                ->exists(),
+        );
+    }
+
+    public function test_it_never_flags_an_orphan_when_the_page_cap_cut_the_crawl_short(): void
+    {
+        // A 42-node chain (home -> page1 -> page2 -> ... -> page41) forces
+        // the crawler's 40-page cap to cut the crawl off mid-chain, with
+        // unvisited pages still left in the queue - proving the crawl did
+        // NOT exhaust the site, so nothing should be reported as orphaned.
+        $fakes = [
+            'chain-site.test/robots.txt' => Http::response('', 200),
+            'chain-site.test/sitemap.xml' => Http::response('', 200),
+            'chain-site.test' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><a href="/page1">بعدی</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ];
+
+        for ($i = 1; $i <= 41; $i++) {
+            $fakes["chain-site.test/page{$i}"] = Http::response(
+                '<html><head><title>صفحه '.$i.'</title><meta name="description" content="x"></head><body><a href="/page'.($i + 1).'">بعدی</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            );
+        }
+
+        Http::fake($fakes);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://chain-site.test']);
+        SeoSitemapEntry::factory()->create([
+            'seo_project_id' => $project->id,
+            'url' => 'https://chain-site.test/page41',
+        ]);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(40, $audit->pages_scanned);
+        $this->assertSame(0, $audit->issues()->where('type', SeoTechnicalIssueType::OrphanPage->value)->count());
     }
 }

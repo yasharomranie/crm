@@ -15,6 +15,7 @@ enum SeoTechnicalIssueType: string implements HasLabel
     case MissingRobots = 'missing_robots';
     case MissingSitemap = 'missing_sitemap';
     case MissingStructuredData = 'missing_structured_data';
+    case OrphanPage = 'orphan_page';
 
     public function getLabel(): string
     {
@@ -28,6 +29,7 @@ enum SeoTechnicalIssueType: string implements HasLabel
             self::MissingRobots => 'فایل robots.txt یافت نشد',
             self::MissingSitemap => 'نقشهٔ سایت (sitemap.xml) یافت نشد',
             self::MissingStructuredData => 'بدون داده‌ی ساخت‌یافته (Schema/JSON-LD)',
+            self::OrphanPage => 'صفحهٔ یتیم (بدون لینک داخلی)',
         };
     }
 }
