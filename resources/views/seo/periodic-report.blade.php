@@ -7,6 +7,7 @@
     {{-- Self-hosted via Vite's font-bundling, not Google Fonts - see
         resources/views/reports/print.blade.php's own doc comment. --}}
     @fonts('vazirmatn')
+    @include('filament.components.chartjs-assets')
     <style>
         :root {
             color-scheme: light;
@@ -175,6 +176,20 @@
             font-size: .85rem;
         }
 
+        .narrative {
+            background: var(--paper);
+            border: 1px solid var(--line);
+            border-radius: .5rem;
+            padding: 1rem 1.25rem;
+            margin-bottom: 1.5rem;
+            font-size: .9rem;
+            line-height: 1.9;
+        }
+
+        .chart-wrap {
+            margin-bottom: 1.5rem;
+        }
+
         footer.doc-footer {
             margin-top: 1.5rem;
             padding-top: 1rem;
@@ -238,6 +253,47 @@
                 تاریخ تهیه: {{ now()->toJalali('Y/m/d H:i') }}
             </div>
         </div>
+
+        @if ($narrative)
+            <div class="narrative">{{ $narrative }}</div>
+        @endif
+
+        @if (count($dailySeries) > 1)
+            <div class="chart-wrap">
+                <canvas id="periodic-report-clicks-chart" height="220"></canvas>
+                <script>
+                    (function () {
+                        var canvas = document.getElementById('periodic-report-clicks-chart');
+
+                        if (! canvas || ! window.Chart) {
+                            return;
+                        }
+
+                        var series = @json($dailySeries);
+
+                        new Chart(canvas, {
+                            type: 'line',
+                            data: {
+                                labels: series.map(function (row) { return row.date; }),
+                                datasets: [{
+                                    label: 'کلیک روزانه',
+                                    data: series.map(function (row) { return row.clicks; }),
+                                    borderColor: '#9c6b1f',
+                                    backgroundColor: 'rgba(156, 107, 31, 0.15)',
+                                    tension: 0.3,
+                                    fill: true,
+                                    pointRadius: 0,
+                                }],
+                            },
+                            options: {
+                                plugins: { legend: { display: false } },
+                                scales: { y: { beginAtZero: true, ticks: { precision: 0 } } },
+                            },
+                        });
+                    })();
+                </script>
+            </div>
+        @endif
 
         <h2 class="section-title">عملکرد جست‌وجوی ارگانیک</h2>
         <div class="stat-row">
