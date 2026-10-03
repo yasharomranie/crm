@@ -45,6 +45,21 @@ class SyncSearchConsoleDataJob implements ShouldQueue
      */
     public array $backoff = [30, 120, 600];
 
+    /**
+     * This job makes somewhere around twenty Search Console API calls
+     * per run (daily, up to 4 pages each of queries/pages/query-pages,
+     * countries, devices, search appearance, and one per
+     * SeoSearchType) - comfortably over the default 60-second queue
+     * worker timeout, especially from Iran-hosted servers where
+     * latency to Google is already a known issue (see
+     * PageSpeedInsightsClient's own history). Without this, the job
+     * gets killed mid-run before it ever reaches its own exception
+     * handling, so no error is recorded anywhere - it just silently
+     * retries until it exhausts $tries and disappears into
+     * failed_jobs, leaving last_synced_at stuck on an old date.
+     */
+    public int $timeout = 300;
+
     /** Google keeps roughly 16 months of Search Analytics data. */
     private const SYNC_WINDOW_DAYS = 365;
 

@@ -255,4 +255,19 @@ class SyncSearchConsoleDataJobTest extends TestCase
 
         (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
     }
+
+    /**
+     * Regression: this job can easily make ~20 Search Console API calls
+     * in one run (daily, up to 4 pages each of queries/pages/query-pages,
+     * countries, devices, search appearance, one per SeoSearchType) -
+     * comfortably over the queue worker's default 60-second timeout,
+     * especially from a slower-latency host. Without an explicit,
+     * longer timeout the job gets killed mid-run before its own
+     * exception handling ever runs, so it silently retries and
+     * eventually fails with no visible error anywhere.
+     */
+    public function test_the_job_has_a_timeout_generous_enough_for_its_own_api_call_volume(): void
+    {
+        $this->assertGreaterThanOrEqual(300, (new SyncSearchConsoleDataJob(1))->timeout);
+    }
 }
