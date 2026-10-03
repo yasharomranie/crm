@@ -8,6 +8,7 @@ use App\Filament\Resources\SeoProjects\Pages\CreateSeoProject;
 use App\Filament\Resources\SeoProjects\Pages\EditSeoProject;
 use App\Filament\Resources\SeoProjects\Pages\ListSeoProjects;
 use App\Jobs\DiscoverSeoKeywordsJob;
+use App\Jobs\SyncSitemapDataJob;
 use App\Models\SeoProject;
 use App\Models\SeoSearchTypeMetric;
 use App\Models\User;
@@ -107,6 +108,32 @@ class SeoProjectResourceTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
             ->assertDontSee('ترافیک بر اساس نوع جستجو');
+    }
+
+    public function test_the_sync_sitemap_now_action_is_only_visible_when_a_sitemap_url_is_registered(): void
+    {
+        $withSitemap = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+        $withoutSitemap = SeoProject::factory()->create(['sitemap_url' => null]);
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $withSitemap->getRouteKey()])
+            ->assertActionVisible('syncSitemapNow');
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $withoutSitemap->getRouteKey()])
+            ->assertActionHidden('syncSitemapNow');
+    }
+
+    public function test_the_sync_sitemap_now_action_dispatches_the_job(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
+            ->callAction('syncSitemapNow');
+
+        Queue::assertPushed(SyncSitemapDataJob::class, fn ($job) => $job->seoProjectId === $project->id);
     }
 
     public function test_discovering_keywords_warns_when_real_services_is_empty(): void

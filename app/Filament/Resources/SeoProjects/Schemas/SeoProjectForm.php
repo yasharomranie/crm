@@ -69,6 +69,11 @@ class SeoProjectForm
                             ->url()
                             ->required()
                             ->maxLength(255),
+                        TextInput::make('sitemap_url')
+                            ->label('آدرس Sitemap')
+                            ->helperText('آدرس کامل فایل sitemap.xml این سایت (یا sitemap index آن).')
+                            ->url()
+                            ->maxLength(255),
                         Select::make('goal')
                             ->label('هدف اصلی کسب‌وکار')
                             ->helperText('این روی محاسبه‌ی «ارزش تجاری» کلمات کلیدی در بخش هوشمندی سئو اثر می‌گذارد.')
