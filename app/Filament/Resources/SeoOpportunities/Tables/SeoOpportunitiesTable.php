@@ -37,6 +37,15 @@ class SeoOpportunitiesTable
                     ->label('عنوان')
                     ->wrap()
                     ->limit(80),
+                TextColumn::make('subject')
+                    ->label('موضوع (صفحه/کلمه)')
+                    ->getStateUsing(fn (SeoOpportunity $record) => $record->subject_page_url ?? $record->subject_query)
+                    ->formatStateUsing(fn (?string $state) => $state === null ? '—' : (str_starts_with($state, 'http') ? urldecode($state) : $state))
+                    ->url(fn (SeoOpportunity $record) => $record->subject_page_url, shouldOpenInNewTab: true)
+                    ->tooltip(fn (SeoOpportunity $record) => $record->subject_page_url ?? $record->subject_query)
+                    ->copyable(fn (SeoOpportunity $record) => filled($record->subject_page_url) || filled($record->subject_query))
+                    ->limit(50)
+                    ->placeholder('—'),
                 TextColumn::make('priority')
                     ->label('اولویت')
                     ->badge(),

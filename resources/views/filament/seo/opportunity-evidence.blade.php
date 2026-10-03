@@ -1,4 +1,13 @@
 <div class="fi-section-content-ctn space-y-4" dir="rtl">
+    @if ($opportunity->subject_page_url || $opportunity->subject_query)
+        <div class="rounded-md bg-gray-50 px-3 py-2 text-xs dark:bg-white/5">
+            <span class="text-gray-500 dark:text-gray-400">موضوع:</span>
+            <span class="font-medium text-gray-950 dark:text-white" dir="ltr">
+                {{ $opportunity->subject_page_url ? urldecode($opportunity->subject_page_url) : $opportunity->subject_query }}
+            </span>
+        </div>
+    @endif
+
     <div>
         <h3 class="text-sm font-semibold text-gray-950 dark:text-white">شواهد</h3>
         <dl class="mt-2 divide-y divide-gray-100 dark:divide-white/10 text-sm">
