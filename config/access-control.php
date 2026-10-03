@@ -11,6 +11,7 @@ use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\RoomRack;
 use App\Filament\Pages\SalesPipeline;
+use App\Filament\Pages\SeoActionQueue;
 use App\Filament\Pages\SeoAlertSettings;
 use App\Filament\Pages\SeoDashboard;
 use App\Filament\Pages\SeoGoogleSettings;
@@ -166,6 +167,7 @@ return [
         'seo-dashboard' => ['page' => SeoDashboard::class, 'label' => 'داشبورد سئو', 'group' => 'مرکز سئو'],
         'seo-rank-tracker-settings' => ['page' => SeoRankTrackerSettings::class, 'label' => 'تنظیمات ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
         'seo-pillar-cluster-map' => ['page' => SeoPillarClusterMap::class, 'label' => 'نقشه موضوعی (پیلار-کلاستر)', 'group' => 'مرکز سئو'],
+        'seo-action-queue' => ['page' => SeoActionQueue::class, 'label' => 'صف اقدام', 'group' => 'مرکز سئو'],
         'seo-alert-settings' => ['page' => SeoAlertSettings::class, 'label' => 'تنظیمات هشدار سئو', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,

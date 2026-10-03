@@ -6,6 +6,7 @@ use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoOpportunity;
 use App\Models\SeoOpportunityOutcome;
+use App\Models\SeoPageMetric;
 use App\Models\SeoQueryMetric;
 use Illuminate\Support\Carbon;
 
@@ -18,10 +19,11 @@ use Illuminate\Support\Carbon;
  * once enough time has passed and records whether it moved.
  *
  * Measures via the opportunity's own subject_query (SeoQueryMetric) when
- * one is set - CtrOpportunity and Cannibalization both have one - or the
- * whole project's daily clicks (SeoDailyMetric) for project-wide types
- * like TrafficDrop/AnomalyNegative, so every opportunity type is
- * measurable the same way.
+ * one is set - CtrOpportunity and Cannibalization both have one -, its
+ * subject_page_url (SeoPageMetric) for URL-level opportunities that have
+ * no query, or the whole project's daily clicks (SeoDailyMetric) for
+ * project-wide types like TrafficDrop/AnomalyNegative, so every
+ * opportunity type is measurable the same way.
  */
 class OpportunityOutcomeService
 {
@@ -84,12 +86,16 @@ class OpportunityOutcomeService
      */
     private function metricsSince(SeoOpportunity $opportunity, Carbon $start, Carbon $end): array
     {
-        $query = filled($opportunity->subject_query)
-            ? SeoQueryMetric::query()
+        $query = match (true) {
+            filled($opportunity->subject_query) => SeoQueryMetric::query()
                 ->where('seo_project_id', $opportunity->seo_project_id)
-                ->where('query_hash', sha1($opportunity->subject_query))
-            : SeoDailyMetric::query()
-                ->where('seo_project_id', $opportunity->seo_project_id);
+                ->where('query_hash', sha1($opportunity->subject_query)),
+            filled($opportunity->subject_page_url) => SeoPageMetric::query()
+                ->where('seo_project_id', $opportunity->seo_project_id)
+                ->where('page_url_hash', sha1($opportunity->subject_page_url)),
+            default => SeoDailyMetric::query()
+                ->where('seo_project_id', $opportunity->seo_project_id),
+        };
 
         $row = $query
             ->whereDate('date', '>=', $start->toDateString())

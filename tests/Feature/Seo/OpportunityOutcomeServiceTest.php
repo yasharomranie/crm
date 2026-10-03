@@ -6,6 +6,7 @@ use App\Domain\Seo\OpportunityOutcomeService;
 use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoOpportunity;
+use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -65,6 +66,38 @@ class OpportunityOutcomeServiceTest extends TestCase
         $this->assertSame(56, $outcome->baseline_clicks);
         $this->assertSame(SeoOpportunityOutcomeVerdict::Pending, $outcome->verdict);
         $this->assertNull($outcome->followup_measured_at);
+    }
+
+    private function fillPageMetrics(SeoProject $project, string $pageUrl, Carbon $end, int $days, int $dailyClicks): void
+    {
+        for ($i = 0; $i < $days; $i++) {
+            $date = $end->clone()->subDays($i);
+            SeoPageMetric::create([
+                'seo_project_id' => $project->id, 'date' => $date->toDateString(), 'page_url' => $pageUrl,
+                'page_url_hash' => sha1($pageUrl), 'clicks' => $dailyClicks, 'impressions' => $dailyClicks * 10,
+                'ctr' => 0.1, 'position' => 8.0,
+            ]);
+        }
+    }
+
+    public function test_capturing_a_baseline_uses_the_subject_page_url_when_there_is_no_subject_query(): void
+    {
+        Carbon::setTestNow('2026-09-28 12:00:00');
+
+        $project = SeoProject::factory()->create();
+        $opportunity = SeoOpportunity::factory()->create([
+            'seo_project_id' => $project->id,
+            'subject_query' => null,
+            'subject_page_url' => 'https://ganjnameh.example.com/telecabin',
+        ]);
+
+        $this->fillPageMetrics($project, 'https://ganjnameh.example.com/telecabin', Carbon::now(), 28, 2);
+        // A different page in the same project must not be counted.
+        $this->fillPageMetrics($project, 'https://ganjnameh.example.com/other', Carbon::now(), 28, 999);
+
+        $outcome = (new OpportunityOutcomeService)->captureBaseline($opportunity);
+
+        $this->assertSame(56, $outcome->baseline_clicks);
     }
 
     public function test_capturing_a_baseline_falls_back_to_project_wide_daily_metrics_without_a_subject_query(): void
