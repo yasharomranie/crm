@@ -34,4 +34,13 @@
             @endforeach
         </ul>
     </div>
+
+    @if ($opportunity->resolution_notes)
+        <div>
+            <h3 class="text-sm font-semibold text-gray-950 dark:text-white">تصمیم ثبت‌شده</h3>
+            <p class="mt-2 whitespace-pre-wrap rounded-md bg-warning-50 px-3 py-2 text-sm text-warning-800 dark:bg-warning-500/10 dark:text-warning-300">
+                {{ $opportunity->resolution_notes }}
+            </p>
+        </div>
+    @endif
 </div>

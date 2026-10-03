@@ -17,7 +17,7 @@ class SeoOpportunity extends Model
 
     protected $fillable = [
         'seo_project_id', 'type', 'title', 'subject_query', 'subject_page_url',
-        'evidence', 'recommended_actions', 'priority', 'confidence', 'status',
+        'evidence', 'recommended_actions', 'resolution_notes', 'priority', 'confidence', 'status',
         'detected_at', 'resolved_at',
     ];
 
