@@ -190,6 +190,60 @@
             margin-bottom: 1.5rem;
         }
 
+        .chart-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: .75rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-grid .mini-chart {
+            background: #fafaf9;
+            border: 1px solid var(--line);
+            border-radius: .5rem;
+            padding: .75rem;
+        }
+
+        .chart-grid .mini-chart .mini-chart-title {
+            font-size: .72rem;
+            color: var(--ink-soft);
+            margin-bottom: .5rem;
+            text-align: center;
+        }
+
+        .movers-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .movers-grid h3 {
+            font-size: .8rem;
+            font-weight: 700;
+            margin: 0 0 .5rem;
+            color: var(--ink-soft);
+        }
+
+        .badge-pill {
+            display: inline-block;
+            font-size: .68rem;
+            font-weight: 700;
+            border-radius: 999px;
+            padding: .1rem .5rem;
+            white-space: nowrap;
+        }
+
+        .badge-pill.tone-danger {
+            color: var(--danger);
+            background: var(--danger-bg);
+        }
+
+        .badge-pill.tone-warning {
+            color: #92400e;
+            background: #fef3c7;
+        }
+
         footer.doc-footer {
             margin-top: 1.5rem;
             padding-top: 1rem;
@@ -215,6 +269,10 @@
 
             .stat-row {
                 grid-template-columns: repeat(2, 1fr);
+            }
+
+            .chart-grid, .movers-grid {
+                grid-template-columns: 1fr;
             }
         }
 
@@ -298,6 +356,58 @@
             </div>
         @endif
 
+        @if (count($dailyQualitySeries) > 1)
+            <div class="chart-wrap">
+                <canvas id="periodic-report-quality-chart" height="200"></canvas>
+                <script>
+                    (function () {
+                        var canvas = document.getElementById('periodic-report-quality-chart');
+
+                        if (! canvas || ! window.Chart) {
+                            return;
+                        }
+
+                        var series = @json($dailyQualitySeries);
+
+                        new Chart(canvas, {
+                            type: 'line',
+                            data: {
+                                labels: series.map(function (row) { return row.date; }),
+                                datasets: [
+                                    {
+                                        label: 'نرخ کلیک (CTR٪)',
+                                        data: series.map(function (row) { return row.ctr; }),
+                                        borderColor: '#9c6b1f',
+                                        backgroundColor: 'transparent',
+                                        tension: 0.3,
+                                        pointRadius: 0,
+                                        yAxisID: 'ctr',
+                                    },
+                                    {
+                                        label: 'میانگین رتبه',
+                                        data: series.map(function (row) { return row.position; }),
+                                        borderColor: '#57534e',
+                                        backgroundColor: 'transparent',
+                                        borderDash: [4, 3],
+                                        tension: 0.3,
+                                        pointRadius: 0,
+                                        yAxisID: 'position',
+                                    },
+                                ],
+                            },
+                            options: {
+                                plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+                                scales: {
+                                    ctr: { position: 'left', ticks: { callback: function (v) { return v + '٪'; } } },
+                                    position: { position: 'right', reverse: true, grid: { drawOnChartArea: false } },
+                                },
+                            },
+                        });
+                    })();
+                </script>
+            </div>
+        @endif
+
         <h2 class="section-title">عملکرد جست‌وجوی ارگانیک</h2>
         <div class="stat-row">
             <div class="stat-tile">
@@ -325,6 +435,87 @@
             </div>
         </div>
 
+        <div class="chart-grid">
+            <div class="mini-chart">
+                <div class="mini-chart-title">کلیک: دورهٔ قبل در مقابل این دوره</div>
+                <canvas id="compare-clicks" height="140"></canvas>
+            </div>
+            <div class="mini-chart">
+                <div class="mini-chart-title">ایمپرشن: دورهٔ قبل در مقابل این دوره</div>
+                <canvas id="compare-impressions" height="140"></canvas>
+            </div>
+            <div class="mini-chart">
+                <div class="mini-chart-title">میانگین رتبه: دورهٔ قبل در مقابل این دوره</div>
+                <canvas id="compare-position" height="140"></canvas>
+            </div>
+        </div>
+        <script>
+            (function () {
+                if (! window.Chart) {
+                    return;
+                }
+
+                [
+                    { id: 'compare-clicks', previous: {{ $search['previous_clicks'] }}, current: {{ $search['clicks'] }} },
+                    { id: 'compare-impressions', previous: {{ $search['previous_impressions'] }}, current: {{ $search['impressions'] }} },
+                    { id: 'compare-position', previous: {{ $search['previous_avg_position'] ?? 0 }}, current: {{ $search['avg_position'] ?? 0 }} },
+                ].forEach(function (c) {
+                    var canvas = document.getElementById(c.id);
+
+                    if (! canvas) {
+                        return;
+                    }
+
+                    new Chart(canvas, {
+                        type: 'bar',
+                        data: {
+                            labels: ['دورهٔ قبل', 'این دوره'],
+                            datasets: [{
+                                data: [c.previous, c.current],
+                                backgroundColor: ['#d6d3d1', '#9c6b1f'],
+                            }],
+                        },
+                        options: {
+                            plugins: { legend: { display: false } },
+                            scales: { y: { beginAtZero: true } },
+                        },
+                    });
+                });
+            })();
+        </script>
+
+        @if (count($deviceBreakdown) > 0)
+            <div class="chart-wrap" style="max-width: 20rem; margin-right: auto; margin-left: auto;">
+                <canvas id="periodic-report-device-chart" height="200"></canvas>
+                <script>
+                    (function () {
+                        var canvas = document.getElementById('periodic-report-device-chart');
+
+                        if (! canvas || ! window.Chart) {
+                            return;
+                        }
+
+                        var breakdown = @json($deviceBreakdown);
+                        var labels = { DESKTOP: 'دسکتاپ', MOBILE: 'موبایل', TABLET: 'تبلت' };
+
+                        new Chart(canvas, {
+                            type: 'doughnut',
+                            data: {
+                                labels: Object.keys(breakdown).map(function (k) { return labels[k] || k; }),
+                                datasets: [{
+                                    data: Object.values(breakdown),
+                                    backgroundColor: ['#9c6b1f', '#57534e', '#d6d3d1'],
+                                }],
+                            },
+                            options: {
+                                plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 10 } } } },
+                            },
+                        });
+                    })();
+                </script>
+            </div>
+        @endif
+
         <h2 class="section-title">فرصت‌های سئو</h2>
         <div class="stat-row">
             <div class="stat-tile">
@@ -344,6 +535,150 @@
                 <div class="label">محتوای منتشرشده</div>
             </div>
         </div>
+
+        <h2 class="section-title">اقدامات پیشنهادی</h2>
+        @if ($actionItems->isEmpty())
+            <p class="empty">در حال حاضر هیچ موردی در صف اقدام نیست.</p>
+        @else
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>منبع</th>
+                        <th>عنوان</th>
+                        <th>جزئیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($actionItems as $item)
+                        <tr>
+                            <td>
+                                <span class="badge-pill {{ $item->source === 'technical_issue' ? 'tone-danger' : 'tone-warning' }}">
+                                    {{ $item->source === 'technical_issue' ? 'مشکل تکنیکال' : 'فرصت سئو' }}
+                                </span>
+                            </td>
+                            <td>{{ $item->title }}</td>
+                            <td>{{ $item->detail ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        @if ($technicalIssues->isNotEmpty())
+            <h2 class="section-title">مشکلات فنی شناسایی‌شده</h2>
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>شدت</th>
+                        <th>نوع مشکل</th>
+                        <th>آدرس</th>
+                        <th>جزئیات</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($technicalIssues as $issue)
+                        <tr>
+                            <td>
+                                <span class="badge-pill {{ $issue->severity->value === 'critical' ? 'tone-danger' : 'tone-warning' }}">
+                                    {{ $issue->severity->getLabel() }}
+                                </span>
+                            </td>
+                            <td>{{ $issue->type->getLabel() }}</td>
+                            <td style="word-break: break-all;">{{ $issue->url ?? '—' }}</td>
+                            <td>{{ $issue->details ?? '—' }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
+        <h2 class="section-title">پرکلیک‌ترین کلمات کلیدی (رشد و افت این دوره)</h2>
+        @if (empty($topQueries['gainers']) && empty($topQueries['losers']))
+            <p class="empty">در این بازه تغییر قابل‌توجهی در کلیک کلمات کلیدی ثبت نشده است.</p>
+        @else
+            <div class="movers-grid">
+                <div>
+                    <h3>بیشترین رشد</h3>
+                    @if (empty($topQueries['gainers']))
+                        <p class="empty">موردی یافت نشد.</p>
+                    @else
+                        <table class="report">
+                            <thead><tr><th>کلمهٔ کلیدی</th><th>تغییر</th></tr></thead>
+                            <tbody>
+                                @foreach ($topQueries['gainers'] as $row)
+                                    <tr>
+                                        <td>{{ $row['label'] }}</td>
+                                        <td><span class="change-pill positive">+{{ \Illuminate\Support\Number::toPersian($row['delta']) }}</span></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </div>
+                <div>
+                    <h3>بیشترین افت</h3>
+                    @if (empty($topQueries['losers']))
+                        <p class="empty">موردی یافت نشد.</p>
+                    @else
+                        <table class="report">
+                            <thead><tr><th>کلمهٔ کلیدی</th><th>تغییر</th></tr></thead>
+                            <tbody>
+                                @foreach ($topQueries['losers'] as $row)
+                                    <tr>
+                                        <td>{{ $row['label'] }}</td>
+                                        <td><span class="change-pill negative">{{ \Illuminate\Support\Number::toPersian($row['delta']) }}</span></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </div>
+            </div>
+        @endif
+
+        <h2 class="section-title">پربازدیدترین صفحات (رشد و افت این دوره)</h2>
+        @if (empty($topPages['gainers']) && empty($topPages['losers']))
+            <p class="empty">در این بازه تغییر قابل‌توجهی در کلیک صفحات ثبت نشده است.</p>
+        @else
+            <div class="movers-grid">
+                <div>
+                    <h3>بیشترین رشد</h3>
+                    @if (empty($topPages['gainers']))
+                        <p class="empty">موردی یافت نشد.</p>
+                    @else
+                        <table class="report">
+                            <thead><tr><th>صفحه</th><th>تغییر</th></tr></thead>
+                            <tbody>
+                                @foreach ($topPages['gainers'] as $row)
+                                    <tr>
+                                        <td style="word-break: break-all;">{{ $row['label'] }}</td>
+                                        <td><span class="change-pill positive">+{{ \Illuminate\Support\Number::toPersian($row['delta']) }}</span></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </div>
+                <div>
+                    <h3>بیشترین افت</h3>
+                    @if (empty($topPages['losers']))
+                        <p class="empty">موردی یافت نشد.</p>
+                    @else
+                        <table class="report">
+                            <thead><tr><th>صفحه</th><th>تغییر</th></tr></thead>
+                            <tbody>
+                                @foreach ($topPages['losers'] as $row)
+                                    <tr>
+                                        <td style="word-break: break-all;">{{ $row['label'] }}</td>
+                                        <td><span class="change-pill negative">{{ \Illuminate\Support\Number::toPersian($row['delta']) }}</span></td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         <h2 class="section-title">روند رتبهٔ کلمات کلیدی ترکرشده</h2>
         @if ($rankHighlights->isEmpty())
