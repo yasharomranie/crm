@@ -104,7 +104,7 @@ class TechnicalSeoAuditorTest extends TestCase
             'clean-site.test/robots.txt' => Http::response('User-agent: *', 200),
             'clean-site.test/sitemap.xml' => Http::response('<xml></xml>', 200),
             'clean-site.test*' => Http::response(
-                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"Organization"}</script></head><body><img src="a.jpg" alt="توضیح"></body></html>',
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"LocalBusiness","telephone":"+988112345678"}</script></head><body><img src="a.jpg" alt="توضیح"><a href="tel:+988112345678">تماس</a></body></html>',
                 200,
                 ['Content-Type' => 'text/html'],
             ),
@@ -359,5 +359,148 @@ class TechnicalSeoAuditorTest extends TestCase
 
         $this->assertSame(40, $audit->pages_scanned);
         $this->assertSame(0, $audit->issues()->where('type', SeoTechnicalIssueType::OrphanPage->value)->count());
+    }
+
+    public function test_it_flags_inconsistent_phone_numbers_found_across_different_pages(): void
+    {
+        Http::fake([
+            'phone-site.test/robots.txt' => Http::response('', 200),
+            'phone-site.test/sitemap.xml' => Http::response('', 200),
+            'phone-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"></head><body><a href="tel:+988187654321">تماس</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'phone-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><a href="/about">دربارهٔ ما</a><a href="tel:+988112345678">تماس</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://phone-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::InconsistentPhoneNumber->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertStringContainsString('+988112345678', $issue->details);
+        $this->assertStringContainsString('+988187654321', $issue->details);
+    }
+
+    public function test_it_does_not_flag_phone_numbers_when_the_same_number_appears_on_every_page_despite_formatting_differences(): void
+    {
+        Http::fake([
+            'same-phone-site.test/robots.txt' => Http::response('', 200),
+            'same-phone-site.test/sitemap.xml' => Http::response('', 200),
+            'same-phone-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"></head><body><a href="tel:+98 81 1234 5678">تماس</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'same-phone-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><a href="/about">دربارهٔ ما</a><a href="tel:+988112345678">تماس</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://same-phone-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::InconsistentPhoneNumber->value)->exists());
+    }
+
+    public function test_it_flags_the_homepage_as_missing_a_local_business_schema_when_only_a_generic_type_is_declared(): void
+    {
+        Http::fake([
+            'generic-ld-site.test/robots.txt' => Http::response('', 200),
+            'generic-ld-site.test/sitemap.xml' => Http::response('', 200),
+            'generic-ld-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"Organization"}</script></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://generic-ld-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::MissingLocalBusinessSchema->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertSame('https://generic-ld-site.test', $issue->url);
+
+        // Generic structured data IS present, so MissingStructuredData
+        // (a different, already-existing issue) must not also fire.
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingStructuredData->value)->exists());
+    }
+
+    public function test_it_does_not_flag_missing_local_business_schema_when_the_homepage_declares_a_recognized_local_business_type(): void
+    {
+        Http::fake([
+            'lodging-ld-site.test/robots.txt' => Http::response('', 200),
+            'lodging-ld-site.test/sitemap.xml' => Http::response('', 200),
+            'lodging-ld-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"LodgingBusiness"}</script></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://lodging-ld-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingLocalBusinessSchema->value)->exists());
+    }
+
+    public function test_it_does_not_double_flag_the_homepage_when_it_has_no_structured_data_at_all(): void
+    {
+        Http::fake([
+            'no-ld-homepage.test/robots.txt' => Http::response('', 200),
+            'no-ld-homepage.test/sitemap.xml' => Http::response('', 200),
+            'no-ld-homepage.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-ld-homepage.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        // Already covered by MissingStructuredData - flagging both for
+        // the exact same missing data would just be noise.
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::MissingStructuredData->value)->exists());
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingLocalBusinessSchema->value)->exists());
+    }
+
+    public function test_it_only_checks_local_business_schema_on_the_homepage_not_every_page(): void
+    {
+        Http::fake([
+            'subpage-ld-site.test/robots.txt' => Http::response('', 200),
+            'subpage-ld-site.test/sitemap.xml' => Http::response('', 200),
+            'subpage-ld-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"Article"}</script></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'subpage-ld-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"LocalBusiness"}</script></head><body><a href="/about">دربارهٔ ما</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://subpage-ld-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        // /about declares a non-local "Article" type, but since it is not
+        // the homepage this must never be flagged.
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingLocalBusinessSchema->value)->exists());
     }
 }

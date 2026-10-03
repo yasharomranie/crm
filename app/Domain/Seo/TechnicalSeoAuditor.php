@@ -21,8 +21,11 @@ use Illuminate\Support\Facades\Log;
  * MAX_PAGES same-host pages breadth-first starting from the project's
  * website_url and flags the checks a real technical SEO review starts
  * with: broken links, missing/duplicate titles, missing meta
- * descriptions, images without alt text, slow responses, and a missing
- * robots.txt/sitemap.xml.
+ * descriptions, images without alt text, slow responses, a missing
+ * robots.txt/sitemap.xml, phone numbers that disagree across pages, and
+ * (on the homepage only) a missing LocalBusiness-family schema - the
+ * local-SEO "hygiene" layer: see SeoTechnicalIssueType's Inconsistent
+ * PhoneNumber/MissingLocalBusinessSchema cases.
  */
 class TechnicalSeoAuditor
 {
@@ -31,6 +34,26 @@ class TechnicalSeoAuditor
     private const SLOW_PAGE_THRESHOLD_MS = 3000;
 
     private const REQUEST_TIMEOUT_SECONDS = 10;
+
+    /**
+     * schema.org @type values (lowercase) that count as a local-business
+     * declaration - LocalBusiness itself plus the lodging/tourism subtypes
+     * this app's own customers (villa/resort rental, tourist attractions)
+     * actually use. Deliberately homepage-only (see inspectHtml()) - every
+     * page on the site (a blog post, say) does not need this.
+     *
+     * @var array<int, string>
+     */
+    private const LOCAL_BUSINESS_TYPES = [
+        'localbusiness',
+        'lodgingbusiness',
+        'hotel',
+        'resort',
+        'bedandbreakfast',
+        'campground',
+        'touristattraction',
+        'touristdestination',
+    ];
 
     public function __construct(private readonly PageSpeedInsightsClient $pageSpeed) {}
 
@@ -79,6 +102,7 @@ class TechnicalSeoAuditor
     private function crawl(string $startUrl, SeoTechnicalAudit $audit): array
     {
         $host = parse_url($startUrl, PHP_URL_HOST);
+        $normalizedStart = $this->normalize($startUrl);
         $queue = [$startUrl];
         $visited = [];
         $seenTitles = [];
@@ -86,6 +110,10 @@ class TechnicalSeoAuditor
         // every page) is only ever recorded once per audit - see
         // App\Models\SeoInternalLink's own doc comment.
         $edges = [];
+        // Keyed by normalized phone number => the first URL it was seen
+        // on, so more than one distinct number across the whole site can
+        // be reported with an example page per number.
+        $phoneNumbers = [];
         $scanned = 0;
 
         while ($queue !== [] && $scanned < self::MAX_PAGES) {
@@ -127,7 +155,11 @@ class TechnicalSeoAuditor
                 continue;
             }
 
-            $this->inspectHtml($response->body(), $url, $audit, $seenTitles);
+            $this->inspectHtml($response->body(), $url, $audit, $seenTitles, $normalized === $normalizedStart);
+
+            foreach ($this->extractPhoneNumbers($response->body()) as $phoneNumber) {
+                $phoneNumbers[$phoneNumber] ??= $url;
+            }
 
             foreach ($this->extractSameHostLinks($response->body(), $url, $host) as $link) {
                 $normalizedLink = $this->normalize($link);
@@ -150,6 +182,20 @@ class TechnicalSeoAuditor
             }
         }
 
+        if (count($phoneNumbers) > 1) {
+            $this->recordIssue(
+                $audit,
+                SeoTechnicalIssueType::InconsistentPhoneNumber,
+                SeoTechnicalIssueSeverity::Warning,
+                $startUrl,
+                'شماره‌های تماس متفاوتی در صفحات مختلف سایت پیدا شد: '.implode('، ', array_map(
+                    fn (string $number, string $foundOn) => "{$number} ({$foundOn})",
+                    array_keys($phoneNumbers),
+                    array_values($phoneNumbers),
+                )),
+            );
+        }
+
         return [
             'scanned' => $scanned,
             'visited' => $visited,
@@ -165,7 +211,7 @@ class TechnicalSeoAuditor
     /**
      * @param  array<string, true>  $seenTitles  passed by reference - shared across the whole crawl so a title reused on a second page is flagged as a duplicate
      */
-    private function inspectHtml(string $html, string $url, SeoTechnicalAudit $audit, array &$seenTitles): void
+    private function inspectHtml(string $html, string $url, SeoTechnicalAudit $audit, array &$seenTitles, bool $isHomepage = false): void
     {
         $previousState = libxml_use_internal_errors(true);
         $document = new \DOMDocument;
@@ -211,18 +257,103 @@ class TechnicalSeoAuditor
         }
 
         $hasStructuredData = false;
+        $jsonLdBlocks = [];
 
         foreach ($document->getElementsByTagName('script') as $script) {
             if (strtolower($script->getAttribute('type')) === 'application/ld+json') {
                 $hasStructuredData = true;
-
-                break;
+                $jsonLdBlocks[] = $script->textContent;
             }
         }
 
         if (! $hasStructuredData) {
             $this->recordIssue($audit, SeoTechnicalIssueType::MissingStructuredData, SeoTechnicalIssueSeverity::Info, $url, null);
+        } elseif ($isHomepage) {
+            // Only meaningful once there IS structured data - no JSON-LD
+            // at all is already covered by MissingStructuredData above,
+            // and flagging both would just be noise for the same page.
+            $types = collect($jsonLdBlocks)
+                ->flatMap(fn (string $block) => $this->extractJsonLdTypes($block))
+                ->unique();
+
+            if ($types->intersect(self::LOCAL_BUSINESS_TYPES)->isEmpty()) {
+                $this->recordIssue($audit, SeoTechnicalIssueType::MissingLocalBusinessSchema, SeoTechnicalIssueSeverity::Warning, $url, null);
+            }
         }
+    }
+
+    /**
+     * @return array<int, string> tel: href numbers on the page, normalized to digits-only (with a leading + kept when present)
+     */
+    private function extractPhoneNumbers(string $html): array
+    {
+        $previousState = libxml_use_internal_errors(true);
+        $document = new \DOMDocument;
+        $document->loadHTML('<?xml encoding="utf-8" ?>'.$html);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previousState);
+
+        $numbers = [];
+
+        foreach ($document->getElementsByTagName('a') as $anchor) {
+            $href = trim($anchor->getAttribute('href'));
+
+            if (! str_starts_with($href, 'tel:')) {
+                continue;
+            }
+
+            $normalized = $this->normalizePhoneNumber(substr($href, 4));
+
+            if ($normalized !== '') {
+                $numbers[] = $normalized;
+            }
+        }
+
+        return array_values(array_unique($numbers));
+    }
+
+    private function normalizePhoneNumber(string $raw): string
+    {
+        $hasPlus = str_starts_with(trim($raw), '+');
+        $digits = preg_replace('/\D+/', '', $raw) ?? '';
+
+        if ($digits === '') {
+            return '';
+        }
+
+        return ($hasPlus ? '+' : '').$digits;
+    }
+
+    /**
+     * Decodes a JSON-LD <script> block and returns every lowercase @type
+     * it declares, including each node inside an @graph wrapper - a
+     * single ld+json block commonly bundles several entities that way.
+     *
+     * @return array<int, string>
+     */
+    private function extractJsonLdTypes(string $json): array
+    {
+        $decoded = json_decode($json, true);
+
+        if (! is_array($decoded)) {
+            return [];
+        }
+
+        $nodes = isset($decoded['@graph']) && is_array($decoded['@graph'])
+            ? array_filter($decoded['@graph'], 'is_array')
+            : [$decoded];
+
+        $types = [];
+
+        foreach ($nodes as $node) {
+            foreach ((array) ($node['@type'] ?? []) as $type) {
+                if (is_string($type)) {
+                    $types[] = strtolower($type);
+                }
+            }
+        }
+
+        return $types;
     }
 
     /**
