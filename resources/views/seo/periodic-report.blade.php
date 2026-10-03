@@ -190,6 +190,17 @@
             margin-bottom: 1.5rem;
         }
 
+        .chart-label {
+            font-size: .8rem;
+            font-weight: 700;
+            color: var(--ink-soft);
+            margin: 1.5rem 0 .6rem;
+        }
+
+        .chart-label:first-of-type {
+            margin-top: 0;
+        }
+
         .chart-grid {
             display: grid;
             grid-template-columns: repeat(3, 1fr);
@@ -320,6 +331,7 @@
         @endif
 
         @if (count($dailySeries) > 1)
+            <p class="chart-label">روند کلیک روزانه</p>
             <div class="chart-wrap">
                 <canvas id="periodic-report-clicks-chart" height="220"></canvas>
                 <script>
@@ -357,8 +369,9 @@
         @endif
 
         @if (count($dailyQualitySeries) > 1)
+            <p class="chart-label">روند نرخ کلیک (CTR) و میانگین رتبه</p>
             <div class="chart-wrap">
-                <canvas id="periodic-report-quality-chart" height="200"></canvas>
+                <canvas id="periodic-report-quality-chart" height="240"></canvas>
                 <script>
                     (function () {
                         var canvas = document.getElementById('periodic-report-quality-chart');
@@ -396,9 +409,9 @@
                                 ],
                             },
                             options: {
-                                plugins: { legend: { display: true, labels: { boxWidth: 10, font: { size: 10 } } } },
+                                plugins: { legend: { display: true, position: 'top', labels: { boxWidth: 10, font: { size: 10 } } } },
                                 scales: {
-                                    ctr: { position: 'left', ticks: { callback: function (v) { return v + '٪'; } } },
+                                    ctr: { position: 'left', beginAtZero: true, ticks: { callback: function (v) { return v + '٪'; } } },
                                     position: { position: 'right', reverse: true, grid: { drawOnChartArea: false } },
                                 },
                             },
@@ -435,17 +448,18 @@
             </div>
         </div>
 
+        <p class="chart-label">مقایسه با دورهٔ قبل</p>
         <div class="chart-grid">
             <div class="mini-chart">
-                <div class="mini-chart-title">کلیک: دورهٔ قبل در مقابل این دوره</div>
+                <div class="mini-chart-title">کلیک</div>
                 <canvas id="compare-clicks" height="140"></canvas>
             </div>
             <div class="mini-chart">
-                <div class="mini-chart-title">ایمپرشن: دورهٔ قبل در مقابل این دوره</div>
+                <div class="mini-chart-title">ایمپرشن</div>
                 <canvas id="compare-impressions" height="140"></canvas>
             </div>
             <div class="mini-chart">
-                <div class="mini-chart-title">میانگین رتبه: دورهٔ قبل در مقابل این دوره</div>
+                <div class="mini-chart-title">میانگین رتبه</div>
                 <canvas id="compare-position" height="140"></canvas>
             </div>
         </div>
@@ -485,6 +499,7 @@
         </script>
 
         @if (count($deviceBreakdown) > 0)
+            <p class="chart-label" style="text-align: center;">توزیع کلیک بر اساس دستگاه</p>
             <div class="chart-wrap" style="max-width: 20rem; margin-right: auto; margin-left: auto;">
                 <canvas id="periodic-report-device-chart" height="200"></canvas>
                 <script>

@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Domain\Seo\ContentGapService;
 use App\Domain\Seo\KeywordIntelligenceService;
 use App\Domain\Seo\OpportunityEngine;
 use App\Domain\Seo\UrlOpportunityEngine;
@@ -25,13 +26,14 @@ class AnalyzeSeoProjectJob implements ShouldQueue
 
     public function __construct(public int $seoProjectId) {}
 
-    public function handle(KeywordIntelligenceService $keywordIntelligence, OpportunityEngine $opportunityEngine, UrlOpportunityEngine $urlOpportunityEngine): void
+    public function handle(KeywordIntelligenceService $keywordIntelligence, OpportunityEngine $opportunityEngine, UrlOpportunityEngine $urlOpportunityEngine, ContentGapService $contentGapService): void
     {
         $project = SeoProject::findOrFail($this->seoProjectId);
 
         $keywordIntelligence->rebuildProfiles($project);
         $opportunityEngine->scan($project);
         $urlOpportunityEngine->scan($project);
+        $contentGapService->detect($project);
 
         // Best-effort enrichment, not required for the above to be
         // useful - see ClassifySeoKeywordsJob's own doc comment for why a
