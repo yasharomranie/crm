@@ -57,6 +57,14 @@ class OpportunityEngine
 
     private const ANOMALY_Z_THRESHOLD = 2.0;
 
+    /**
+     * Per-page/per-query anomaly checks are scoped to only this many of
+     * the project's busiest subjects (by recent click volume) - checking
+     * every single page/query would be slow and, for the long tail of
+     * near-zero-traffic ones, pure noise rather than a useful signal.
+     */
+    private const ANOMALY_CANDIDATE_POOL_SIZE = 15;
+
     private const CANNIBALIZATION_MIN_IMPRESSIONS = 20;
 
     public function __construct(private readonly SeoAlertService $alerts) {}
@@ -66,6 +74,8 @@ class OpportunityEngine
         $this->detectCtrOpportunities($project);
         $this->detectTrafficDrop($project);
         $this->detectAnomalies($project);
+        $this->detectPageAnomalies($project);
+        $this->detectQueryAnomalies($project);
         $this->detectCannibalization($project);
     }
 
@@ -220,17 +230,23 @@ class OpportunityEngine
     }
 
     /**
-     * A rolling 28-day mean/std of daily clicks (excluding the day being
-     * tested), z-scored - only runs once there's enough history for the
-     * mean/std to mean anything, and only flags the single most recent
-     * day rather than re-walking the whole window every scan.
+     * A rolling 28-day mean/std of each site-wide daily metric (excluding
+     * the day being tested), z-scored - only runs once there's enough
+     * history for the mean/std to mean anything, and only flags the
+     * single most recent day rather than re-walking the whole window
+     * every scan. Checks four metrics independently, not just clicks: a
+     * de-indexing issue shows up in impressions before clicks ever move,
+     * a sudden ranking problem shows up in average position, and a
+     * weaker SERP listing (lost rich result, a worse title) shows up in
+     * CTR while position itself stays flat - each tells apart a
+     * different root cause from the same "something's wrong" signal.
      */
     private function detectAnomalies(SeoProject $project): void
     {
         $days = SeoDailyMetric::where('seo_project_id', $project->id)
             ->orderByDesc('date')
-            ->limit(29)
-            ->get(['date', 'clicks']);
+            ->limit(self::ANOMALY_MIN_HISTORY_DAYS + 1)
+            ->get(['date', 'clicks', 'impressions', 'position', 'ctr']);
 
         if ($days->count() < self::ANOMALY_MIN_HISTORY_DAYS + 1) {
             return;
@@ -238,45 +254,221 @@ class OpportunityEngine
 
         $latest = $days->first();
         $history = $days->slice(1);
+        $latestDate = Carbon::parse($latest->date);
 
-        $mean = $history->avg('clicks');
-        $variance = $history->avg(fn ($day) => ($day->clicks - $mean) ** 2);
+        $this->recordSiteWideAnomaly(
+            $project, $latestDate, SeoOpportunityType::AnomalyPositive, SeoOpportunityType::AnomalyNegative,
+            'کلیک', (float) $latest->clicks, $history->map(fn ($day) => (float) $day->clicks),
+            minStdDev: 1.0, higherIsBetter: true,
+            actionsPositive: ['identify_growth_driver', 'capitalize_on_trend'],
+            actionsNegative: ['check_technical_issues', 'check_search_console_manual_actions', 'check_indexing'],
+        );
+
+        $this->recordSiteWideAnomaly(
+            $project, $latestDate, SeoOpportunityType::ImpressionAnomalyPositive, SeoOpportunityType::ImpressionAnomalyNegative,
+            'ایمپرشن', (float) $latest->impressions, $history->map(fn ($day) => (float) $day->impressions),
+            minStdDev: 5.0, higherIsBetter: true,
+            actionsPositive: ['identify_growth_driver'],
+            actionsNegative: ['check_indexing', 'check_search_console_manual_actions', 'check_robots_and_sitemap'],
+        );
+
+        $this->recordSiteWideAnomaly(
+            $project, $latestDate, SeoOpportunityType::PositionAnomalyPositive, SeoOpportunityType::PositionAnomalyNegative,
+            'میانگین رتبه', (float) $latest->position, $history->map(fn ($day) => (float) $day->position),
+            minStdDev: 0.5, higherIsBetter: false,
+            actionsPositive: ['identify_growth_driver'],
+            actionsNegative: ['check_technical_issues', 'check_serp_competition', 'check_backlinks'],
+        );
+
+        $this->recordSiteWideAnomaly(
+            $project, $latestDate, SeoOpportunityType::CtrAnomalyPositive, SeoOpportunityType::CtrAnomalyNegative,
+            'نرخ کلیک (CTR)', (float) $latest->ctr, $history->map(fn ($day) => (float) $day->ctr),
+            minStdDev: 0.01, higherIsBetter: true,
+            actionsPositive: ['identify_growth_driver'],
+            actionsNegative: ['review_title', 'review_meta', 'review_serp'],
+        );
+    }
+
+    /**
+     * Shared z-score check + opportunity recording for one site-wide
+     * daily metric - used four times by detectAnomalies() so clicks,
+     * impressions, position and CTR don't each need a near-duplicate
+     * detector. $higherIsBetter flips which direction counts as
+     * "positive" - a higher position NUMBER is a worse rank, so a sudden
+     * drop in it is the good anomaly, the opposite of every other metric
+     * here.
+     *
+     * @param  Collection<int, float>  $historyValues
+     * @param  array<int, string>  $actionsPositive
+     * @param  array<int, string>  $actionsNegative
+     */
+    private function recordSiteWideAnomaly(
+        SeoProject $project,
+        Carbon $latestDate,
+        SeoOpportunityType $positiveType,
+        SeoOpportunityType $negativeType,
+        string $metricLabel,
+        float $latestValue,
+        Collection $historyValues,
+        float $minStdDev,
+        bool $higherIsBetter,
+        array $actionsPositive,
+        array $actionsNegative,
+    ): void {
+        $mean = $historyValues->avg();
+        $variance = $historyValues->avg(fn (float $value) => ($value - $mean) ** 2);
         $stdDev = sqrt($variance);
 
-        if ($stdDev < 1.0) {
+        if ($stdDev < $minStdDev) {
             return;
         }
 
-        $zScore = ($latest->clicks - $mean) / $stdDev;
+        $zScore = ($latestValue - $mean) / $stdDev;
 
         if (abs($zScore) < self::ANOMALY_Z_THRESHOLD) {
             return;
         }
 
-        $isPositive = $zScore > 0;
-        $latestDate = Carbon::parse($latest->date);
+        $isPositive = $higherIsBetter ? $zScore > 0 : $zScore < 0;
+        $improvementWord = $higherIsBetter ? 'رشد' : 'بهبود';
 
         $this->recordOrRefreshOpportunity(
             project: $project,
-            type: $isPositive ? SeoOpportunityType::AnomalyPositive : SeoOpportunityType::AnomalyNegative,
+            type: $isPositive ? $positiveType : $negativeType,
             subjectQuery: null,
             subjectPageUrl: null,
             title: $isPositive
-                ? sprintf('رشد غیرعادی کلیک در %s', $latestDate->toDateString())
-                : sprintf('افت غیرعادی کلیک در %s', $latestDate->toDateString()),
+                ? sprintf('%s غیرعادی %s در %s', $improvementWord, $metricLabel, $latestDate->toDateString())
+                : sprintf('افت غیرعادی %s در %s', $metricLabel, $latestDate->toDateString()),
             evidence: [
                 'date' => $latestDate->toDateString(),
-                'clicks' => $latest->clicks,
-                'expected_range' => [round($mean - 2 * $stdDev, 1), round($mean + 2 * $stdDev, 1)],
+                'value' => round($latestValue, 4),
+                'expected_range' => [round($mean - 2 * $stdDev, 4), round($mean + 2 * $stdDev, 4)],
                 'z_score' => round($zScore, 2),
             ],
-            actions: $isPositive
-                ? ['identify_growth_driver', 'capitalize_on_trend']
-                : ['check_technical_issues', 'check_search_console_manual_actions', 'check_indexing'],
+            actions: $isPositive ? $actionsPositive : $actionsNegative,
             priority: abs($zScore) >= 3 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
             confidence: abs($zScore) >= 3 ? SeoConfidenceLevel::High : SeoConfidenceLevel::Medium,
             dedupeDate: $latestDate,
         );
+    }
+
+    /**
+     * Same z-score logic, per page - a site-wide aggregate can stay flat
+     * while one important page quietly craters or spikes because other
+     * pages happen to offset it. Scoped to only the project's busiest
+     * pages (see ANOMALY_CANDIDATE_POOL_SIZE's own doc comment).
+     */
+    private function detectPageAnomalies(SeoProject $project): void
+    {
+        $this->detectSubjectAnomalies(
+            $project,
+            SeoPageMetric::class,
+            'page_url',
+            SeoOpportunityType::PageAnomalyPositive,
+            SeoOpportunityType::PageAnomalyNegative,
+            'کلیک صفحه',
+        );
+    }
+
+    /**
+     * Same z-score logic, per tracked query - catches a single important
+     * keyword quietly tanking (or spiking) even when the site-wide and
+     * per-page numbers both look unremarkable. Scoped to only the
+     * project's busiest queries (see ANOMALY_CANDIDATE_POOL_SIZE's own
+     * doc comment).
+     */
+    private function detectQueryAnomalies(SeoProject $project): void
+    {
+        $this->detectSubjectAnomalies(
+            $project,
+            SeoQueryMetric::class,
+            'query',
+            SeoOpportunityType::QueryAnomalyPositive,
+            SeoOpportunityType::QueryAnomalyNegative,
+            'کلمهٔ کلیدی',
+        );
+    }
+
+    /**
+     * @param  class-string<SeoPageMetric|SeoQueryMetric>  $model
+     */
+    private function detectSubjectAnomalies(
+        SeoProject $project,
+        string $model,
+        string $column,
+        SeoOpportunityType $positiveType,
+        SeoOpportunityType $negativeType,
+        string $labelPrefix,
+    ): void {
+        $referenceDate = $model::where('seo_project_id', $project->id)->max('date');
+
+        if (! $referenceDate) {
+            return;
+        }
+
+        $referenceDate = Carbon::parse($referenceDate);
+        $windowStart = $referenceDate->clone()->subDays(self::ANOMALY_MIN_HISTORY_DAYS);
+
+        $candidates = $model::where('seo_project_id', $project->id)
+            ->whereDate('date', '>=', $windowStart)
+            ->whereDate('date', '<=', $referenceDate)
+            ->selectRaw("{$column} as label, sum(clicks) as total_clicks")
+            ->groupBy($column)
+            ->orderByDesc('total_clicks')
+            ->limit(self::ANOMALY_CANDIDATE_POOL_SIZE)
+            ->pluck('label');
+
+        foreach ($candidates as $subject) {
+            $days = $model::where('seo_project_id', $project->id)
+                ->where($column, $subject)
+                ->orderByDesc('date')
+                ->limit(self::ANOMALY_MIN_HISTORY_DAYS + 1)
+                ->get(['date', 'clicks']);
+
+            if ($days->count() < self::ANOMALY_MIN_HISTORY_DAYS + 1) {
+                continue;
+            }
+
+            $latest = $days->first();
+            $history = $days->slice(1)->map(fn ($day) => (float) $day->clicks);
+
+            $mean = $history->avg();
+            $variance = $history->avg(fn (float $value) => ($value - $mean) ** 2);
+            $stdDev = sqrt($variance);
+
+            if ($stdDev < 1.0) {
+                continue;
+            }
+
+            $zScore = ((float) $latest->clicks - $mean) / $stdDev;
+
+            if (abs($zScore) < self::ANOMALY_Z_THRESHOLD) {
+                continue;
+            }
+
+            $isPositive = $zScore > 0;
+            $latestDate = Carbon::parse($latest->date);
+
+            $this->recordOrRefreshOpportunity(
+                project: $project,
+                type: $isPositive ? $positiveType : $negativeType,
+                subjectQuery: $column === 'query' ? $subject : null,
+                subjectPageUrl: $column === 'page_url' ? $subject : null,
+                title: ($isPositive ? 'رشد غیرعادی ' : 'افت غیرعادی ')."{$labelPrefix}: {$subject}",
+                evidence: [
+                    'date' => $latestDate->toDateString(),
+                    'clicks' => $latest->clicks,
+                    'expected_range' => [round($mean - 2 * $stdDev, 1), round($mean + 2 * $stdDev, 1)],
+                    'z_score' => round($zScore, 2),
+                ],
+                actions: $isPositive
+                    ? ['identify_growth_driver', 'capitalize_on_trend']
+                    : ['check_technical_issues', 'check_indexing', 'review_top_declining_pages'],
+                priority: abs($zScore) >= 3 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
+                confidence: abs($zScore) >= 3 ? SeoConfidenceLevel::High : SeoConfidenceLevel::Medium,
+            );
+        }
     }
 
     /**
