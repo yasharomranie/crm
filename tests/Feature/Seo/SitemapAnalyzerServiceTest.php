@@ -119,4 +119,32 @@ class SitemapAnalyzerServiceTest extends TestCase
         $this->assertNull($pages->first()['clicks']);
         $this->assertNull($pages->first()['impressions']);
     }
+
+    /**
+     * Regression: the join used to be an exact sha1() match on the raw
+     * URL - a real page's clicks went permanently invisible on this page
+     * whenever the sitemap and Google Search Console reported the same
+     * page with a different trailing slash/scheme/www, even though the
+     * click data genuinely existed in SeoPageMetric.
+     */
+    public function test_pages_matches_search_console_data_even_when_the_url_form_differs(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => 'https://ganjnameh.example.com/telecabin/']);
+
+        SeoPageMetric::factory()->create([
+            'seo_project_id' => $project->id,
+            // Google reported it without the trailing slash and with www.
+            'page_url' => 'https://www.ganjnameh.example.com/telecabin',
+            'page_url_hash' => sha1('https://www.ganjnameh.example.com/telecabin'),
+            'date' => now()->subDays(5),
+            'clicks' => 12,
+            'impressions' => 150,
+        ]);
+
+        $pages = app(SitemapAnalyzerService::class)->pages($project);
+
+        $this->assertSame(12, $pages->first()['clicks']);
+        $this->assertSame(150, $pages->first()['impressions']);
+    }
 }

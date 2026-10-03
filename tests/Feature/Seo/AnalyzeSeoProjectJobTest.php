@@ -4,6 +4,7 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\KeywordIntelligenceService;
 use App\Domain\Seo\OpportunityEngine;
+use App\Domain\Seo\UrlOpportunityEngine;
 use App\Enums\SeoOpportunityType;
 use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\ClassifySeoKeywordsJob;
@@ -34,6 +35,7 @@ class AnalyzeSeoProjectJobTest extends TestCase
         (new AnalyzeSeoProjectJob($project->id))->handle(
             app(KeywordIntelligenceService::class),
             app(OpportunityEngine::class),
+            app(UrlOpportunityEngine::class),
         );
 
         $this->assertSame(1, $project->keywordProfiles()->count());
@@ -49,6 +51,7 @@ class AnalyzeSeoProjectJobTest extends TestCase
         (new AnalyzeSeoProjectJob($project->id))->handle(
             app(KeywordIntelligenceService::class),
             app(OpportunityEngine::class),
+            app(UrlOpportunityEngine::class),
         );
 
         Queue::assertPushed(ClassifySeoKeywordsJob::class, fn ($job) => $job->seoProjectId === $project->id);
