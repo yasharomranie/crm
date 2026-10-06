@@ -14,6 +14,15 @@ use App\Enums\FormSubmissionStatus;
 use App\Enums\LoyaltyTier;
 use App\Enums\ProjectStatus;
 use App\Enums\RoomStatus;
+use App\Enums\SeoBusinessValue;
+use App\Enums\SeoCannibalizationRisk;
+use App\Enums\SeoContentItemStatus;
+use App\Enums\SeoKeywordTrend;
+use App\Enums\SeoOpportunityPriority;
+use App\Enums\SeoOpportunityStatus;
+use App\Enums\SeoSearchIntent;
+use App\Enums\SeoTechnicalAuditStatus;
+use App\Enums\SeoTechnicalIssueSeverity;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -45,6 +54,15 @@ use App\Models\ProjectPhase;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
+use App\Models\SeoContentItem;
+use App\Models\SeoDailyMetric;
+use App\Models\SeoKeywordProfile;
+use App\Models\SeoKeywordRankCheck;
+use App\Models\SeoOpportunity;
+use App\Models\SeoOpportunityOutcome;
+use App\Models\SeoProject;
+use App\Models\SeoTechnicalAuditIssue;
+use App\Models\SeoTrackedKeyword;
 use App\Models\Task;
 use App\Models\User;
 use App\Models\WalletTransaction;
@@ -326,6 +344,17 @@ trait HasAiAssistantEngine
             - برای فهرست مشتریان برتر/پرارزش (برای تماس قدردانی یا پیشنهاد ویژه) از get_top_guests_by_value استفاده کن.
             - برای رضایت مشتری (NPS) از get_guest_satisfaction_summary، و برای وضعیت کیف پول/کش‌بک مشتریان از get_wallet_activity_summary استفاده کن.
 
+            دربارهٔ گزارش‌های مرکز سئو:
+            - اگر فقط یک پروژهٔ سئو در سیستم تعریف شده باشد، نیازی به پرسیدن نام پروژه از کاربر نیست - پارامتر seo_project_name را خالی بگذار، خود ابزار آن را به‌صورت خودکار انتخاب می‌کند. اگر چند پروژه وجود داشته باشد و ابزار خطای ابهام برگرداند، لیست available_projects را به کاربر نشان بده و نام دقیق را بپرس.
+            - برای سؤال کلی «وضعیت سئو چطوره» از get_seo_overview شروع کن (نقطهٔ ورود)، نه یک ابزار جزئی‌تر.
+            - get_seo_overview فقط عدد آخرین روز را می‌دهد. برای روند چند روزه/چند هفته‌ای از get_seo_traffic_trend استفاده کن.
+            - برای «کدوم عبارت/صفحه بیشترین ترافیک رو میاره» به ترتیب از get_seo_top_queries و get_seo_top_pages استفاده کن؛ این‌ها با get_seo_keyword_rankings فرق دارند - آن یکی وضعیت کلیدواژه‌های ردیابی‌شده (رتبه، روند، ریسک کنیبالیزیشن) را می‌دهد، نه ترافیک واقعی.
+            - وقتی کاربر اسم یک کلیدواژهٔ خاص را می‌گوید («رتبه ویلا در همدان چطور بوده»)، از get_seo_keyword_rank_history استفاده کن، نه get_seo_keyword_rankings.
+            - get_seo_open_opportunities فرصت‌های کشف‌شده را می‌دهد؛ get_seo_opportunity_outcomes_summary نشان می‌دهد آیا اقدام روی آن فرصت‌ها واقعاً نتیجه داده یا نه - این دو را گاهی با هم ترکیب کن تا هم «چیکار باید کرد» و هم «قبلاً جواب داده یا نه» را پوشش بدهی.
+            - get_seo_technical_audit_summary فقط روی آخرین ممیزیِ تکمیل‌شده کار می‌کند؛ اگر چیزی برنگرداند یعنی هنوز ممیزی فنی کامل نشده.
+            - get_seo_content_calendar_status آیتم‌های عقب‌افتادهٔ تقویم محتوا را با اسم مسئولشان می‌دهد، نه فقط عدد.
+            - get_seo_rank_movers تغییرات واقعی رتبه (بهبود/افت) را در یک بازه نشان می‌دهد؛ برای «چی بهتر/بدتر شده» از همین استفاده کن، نه get_seo_keyword_rankings که فقط وضعیت فعلی را می‌دهد.
+
             دربارهٔ گزارش‌های حضور و غیاب:
             - get_attendance_summary فقط عدد کل این ماه را می‌دهد. وقتی کاربر می‌پرسد «امروز کیا نیومدن» یا «کیا هنوز ورود نزدن»، هیچ‌وقت منتظر همان ابزار نمان - حتماً get_not_checked_in_today را صدا بزن؛ این ابزار زنده کار می‌کند و نیازی به اجرای جاب پایان‌روز غیبت ندارد.
             - برای وضعیت ماهانهٔ هرکس به تفکیک (نه فقط لیست پرتأخیرترین‌ها) از get_attendance_by_user، و برای مقایسهٔ دپارتمان‌ها با هم از get_department_attendance_summary استفاده کن.
@@ -439,6 +468,17 @@ trait HasAiAssistantEngine
             'get_top_guests_by_value' => $this->topGuestsByValueTool($arguments),
             'get_guest_satisfaction_summary' => $this->guestSatisfactionSummaryTool($arguments),
             'get_wallet_activity_summary' => $this->walletActivitySummaryTool($arguments),
+            'get_seo_overview' => $this->seoOverviewTool($arguments),
+            'get_seo_traffic_trend' => $this->seoTrafficTrendTool($arguments),
+            'get_seo_top_queries' => $this->seoTopQueriesTool($arguments),
+            'get_seo_top_pages' => $this->seoTopPagesTool($arguments),
+            'get_seo_keyword_rankings' => $this->seoKeywordRankingsTool($arguments),
+            'get_seo_keyword_rank_history' => $this->seoKeywordRankHistoryTool($arguments),
+            'get_seo_open_opportunities' => $this->seoOpenOpportunitiesTool($arguments),
+            'get_seo_opportunity_outcomes_summary' => $this->seoOpportunityOutcomesSummaryTool($arguments),
+            'get_seo_technical_audit_summary' => $this->seoTechnicalAuditSummaryTool($arguments),
+            'get_seo_content_calendar_status' => $this->seoContentCalendarStatusTool($arguments),
+            'get_seo_rank_movers' => $this->seoRankMoversTool($arguments),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
             'get_project_detail' => $this->projectDetailTool($arguments),
             'get_overdue_project_phases' => $this->overdueProjectPhasesTool($arguments),
@@ -613,6 +653,105 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+
+            // All seo_project_name parameters below: optional when there's
+            // exactly one SEO project in the system (the common case), but
+            // required to disambiguate once there is more than one.
+            $tools[] = $this->toolSchema('get_seo_overview', 'Get a snapshot of ONE SEO project\'s current health: Google Search Console connection status, latest daily clicks/impressions/CTR/average position, open opportunity count, latest technical audit score, and content items by status. The entry-point SEO tool - start here for general "سئو چطوره" questions.', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_traffic_trend', 'Get the daily Search Console clicks/impressions/CTR/average-position series for the last N days, plus the percent change in total clicks vs the equal-length period before it. Use for "ترافیک سایت این مدت چطور بوده" / "روند کلیک‌ها".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 30, min 7, max 90'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_top_queries', 'Get the top search queries (Google Search Console) ranked by clicks or impressions over the last N days, with average position and CTR each. Use for "کدوم عبارت‌های جستجو بیشترین کلیک رو میارن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 28, max 90'],
+                    'order_by' => ['type' => 'string', 'enum' => ['clicks', 'impressions'], 'description' => 'Defaults to clicks'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max queries to return - defaults to 15, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_top_pages', 'Get the top landing pages (Google Search Console) ranked by clicks over the last N days, with impressions and average position each. Use for "کدوم صفحه‌ها بیشترین ترافیک رو میگیرن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 28, max 90'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max pages to return - defaults to 15, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_keyword_rankings', 'Get tracked/profiled keywords with their current & previous position, trend, business value, search intent, and cannibalization risk - filterable by any of those. Use for "کلیدواژه‌هامون چه وضعیتی دارن" or "کدوم کلیدواژه‌ها ریسک کنیبالیزیشن دارن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'trend' => ['type' => 'string', 'enum' => ['rising', 'falling', 'stable', 'new']],
+                    'business_value' => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
+                    'cannibalization_risk' => ['type' => 'string', 'enum' => ['none', 'possible', 'high']],
+                    'intent' => ['type' => 'string', 'enum' => ['informational', 'commercial', 'transactional', 'navigational', 'local']],
+                    'limit' => ['type' => 'integer', 'description' => 'Max keywords to return - defaults to 30, max 100'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_keyword_rank_history', 'Get the day-by-day Google rank-tracker position history for ONE specific tracked keyword, over the last N days - use when the user names a specific keyword, e.g. "رتبه ویلا در همدان چطور بوده".', [
+                'type' => 'object',
+                'properties' => [
+                    'keyword' => ['type' => 'string', 'description' => 'Partial or full tracked keyword text'],
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 30, max 180'],
+                ],
+                'required' => ['keyword'],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_open_opportunities', 'Get AI-detected SEO opportunities not yet resolved/dismissed - type, title, priority, confidence, the affected query/page, and recommended actions - plus a count by type. Use for "چه فرصت‌های سئویی داریم" / "چیکار باید بکنیم برای سئو".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'priority' => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
+                    'limit' => ['type' => 'integer', 'description' => 'Max opportunities to return - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_opportunity_outcomes_summary', 'Get how many resolved SEO opportunities actually improved/stayed unchanged/declined afterward (measured outcome, not just "we worked on it") - use for "آیا اقدامات سئو جواب داده" / measuring whether acting on opportunities actually helped.', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_technical_audit_summary', 'Get the latest completed technical SEO audit: overall score, performance score, Core Web Vitals, pages scanned, issue counts by severity, and the specific URLs with CRITICAL issues. Use for "وضعیت فنی سایت چطوره" / "چه مشکلات فنی داریم".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_content_calendar_status', 'Get SEO content-calendar items grouped by status (idea/planned/writing/published/needs update), plus overdue items by name with their assignee - not just a count. Optionally scope to one assignee. Use for "تقویم محتوای سئو چه وضعیتی داره".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'assignee_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one content assignee to scope to'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_rank_movers', 'Get which tracked keywords moved the most in Google rank position over the last N days, split into improved vs declined - use for "چه کلیدواژه‌هایی اخیراً رتبه‌شون بهتر/بدتر شده".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to compare - defaults to 7, max 90'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max keywords per direction (improved/declined) - defaults to 15, max 50'],
                 ],
                 'required' => [],
             ]);
@@ -990,6 +1129,15 @@ trait HasAiAssistantEngine
                 'واریز' => $result['credited_toman'] ?? 0,
                 'برداشت' => $result['debited_toman'] ?? 0,
             ]),
+            'get_seo_traffic_trend' => $this->chartFromRows('bar', 'کلیک روزانه (Search Console)', $result['daily'] ?? [], 'date', 'clicks'),
+            'get_seo_top_queries' => $this->chartFromRows('bar', 'کلیک به تفکیک عبارت جستجو', $result['queries'] ?? [], 'query', 'clicks'),
+            'get_seo_top_pages' => $this->chartFromRows('bar', 'کلیک به تفکیک صفحه', $result['pages'] ?? [], 'page_url', 'clicks'),
+            'get_seo_keyword_rankings' => $this->chartFromRows('bar', 'کلیک ۲۸ روز اخیر به تفکیک کلیدواژه', $result['keywords'] ?? [], 'query', 'clicks_28d'),
+            'get_seo_keyword_rank_history' => $this->chartFromRows('bar', 'جایگاه در گوگل به تفکیک روز (عدد کمتر = بهتر)', $result['history'] ?? [], 'date', 'position'),
+            'get_seo_open_opportunities' => $this->chartFromCounts('bar', 'فرصت‌های باز سئو به تفکیک نوع', $result['by_type'] ?? []),
+            'get_seo_opportunity_outcomes_summary' => $this->chartFromCounts('doughnut', 'نتیجهٔ فرصت‌های سئوی پیگیری‌شده', $result['by_verdict'] ?? []),
+            'get_seo_technical_audit_summary' => $this->chartFromCounts('bar', 'مشکلات فنی به تفکیک شدت', $result['issues_by_severity'] ?? []),
+            'get_seo_content_calendar_status' => $this->chartFromCounts('bar', 'آیتم‌های محتوای سئو به تفکیک وضعیت', $result['by_status'] ?? []),
             'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
             'get_approver_performance' => $this->chartFromRows('bar', 'نرخ رد درخواست به تفکیک تأییدکننده (٪)', $result['approvers'] ?? [], 'user', 'rejection_rate_percent'),
             'get_breached_sla_submissions' => $this->chartFromRows('bar', 'میزان تاخیر از مهلت تایید (ساعت)', $result['items'] ?? [], 'form', 'overdue_hours'),
@@ -1973,6 +2121,525 @@ trait HasAiAssistantEngine
             'debited_toman' => $debited,
             'net_toman' => $credited - $debited,
             'top_balances' => $topBalances->all(),
+        ];
+    }
+
+    /**
+     * Resolves a seo_project_name argument to its SeoProject - auto-picking
+     * the only project when the system has just one (the common case) and
+     * the caller left the name out, so every SEO tool doesn't force the
+     * model to ask "which project" in a single-project system. Returns an
+     * array (not a model) on failure, same error+available-list shape used
+     * elsewhere in this file - callers check `is_array($result)`.
+     *
+     * @return SeoProject|array{error: string, available_projects?: array<int, string>}
+     */
+    private function resolveSeoProject(?string $name): SeoProject|array
+    {
+        $name = trim((string) $name);
+
+        if ($name !== '') {
+            $project = SeoProject::query()->where('name', $name)->first()
+                ?? SeoProject::query()->where('name', 'like', "%{$name}%")->first();
+
+            if (! $project) {
+                return [
+                    'error' => "پروژهٔ سئویی با نام «{$name}» پیدا نشد.",
+                    'available_projects' => SeoProject::query()->orderBy('name')->pluck('name')->all(),
+                ];
+            }
+
+            return $project;
+        }
+
+        $projects = SeoProject::query()->where('is_active', true)->get();
+
+        if ($projects->count() === 1) {
+            return $projects->first();
+        }
+
+        if ($projects->isEmpty()) {
+            return ['error' => 'هیچ پروژهٔ سئوی فعالی در سیستم تعریف نشده است.'];
+        }
+
+        return [
+            'error' => 'چند پروژهٔ سئو در سیستم تعریف شده؛ لطفاً نام پروژهٔ موردنظر را مشخص کنید.',
+            'available_projects' => $projects->pluck('name')->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOverviewTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $latestDaily = $project->dailyMetrics()->latest('date')->first();
+        $openOpportunities = $project->opportunities()
+            ->whereIn('status', [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed])
+            ->count();
+        $latestAudit = $project->technicalAudits()->latest('completed_at')->first();
+
+        $contentByStatus = $project->contentItems()
+            ->selectRaw('status, count(*) as item_count')
+            ->groupBy('status')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->status->getLabel() => (int) $row->item_count]);
+
+        return [
+            'project' => $project->name,
+            'goal' => $project->goal?->getLabel(),
+            'website_url' => $project->website_url,
+            'google_connection_status' => $project->googleConnection?->status?->getLabel() ?? 'متصل نشده',
+            'last_synced_at' => $project->googleConnection?->last_synced_at?->toDateString(),
+            'latest_metrics_date' => $latestDaily?->date?->toDateString(),
+            'latest_clicks' => $latestDaily ? (int) $latestDaily->clicks : null,
+            'latest_impressions' => $latestDaily ? (int) $latestDaily->impressions : null,
+            'latest_ctr_percent' => $latestDaily ? round((float) $latestDaily->ctr * 100, 2) : null,
+            'latest_average_position' => $latestDaily ? round((float) $latestDaily->position, 1) : null,
+            'open_opportunities' => $openOpportunities,
+            'latest_technical_audit_score' => $latestAudit?->score,
+            'latest_technical_audit_date' => $latestAudit?->completed_at?->toDateString(),
+            'content_items_by_status' => $contentByStatus->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTrafficTrendTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(7, min(90, (int) ($arguments['days'] ?? 30)));
+        $end = today();
+        $start = $end->copy()->subDays($days - 1);
+        $previousEnd = $start->copy()->subDay();
+        $previousStart = $previousEnd->copy()->subDays($days - 1);
+
+        $current = $project->dailyMetrics()->whereBetween('date', [$start, $end])->orderBy('date')->get();
+        $previous = $project->dailyMetrics()->whereBetween('date', [$previousStart, $previousEnd])->get();
+
+        if ($current->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ ترافیکی (Search Console) برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        $currentClicks = (int) $current->sum('clicks');
+        $previousClicks = (int) $previous->sum('clicks');
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'total_clicks' => $currentClicks,
+            'total_impressions' => (int) $current->sum('impressions'),
+            'average_ctr_percent' => round((float) $current->avg('ctr') * 100, 2),
+            'average_position' => round((float) $current->avg('position'), 1),
+            'clicks_change_percent' => $previousClicks > 0 ? round(($currentClicks - $previousClicks) / $previousClicks * 100, 1) : null,
+            'daily' => $current->map(fn (SeoDailyMetric $metric) => [
+                'date' => $metric->date->toDateString(),
+                'clicks' => (int) $metric->clicks,
+                'impressions' => (int) $metric->impressions,
+                'position' => round((float) $metric->position, 1),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTopQueriesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 28)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+        $orderBy = ($arguments['order_by'] ?? 'clicks') === 'impressions' ? 'total_impressions' : 'total_clicks';
+
+        $rows = $project->queryMetrics()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->selectRaw('query, sum(clicks) as total_clicks, sum(impressions) as total_impressions, avg(position) as avg_position, avg(ctr) as avg_ctr')
+            ->groupBy('query')
+            ->orderByDesc($orderBy)
+            ->limit($limit)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ عبارت جستجویی برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'queries' => $rows->map(fn ($row) => [
+                'query' => $row->query,
+                'clicks' => (int) $row->total_clicks,
+                'impressions' => (int) $row->total_impressions,
+                'average_position' => round((float) $row->avg_position, 1),
+                'ctr_percent' => round((float) $row->avg_ctr * 100, 2),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTopPagesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 28)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+
+        $rows = $project->pageMetrics()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->selectRaw('page_url, sum(clicks) as total_clicks, sum(impressions) as total_impressions, avg(position) as avg_position')
+            ->groupBy('page_url')
+            ->orderByDesc('total_clicks')
+            ->limit($limit)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ صفحه‌ای برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'pages' => $rows->map(fn ($row) => [
+                'page_url' => $row->page_url,
+                'clicks' => (int) $row->total_clicks,
+                'impressions' => (int) $row->total_impressions,
+                'average_position' => round((float) $row->avg_position, 1),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoKeywordRankingsTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $trend = SeoKeywordTrend::tryFrom((string) ($arguments['trend'] ?? ''));
+        $businessValue = SeoBusinessValue::tryFrom((string) ($arguments['business_value'] ?? ''));
+        $cannibalizationRisk = SeoCannibalizationRisk::tryFrom((string) ($arguments['cannibalization_risk'] ?? ''));
+        $intent = SeoSearchIntent::tryFrom((string) ($arguments['intent'] ?? ''));
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 30)));
+
+        $query = $project->keywordProfiles();
+
+        if ($trend) {
+            $query->where('trend', $trend);
+        }
+
+        if ($businessValue) {
+            $query->where('business_value', $businessValue);
+        }
+
+        if ($cannibalizationRisk) {
+            $query->where('cannibalization_risk', $cannibalizationRisk);
+        }
+
+        if ($intent) {
+            $query->where('intent', $intent);
+        }
+
+        $profiles = $query->orderBy('current_position')->limit($limit)->get();
+
+        if ($profiles->isEmpty()) {
+            return ['message' => 'هیچ کلیدواژه‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'count' => $profiles->count(),
+            'keywords' => $profiles->map(fn (SeoKeywordProfile $profile) => [
+                'query' => $profile->query,
+                'current_position' => $profile->current_position !== null ? round((float) $profile->current_position, 1) : null,
+                'previous_position' => $profile->previous_position !== null ? round((float) $profile->previous_position, 1) : null,
+                'trend' => $profile->trend?->getLabel(),
+                'clicks_28d' => $profile->clicks_28d,
+                'business_value' => $profile->business_value?->getLabel(),
+                'cannibalization_risk' => $profile->cannibalization_risk?->getLabel(),
+                'intent' => $profile->intent?->getLabel(),
+                'opportunity_score' => $profile->opportunity_score !== null ? round((float) $profile->opportunity_score, 1) : null,
+                'landing_page' => $profile->landing_page,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoKeywordRankHistoryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $keywordName = trim((string) ($arguments['keyword'] ?? ''));
+
+        if ($keywordName === '') {
+            return ['error' => 'نام کلیدواژه الزامی است.'];
+        }
+
+        $tracked = $project->trackedKeywords()->where('keyword', $keywordName)->first()
+            ?? $project->trackedKeywords()->where('keyword', 'like', "%{$keywordName}%")->first();
+
+        if (! $tracked) {
+            return [
+                'error' => "کلیدواژهٔ ردیابی‌شده‌ای با عبارت «{$keywordName}» پیدا نشد.",
+                'available_keywords' => $project->trackedKeywords()->where('is_active', true)->pluck('keyword')->all(),
+            ];
+        }
+
+        $days = max(7, min(180, (int) ($arguments['days'] ?? 30)));
+
+        $checks = $tracked->rankChecks()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->orderBy('date')
+            ->get();
+
+        if ($checks->isEmpty()) {
+            return ['message' => "هنوز هیچ بررسی رتبه‌ای برای «{$tracked->keyword}» در این بازه ثبت نشده است."];
+        }
+
+        return [
+            'keyword' => $tracked->keyword,
+            'history' => $checks->map(fn (SeoKeywordRankCheck $check) => [
+                'date' => $check->date->toDateString(),
+                'position' => $check->position,
+                'found_url' => $check->found_url,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOpenOpportunitiesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $priority = SeoOpportunityPriority::tryFrom((string) ($arguments['priority'] ?? ''));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = $project->opportunities()
+            ->whereIn('status', [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed]);
+
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
+
+        $opportunities = $query->orderByDesc('detected_at')->limit($limit)->get();
+
+        if ($opportunities->isEmpty()) {
+            return ['message' => 'هیچ فرصت سئوی بازی برای این پروژه پیدا نشد.'];
+        }
+
+        $byType = $opportunities->groupBy(fn (SeoOpportunity $opportunity) => $opportunity->type->getLabel())->map->count();
+
+        return [
+            'project' => $project->name,
+            'open_count' => $opportunities->count(),
+            'by_type' => $byType->all(),
+            'opportunities' => $opportunities->map(fn (SeoOpportunity $opportunity) => [
+                'type' => $opportunity->type->getLabel(),
+                'title' => $opportunity->title,
+                'priority' => $opportunity->priority?->getLabel(),
+                'confidence' => $opportunity->confidence?->getLabel(),
+                'status' => $opportunity->status->getLabel(),
+                'subject_query' => $opportunity->subject_query,
+                'subject_page_url' => $opportunity->subject_page_url,
+                'recommended_actions' => $opportunity->recommended_actions,
+                'detected_at' => $opportunity->detected_at?->toDateString(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOpportunityOutcomesSummaryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $outcomes = SeoOpportunityOutcome::query()
+            ->whereHas('opportunity', fn ($query) => $query->where('seo_project_id', $project->id))
+            ->get();
+
+        if ($outcomes->isEmpty()) {
+            return ['message' => 'هنوز هیچ فرصت سئویی پیگیری نتیجه نشده است.'];
+        }
+
+        $byVerdict = $outcomes->groupBy(fn (SeoOpportunityOutcome $outcome) => $outcome->verdict->getLabel())->map->count();
+
+        return [
+            'project' => $project->name,
+            'tracked_count' => $outcomes->count(),
+            'by_verdict' => $byVerdict->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTechnicalAuditSummaryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $audit = $project->technicalAudits()
+            ->where('status', SeoTechnicalAuditStatus::Completed)
+            ->latest('completed_at')
+            ->with('issues')
+            ->first();
+
+        if (! $audit) {
+            return ['message' => 'هنوز هیچ ممیزی فنی تکمیل‌شده‌ای برای این پروژه وجود ندارد.'];
+        }
+
+        $bySeverity = $audit->issues->groupBy(fn (SeoTechnicalAuditIssue $issue) => $issue->severity->getLabel())->map->count();
+        $criticalIssues = $audit->issues->where('severity', SeoTechnicalIssueSeverity::Critical);
+
+        return [
+            'project' => $project->name,
+            'audit_date' => $audit->completed_at?->toDateString(),
+            'score' => $audit->score,
+            'performance_score' => $audit->performance_score,
+            'pages_scanned' => $audit->pages_scanned,
+            'core_web_vitals' => $audit->core_web_vitals,
+            'issues_by_severity' => $bySeverity->all(),
+            'critical_issues' => $criticalIssues->map(fn (SeoTechnicalAuditIssue $issue) => [
+                'type' => $issue->type->getLabel(),
+                'url' => $issue->url,
+                'details' => $issue->details,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoContentCalendarStatusTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+
+        $query = $project->contentItems()->with('assignee');
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        $items = $query->get();
+
+        if ($items->isEmpty()) {
+            return ['message' => 'هیچ آیتم محتوایی برای این پروژه ثبت نشده است.'];
+        }
+
+        $byStatus = $items->groupBy(fn (SeoContentItem $item) => $item->status->getLabel())->map->count();
+
+        $overdue = $items->filter(fn (SeoContentItem $item) => $item->due_date
+            && $item->due_date->isPast()
+            && $item->status !== SeoContentItemStatus::Published);
+
+        return [
+            'project' => $project->name,
+            'by_status' => $byStatus->all(),
+            'overdue_count' => $overdue->count(),
+            'overdue_items' => $overdue->map(fn (SeoContentItem $item) => [
+                'title' => $item->title,
+                'target_keyword' => $item->target_keyword,
+                'assignee' => $item->assignee?->name,
+                'due_date' => $item->due_date->toDateString(),
+                'status' => $item->status->getLabel(),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoRankMoversTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 7)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+
+        $movers = $project->trackedKeywords()->where('is_active', true)->get()
+            ->map(function (SeoTrackedKeyword $keyword) use ($days) {
+                $recent = $keyword->rankChecks()->where('date', '>=', today()->subDays($days - 1))->orderBy('date')->get();
+
+                if ($recent->count() < 2 || $recent->first()->position === null || $recent->last()->position === null) {
+                    return null;
+                }
+
+                return [
+                    'keyword' => $keyword->keyword,
+                    'from_position' => $recent->first()->position,
+                    'to_position' => $recent->last()->position,
+                    // Negative = improved (moved to a lower/better position number).
+                    'change' => $recent->last()->position - $recent->first()->position,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($movers->isEmpty()) {
+            return ['message' => 'دادهٔ کافی برای محاسبهٔ تغییر رتبه در این بازه وجود ندارد.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'improved' => $movers->where('change', '<', 0)->sortBy('change')->take($limit)->values()->all(),
+            'declined' => $movers->where('change', '>', 0)->sortByDesc('change')->take($limit)->values()->all(),
         ];
     }
 
