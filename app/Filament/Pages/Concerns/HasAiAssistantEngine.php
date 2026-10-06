@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Concerns;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
+use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
@@ -34,6 +35,7 @@ use App\Models\FormTemplate;
 use App\Models\GuestTicket;
 use App\Models\Project;
 use App\Models\Room;
+use App\Models\RoomType;
 use App\Models\SalesChannel;
 use App\Models\Task;
 use App\Models\User;
@@ -292,6 +294,13 @@ trait HasAiAssistantEngine
             - وقتی مدیر می‌پرسد «کدام کارمند/مسئول فرمی را که باید تایید می‌کرد هنوز تایید نکرده»، «چه چیزی از مهلتش گذشته»، یا «با چه کسی باید پیگیری کنم»، هیچ‌وقت فقط به get_form_submissions_summary بسنده نکن - آن فقط یک عدد کلی (sla_breached_count) می‌دهد، بدون اسم. حتماً get_breached_sla_submissions را صدا بزن تا اسم دقیق مسئول (یا مسئولان) هر درخواست، فرم، و میزان تأخیرش را بگیری و در پاسخ بیاوری.
             - اگر سؤال دربارهٔ یک فرم تکرارشونده/روزانه است که خودِ کارمند باید آن را پر می‌کرد (نه اینکه منتظر تاییدِ کسی دیگر باشد؛ مثل چک‌لیست روزانه)، به‌جای get_breached_sla_submissions از get_daily_checklist_compliance استفاده کن - آن ابزار برای «پرنشدن» است، این یکی برای «تاییدنشدن».
             - برای یک گزارش عملکرد کامل و دقیق، می‌توانی get_breached_sla_submissions و get_daily_checklist_compliance را با get_approver_performance (نرخ رد/تایید و سرعت هر فرد در طول زمان) ترکیب کنی تا هم وضعیت فعلی (چه کسی الان عقب افتاده) و هم روند کلی (چه کسی به‌طور معمول کند/سریع عمل می‌کند) را یک‌جا بدهی.
+
+            دربارهٔ گزارش‌های هتل‌داری و رزرو:
+            - get_accommodation_summary فقط عدد همین امروز را می‌دهد. برای برنامه‌ریزی چند روز آینده («چند روز دیگه چقدر اتاق خالی داریم») از get_occupancy_forecast استفاده کن.
+            - برای لیست دقیق ورودی/خروجی‌های چند روز آینده (اسم مهمان، اتاق، تعداد شب - نه فقط یک عدد) از get_upcoming_arrivals و get_upcoming_departures استفاده کن.
+            - get_overdue_checkouts مهمانانی را نشان می‌دهد که باید خارج می‌شدند ولی هنوز چک‌اوت نشده‌اند؛ برای پیگیری فرانت‌دسک/نظافت استفاده کن.
+            - وقتی کاربر اسم یک مهمان یا شمارهٔ یک رزرو را می‌گوید، از search_bookings استفاده کن، نه search_everything.
+            - get_revenue_by_room_type، get_booking_source_breakdown و get_cancellation_summary همگی روی ماه جاری یا ماه قبل (شمسی) کار می‌کنند؛ پارامتر period را بر اساس سؤال کاربر («این ماه»/«ماه قبل») تنظیم کن.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -381,6 +390,14 @@ trait HasAiAssistantEngine
         return match ($name) {
             'search_everything' => $this->globalSearchTool($arguments),
             'get_accommodation_summary' => $this->accommodationSummary(),
+            'get_occupancy_forecast' => $this->occupancyForecastTool($arguments),
+            'search_bookings' => $this->searchBookingsTool($arguments),
+            'get_upcoming_arrivals' => $this->upcomingArrivalsTool($arguments),
+            'get_upcoming_departures' => $this->upcomingDeparturesTool($arguments),
+            'get_overdue_checkouts' => $this->overdueCheckoutsTool(),
+            'get_revenue_by_room_type' => $this->revenueByRoomTypeTool($arguments),
+            'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
+            'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
             'get_attendance_summary' => $this->attendanceSummary(),
@@ -427,6 +444,61 @@ trait HasAiAssistantEngine
                 'required' => ['query'],
             ]);
             $tools[] = $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams);
+            $tools[] = $this->toolSchema('get_occupancy_forecast', 'Get a day-by-day room occupancy forecast for the upcoming days: occupied/available room counts, occupancy rate percent, and arrival/departure counts per day - use for planning questions like "چند روز آینده چقدر اتاق خالی داریم".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'Number of upcoming days to forecast, starting today - defaults to 7, max 30'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('search_bookings', 'Search/list bookings by guest name, reference code, status, or check-in date range - use to find a specific booking or list recent ones, e.g. "رزرو آقای/خانم فلانی رو پیدا کن" or "لیست آخرین رزروها رو بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Partial or full guest name'],
+                    'reference_code' => ['type' => 'string', 'description' => 'Partial or full booking reference code, e.g. GNJ-BKG-000123'],
+                    'status' => ['type' => 'string', 'enum' => ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled']],
+                    'check_in_from' => ['type' => 'string', 'description' => 'Earliest check-in date, format YYYY-MM-DD (Gregorian)'],
+                    'check_in_to' => ['type' => 'string', 'description' => 'Latest check-in date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results to return - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_upcoming_arrivals', 'Get the detailed list of guests due to check in over the next N days - guest name, room, nights, party size - not just a count. Use for "امروز/این چند روز کیا میان".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many days ahead to include, starting today - defaults to 1 (today only), max 14'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_upcoming_departures', 'Get the detailed list of currently in-house guests due to check out over the next N days - guest name, room, folio total - not just a count. Use for "امروز/این چند روز کیا میرن".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many days ahead to include, starting today - defaults to 1 (today only), max 14'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_checkouts', 'Get in-house guests whose scheduled check-out date has already passed but who have not actually been checked out yet - use for "کدام مهمان از تاریخ خروجش گذشته" / front-desk follow-up.', $noParams);
+            $tools[] = $this->toolSchema('get_revenue_by_room_type', 'Get revenue, nights sold, ADR (average daily rate), and occupancy rate broken down by room type, for this or last Jalali month - use for "کدام نوع اتاق بیشترین درآمد را داشته".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_booking_source_breakdown', 'Get checked-out booking count, revenue, and commission owed broken down by booking source (walk-in, phone, website, OTA), for this or last Jalali month - use for "چند درصد رزروها از سایت واسط میاد" یا مقایسهٔ حضوری و آنلاین.', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_cancellation_summary', 'Get how many bookings made this or last Jalali month ended up cancelled, and the cancellation rate - use for "نرخ کنسلی رزروها چقدره".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
             $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
@@ -678,6 +750,9 @@ trait HasAiAssistantEngine
                 'خالی' => $result['available'] ?? 0,
                 'نیاز به نظافت' => $result['needs_cleaning'] ?? 0,
             ]),
+            'get_occupancy_forecast' => $this->chartFromRows('bar', 'نرخ اشغال پیش‌بینی‌شده به تفکیک روز (٪)', $result['forecast'] ?? [], 'jalali_date', 'occupancy_rate_percent'),
+            'get_revenue_by_room_type' => $this->chartFromRows('bar', 'درآمد به تفکیک نوع اتاق (تومان)', $result['room_types'] ?? [], 'room_type', 'revenue_toman'),
+            'get_booking_source_breakdown' => $this->chartFromRows('bar', 'درآمد به تفکیک منبع رزرو (تومان)', $result['sources'] ?? [], 'source', 'revenue_toman'),
             'get_task_summary' => $this->chartFromCounts('bar', 'وظایف بر اساس وضعیت', $result['by_status'] ?? []),
             'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
             'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
@@ -1010,6 +1085,343 @@ trait HasAiAssistantEngine
             'check_ins_today' => $checkInsToday,
             'check_outs_today' => $checkOutsToday,
             'revenue_this_month_toman' => $revenueThisMonth,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function occupancyForecastTool(array $arguments): array
+    {
+        $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+        $totalRooms = Room::where('is_active', true)->count();
+
+        $forecast = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $date = today()->addDays($i);
+
+            // A room can't have two overlapping active bookings
+            // (Booking::assertRoomAvailable enforces this), so counting
+            // distinct room_id here is just defensive, not load-bearing.
+            $occupied = Booking::query()
+                ->whereIn('status', [BookingStatus::Confirmed, BookingStatus::CheckedIn])
+                ->where('check_in_date', '<=', $date)
+                ->where('check_out_date', '>', $date)
+                ->pluck('room_id')
+                ->unique()
+                ->count();
+
+            $arrivals = Booking::query()
+                ->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed])
+                ->whereDate('check_in_date', $date)
+                ->count();
+
+            $departures = Booking::query()
+                ->where('status', BookingStatus::CheckedIn)
+                ->whereDate('check_out_date', $date)
+                ->count();
+
+            $forecast[] = [
+                'date' => $date->toDateString(),
+                'jalali_date' => Jalalian::fromCarbon($date)->format('%d %B'),
+                'occupied' => $occupied,
+                'available' => max(0, $totalRooms - $occupied),
+                'occupancy_rate_percent' => $totalRooms > 0 ? round($occupied / $totalRooms * 100, 1) : 0,
+                'arrivals' => $arrivals,
+                'departures' => $departures,
+            ];
+        }
+
+        return ['total_active_rooms' => $totalRooms, 'forecast' => $forecast];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchBookingsTool(array $arguments): array
+    {
+        $guestName = trim((string) ($arguments['guest_name'] ?? ''));
+        $referenceCode = trim((string) ($arguments['reference_code'] ?? ''));
+        $status = BookingStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $checkInFrom = $arguments['check_in_from'] ?? null;
+        $checkInTo = $arguments['check_in_to'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Booking::query()->with(['guest', 'room.roomType', 'channel']);
+
+        if ($guestName !== '') {
+            $query->whereHas('guest', fn ($q) => $q->where('name', 'like', "%{$guestName}%"));
+        }
+
+        if ($referenceCode !== '') {
+            $query->where('reference_code', 'like', "%{$referenceCode}%");
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($checkInFrom) {
+            $query->whereDate('check_in_date', '>=', $checkInFrom);
+        }
+
+        if ($checkInTo) {
+            $query->whereDate('check_in_date', '<=', $checkInTo);
+        }
+
+        $bookings = $query->orderByDesc('check_in_date')->limit($limit)->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'هیچ رزروی با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $bookings->count(),
+            'bookings' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_in_date' => $booking->check_in_date->toDateString(),
+                'check_out_date' => $booking->check_out_date->toDateString(),
+                'nights' => $booking->nights(),
+                'status' => $booking->status->getLabel(),
+                'source' => $booking->source->getLabel(),
+                'channel' => $booking->channel?->name,
+                'total_amount_toman' => $booking->totalAmount(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function upcomingArrivalsTool(array $arguments): array
+    {
+        $days = max(1, min(14, (int) ($arguments['days'] ?? 1)));
+        $from = today();
+        $to = today()->addDays($days - 1);
+
+        $bookings = Booking::query()
+            ->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed])
+            ->whereBetween('check_in_date', [$from, $to])
+            ->with(['guest', 'room.roomType'])
+            ->orderBy('check_in_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'در این بازه هیچ ورود (چک-این) برنامه‌ریزی‌شده‌ای وجود ندارد.'];
+        }
+
+        return [
+            'arrivals_count' => $bookings->count(),
+            'arrivals' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_in_date' => $booking->check_in_date->toDateString(),
+                'jalali_check_in_date' => Jalalian::fromCarbon($booking->check_in_date)->format('%d %B'),
+                'nights' => $booking->nights(),
+                'adults' => $booking->adults_count,
+                'children' => $booking->children_count,
+                'status' => $booking->status->getLabel(),
+                'source' => $booking->source->getLabel(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function upcomingDeparturesTool(array $arguments): array
+    {
+        $days = max(1, min(14, (int) ($arguments['days'] ?? 1)));
+        $from = today();
+        $to = today()->addDays($days - 1);
+
+        $bookings = Booking::query()
+            ->where('status', BookingStatus::CheckedIn)
+            ->whereBetween('check_out_date', [$from, $to])
+            ->with(['guest', 'room.roomType', 'charges'])
+            ->orderBy('check_out_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'در این بازه هیچ خروج (چک-اوت) برنامه‌ریزی‌شده‌ای وجود ندارد.'];
+        }
+
+        return [
+            'departures_count' => $bookings->count(),
+            'departures' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_out_date' => $booking->check_out_date->toDateString(),
+                'jalali_check_out_date' => Jalalian::fromCarbon($booking->check_out_date)->format('%d %B'),
+                'nights' => $booking->nights(),
+                'total_amount_toman' => $booking->totalAmount(),
+            ])->all(),
+        ];
+    }
+
+    private function overdueCheckoutsTool(): array
+    {
+        $bookings = Booking::query()
+            ->where('status', BookingStatus::CheckedIn)
+            ->where('check_out_date', '<', today())
+            ->with(['guest', 'room'])
+            ->orderBy('check_out_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'هیچ مهمان مقیمی از تاریخ خروج برنامه‌ریزی‌شده‌اش عقب نیفتاده است.'];
+        }
+
+        return [
+            'overdue_count' => $bookings->count(),
+            'overdue_checkouts' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'scheduled_check_out_date' => $booking->check_out_date->toDateString(),
+                // Carbon 3's diffInDays() defaults to a signed result (today
+                // is later than a past check-out date), unlike Carbon 2 -
+                // abs() keeps this a plain "how many days late" count.
+                'days_overdue' => (int) abs(today()->diffInDays($booking->check_out_date)),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Resolves a "this_month"/"last_month" period keyword to a [start, end]
+     * Carbon range anchored to the Jalali calendar - the business's actual
+     * accounting month, not the Gregorian one - shared by the hospitality
+     * reporting tools below.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveJalaliPeriod(string $period): array
+    {
+        $thisMonth = Jalalian::now();
+
+        if ($period === 'last_month') {
+            $lastMonth = $thisMonth->subMonths(1);
+
+            return [$lastMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $lastMonth->getEndDayOfMonth()->toCarbon()->endOfDay()];
+        }
+
+        return [$thisMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $thisMonth->getEndDayOfMonth()->toCarbon()->endOfDay()->min(now())];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function revenueByRoomTypeTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+        $periodDays = max(1, $start->diffInDays($end) + 1);
+
+        $roomTypes = RoomType::query()
+            ->where('is_active', true)
+            ->get()
+            ->map(function (RoomType $roomType) use ($start, $end, $periodDays) {
+                $roomCount = $roomType->rooms()->where('is_active', true)->count();
+
+                $bookings = Booking::query()
+                    ->whereHas('room', fn ($q) => $q->where('room_type_id', $roomType->id))
+                    ->where('status', BookingStatus::CheckedOut)
+                    ->whereBetween('actual_check_out_at', [$start, $end])
+                    ->with('charges')
+                    ->get();
+
+                $nightsSold = $bookings->sum(fn (Booking $booking) => $booking->nights());
+                $revenue = (int) $bookings->sum(fn (Booking $booking) => $booking->totalAmount());
+                $availableRoomNights = $roomCount * $periodDays;
+
+                return [
+                    'room_type' => $roomType->name,
+                    'bookings_checked_out' => $bookings->count(),
+                    'nights_sold' => $nightsSold,
+                    'revenue_toman' => $revenue,
+                    'adr_toman' => $nightsSold > 0 ? (int) round($revenue / $nightsSold) : 0,
+                    'occupancy_rate_percent' => $availableRoomNights > 0 ? round($nightsSold / $availableRoomNights * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('revenue_toman')
+            ->values();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'room_types' => $roomTypes->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function bookingSourceBreakdownTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $sources = collect(BookingSource::cases())
+            ->map(function (BookingSource $source) use ($start, $end) {
+                $bookings = Booking::query()
+                    ->where('source', $source)
+                    ->where('status', BookingStatus::CheckedOut)
+                    ->whereBetween('actual_check_out_at', [$start, $end])
+                    ->with('charges')
+                    ->get();
+
+                return [
+                    'source' => $source->getLabel(),
+                    'bookings' => $bookings->count(),
+                    'revenue_toman' => (int) $bookings->sum(fn (Booking $booking) => $booking->totalAmount()),
+                    'commission_owed_toman' => (int) $bookings->sum('commission_amount'),
+                ];
+            })
+            ->filter(fn (array $row) => $row['bookings'] > 0)
+            ->values();
+
+        if ($sources->isEmpty()) {
+            return ['message' => 'در این بازه هیچ رزرو تسویه‌شده‌ای ثبت نشده است.'];
+        }
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'sources' => $sources->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function cancellationSummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        // Defined as one cohort - of the bookings MADE in this period, how
+        // many ended up cancelled (as of now) - rather than mixing
+        // "created in period" against "cancelled in period" counts from two
+        // different cohorts, which would make the rate meaningless.
+        $createdInPeriod = Booking::query()->whereBetween('created_at', [$start, $end])->get();
+        $cancelledOfThose = $createdInPeriod->where('status', BookingStatus::Cancelled)->count();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'bookings_created' => $createdInPeriod->count(),
+            'cancelled_count' => $cancelledOfThose,
+            'cancellation_rate_percent' => $createdInPeriod->count() > 0
+                ? round($cancelledOfThose / $createdInPeriod->count() * 100, 1)
+                : 0,
         ];
     }
 
