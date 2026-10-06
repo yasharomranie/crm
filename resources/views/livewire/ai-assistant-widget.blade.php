@@ -2,17 +2,42 @@
     $hasProvider = (bool) \App\Models\AiProvider::active();
 @endphp
 
-@include('filament.components.chartjs-assets')
-@include('filament.components.ai-assistant-chart-renderer')
-
+{{--
+    The two @include()s below used to sit here, BEFORE this div - which
+    broke this entire component. Livewire requires a component's rendered
+    output to have exactly one top-level root element to attach wire:id/
+    wire:snapshot to; two more top-level <script> tags ahead of this div
+    gave it three siblings instead, so Livewire never recognized this div
+    as a component root at all (no wire:id ever got attached to it in the
+    real, rendered page - confirmed live: its own parentElement was
+    <body>, not a wire:id-bearing wrapper). Every wire:/$wire-dependent
+    feature in this file silently never worked as a result - this is the
+    actual root cause the two previous "fixes" for the floating panel
+    (wire:ignore.self, then x-on:submit.prevent="$wire.send()") never
+    found, since both still depended on $wire resolving to a real
+    component, which it could not. Moving the @include()s to be the first
+    children INSIDE this div instead (they're just <script> tags guarded
+    by @once - where they sit never mattered for their own purpose) keeps
+    this div the component's one and only root element.
+--}}
 <div
     x-data="aiAssistantWidget()"
     x-cloak
     class="ai-widget-root"
     x-on:message-sent.window="onMessageSent()"
 >
+    @include('filament.components.chartjs-assets')
+    @include('filament.components.ai-assistant-chart-renderer')
     <style>
         .ai-widget-root { position: fixed; inset: 0; z-index: 2147483000; pointer-events: none; }
+
+        /* Filament's own toast notifications (.fi-no) render at z-index:50
+           by default - far below this widget's own deliberately-near-max
+           z-index above. Any notification fired while the widget is open
+           (e.g. send()'s "no active AI provider" warning) would otherwise
+           render into the DOM but sit fully hidden behind the widget,
+           making it look like clicking send did nothing at all. */
+        .fi-no { z-index: 2147483001 !important; }
 
         /* --- The mascot bubble ------------------------------------------- */
         .ai-widget-bubble {
@@ -340,21 +365,15 @@
         </div>
 
         {{--
-            x-on:submit.prevent="$wire.send()" - deliberately NOT
-            wire:submit.prevent="send" (what resources/views/filament/pages/
-            ai-assistant.blade.php's identical-looking form uses, and
-            where it works fine). In this floating, panel-wide widget
-            specifically, wire:submit.prevent never actually intercepted
-            the click: no preventDefault() ran, the browser's native form
-            submission fired for real (a GET to the current URL, since the
-            form has no action/method), and that full page reload is what
-            was really closing the panel on send - not a close()/outside-
-            click bug, and not something wire:ignore.self above could ever
-            fix, confirmed by driving this live in a real browser.
-            x-on:submit.prevent + $wire.send() calls the exact same backend
-            action through Alpine/Livewire's $wire proxy instead, which
-            does not depend on whatever Livewire's own wire:submit binding
-            was missing here.
+            x-on:submit.prevent="$wire.send()" rather than
+            wire:submit.prevent="send" - both work now that this
+            component's root element is fixed (see the big comment at the
+            top of this file for the actual root cause: $wire/wire:* were
+            ALL silently broken here before that fix, which is also why
+            this specific workaround was tried first and alone didn't
+            fully resolve it). Kept as x-on + $wire.send() rather than
+            reverting to wire:submit.prevent since it's an equally
+            first-class pattern and was already verified live.
         --}}
         <form
             x-on:submit.prevent="$wire.send()"
