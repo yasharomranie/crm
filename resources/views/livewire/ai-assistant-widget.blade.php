@@ -339,8 +339,25 @@
             <span x-show="speechError" x-text="speechError" class="text-danger-600 dark:text-danger-400"></span>
         </div>
 
+        {{--
+            x-on:submit.prevent="$wire.send()" - deliberately NOT
+            wire:submit.prevent="send" (what resources/views/filament/pages/
+            ai-assistant.blade.php's identical-looking form uses, and
+            where it works fine). In this floating, panel-wide widget
+            specifically, wire:submit.prevent never actually intercepted
+            the click: no preventDefault() ran, the browser's native form
+            submission fired for real (a GET to the current URL, since the
+            form has no action/method), and that full page reload is what
+            was really closing the panel on send - not a close()/outside-
+            click bug, and not something wire:ignore.self above could ever
+            fix, confirmed by driving this live in a real browser.
+            x-on:submit.prevent + $wire.send() calls the exact same backend
+            action through Alpine/Livewire's $wire proxy instead, which
+            does not depend on whatever Livewire's own wire:submit binding
+            was missing here.
+        --}}
         <form
-            wire:submit.prevent="send"
+            x-on:submit.prevent="$wire.send()"
             class="flex items-end gap-2 p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
             :class="(listening || speechError) ? '' : 'border-t border-gray-200 dark:border-white/10'"
         >
