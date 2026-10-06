@@ -181,7 +181,14 @@
         .dark .ai-markdown code { background: rgb(255 255 255 / 0.08); }
     </style>
 
-    {{-- The draggable mascot --}}
+    {{-- The draggable mascot. wire:ignore.self: this element's own style/
+         class are 100% Alpine-owned (drag position, is-dragging) - every
+         Livewire re-render (triggered by literally any wire: action
+         elsewhere on the page, e.g. send()) would otherwise morph this
+         node's attributes back to Blade's static server-rendered defaults,
+         snapping it back to the corner mid-drag or mid-conversation.
+         .self only skips morphing THIS element's own tag, never its
+         children, so nothing inside loses reactivity. --}}
     <button
         type="button"
         aria-label="باز کردن دستیار هوشمند"
@@ -189,6 +196,7 @@
         class="ai-widget-bubble"
         :class="dragging && 'is-dragging'"
         x-ref="bubble"
+        wire:ignore.self
         x-on:pointerdown="onPointerDown($event)"
         x-on:pointermove="onPointerMove($event)"
         x-on:pointerup="onPointerUp($event)"
@@ -213,7 +221,19 @@
         </span>
     </button>
 
-    {{-- The chat popup --}}
+    {{-- The chat popup. wire:ignore.self for the same reason as the mascot
+         button above: whether this panel is open/closed (x-show, i.e. this
+         element's own inline `display`) and where it's positioned
+         (x-bind:style) are both 100% Alpine-owned, never server state -
+         the actual bug this fixes: Blade always renders the static
+         `style="display: none;"` you see below (the server has no idea
+         whether the panel is currently open), so on EVERY Livewire
+         request (e.g. every single send()), morphing this element's own
+         attributes back toward that server-rendered markup could re-hide
+         an open panel or otherwise desync it from `open`, even though
+         nothing about open/closed actually changed. Its children (the
+         message list, the thinking indicator) are unaffected - .self never
+         skips morphing descendants. --}}
     <div
         x-show="open"
         x-transition:enter="transition ease-out duration-150"
@@ -226,7 +246,8 @@
         x-on:click.outside="close()"
         class="ai-widget-panel"
         :class="isMobile ? 'is-mobile' : 'is-desktop'"
-        x-bind:style="isMobile ? '' : panelStyle()"
+        wire:ignore.self
+        x-bind:style="isMobile ? {} : panelStyle()"
         style="display: none;"
     >
         <div class="ai-widget-header">
@@ -546,8 +567,14 @@
                 } catch (e) {}
             },
 
+            // An object, not a CSS string: Alpine merges an object's keys
+            // into the element's existing inline style property-by-property,
+            // but a string value instead REPLACES the whole style attribute
+            // wholesale - which would wipe out whatever x-show had just set
+            // on `display` the moment this re-evaluates (position changes,
+            // a window resize, ...).
             bubbleStyle() {
-                return `left: ${this.position.x}px; top: ${this.position.y}px;`;
+                return { left: `${this.position.x}px`, top: `${this.position.y}px` };
             },
 
             onPointerDown(event) {
@@ -605,7 +632,8 @@
 
             // Desktop only - anchors the popup near whichever corner the
             // bubble currently occupies, so it always opens toward free
-            // screen space instead of off the edge.
+            // screen space instead of off the edge. An object, not a CSS
+            // string - see bubbleStyle()'s own comment for why.
             panelStyle() {
                 const centerX = this.position.x + this.bubbleSize / 2;
                 const centerY = this.position.y + this.bubbleSize / 2;
@@ -613,14 +641,21 @@
                 const openUp = centerY > window.innerHeight / 2;
                 const gap = 12;
 
-                const horizontal = openLeft
-                    ? `right: ${window.innerWidth - this.position.x - this.bubbleSize}px;`
-                    : `left: ${this.position.x}px;`;
-                const vertical = openUp
-                    ? `bottom: ${window.innerHeight - this.position.y + gap}px;`
-                    : `top: ${this.position.y + this.bubbleSize + gap}px;`;
+                const style = {};
 
-                return horizontal + vertical;
+                if (openLeft) {
+                    style.right = `${window.innerWidth - this.position.x - this.bubbleSize}px`;
+                } else {
+                    style.left = `${this.position.x}px`;
+                }
+
+                if (openUp) {
+                    style.bottom = `${window.innerHeight - this.position.y + gap}px`;
+                } else {
+                    style.top = `${this.position.y + this.bubbleSize + gap}px`;
+                }
+
+                return style;
             },
 
             autoGrow(el) {
