@@ -325,6 +325,14 @@ trait HasAiAssistantEngine
             - برای عملکرد فروش هر کارشناس (پایپ‌لاین باز، نرخ موفقیت) از get_deals_by_assignee، و برای اینکه مشتری‌ها از کجا می‌آیند (حضوری/آنلاین/معرفی و...) از get_deal_source_breakdown استفاده کن.
             - برای فهرست مشتریان برتر/پرارزش (برای تماس قدردانی یا پیشنهاد ویژه) از get_top_guests_by_value استفاده کن.
             - برای رضایت مشتری (NPS) از get_guest_satisfaction_summary، و برای وضعیت کیف پول/کش‌بک مشتریان از get_wallet_activity_summary استفاده کن.
+
+            دربارهٔ گزارش‌های حضور و غیاب:
+            - get_attendance_summary فقط عدد کل این ماه را می‌دهد. وقتی کاربر می‌پرسد «امروز کیا نیومدن» یا «کیا هنوز ورود نزدن»، هیچ‌وقت منتظر همان ابزار نمان - حتماً get_not_checked_in_today را صدا بزن؛ این ابزار زنده کار می‌کند و نیازی به اجرای جاب پایان‌روز غیبت ندارد.
+            - برای وضعیت ماهانهٔ هرکس به تفکیک (نه فقط لیست پرتأخیرترین‌ها) از get_attendance_by_user، و برای مقایسهٔ دپارتمان‌ها با هم از get_department_attendance_summary استفاده کن.
+            - get_missing_checkouts کسانی را نشان می‌دهد که ورود زده‌اند ولی خروج نزده‌اند (هر تاریخی، نه فقط امروز) - ساعت کارکردشان محاسبه نشده است.
+            - get_overtime_undertime_summary ساعت کارکرد واقعی را با ساعت شیفت مقایسه می‌کند؛ برای «کی کم‌کاری/اضافه‌کاری داشته» از این استفاده کن، نه get_attendance_summary.
+            - get_unusual_device_checkins صرفاً یک هشدار برای بررسی توسط منابع انسانی است (دستگاه ورود با دفعهٔ قبل فرق کرده)، نه مدرکی قطعی بر تخلف - همیشه این محدودیت را به کاربر یادآوری کن.
+            - برای روند حضور (بهتر/بدتر شدن نسبت به ماه قبل) از get_attendance_trend استفاده کن؛ می‌تواند به یک دپارتمان مشخص هم محدود شود.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -437,6 +445,14 @@ trait HasAiAssistantEngine
             'get_project_budget_summary' => ['projects' => $this->projectBudgetSummaryTool()],
             'get_project_expenses' => $this->projectExpensesTool($arguments),
             'get_attendance_summary' => $this->attendanceSummary(),
+            'search_attendance_records' => $this->searchAttendanceRecordsTool($arguments),
+            'get_not_checked_in_today' => $this->notCheckedInTodayTool(),
+            'get_attendance_by_user' => $this->attendanceByUserTool($arguments),
+            'get_department_attendance_summary' => $this->departmentAttendanceSummaryTool(),
+            'get_unusual_device_checkins' => $this->unusualDeviceCheckinsTool($arguments),
+            'get_missing_checkouts' => $this->missingCheckoutsTool(),
+            'get_overtime_undertime_summary' => $this->overtimeUndertimeSummaryTool($arguments),
+            'get_attendance_trend' => $this->attendanceTrendTool($arguments),
             'get_task_summary' => $this->taskSummary(),
             'search_tasks' => $this->searchTasksTool($arguments),
             'get_overdue_tasks' => $this->overdueTasksTool($arguments),
@@ -625,6 +641,49 @@ trait HasAiAssistantEngine
                 'required' => ['project_name'],
             ]);
             $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
+            $tools[] = $this->toolSchema('search_attendance_records', 'Search/list attendance records by employee name, status, department, or date range - use to find specific records or list a filtered set, e.g. "رکوردهای غیبت رضا رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Partial or full employee name'],
+                    'status' => ['type' => 'string', 'enum' => ['incomplete', 'on_time', 'late', 'absent']],
+                    'department_name' => ['type' => 'string', 'description' => 'Partial or full department name'],
+                    'date_from' => ['type' => 'string', 'description' => 'Earliest date, format YYYY-MM-DD (Gregorian)'],
+                    'date_to' => ['type' => 'string', 'description' => 'Latest date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_not_checked_in_today', 'Get the detailed, LIVE list of active employees with an assigned work shift who have NOT checked in yet today - by name, not just a count. Unlike get_attendance_summary, this works mid-day, before the end-of-day "absent" records are generated. Use for "امروز کیا نیومدن" / "کیا هنوز ورود نزدن".', $noParams);
+            $tools[] = $this->toolSchema('get_attendance_by_user', 'Get this calendar month\'s attendance broken down per employee: on-time/late/absent day counts, total late minutes, total worked hours, and attendance rate - ranked worst attendance rate first. Optionally scope to one employee. Use for "وضعیت حضور هرکس این ماه چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one employee to scope to; omit to list everyone'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_department_attendance_summary', 'Get this calendar month\'s attendance broken down per department: on-time rate, late days, absent days, average lateness - ranked worst on-time rate first. Use for "کدام دپارتمان بدترین وضعیت حضور رو داره".', $noParams);
+            $tools[] = $this->toolSchema('get_unusual_device_checkins', 'Get recent check-ins flagged because the employee checked in from a device fingerprint different from their usual one (AttendanceRecord::isDeviceUnusual) - a heads-up for HR to review, not proof of anything improper on its own.', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many past days to scan - defaults to 7, max 30'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_missing_checkouts', 'Get attendance records where the employee checked in but never checked out (any date, not just today) - forgotten checkouts that leave worked_minutes uncalculated. Use for "چه کسی چک‌اوت نزده".', $noParams);
+            $tools[] = $this->toolSchema('get_overtime_undertime_summary', 'Get this calendar month\'s actual worked hours vs each employee\'s expected shift hours, and the difference - negative means undertime, positive means overtime - ranked most-undertime first. Optionally scope to one employee.', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one employee to scope to; omit to list everyone'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_attendance_trend', 'Compare on-time/late/absent counts and on-time rate between this and last calendar month - company-wide or scoped to one department. Use for "وضعیت حضور این ماه نسبت به ماه قبل چطور شده".', [
+                'type' => 'object',
+                'properties' => [
+                    'department_name' => ['type' => 'string', 'description' => 'Optional - partial or full department name to scope to; omit for company-wide'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams);
             $tools[] = $this->toolSchema('search_tasks', 'Search/list tasks by assignee name, status, priority, department, or due date range - use to find specific tasks or list a filtered set, e.g. "کارهای باز رضا رو نشون بده".', [
                 'type' => 'object',
@@ -896,6 +955,13 @@ trait HasAiAssistantEngine
                 'به‌موقع' => $result['on_time_count'] ?? 0,
                 'تأخیر' => $result['late_count'] ?? 0,
                 'غیبت' => $result['absent_count'] ?? 0,
+            ]),
+            'get_attendance_by_user' => $this->chartFromRows('bar', 'مجموع دقایق تأخیر به تفکیک کارمند', $result['users'] ?? [], 'user', 'total_late_minutes'),
+            'get_department_attendance_summary' => $this->chartFromRows('bar', 'نرخ به‌موقع بودن به تفکیک دپارتمان (٪)', $result['departments'] ?? [], 'department', 'on_time_rate_percent'),
+            'get_overtime_undertime_summary' => $this->chartFromRows('bar', 'اختلاف ساعت کارکرد واقعی با شیفت (ساعت)', $result['users'] ?? [], 'user', 'difference_hours'),
+            'get_attendance_trend' => $this->chartFromCounts('bar', 'نرخ به‌موقع بودن: این ماه در برابر ماه قبل (٪)', [
+                'این ماه' => $result['comparison']['این ماه']['on_time_rate_percent'] ?? 0,
+                'ماه قبل' => $result['comparison']['ماه قبل']['on_time_rate_percent'] ?? 0,
             ]),
             'get_accommodation_summary' => $this->chartFromCounts('doughnut', 'وضعیت اتاق‌ها', [
                 'اشغال' => $result['occupied'] ?? 0,
@@ -2102,6 +2168,310 @@ trait HasAiAssistantEngine
             'late_count' => $records->where('status', AttendanceStatus::Late)->count(),
             'absent_count' => $records->where('status', AttendanceStatus::Absent)->count(),
             'top_late_users' => $topLateUsers->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchAttendanceRecordsTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+        $status = AttendanceStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+        $dateFrom = $arguments['date_from'] ?? null;
+        $dateTo = $arguments['date_to'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = AttendanceRecord::query()->with(['user.department']);
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($departmentName !== '') {
+            $query->whereHas('user.department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+        }
+
+        if ($dateFrom) {
+            $query->whereDate('date', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $query->whereDate('date', '<=', $dateTo);
+        }
+
+        $records = $query->orderByDesc('date')->limit($limit)->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $records->count(),
+            'records' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'department' => $record->user?->department?->name,
+                'date' => $record->date->toDateString(),
+                'status' => $record->status->getLabel(),
+                'check_in_at' => $record->check_in_at?->format('H:i'),
+                'check_out_at' => $record->check_out_at?->format('H:i'),
+                'late_minutes' => (int) $record->late_minutes,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Live, mid-day read of who hasn't checked in - deliberately NOT a
+     * query on status=Absent, since that status only exists once the
+     * attendance:mark-absentees command has run (end of day); before then
+     * the only ground truth is "no check_in_at row for today yet".
+     */
+    private function notCheckedInTodayTool(): array
+    {
+        if (today()->isFriday()) {
+            return ['message' => 'امروز جمعه است و غیبتی محاسبه نمی‌شود.'];
+        }
+
+        $usersWithShift = User::query()
+            ->whereNotNull('work_shift_id')
+            ->where('is_active', true)
+            ->with('department')
+            ->get();
+
+        $checkedInUserIds = AttendanceRecord::query()
+            ->whereDate('date', today())
+            ->whereNotNull('check_in_at')
+            ->pluck('user_id');
+
+        $notCheckedIn = $usersWithShift->whereNotIn('id', $checkedInUserIds);
+
+        if ($notCheckedIn->isEmpty()) {
+            return ['message' => 'امروز همهٔ کارمندان دارای شیفت، ورود ثبت کرده‌اند.'];
+        }
+
+        return [
+            'not_checked_in_count' => $notCheckedIn->count(),
+            'employees' => $notCheckedIn->map(fn (User $user) => [
+                'name' => $user->name,
+                'department' => $user->department?->name,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function attendanceByUserTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->with('user');
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری با این مشخصات در این ماه پیدا نشد.'];
+        }
+
+        $byUser = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->name)
+            ->map(function (Collection $group, string $name) {
+                $totalDays = $group->count();
+                $absentDays = $group->where('status', AttendanceStatus::Absent)->count();
+
+                return [
+                    'user' => $name,
+                    'on_time_days' => $group->where('status', AttendanceStatus::OnTime)->count(),
+                    'late_days' => $group->where('status', AttendanceStatus::Late)->count(),
+                    'absent_days' => $absentDays,
+                    'total_late_minutes' => (int) $group->sum('late_minutes'),
+                    'total_worked_hours' => round($group->sum('worked_minutes') / 60, 1),
+                    'attendance_rate_percent' => $totalDays > 0 ? round(($totalDays - $absentDays) / $totalDays * 100, 1) : 0,
+                ];
+            })
+            ->sortBy('attendance_rate_percent')
+            ->values();
+
+        return ['month' => now()->format('Y-m'), 'users' => $byUser->all()];
+    }
+
+    private function departmentAttendanceSummaryTool(): array
+    {
+        $records = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->with('user.department')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری در این ماه ثبت نشده است.'];
+        }
+
+        $byDepartment = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->department?->name ?? 'بدون دپارتمان')
+            ->map(function (Collection $group, string $name) {
+                $total = $group->count();
+                $lateRecords = $group->where('status', AttendanceStatus::Late);
+
+                return [
+                    'department' => $name,
+                    'on_time_rate_percent' => $total > 0 ? round($group->where('status', AttendanceStatus::OnTime)->count() / $total * 100, 1) : 0,
+                    'late_days' => $lateRecords->count(),
+                    'absent_days' => $group->where('status', AttendanceStatus::Absent)->count(),
+                    'average_late_minutes' => $lateRecords->isNotEmpty() ? round($lateRecords->avg('late_minutes'), 1) : 0,
+                ];
+            })
+            ->sortBy('on_time_rate_percent')
+            ->values();
+
+        return ['departments' => $byDepartment->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function unusualDeviceCheckinsTool(array $arguments): array
+    {
+        $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+
+        $records = AttendanceRecord::query()
+            ->whereNotNull('check_in_device')
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->with('user')
+            ->orderByDesc('date')
+            ->get()
+            ->filter(fn (AttendanceRecord $record) => $record->isDeviceUnusual());
+
+        if ($records->isEmpty()) {
+            return ['message' => 'در این بازه هیچ ورود با دستگاه غیرعادی ثبت نشده است.'];
+        }
+
+        return [
+            'flagged_count' => $records->count(),
+            'checkins' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'date' => $record->date->toDateString(),
+                'check_in_device' => $record->check_in_device,
+            ])->values()->all(),
+        ];
+    }
+
+    private function missingCheckoutsTool(): array
+    {
+        $records = AttendanceRecord::query()
+            ->whereNotNull('check_in_at')
+            ->whereNull('check_out_at')
+            ->with('user')
+            ->orderBy('date')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ ثبت ورودی بدون خروج پیدا نشد.'];
+        }
+
+        return [
+            'count' => $records->count(),
+            'records' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'date' => $record->date->toDateString(),
+                'check_in_at' => $record->check_in_at->format('H:i'),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overtimeUndertimeSummaryTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->whereNotNull('worked_minutes')
+            ->with(['user', 'workShift']);
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد تکمیل‌شده‌ای (با ساعت کارکرد) در این ماه پیدا نشد.'];
+        }
+
+        $byUser = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->name)
+            ->map(function (Collection $group, string $name) {
+                $expectedMinutes = $group->sum(function (AttendanceRecord $record) {
+                    if (! $record->workShift) {
+                        return 0;
+                    }
+
+                    return abs($record->workShift->start_time->diffInMinutes($record->workShift->end_time));
+                });
+                $actualMinutes = (int) $group->sum('worked_minutes');
+
+                return [
+                    'user' => $name,
+                    'expected_hours' => round($expectedMinutes / 60, 1),
+                    'actual_hours' => round($actualMinutes / 60, 1),
+                    'difference_hours' => round(($actualMinutes - $expectedMinutes) / 60, 1),
+                ];
+            })
+            ->sortBy('difference_hours')
+            ->values();
+
+        return ['month' => now()->format('Y-m'), 'users' => $byUser->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function attendanceTrendTool(array $arguments): array
+    {
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+
+        $ranges = [
+            'این ماه' => [now()->copy()->startOfMonth(), now()->copy()->endOfMonth()],
+            'ماه قبل' => [now()->copy()->subMonthNoOverflow()->startOfMonth(), now()->copy()->subMonthNoOverflow()->endOfMonth()],
+        ];
+
+        $comparison = [];
+
+        foreach ($ranges as $label => [$start, $end]) {
+            $query = AttendanceRecord::query()->whereBetween('date', [$start, $end]);
+
+            if ($departmentName !== '') {
+                $query->whereHas('user.department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+            }
+
+            $records = $query->get();
+            $total = $records->count();
+            $onTime = $records->where('status', AttendanceStatus::OnTime)->count();
+
+            $comparison[$label] = [
+                'on_time' => $onTime,
+                'late' => $records->where('status', AttendanceStatus::Late)->count(),
+                'absent' => $records->where('status', AttendanceStatus::Absent)->count(),
+                'on_time_rate_percent' => $total > 0 ? round($onTime / $total * 100, 1) : 0,
+            ];
+        }
+
+        return [
+            'department' => $departmentName !== '' ? $departmentName : 'کل سازمان',
+            'comparison' => $comparison,
         ];
     }
 
