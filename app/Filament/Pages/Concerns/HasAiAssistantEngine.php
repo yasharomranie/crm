@@ -7,14 +7,18 @@ use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Enums\DealSource;
+use App\Enums\DealStage;
 use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
+use App\Enums\LoyaltyTier;
 use App\Enums\ProjectStatus;
 use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
+use App\Enums\WalletTransactionType;
 use App\Enums\WorkflowActionType;
 use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
@@ -32,6 +36,8 @@ use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
+use App\Models\Guest;
+use App\Models\GuestFeedback;
 use App\Models\GuestTicket;
 use App\Models\Project;
 use App\Models\ProjectExpense;
@@ -41,6 +47,7 @@ use App\Models\RoomType;
 use App\Models\SalesChannel;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
@@ -311,6 +318,13 @@ trait HasAiAssistantEngine
             - get_project_health_summary فقط درصد EVM همهٔ پروژه‌های فعال را یک‌جا می‌دهد. برای جزئیات کامل یک پروژهٔ مشخص (بودجه، هزینهٔ واقعی، مسیر بحرانی) از get_project_detail با نام همان پروژه استفاده کن.
             - وقتی سؤال دربارهٔ «چرا پروژه عقب افتاده» است، نه فقط «چقدر عقب افتاده»، از get_overdue_project_phases استفاده کن تا دقیقاً مشخص شود کدام فاز/بخش کار عقب است.
             - برای مقایسهٔ بودجه و هزینهٔ واقعی (نه درصد EVM انتزاعی) از get_project_budget_summary، و برای دیدن ریز هزینه‌های یک پروژهٔ مشخص از get_project_expenses استفاده کن.
+
+            دربارهٔ گزارش‌های CRM و مشتریان:
+            - وقتی کاربر اسم یک مشتری یا شمارهٔ موبایلش را می‌گوید، از get_guest_detail استفاده کن تا یک نمای کامل (سطح وفاداری، RFM، کیف پول، معاملات و تیکت‌های باز، آخرین بازخورد) بگیری؛ برای فیلتر/فهرست‌کردن چند مشتری (مثلاً «مشتریان VIP») از search_guests استفاده کن.
+            - get_crm_summary فقط یک عدد کلی (sla_breached_tickets) برای تیکت‌های عقب‌افتاده می‌دهد. وقتی کاربر می‌پرسد «کدام تیکت از مهلتش گذشته» یا «با کدام مشتری باید پیگیری کنم»، حتماً get_breached_support_tickets را صدا بزن تا موضوع تیکت، اسم مشتری و میزان تأخیر را بگیری.
+            - برای عملکرد فروش هر کارشناس (پایپ‌لاین باز، نرخ موفقیت) از get_deals_by_assignee، و برای اینکه مشتری‌ها از کجا می‌آیند (حضوری/آنلاین/معرفی و...) از get_deal_source_breakdown استفاده کن.
+            - برای فهرست مشتریان برتر/پرارزش (برای تماس قدردانی یا پیشنهاد ویژه) از get_top_guests_by_value استفاده کن.
+            - برای رضایت مشتری (NPS) از get_guest_satisfaction_summary، و برای وضعیت کیف پول/کش‌بک مشتریان از get_wallet_activity_summary استفاده کن.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -409,6 +423,14 @@ trait HasAiAssistantEngine
             'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
             'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
+            'get_guest_detail' => $this->guestDetailTool($arguments),
+            'search_guests' => $this->searchGuestsTool($arguments),
+            'get_breached_support_tickets' => $this->breachedSupportTicketsTool($arguments),
+            'get_deals_by_assignee' => $this->dealsByAssigneeTool($arguments),
+            'get_deal_source_breakdown' => $this->dealSourceBreakdownTool($arguments),
+            'get_top_guests_by_value' => $this->topGuestsByValueTool($arguments),
+            'get_guest_satisfaction_summary' => $this->guestSatisfactionSummaryTool($arguments),
+            'get_wallet_activity_summary' => $this->walletActivitySummaryTool($arguments),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
             'get_project_detail' => $this->projectDetailTool($arguments),
             'get_overdue_project_phases' => $this->overdueProjectPhasesTool($arguments),
@@ -518,6 +540,66 @@ trait HasAiAssistantEngine
                 'required' => [],
             ]);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
+            $tools[] = $this->toolSchema('get_guest_detail', 'Get a full 360 view of ONE specific customer by name or mobile number: contact info, loyalty tier, RFM (recency/frequency/lifetime value), wallet balance, open deals, open support tickets, and latest feedback - use when the user names a specific customer, e.g. "مشتری رضا کریمی چه وضعیتی داره".', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Partial or full customer name, or their mobile number'],
+                ],
+                'required' => ['guest_name'],
+            ]);
+            $tools[] = $this->toolSchema('search_guests', 'Search/list customers by name, mobile, loyalty tier, or minimum completed-stay count - use to find a specific customer or list a segment, e.g. "مشتریان VIP رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'description' => 'Partial or full customer name'],
+                    'mobile' => ['type' => 'string', 'description' => 'Partial or full mobile number'],
+                    'loyalty_tier' => ['type' => 'string', 'enum' => ['bronze', 'silver', 'gold', 'vip']],
+                    'min_completed_stays' => ['type' => 'integer', 'description' => 'Only customers with at least this many completed stays'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_breached_support_tickets', 'Get support tickets that have ALREADY breached their SLA deadline - subject, customer name, priority, hours overdue - not just the count get_crm_summary gives. Optionally scope to one customer.', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Optional - partial or full customer name to scope to; omit to list every breached ticket'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_deals_by_assignee', 'Get per-sales-rep pipeline stats: open deal count, open pipeline value, won count, and win rate - grouped by the assigned user. Optionally scope to one person. Use for "عملکرد فروش کی بهتره".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one sales rep to scope to; omit to list every assignee'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_deal_source_breakdown', 'Get deal count, total value, and win rate broken down by lead source (walk-in, phone, website, referral, social media, other), for this or last Jalali month - use for "بیشتر مشتری‌ها از کجا میان".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_top_guests_by_value', 'Get the top customers ranked by lifetime value (completed-stay spend), with their loyalty tier and stay count - use for "مشتریان برتر/VIP رو نشون بده" or targeted outreach lists.', [
+                'type' => 'object',
+                'properties' => [
+                    'limit' => ['type' => 'integer', 'description' => 'How many top customers to return - defaults to 10, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_guest_satisfaction_summary', 'Get the NPS (Net Promoter Score) breakdown from submitted guest feedback - promoter/passive/detractor counts, average score, and the NPS score itself - for this or last Jalali month. Use for "رضایت مشتری‌ها چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_wallet_activity_summary', 'Get total wallet credit/debit activity (cashback and spend) across all customers for this or last Jalali month, plus the customers with the highest current wallet balances.', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
             $tools[] = $this->toolSchema('get_project_detail', 'Get full detail on ONE specific project by name: status, budget vs actual cost, EV/PV/CV/SV, and its critical-path phase titles in order - use when the user names a specific project, e.g. "پروژه وب‌سایت جدید چطوره".', [
                 'type' => 'object',
@@ -829,6 +911,19 @@ trait HasAiAssistantEngine
             'get_project_budget_summary' => $this->chartFromRows('bar', 'درصد بودجهٔ مصرف‌شده به تفکیک پروژه (٪)', $result['projects'] ?? [], 'title', 'percent_spent'),
             'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
             'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
+            'get_breached_support_tickets' => $this->chartFromRows('bar', 'میزان تاخیر تیکت‌ها از مهلت SLA (ساعت)', $result['tickets'] ?? [], 'subject', 'overdue_hours'),
+            'get_deals_by_assignee' => $this->chartFromRows('bar', 'ارزش پایپ‌لاین باز به تفکیک کارشناس فروش (تومان)', $result['assignees'] ?? [], 'user', 'open_pipeline_value_toman'),
+            'get_deal_source_breakdown' => $this->chartFromRows('bar', 'ارزش معاملات به تفکیک منبع (تومان)', $result['sources'] ?? [], 'source', 'value_toman'),
+            'get_top_guests_by_value' => $this->chartFromRows('bar', 'ارزش طول عمر مشتری (تومان)', $result['guests'] ?? [], 'name', 'lifetime_value_toman'),
+            'get_guest_satisfaction_summary' => $this->chartFromCounts('doughnut', 'بازخورد مشتریان (NPS)', [
+                'حامی' => $result['promoters'] ?? 0,
+                'خنثی' => $result['passives'] ?? 0,
+                'منتقد' => $result['detractors'] ?? 0,
+            ]),
+            'get_wallet_activity_summary' => $this->chartFromCounts('bar', 'واریز و برداشت کیف پول (تومان)', [
+                'واریز' => $result['credited_toman'] ?? 0,
+                'برداشت' => $result['debited_toman'] ?? 0,
+            ]),
             'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
             'get_approver_performance' => $this->chartFromRows('bar', 'نرخ رد درخواست به تفکیک تأییدکننده (٪)', $result['approvers'] ?? [], 'user', 'rejection_rate_percent'),
             'get_breached_sla_submissions' => $this->chartFromRows('bar', 'میزان تاخیر از مهلت تایید (ساعت)', $result['items'] ?? [], 'form', 'overdue_hours'),
@@ -1519,6 +1614,299 @@ trait HasAiAssistantEngine
             'deals_by_stage' => $dealsByStage->all(),
             'open_tickets' => $openTickets,
             'sla_breached_tickets' => $breachedTickets,
+        ];
+    }
+
+    private function findGuestByName(string $name): ?Guest
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Guest::query()->where('name', $name)->first()
+            ?? Guest::query()->where('mobile', $name)->first()
+            ?? Guest::query()->where('name', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function guestDetailTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['guest_name'] ?? ''));
+        $guest = $this->findGuestByName($name);
+
+        if (! $guest) {
+            return ['error' => "مشتری‌ای با نام یا شمارهٔ «{$name}» پیدا نشد."];
+        }
+
+        $openDeals = $guest->deals()->whereNotIn('stage', [DealStage::Won, DealStage::Lost])->count();
+        $openTickets = $guest->tickets()->whereNotIn('status', [TicketStatus::Resolved, TicketStatus::Closed])->count();
+        $latestFeedback = $guest->feedbacks()->whereNotNull('submitted_at')->latest('submitted_at')->first();
+
+        return [
+            'name' => $guest->name,
+            'mobile' => $guest->mobile,
+            'email' => $guest->email,
+            'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+            'wallet_balance_toman' => (int) $guest->wallet_balance,
+            'completed_stays' => $guest->frequency(),
+            'lifetime_value_toman' => $guest->monetaryTotal(),
+            'days_since_last_stay' => $guest->recencyDays(),
+            'open_deals' => $openDeals,
+            'open_support_tickets' => $openTickets,
+            'latest_feedback_score' => $latestFeedback?->nps_score,
+            'latest_feedback_comment' => $latestFeedback?->comment,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchGuestsTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['name'] ?? ''));
+        $mobile = trim((string) ($arguments['mobile'] ?? ''));
+        $loyaltyTier = LoyaltyTier::tryFrom((string) ($arguments['loyalty_tier'] ?? ''));
+        $minStays = max(0, (int) ($arguments['min_completed_stays'] ?? 0));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Guest::query();
+
+        if ($name !== '') {
+            $query->where('name', 'like', "%{$name}%");
+        }
+
+        if ($mobile !== '') {
+            $query->where('mobile', 'like', "%{$mobile}%");
+        }
+
+        $guests = $query->get()
+            ->filter(fn (Guest $guest) => ! $loyaltyTier || $guest->loyaltyTier() === $loyaltyTier)
+            ->filter(fn (Guest $guest) => $minStays === 0 || $guest->frequency() >= $minStays)
+            ->take($limit);
+
+        if ($guests->isEmpty()) {
+            return ['message' => 'هیچ مشتری‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $guests->count(),
+            'guests' => $guests->map(fn (Guest $guest) => [
+                'name' => $guest->name,
+                'mobile' => $guest->mobile,
+                'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+                'completed_stays' => $guest->frequency(),
+                'wallet_balance_toman' => (int) $guest->wallet_balance,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function breachedSupportTicketsTool(array $arguments): array
+    {
+        $guestName = trim((string) ($arguments['guest_name'] ?? ''));
+
+        $query = GuestTicket::query()
+            ->whereNotIn('status', [TicketStatus::Resolved, TicketStatus::Closed])
+            ->whereNotNull('sla_due_at')
+            ->where('sla_due_at', '<', now())
+            ->with('guest');
+
+        if ($guestName !== '') {
+            $query->whereHas('guest', fn ($q) => $q->where('name', 'like', "%{$guestName}%"));
+        }
+
+        $tickets = $query->orderBy('sla_due_at')->get();
+
+        if ($tickets->isEmpty()) {
+            return ['message' => 'هیچ تیکت پشتیبانی‌ای از مهلت SLA خودش نگذشته است.'];
+        }
+
+        return [
+            'breached_count' => $tickets->count(),
+            'tickets' => $tickets->map(fn (GuestTicket $ticket) => [
+                'subject' => $ticket->subject,
+                'guest' => $ticket->guest?->name,
+                'priority' => $ticket->priority->getLabel(),
+                'status' => $ticket->status->getLabel(),
+                'overdue_hours' => (int) round($ticket->sla_due_at->diffInHours(now())),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function dealsByAssigneeTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = Deal::query()->whereNotNull('assigned_to')->with('assignee');
+
+        if ($userName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $deals = $query->get();
+
+        if ($deals->isEmpty()) {
+            return ['message' => 'هیچ معامله‌ای با مسئول مشخص پیدا نشد.'];
+        }
+
+        $assignees = $deals->groupBy(fn (Deal $deal) => $deal->assignee?->name)
+            ->map(function (Collection $group, string $name) {
+                $open = $group->whereNotIn('stage', [DealStage::Won, DealStage::Lost]);
+                $won = $group->where('stage', DealStage::Won);
+                $decided = $group->whereIn('stage', [DealStage::Won, DealStage::Lost]);
+
+                return [
+                    'user' => $name,
+                    'open_deals' => $open->count(),
+                    'open_pipeline_value_toman' => (int) $open->sum('value'),
+                    'won_count' => $won->count(),
+                    'win_rate_percent' => $decided->count() > 0 ? round($won->count() / $decided->count() * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('open_pipeline_value_toman')
+            ->values();
+
+        return ['assignees' => $assignees->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function dealSourceBreakdownTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $sources = collect(DealSource::cases())
+            ->map(function (DealSource $source) use ($start, $end) {
+                $deals = Deal::query()
+                    ->where('source', $source)
+                    ->whereBetween('created_at', [$start, $end])
+                    ->get();
+
+                $decided = $deals->whereIn('stage', [DealStage::Won, DealStage::Lost]);
+                $won = $deals->where('stage', DealStage::Won);
+
+                return [
+                    'source' => $source->getLabel(),
+                    'deals' => $deals->count(),
+                    'value_toman' => (int) $deals->sum('value'),
+                    'win_rate_percent' => $decided->count() > 0 ? round($won->count() / $decided->count() * 100, 1) : 0,
+                ];
+            })
+            ->filter(fn (array $row) => $row['deals'] > 0)
+            ->values();
+
+        if ($sources->isEmpty()) {
+            return ['message' => 'در این بازه هیچ معامله‌ای ثبت نشده است.'];
+        }
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'sources' => $sources->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function topGuestsByValueTool(array $arguments): array
+    {
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 10)));
+
+        $guests = Guest::query()->get()
+            ->map(fn (Guest $guest) => [
+                'name' => $guest->name,
+                'mobile' => $guest->mobile,
+                'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+                'completed_stays' => $guest->frequency(),
+                'lifetime_value_toman' => $guest->monetaryTotal(),
+            ])
+            ->filter(fn (array $row) => $row['lifetime_value_toman'] > 0)
+            ->sortByDesc('lifetime_value_toman')
+            ->take($limit)
+            ->values();
+
+        if ($guests->isEmpty()) {
+            return ['message' => 'هنوز هیچ مشتری‌ای اقامت تسویه‌شده‌ای ندارد.'];
+        }
+
+        return ['guests' => $guests->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function guestSatisfactionSummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $feedback = GuestFeedback::query()
+            ->whereNotNull('submitted_at')
+            ->whereNotNull('nps_score')
+            ->whereBetween('submitted_at', [$start, $end])
+            ->get();
+
+        if ($feedback->isEmpty()) {
+            return ['message' => 'در این بازه هیچ بازخورد امتیازدهی‌شده‌ای ثبت نشده است.'];
+        }
+
+        $promoters = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'promoter')->count();
+        $passives = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'passive')->count();
+        $detractors = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'detractor')->count();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'responses' => $feedback->count(),
+            'average_score' => round((float) $feedback->avg('nps_score'), 1),
+            'promoters' => $promoters,
+            'passives' => $passives,
+            'detractors' => $detractors,
+            // Standard NPS formula: %promoters - %detractors, on a -100..100 scale.
+            'nps_score' => round(($promoters - $detractors) / $feedback->count() * 100, 1),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function walletActivitySummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $transactions = WalletTransaction::query()->whereBetween('created_at', [$start, $end])->get();
+
+        if ($transactions->isEmpty()) {
+            return ['message' => 'در این بازه هیچ تراکنش کیف پولی ثبت نشده است.'];
+        }
+
+        $credited = (int) $transactions->where('type', WalletTransactionType::Credit)->sum('amount');
+        $debited = (int) $transactions->where('type', WalletTransactionType::Debit)->sum('amount');
+
+        $topBalances = Guest::query()
+            ->where('wallet_balance', '>', 0)
+            ->orderByDesc('wallet_balance')
+            ->limit(5)
+            ->get()
+            ->map(fn (Guest $guest) => ['guest' => $guest->name, 'balance_toman' => (int) $guest->wallet_balance]);
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'credited_toman' => $credited,
+            'debited_toman' => $debited,
+            'net_toman' => $credited - $debited,
+            'top_balances' => $topBalances->all(),
         ];
     }
 
