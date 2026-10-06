@@ -257,6 +257,11 @@ trait HasAiAssistantEngine
             - اگر کلید فنی فیلدی که کاربر با نامش (مثل «دپارتمان» یا «پیشرفت») به آن اشاره کرده را نمی‌دانی، اول get_form_template_fields را برای آن فرم صدا بزن تا کلیدهای فنی و - برای فیلدهای جدولی - ستون‌های واقعی آن را ببینی؛ هیچ‌وقت کلید فنی را حدس نزن.
             - برای آنالیز چند سابمیشن با هم (مثلاً «همهٔ صورتجلسه‌های واحد دیجیتال مارکتینگ رو آنالیز کن»)، از search_form_submissions با include_answers=true استفاده کن تا مقادیر همهٔ فیلدها - از جمله کل ردیف‌های فیلدهای جدولی - یک‌جا برایت بیاید؛ برای یک سابمیشن مشخص با شناسه از summarize_submission_for_decision استفاده کن.
             - دسته‌بندی و تحلیل کیفی ردیف‌های جدول (مثلاً «کدام کار تمام شده، کدام نیمه‌کاره، کدام شروع نشده») کار خودت است، نه ابزار - این تحلیل را بر اساس عنوان واقعی ستون‌هایی که get_form_template_fields/include_answers برگرداندند انجام بده، نه بر اساس فرض یا حدس دربارهٔ معنای یک ستون.
+
+            دربارهٔ پیگیری فرم‌های عقب‌افتاده و گزارش عملکرد (مهم - این دقیقاً جایی است که مدیر می‌خواهد بداند با چه کسی باید پیگیری کند، نه فقط یک عدد):
+            - وقتی مدیر می‌پرسد «کدام کارمند/مسئول فرمی را که باید تایید می‌کرد هنوز تایید نکرده»، «چه چیزی از مهلتش گذشته»، یا «با چه کسی باید پیگیری کنم»، هیچ‌وقت فقط به get_form_submissions_summary بسنده نکن - آن فقط یک عدد کلی (sla_breached_count) می‌دهد، بدون اسم. حتماً get_breached_sla_submissions را صدا بزن تا اسم دقیق مسئول (یا مسئولان) هر درخواست، فرم، و میزان تأخیرش را بگیری و در پاسخ بیاوری.
+            - اگر سؤال دربارهٔ یک فرم تکرارشونده/روزانه است که خودِ کارمند باید آن را پر می‌کرد (نه اینکه منتظر تاییدِ کسی دیگر باشد؛ مثل چک‌لیست روزانه)، به‌جای get_breached_sla_submissions از get_daily_checklist_compliance استفاده کن - آن ابزار برای «پرنشدن» است، این یکی برای «تاییدنشدن».
+            - برای یک گزارش عملکرد کامل و دقیق، می‌توانی get_breached_sla_submissions و get_daily_checklist_compliance را با get_approver_performance (نرخ رد/تایید و سرعت هر فرد در طول زمان) ترکیب کنی تا هم وضعیت فعلی (چه کسی الان عقب افتاده) و هم روند کلی (چه کسی به‌طور معمول کند/سریع عمل می‌کند) را یک‌جا بدهی.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -365,6 +370,7 @@ trait HasAiAssistantEngine
             'search_form_submissions' => $this->searchFormSubmissionsTool($arguments),
             'summarize_submission_for_decision' => $this->summarizeSubmissionTool($arguments),
             'get_at_risk_sla_submissions' => $this->atRiskSlaSubmissionsTool(),
+            'get_breached_sla_submissions' => $this->breachedSlaSubmissionsTool($arguments),
             'get_workflow_health_check' => $this->workflowHealthCheckTool(),
             'add_field_to_form_template' => $this->addFieldToFormTemplateTool($arguments),
             'update_workflow_step' => $this->updateWorkflowStepTool($arguments),
@@ -473,6 +479,16 @@ trait HasAiAssistantEngine
             ]);
 
             $tools[] = $this->toolSchema('get_at_risk_sla_submissions', 'Get in-progress approvals that have NOT yet breached their current step\'s SLA but are close to it (70%+ of the allotted time elapsed) - a preventive warning before list_alerts/get_form_submissions_summary would flag them as already breached.', $noParams);
+
+            $tools[] = $this->toolSchema('get_breached_sla_submissions', 'Get in-progress approvals that have ALREADY breached their current step\'s SLA deadline, each with WHO is responsible for acting on it right now (the current approver(s) by name), the form, the submitter, the department, and how many hours overdue. Use this - never just get_form_submissions_summary\'s plain sla_breached_count - for questions like "which employee/manager hasn\'t approved something they were supposed to" or "who do I need to follow up with". For a recurring/daily self-submission form (not an approval bottleneck), use get_daily_checklist_compliance instead.', [
+                'type' => 'object',
+                'properties' => [
+                    'form_template_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one form to scope to; omit to check every form'],
+                    'approver_name' => ['type' => 'string', 'description' => 'Optional - name (or partial name) of one responsible approver to scope to; omit to check everyone'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results, most overdue first - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
 
             $tools[] = $this->toolSchema('get_workflow_health_check', 'Find structural misconfigurations in active form approval workflows: a step whose specific approver user no longer exists, a role-based step whose role has no members, an active workflow with zero steps, or a form needing "department manager" approval whose department has no manager set.', $noParams);
         }
@@ -1915,6 +1931,80 @@ trait HasAiAssistantEngine
         }
 
         return ['at_risk_count' => $items->count(), 'items' => $items->all()];
+    }
+
+    /**
+     * The actionable counterpart to get_form_submissions_summary's plain
+     * sla_breached_count - that count alone was the exact gap a manager
+     * hit asking "which employee/manager hasn't approved something they
+     * should have, so I can follow up with them": a number with nobody's
+     * name attached. This resolves each breached step's real responsible
+     * approver(s) (currentApprovers() already handles specific_user/role/
+     * department_manager resolution) so the model can actually name who
+     * to go talk to, not just how many are stuck.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    private function breachedSlaSubmissionsTool(array $arguments): array
+    {
+        $formNameFilter = trim((string) ($arguments['form_template_name'] ?? ''));
+        $approverNameFilter = trim((string) ($arguments['approver_name'] ?? ''));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $items = WorkflowInstance::query()
+            ->where('status', WorkflowInstanceStatus::InProgress)
+            ->where('subject_type', FormSubmission::class)
+            ->with(['currentStep', 'subject.formTemplate', 'subject.submitter', 'subject.department'])
+            ->get()
+            ->map(function (WorkflowInstance $instance) {
+                $slaHours = $instance->currentStep?->sla_hours;
+
+                if (! $slaHours) {
+                    return null;
+                }
+
+                // Rounded to a whole hour: diffInHours() returns a precise
+                // float in this Carbon version, and a manager asking "how
+                // many hours overdue" has no use for sub-hour fractions.
+                $elapsedHours = (int) round($instance->updated_at->diffInHours(now()));
+
+                if ($elapsedHours <= $slaHours) {
+                    return null;
+                }
+
+                $submission = $instance->subject;
+
+                return [
+                    'submission_id' => $submission?->id,
+                    'reference_code' => $submission?->reference_code,
+                    'form' => $submission?->formTemplate?->title,
+                    'step' => $instance->currentStep?->name,
+                    'submitted_by' => $submission?->submitter?->name,
+                    'department' => $submission?->department?->name,
+                    'responsible_approvers' => $instance->currentApprovers()->pluck('name')->all(),
+                    'sla_hours' => $slaHours,
+                    'overdue_hours' => $elapsedHours - $slaHours,
+                ];
+            })
+            ->filter()
+            // ->map() above turns this into a plain Support Collection (the
+            // mapped items are arrays, not models), not the Eloquent
+            // Collection the query started as - no type hint here, since
+            // declaring either one would reject the other at runtime.
+            ->when($formNameFilter !== '', fn ($collection) => $collection->filter(
+                fn (array $item) => mb_stripos((string) $item['form'], $formNameFilter) !== false
+            ))
+            ->when($approverNameFilter !== '', fn ($collection) => $collection->filter(
+                fn (array $item) => collect($item['responsible_approvers'])->contains(fn (string $name) => mb_stripos($name, $approverNameFilter) !== false)
+            ))
+            ->sortByDesc('overdue_hours')
+            ->values();
+
+        if ($items->isEmpty()) {
+            return ['message' => 'در حال حاضر هیچ درخواست در حال تاییدی وجود ندارد که از مهلت (SLA) مرحلهٔ فعلی‌اش گذشته باشد.'];
+        }
+
+        return ['breached_count' => $items->count(), 'items' => $items->take($limit)->all()];
     }
 
     private function workflowHealthCheckTool(): array

@@ -395,6 +395,75 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
         $this->assertSame(1, $payload['at_risk_count']);
     }
 
+    /**
+     * The regression this tool exists for: get_form_submissions_summary's
+     * sla_breached_count alone never named who to follow up with - this
+     * must resolve and return the actual responsible approver's name.
+     */
+    public function test_breached_sla_submissions_names_the_responsible_approver_and_hours_overdue(): void
+    {
+        AiProvider::factory()->active()->create();
+        $approver = User::factory()->create(['name' => 'نرگس احمدی']);
+        $template = FormTemplate::factory()->create(['title' => 'درخواست مرخصی']);
+        $step = WorkflowStep::factory()->create([
+            'sla_hours' => 1,
+            'approver_type' => ApproverType::SpecificUser,
+            'approver_user_id' => $approver->id,
+        ]);
+        $submission = FormSubmission::factory()->create([
+            'form_template_id' => $template->id,
+            'status' => FormSubmissionStatus::PendingApproval,
+        ]);
+        $instance = WorkflowInstance::factory()->create([
+            'subject_id' => $submission->id,
+            'current_step_id' => $step->id,
+        ]);
+        // 1-hour SLA, 3 hours elapsed since the instance last moved to this
+        // step - clearly already breached, not just at-risk.
+        DB::table('workflow_instances')->where('id', $instance->id)->update(['updated_at' => now()->subHours(3)]);
+
+        $this->fakeToolCallThenAnswer('get_breached_sla_submissions', []);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'کدوم فرم‌ها از مهلت تاییدشون گذشته و کی باید پیگیریش کنم؟')
+            ->call('send');
+
+        $payload = $this->toolResultPayload();
+
+        $this->assertSame(1, $payload['breached_count']);
+        $this->assertSame('درخواست مرخصی', $payload['items'][0]['form']);
+        $this->assertSame(['نرگس احمدی'], $payload['items'][0]['responsible_approvers']);
+        $this->assertEquals(2, $payload['items'][0]['overdue_hours']);
+    }
+
+    public function test_breached_sla_submissions_can_be_scoped_to_one_approver_and_excludes_others(): void
+    {
+        AiProvider::factory()->active()->create();
+        $followedUp = User::factory()->create(['name' => 'رضا کریمی']);
+        $someoneElse = User::factory()->create(['name' => 'سارا محمدی']);
+
+        $matchingStep = WorkflowStep::factory()->create(['sla_hours' => 1, 'approver_user_id' => $followedUp->id]);
+        $matchingInstance = WorkflowInstance::factory()->create(['current_step_id' => $matchingStep->id]);
+        DB::table('workflow_instances')->where('id', $matchingInstance->id)->update(['updated_at' => now()->subHours(5)]);
+
+        $otherStep = WorkflowStep::factory()->create(['sla_hours' => 1, 'approver_user_id' => $someoneElse->id]);
+        $otherInstance = WorkflowInstance::factory()->create(['current_step_id' => $otherStep->id]);
+        DB::table('workflow_instances')->where('id', $otherInstance->id)->update(['updated_at' => now()->subHours(5)]);
+
+        $this->fakeToolCallThenAnswer('get_breached_sla_submissions', ['approver_name' => 'رضا']);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'رضا کریمی چه فرمی رو هنوز تایید نکرده؟')
+            ->call('send');
+
+        $payload = $this->toolResultPayload();
+
+        $this->assertSame(1, $payload['breached_count']);
+        $this->assertSame(['رضا کریمی'], $payload['items'][0]['responsible_approvers']);
+    }
+
     public function test_workflow_health_check_flags_a_role_step_with_no_members(): void
     {
         AiProvider::factory()->active()->create();
