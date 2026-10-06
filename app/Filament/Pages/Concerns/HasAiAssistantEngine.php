@@ -7,14 +7,27 @@ use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Enums\DealSource;
+use App\Enums\DealStage;
 use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
+use App\Enums\LoyaltyTier;
 use App\Enums\ProjectStatus;
 use App\Enums\RoomStatus;
+use App\Enums\SeoBusinessValue;
+use App\Enums\SeoCannibalizationRisk;
+use App\Enums\SeoContentItemStatus;
+use App\Enums\SeoKeywordTrend;
+use App\Enums\SeoOpportunityPriority;
+use App\Enums\SeoOpportunityStatus;
+use App\Enums\SeoSearchIntent;
+use App\Enums\SeoTechnicalAuditStatus;
+use App\Enums\SeoTechnicalIssueSeverity;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Enums\TicketStatus;
+use App\Enums\WalletTransactionType;
 use App\Enums\WorkflowActionType;
 use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
@@ -32,6 +45,8 @@ use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
+use App\Models\Guest;
+use App\Models\GuestFeedback;
 use App\Models\GuestTicket;
 use App\Models\Project;
 use App\Models\ProjectExpense;
@@ -39,8 +54,18 @@ use App\Models\ProjectPhase;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
+use App\Models\SeoContentItem;
+use App\Models\SeoDailyMetric;
+use App\Models\SeoKeywordProfile;
+use App\Models\SeoKeywordRankCheck;
+use App\Models\SeoOpportunity;
+use App\Models\SeoOpportunityOutcome;
+use App\Models\SeoProject;
+use App\Models\SeoTechnicalAuditIssue;
+use App\Models\SeoTrackedKeyword;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WalletTransaction;
 use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
@@ -311,6 +336,32 @@ trait HasAiAssistantEngine
             - get_project_health_summary فقط درصد EVM همهٔ پروژه‌های فعال را یک‌جا می‌دهد. برای جزئیات کامل یک پروژهٔ مشخص (بودجه، هزینهٔ واقعی، مسیر بحرانی) از get_project_detail با نام همان پروژه استفاده کن.
             - وقتی سؤال دربارهٔ «چرا پروژه عقب افتاده» است، نه فقط «چقدر عقب افتاده»، از get_overdue_project_phases استفاده کن تا دقیقاً مشخص شود کدام فاز/بخش کار عقب است.
             - برای مقایسهٔ بودجه و هزینهٔ واقعی (نه درصد EVM انتزاعی) از get_project_budget_summary، و برای دیدن ریز هزینه‌های یک پروژهٔ مشخص از get_project_expenses استفاده کن.
+
+            دربارهٔ گزارش‌های CRM و مشتریان:
+            - وقتی کاربر اسم یک مشتری یا شمارهٔ موبایلش را می‌گوید، از get_guest_detail استفاده کن تا یک نمای کامل (سطح وفاداری، RFM، کیف پول، معاملات و تیکت‌های باز، آخرین بازخورد) بگیری؛ برای فیلتر/فهرست‌کردن چند مشتری (مثلاً «مشتریان VIP») از search_guests استفاده کن.
+            - get_crm_summary فقط یک عدد کلی (sla_breached_tickets) برای تیکت‌های عقب‌افتاده می‌دهد. وقتی کاربر می‌پرسد «کدام تیکت از مهلتش گذشته» یا «با کدام مشتری باید پیگیری کنم»، حتماً get_breached_support_tickets را صدا بزن تا موضوع تیکت، اسم مشتری و میزان تأخیر را بگیری.
+            - برای عملکرد فروش هر کارشناس (پایپ‌لاین باز، نرخ موفقیت) از get_deals_by_assignee، و برای اینکه مشتری‌ها از کجا می‌آیند (حضوری/آنلاین/معرفی و...) از get_deal_source_breakdown استفاده کن.
+            - برای فهرست مشتریان برتر/پرارزش (برای تماس قدردانی یا پیشنهاد ویژه) از get_top_guests_by_value استفاده کن.
+            - برای رضایت مشتری (NPS) از get_guest_satisfaction_summary، و برای وضعیت کیف پول/کش‌بک مشتریان از get_wallet_activity_summary استفاده کن.
+
+            دربارهٔ گزارش‌های مرکز سئو:
+            - اگر فقط یک پروژهٔ سئو در سیستم تعریف شده باشد، نیازی به پرسیدن نام پروژه از کاربر نیست - پارامتر seo_project_name را خالی بگذار، خود ابزار آن را به‌صورت خودکار انتخاب می‌کند. اگر چند پروژه وجود داشته باشد و ابزار خطای ابهام برگرداند، لیست available_projects را به کاربر نشان بده و نام دقیق را بپرس.
+            - برای سؤال کلی «وضعیت سئو چطوره» از get_seo_overview شروع کن (نقطهٔ ورود)، نه یک ابزار جزئی‌تر.
+            - get_seo_overview فقط عدد آخرین روز را می‌دهد. برای روند چند روزه/چند هفته‌ای از get_seo_traffic_trend استفاده کن.
+            - برای «کدوم عبارت/صفحه بیشترین ترافیک رو میاره» به ترتیب از get_seo_top_queries و get_seo_top_pages استفاده کن؛ این‌ها با get_seo_keyword_rankings فرق دارند - آن یکی وضعیت کلیدواژه‌های ردیابی‌شده (رتبه، روند، ریسک کنیبالیزیشن) را می‌دهد، نه ترافیک واقعی.
+            - وقتی کاربر اسم یک کلیدواژهٔ خاص را می‌گوید («رتبه ویلا در همدان چطور بوده»)، از get_seo_keyword_rank_history استفاده کن، نه get_seo_keyword_rankings.
+            - get_seo_open_opportunities فرصت‌های کشف‌شده را می‌دهد؛ get_seo_opportunity_outcomes_summary نشان می‌دهد آیا اقدام روی آن فرصت‌ها واقعاً نتیجه داده یا نه - این دو را گاهی با هم ترکیب کن تا هم «چیکار باید کرد» و هم «قبلاً جواب داده یا نه» را پوشش بدهی.
+            - get_seo_technical_audit_summary فقط روی آخرین ممیزیِ تکمیل‌شده کار می‌کند؛ اگر چیزی برنگرداند یعنی هنوز ممیزی فنی کامل نشده.
+            - get_seo_content_calendar_status آیتم‌های عقب‌افتادهٔ تقویم محتوا را با اسم مسئولشان می‌دهد، نه فقط عدد.
+            - get_seo_rank_movers تغییرات واقعی رتبه (بهبود/افت) را در یک بازه نشان می‌دهد؛ برای «چی بهتر/بدتر شده» از همین استفاده کن، نه get_seo_keyword_rankings که فقط وضعیت فعلی را می‌دهد.
+
+            دربارهٔ گزارش‌های حضور و غیاب:
+            - get_attendance_summary فقط عدد کل این ماه را می‌دهد. وقتی کاربر می‌پرسد «امروز کیا نیومدن» یا «کیا هنوز ورود نزدن»، هیچ‌وقت منتظر همان ابزار نمان - حتماً get_not_checked_in_today را صدا بزن؛ این ابزار زنده کار می‌کند و نیازی به اجرای جاب پایان‌روز غیبت ندارد.
+            - برای وضعیت ماهانهٔ هرکس به تفکیک (نه فقط لیست پرتأخیرترین‌ها) از get_attendance_by_user، و برای مقایسهٔ دپارتمان‌ها با هم از get_department_attendance_summary استفاده کن.
+            - get_missing_checkouts کسانی را نشان می‌دهد که ورود زده‌اند ولی خروج نزده‌اند (هر تاریخی، نه فقط امروز) - ساعت کارکردشان محاسبه نشده است.
+            - get_overtime_undertime_summary ساعت کارکرد واقعی را با ساعت شیفت مقایسه می‌کند؛ برای «کی کم‌کاری/اضافه‌کاری داشته» از این استفاده کن، نه get_attendance_summary.
+            - get_unusual_device_checkins صرفاً یک هشدار برای بررسی توسط منابع انسانی است (دستگاه ورود با دفعهٔ قبل فرق کرده)، نه مدرکی قطعی بر تخلف - همیشه این محدودیت را به کاربر یادآوری کن.
+            - برای روند حضور (بهتر/بدتر شدن نسبت به ماه قبل) از get_attendance_trend استفاده کن؛ می‌تواند به یک دپارتمان مشخص هم محدود شود.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -409,12 +460,39 @@ trait HasAiAssistantEngine
             'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
             'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
+            'get_guest_detail' => $this->guestDetailTool($arguments),
+            'search_guests' => $this->searchGuestsTool($arguments),
+            'get_breached_support_tickets' => $this->breachedSupportTicketsTool($arguments),
+            'get_deals_by_assignee' => $this->dealsByAssigneeTool($arguments),
+            'get_deal_source_breakdown' => $this->dealSourceBreakdownTool($arguments),
+            'get_top_guests_by_value' => $this->topGuestsByValueTool($arguments),
+            'get_guest_satisfaction_summary' => $this->guestSatisfactionSummaryTool($arguments),
+            'get_wallet_activity_summary' => $this->walletActivitySummaryTool($arguments),
+            'get_seo_overview' => $this->seoOverviewTool($arguments),
+            'get_seo_traffic_trend' => $this->seoTrafficTrendTool($arguments),
+            'get_seo_top_queries' => $this->seoTopQueriesTool($arguments),
+            'get_seo_top_pages' => $this->seoTopPagesTool($arguments),
+            'get_seo_keyword_rankings' => $this->seoKeywordRankingsTool($arguments),
+            'get_seo_keyword_rank_history' => $this->seoKeywordRankHistoryTool($arguments),
+            'get_seo_open_opportunities' => $this->seoOpenOpportunitiesTool($arguments),
+            'get_seo_opportunity_outcomes_summary' => $this->seoOpportunityOutcomesSummaryTool($arguments),
+            'get_seo_technical_audit_summary' => $this->seoTechnicalAuditSummaryTool($arguments),
+            'get_seo_content_calendar_status' => $this->seoContentCalendarStatusTool($arguments),
+            'get_seo_rank_movers' => $this->seoRankMoversTool($arguments),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
             'get_project_detail' => $this->projectDetailTool($arguments),
             'get_overdue_project_phases' => $this->overdueProjectPhasesTool($arguments),
             'get_project_budget_summary' => ['projects' => $this->projectBudgetSummaryTool()],
             'get_project_expenses' => $this->projectExpensesTool($arguments),
             'get_attendance_summary' => $this->attendanceSummary(),
+            'search_attendance_records' => $this->searchAttendanceRecordsTool($arguments),
+            'get_not_checked_in_today' => $this->notCheckedInTodayTool(),
+            'get_attendance_by_user' => $this->attendanceByUserTool($arguments),
+            'get_department_attendance_summary' => $this->departmentAttendanceSummaryTool(),
+            'get_unusual_device_checkins' => $this->unusualDeviceCheckinsTool($arguments),
+            'get_missing_checkouts' => $this->missingCheckoutsTool(),
+            'get_overtime_undertime_summary' => $this->overtimeUndertimeSummaryTool($arguments),
+            'get_attendance_trend' => $this->attendanceTrendTool($arguments),
             'get_task_summary' => $this->taskSummary(),
             'search_tasks' => $this->searchTasksTool($arguments),
             'get_overdue_tasks' => $this->overdueTasksTool($arguments),
@@ -518,6 +596,165 @@ trait HasAiAssistantEngine
                 'required' => [],
             ]);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
+            $tools[] = $this->toolSchema('get_guest_detail', 'Get a full 360 view of ONE specific customer by name or mobile number: contact info, loyalty tier, RFM (recency/frequency/lifetime value), wallet balance, open deals, open support tickets, and latest feedback - use when the user names a specific customer, e.g. "مشتری رضا کریمی چه وضعیتی داره".', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Partial or full customer name, or their mobile number'],
+                ],
+                'required' => ['guest_name'],
+            ]);
+            $tools[] = $this->toolSchema('search_guests', 'Search/list customers by name, mobile, loyalty tier, or minimum completed-stay count - use to find a specific customer or list a segment, e.g. "مشتریان VIP رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'name' => ['type' => 'string', 'description' => 'Partial or full customer name'],
+                    'mobile' => ['type' => 'string', 'description' => 'Partial or full mobile number'],
+                    'loyalty_tier' => ['type' => 'string', 'enum' => ['bronze', 'silver', 'gold', 'vip']],
+                    'min_completed_stays' => ['type' => 'integer', 'description' => 'Only customers with at least this many completed stays'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_breached_support_tickets', 'Get support tickets that have ALREADY breached their SLA deadline - subject, customer name, priority, hours overdue - not just the count get_crm_summary gives. Optionally scope to one customer.', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Optional - partial or full customer name to scope to; omit to list every breached ticket'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_deals_by_assignee', 'Get per-sales-rep pipeline stats: open deal count, open pipeline value, won count, and win rate - grouped by the assigned user. Optionally scope to one person. Use for "عملکرد فروش کی بهتره".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one sales rep to scope to; omit to list every assignee'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_deal_source_breakdown', 'Get deal count, total value, and win rate broken down by lead source (walk-in, phone, website, referral, social media, other), for this or last Jalali month - use for "بیشتر مشتری‌ها از کجا میان".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_top_guests_by_value', 'Get the top customers ranked by lifetime value (completed-stay spend), with their loyalty tier and stay count - use for "مشتریان برتر/VIP رو نشون بده" or targeted outreach lists.', [
+                'type' => 'object',
+                'properties' => [
+                    'limit' => ['type' => 'integer', 'description' => 'How many top customers to return - defaults to 10, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_guest_satisfaction_summary', 'Get the NPS (Net Promoter Score) breakdown from submitted guest feedback - promoter/passive/detractor counts, average score, and the NPS score itself - for this or last Jalali month. Use for "رضایت مشتری‌ها چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_wallet_activity_summary', 'Get total wallet credit/debit activity (cashback and spend) across all customers for this or last Jalali month, plus the customers with the highest current wallet balances.', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+
+            // All seo_project_name parameters below: optional when there's
+            // exactly one SEO project in the system (the common case), but
+            // required to disambiguate once there is more than one.
+            $tools[] = $this->toolSchema('get_seo_overview', 'Get a snapshot of ONE SEO project\'s current health: Google Search Console connection status, latest daily clicks/impressions/CTR/average position, open opportunity count, latest technical audit score, and content items by status. The entry-point SEO tool - start here for general "سئو چطوره" questions.', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_traffic_trend', 'Get the daily Search Console clicks/impressions/CTR/average-position series for the last N days, plus the percent change in total clicks vs the equal-length period before it. Use for "ترافیک سایت این مدت چطور بوده" / "روند کلیک‌ها".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 30, min 7, max 90'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_top_queries', 'Get the top search queries (Google Search Console) ranked by clicks or impressions over the last N days, with average position and CTR each. Use for "کدوم عبارت‌های جستجو بیشترین کلیک رو میارن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 28, max 90'],
+                    'order_by' => ['type' => 'string', 'enum' => ['clicks', 'impressions'], 'description' => 'Defaults to clicks'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max queries to return - defaults to 15, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_top_pages', 'Get the top landing pages (Google Search Console) ranked by clicks over the last N days, with impressions and average position each. Use for "کدوم صفحه‌ها بیشترین ترافیک رو میگیرن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 28, max 90'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max pages to return - defaults to 15, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_keyword_rankings', 'Get tracked/profiled keywords with their current & previous position, trend, business value, search intent, and cannibalization risk - filterable by any of those. Use for "کلیدواژه‌هامون چه وضعیتی دارن" or "کدوم کلیدواژه‌ها ریسک کنیبالیزیشن دارن".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'trend' => ['type' => 'string', 'enum' => ['rising', 'falling', 'stable', 'new']],
+                    'business_value' => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
+                    'cannibalization_risk' => ['type' => 'string', 'enum' => ['none', 'possible', 'high']],
+                    'intent' => ['type' => 'string', 'enum' => ['informational', 'commercial', 'transactional', 'navigational', 'local']],
+                    'limit' => ['type' => 'integer', 'description' => 'Max keywords to return - defaults to 30, max 100'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_keyword_rank_history', 'Get the day-by-day Google rank-tracker position history for ONE specific tracked keyword, over the last N days - use when the user names a specific keyword, e.g. "رتبه ویلا در همدان چطور بوده".', [
+                'type' => 'object',
+                'properties' => [
+                    'keyword' => ['type' => 'string', 'description' => 'Partial or full tracked keyword text'],
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include - defaults to 30, max 180'],
+                ],
+                'required' => ['keyword'],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_open_opportunities', 'Get AI-detected SEO opportunities not yet resolved/dismissed - type, title, priority, confidence, the affected query/page, and recommended actions - plus a count by type. Use for "چه فرصت‌های سئویی داریم" / "چیکار باید بکنیم برای سئو".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'priority' => ['type' => 'string', 'enum' => ['high', 'medium', 'low']],
+                    'limit' => ['type' => 'integer', 'description' => 'Max opportunities to return - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_opportunity_outcomes_summary', 'Get how many resolved SEO opportunities actually improved/stayed unchanged/declined afterward (measured outcome, not just "we worked on it") - use for "آیا اقدامات سئو جواب داده" / measuring whether acting on opportunities actually helped.', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_technical_audit_summary', 'Get the latest completed technical SEO audit: overall score, performance score, Core Web Vitals, pages scanned, issue counts by severity, and the specific URLs with CRITICAL issues. Use for "وضعیت فنی سایت چطوره" / "چه مشکلات فنی داریم".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_content_calendar_status', 'Get SEO content-calendar items grouped by status (idea/planned/writing/published/needs update), plus overdue items by name with their assignee - not just a count. Optionally scope to one assignee. Use for "تقویم محتوای سئو چه وضعیتی داره".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'assignee_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one content assignee to scope to'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_seo_rank_movers', 'Get which tracked keywords moved the most in Google rank position over the last N days, split into improved vs declined - use for "چه کلیدواژه‌هایی اخیراً رتبه‌شون بهتر/بدتر شده".', [
+                'type' => 'object',
+                'properties' => [
+                    'seo_project_name' => ['type' => 'string', 'description' => 'Partial or full SEO project name - optional if only one project exists'],
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to compare - defaults to 7, max 90'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max keywords per direction (improved/declined) - defaults to 15, max 50'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
             $tools[] = $this->toolSchema('get_project_detail', 'Get full detail on ONE specific project by name: status, budget vs actual cost, EV/PV/CV/SV, and its critical-path phase titles in order - use when the user names a specific project, e.g. "پروژه وب‌سایت جدید چطوره".', [
                 'type' => 'object',
@@ -543,6 +780,49 @@ trait HasAiAssistantEngine
                 'required' => ['project_name'],
             ]);
             $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
+            $tools[] = $this->toolSchema('search_attendance_records', 'Search/list attendance records by employee name, status, department, or date range - use to find specific records or list a filtered set, e.g. "رکوردهای غیبت رضا رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Partial or full employee name'],
+                    'status' => ['type' => 'string', 'enum' => ['incomplete', 'on_time', 'late', 'absent']],
+                    'department_name' => ['type' => 'string', 'description' => 'Partial or full department name'],
+                    'date_from' => ['type' => 'string', 'description' => 'Earliest date, format YYYY-MM-DD (Gregorian)'],
+                    'date_to' => ['type' => 'string', 'description' => 'Latest date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_not_checked_in_today', 'Get the detailed, LIVE list of active employees with an assigned work shift who have NOT checked in yet today - by name, not just a count. Unlike get_attendance_summary, this works mid-day, before the end-of-day "absent" records are generated. Use for "امروز کیا نیومدن" / "کیا هنوز ورود نزدن".', $noParams);
+            $tools[] = $this->toolSchema('get_attendance_by_user', 'Get this calendar month\'s attendance broken down per employee: on-time/late/absent day counts, total late minutes, total worked hours, and attendance rate - ranked worst attendance rate first. Optionally scope to one employee. Use for "وضعیت حضور هرکس این ماه چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one employee to scope to; omit to list everyone'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_department_attendance_summary', 'Get this calendar month\'s attendance broken down per department: on-time rate, late days, absent days, average lateness - ranked worst on-time rate first. Use for "کدام دپارتمان بدترین وضعیت حضور رو داره".', $noParams);
+            $tools[] = $this->toolSchema('get_unusual_device_checkins', 'Get recent check-ins flagged because the employee checked in from a device fingerprint different from their usual one (AttendanceRecord::isDeviceUnusual) - a heads-up for HR to review, not proof of anything improper on its own.', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many past days to scan - defaults to 7, max 30'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_missing_checkouts', 'Get attendance records where the employee checked in but never checked out (any date, not just today) - forgotten checkouts that leave worked_minutes uncalculated. Use for "چه کسی چک‌اوت نزده".', $noParams);
+            $tools[] = $this->toolSchema('get_overtime_undertime_summary', 'Get this calendar month\'s actual worked hours vs each employee\'s expected shift hours, and the difference - negative means undertime, positive means overtime - ranked most-undertime first. Optionally scope to one employee.', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one employee to scope to; omit to list everyone'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_attendance_trend', 'Compare on-time/late/absent counts and on-time rate between this and last calendar month - company-wide or scoped to one department. Use for "وضعیت حضور این ماه نسبت به ماه قبل چطور شده".', [
+                'type' => 'object',
+                'properties' => [
+                    'department_name' => ['type' => 'string', 'description' => 'Optional - partial or full department name to scope to; omit for company-wide'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams);
             $tools[] = $this->toolSchema('search_tasks', 'Search/list tasks by assignee name, status, priority, department, or due date range - use to find specific tasks or list a filtered set, e.g. "کارهای باز رضا رو نشون بده".', [
                 'type' => 'object',
@@ -815,6 +1095,13 @@ trait HasAiAssistantEngine
                 'تأخیر' => $result['late_count'] ?? 0,
                 'غیبت' => $result['absent_count'] ?? 0,
             ]),
+            'get_attendance_by_user' => $this->chartFromRows('bar', 'مجموع دقایق تأخیر به تفکیک کارمند', $result['users'] ?? [], 'user', 'total_late_minutes'),
+            'get_department_attendance_summary' => $this->chartFromRows('bar', 'نرخ به‌موقع بودن به تفکیک دپارتمان (٪)', $result['departments'] ?? [], 'department', 'on_time_rate_percent'),
+            'get_overtime_undertime_summary' => $this->chartFromRows('bar', 'اختلاف ساعت کارکرد واقعی با شیفت (ساعت)', $result['users'] ?? [], 'user', 'difference_hours'),
+            'get_attendance_trend' => $this->chartFromCounts('bar', 'نرخ به‌موقع بودن: این ماه در برابر ماه قبل (٪)', [
+                'این ماه' => $result['comparison']['این ماه']['on_time_rate_percent'] ?? 0,
+                'ماه قبل' => $result['comparison']['ماه قبل']['on_time_rate_percent'] ?? 0,
+            ]),
             'get_accommodation_summary' => $this->chartFromCounts('doughnut', 'وضعیت اتاق‌ها', [
                 'اشغال' => $result['occupied'] ?? 0,
                 'خالی' => $result['available'] ?? 0,
@@ -829,6 +1116,28 @@ trait HasAiAssistantEngine
             'get_project_budget_summary' => $this->chartFromRows('bar', 'درصد بودجهٔ مصرف‌شده به تفکیک پروژه (٪)', $result['projects'] ?? [], 'title', 'percent_spent'),
             'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
             'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
+            'get_breached_support_tickets' => $this->chartFromRows('bar', 'میزان تاخیر تیکت‌ها از مهلت SLA (ساعت)', $result['tickets'] ?? [], 'subject', 'overdue_hours'),
+            'get_deals_by_assignee' => $this->chartFromRows('bar', 'ارزش پایپ‌لاین باز به تفکیک کارشناس فروش (تومان)', $result['assignees'] ?? [], 'user', 'open_pipeline_value_toman'),
+            'get_deal_source_breakdown' => $this->chartFromRows('bar', 'ارزش معاملات به تفکیک منبع (تومان)', $result['sources'] ?? [], 'source', 'value_toman'),
+            'get_top_guests_by_value' => $this->chartFromRows('bar', 'ارزش طول عمر مشتری (تومان)', $result['guests'] ?? [], 'name', 'lifetime_value_toman'),
+            'get_guest_satisfaction_summary' => $this->chartFromCounts('doughnut', 'بازخورد مشتریان (NPS)', [
+                'حامی' => $result['promoters'] ?? 0,
+                'خنثی' => $result['passives'] ?? 0,
+                'منتقد' => $result['detractors'] ?? 0,
+            ]),
+            'get_wallet_activity_summary' => $this->chartFromCounts('bar', 'واریز و برداشت کیف پول (تومان)', [
+                'واریز' => $result['credited_toman'] ?? 0,
+                'برداشت' => $result['debited_toman'] ?? 0,
+            ]),
+            'get_seo_traffic_trend' => $this->chartFromRows('bar', 'کلیک روزانه (Search Console)', $result['daily'] ?? [], 'date', 'clicks'),
+            'get_seo_top_queries' => $this->chartFromRows('bar', 'کلیک به تفکیک عبارت جستجو', $result['queries'] ?? [], 'query', 'clicks'),
+            'get_seo_top_pages' => $this->chartFromRows('bar', 'کلیک به تفکیک صفحه', $result['pages'] ?? [], 'page_url', 'clicks'),
+            'get_seo_keyword_rankings' => $this->chartFromRows('bar', 'کلیک ۲۸ روز اخیر به تفکیک کلیدواژه', $result['keywords'] ?? [], 'query', 'clicks_28d'),
+            'get_seo_keyword_rank_history' => $this->chartFromRows('bar', 'جایگاه در گوگل به تفکیک روز (عدد کمتر = بهتر)', $result['history'] ?? [], 'date', 'position'),
+            'get_seo_open_opportunities' => $this->chartFromCounts('bar', 'فرصت‌های باز سئو به تفکیک نوع', $result['by_type'] ?? []),
+            'get_seo_opportunity_outcomes_summary' => $this->chartFromCounts('doughnut', 'نتیجهٔ فرصت‌های سئوی پیگیری‌شده', $result['by_verdict'] ?? []),
+            'get_seo_technical_audit_summary' => $this->chartFromCounts('bar', 'مشکلات فنی به تفکیک شدت', $result['issues_by_severity'] ?? []),
+            'get_seo_content_calendar_status' => $this->chartFromCounts('bar', 'آیتم‌های محتوای سئو به تفکیک وضعیت', $result['by_status'] ?? []),
             'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
             'get_approver_performance' => $this->chartFromRows('bar', 'نرخ رد درخواست به تفکیک تأییدکننده (٪)', $result['approvers'] ?? [], 'user', 'rejection_rate_percent'),
             'get_breached_sla_submissions' => $this->chartFromRows('bar', 'میزان تاخیر از مهلت تایید (ساعت)', $result['items'] ?? [], 'form', 'overdue_hours'),
@@ -1522,6 +1831,818 @@ trait HasAiAssistantEngine
         ];
     }
 
+    private function findGuestByName(string $name): ?Guest
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Guest::query()->where('name', $name)->first()
+            ?? Guest::query()->where('mobile', $name)->first()
+            ?? Guest::query()->where('name', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function guestDetailTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['guest_name'] ?? ''));
+        $guest = $this->findGuestByName($name);
+
+        if (! $guest) {
+            return ['error' => "مشتری‌ای با نام یا شمارهٔ «{$name}» پیدا نشد."];
+        }
+
+        $openDeals = $guest->deals()->whereNotIn('stage', [DealStage::Won, DealStage::Lost])->count();
+        $openTickets = $guest->tickets()->whereNotIn('status', [TicketStatus::Resolved, TicketStatus::Closed])->count();
+        $latestFeedback = $guest->feedbacks()->whereNotNull('submitted_at')->latest('submitted_at')->first();
+
+        return [
+            'name' => $guest->name,
+            'mobile' => $guest->mobile,
+            'email' => $guest->email,
+            'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+            'wallet_balance_toman' => (int) $guest->wallet_balance,
+            'completed_stays' => $guest->frequency(),
+            'lifetime_value_toman' => $guest->monetaryTotal(),
+            'days_since_last_stay' => $guest->recencyDays(),
+            'open_deals' => $openDeals,
+            'open_support_tickets' => $openTickets,
+            'latest_feedback_score' => $latestFeedback?->nps_score,
+            'latest_feedback_comment' => $latestFeedback?->comment,
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchGuestsTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['name'] ?? ''));
+        $mobile = trim((string) ($arguments['mobile'] ?? ''));
+        $loyaltyTier = LoyaltyTier::tryFrom((string) ($arguments['loyalty_tier'] ?? ''));
+        $minStays = max(0, (int) ($arguments['min_completed_stays'] ?? 0));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Guest::query();
+
+        if ($name !== '') {
+            $query->where('name', 'like', "%{$name}%");
+        }
+
+        if ($mobile !== '') {
+            $query->where('mobile', 'like', "%{$mobile}%");
+        }
+
+        $guests = $query->get()
+            ->filter(fn (Guest $guest) => ! $loyaltyTier || $guest->loyaltyTier() === $loyaltyTier)
+            ->filter(fn (Guest $guest) => $minStays === 0 || $guest->frequency() >= $minStays)
+            ->take($limit);
+
+        if ($guests->isEmpty()) {
+            return ['message' => 'هیچ مشتری‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $guests->count(),
+            'guests' => $guests->map(fn (Guest $guest) => [
+                'name' => $guest->name,
+                'mobile' => $guest->mobile,
+                'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+                'completed_stays' => $guest->frequency(),
+                'wallet_balance_toman' => (int) $guest->wallet_balance,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function breachedSupportTicketsTool(array $arguments): array
+    {
+        $guestName = trim((string) ($arguments['guest_name'] ?? ''));
+
+        $query = GuestTicket::query()
+            ->whereNotIn('status', [TicketStatus::Resolved, TicketStatus::Closed])
+            ->whereNotNull('sla_due_at')
+            ->where('sla_due_at', '<', now())
+            ->with('guest');
+
+        if ($guestName !== '') {
+            $query->whereHas('guest', fn ($q) => $q->where('name', 'like', "%{$guestName}%"));
+        }
+
+        $tickets = $query->orderBy('sla_due_at')->get();
+
+        if ($tickets->isEmpty()) {
+            return ['message' => 'هیچ تیکت پشتیبانی‌ای از مهلت SLA خودش نگذشته است.'];
+        }
+
+        return [
+            'breached_count' => $tickets->count(),
+            'tickets' => $tickets->map(fn (GuestTicket $ticket) => [
+                'subject' => $ticket->subject,
+                'guest' => $ticket->guest?->name,
+                'priority' => $ticket->priority->getLabel(),
+                'status' => $ticket->status->getLabel(),
+                'overdue_hours' => (int) round($ticket->sla_due_at->diffInHours(now())),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function dealsByAssigneeTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = Deal::query()->whereNotNull('assigned_to')->with('assignee');
+
+        if ($userName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $deals = $query->get();
+
+        if ($deals->isEmpty()) {
+            return ['message' => 'هیچ معامله‌ای با مسئول مشخص پیدا نشد.'];
+        }
+
+        $assignees = $deals->groupBy(fn (Deal $deal) => $deal->assignee?->name)
+            ->map(function (Collection $group, string $name) {
+                $open = $group->whereNotIn('stage', [DealStage::Won, DealStage::Lost]);
+                $won = $group->where('stage', DealStage::Won);
+                $decided = $group->whereIn('stage', [DealStage::Won, DealStage::Lost]);
+
+                return [
+                    'user' => $name,
+                    'open_deals' => $open->count(),
+                    'open_pipeline_value_toman' => (int) $open->sum('value'),
+                    'won_count' => $won->count(),
+                    'win_rate_percent' => $decided->count() > 0 ? round($won->count() / $decided->count() * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('open_pipeline_value_toman')
+            ->values();
+
+        return ['assignees' => $assignees->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function dealSourceBreakdownTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $sources = collect(DealSource::cases())
+            ->map(function (DealSource $source) use ($start, $end) {
+                $deals = Deal::query()
+                    ->where('source', $source)
+                    ->whereBetween('created_at', [$start, $end])
+                    ->get();
+
+                $decided = $deals->whereIn('stage', [DealStage::Won, DealStage::Lost]);
+                $won = $deals->where('stage', DealStage::Won);
+
+                return [
+                    'source' => $source->getLabel(),
+                    'deals' => $deals->count(),
+                    'value_toman' => (int) $deals->sum('value'),
+                    'win_rate_percent' => $decided->count() > 0 ? round($won->count() / $decided->count() * 100, 1) : 0,
+                ];
+            })
+            ->filter(fn (array $row) => $row['deals'] > 0)
+            ->values();
+
+        if ($sources->isEmpty()) {
+            return ['message' => 'در این بازه هیچ معامله‌ای ثبت نشده است.'];
+        }
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'sources' => $sources->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function topGuestsByValueTool(array $arguments): array
+    {
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 10)));
+
+        $guests = Guest::query()->get()
+            ->map(fn (Guest $guest) => [
+                'name' => $guest->name,
+                'mobile' => $guest->mobile,
+                'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
+                'completed_stays' => $guest->frequency(),
+                'lifetime_value_toman' => $guest->monetaryTotal(),
+            ])
+            ->filter(fn (array $row) => $row['lifetime_value_toman'] > 0)
+            ->sortByDesc('lifetime_value_toman')
+            ->take($limit)
+            ->values();
+
+        if ($guests->isEmpty()) {
+            return ['message' => 'هنوز هیچ مشتری‌ای اقامت تسویه‌شده‌ای ندارد.'];
+        }
+
+        return ['guests' => $guests->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function guestSatisfactionSummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $feedback = GuestFeedback::query()
+            ->whereNotNull('submitted_at')
+            ->whereNotNull('nps_score')
+            ->whereBetween('submitted_at', [$start, $end])
+            ->get();
+
+        if ($feedback->isEmpty()) {
+            return ['message' => 'در این بازه هیچ بازخورد امتیازدهی‌شده‌ای ثبت نشده است.'];
+        }
+
+        $promoters = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'promoter')->count();
+        $passives = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'passive')->count();
+        $detractors = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'detractor')->count();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'responses' => $feedback->count(),
+            'average_score' => round((float) $feedback->avg('nps_score'), 1),
+            'promoters' => $promoters,
+            'passives' => $passives,
+            'detractors' => $detractors,
+            // Standard NPS formula: %promoters - %detractors, on a -100..100 scale.
+            'nps_score' => round(($promoters - $detractors) / $feedback->count() * 100, 1),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function walletActivitySummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $transactions = WalletTransaction::query()->whereBetween('created_at', [$start, $end])->get();
+
+        if ($transactions->isEmpty()) {
+            return ['message' => 'در این بازه هیچ تراکنش کیف پولی ثبت نشده است.'];
+        }
+
+        $credited = (int) $transactions->where('type', WalletTransactionType::Credit)->sum('amount');
+        $debited = (int) $transactions->where('type', WalletTransactionType::Debit)->sum('amount');
+
+        $topBalances = Guest::query()
+            ->where('wallet_balance', '>', 0)
+            ->orderByDesc('wallet_balance')
+            ->limit(5)
+            ->get()
+            ->map(fn (Guest $guest) => ['guest' => $guest->name, 'balance_toman' => (int) $guest->wallet_balance]);
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'credited_toman' => $credited,
+            'debited_toman' => $debited,
+            'net_toman' => $credited - $debited,
+            'top_balances' => $topBalances->all(),
+        ];
+    }
+
+    /**
+     * Resolves a seo_project_name argument to its SeoProject - auto-picking
+     * the only project when the system has just one (the common case) and
+     * the caller left the name out, so every SEO tool doesn't force the
+     * model to ask "which project" in a single-project system. Returns an
+     * array (not a model) on failure, same error+available-list shape used
+     * elsewhere in this file - callers check `is_array($result)`.
+     *
+     * @return SeoProject|array{error: string, available_projects?: array<int, string>}
+     */
+    private function resolveSeoProject(?string $name): SeoProject|array
+    {
+        $name = trim((string) $name);
+
+        if ($name !== '') {
+            $project = SeoProject::query()->where('name', $name)->first()
+                ?? SeoProject::query()->where('name', 'like', "%{$name}%")->first();
+
+            if (! $project) {
+                return [
+                    'error' => "پروژهٔ سئویی با نام «{$name}» پیدا نشد.",
+                    'available_projects' => SeoProject::query()->orderBy('name')->pluck('name')->all(),
+                ];
+            }
+
+            return $project;
+        }
+
+        $projects = SeoProject::query()->where('is_active', true)->get();
+
+        if ($projects->count() === 1) {
+            return $projects->first();
+        }
+
+        if ($projects->isEmpty()) {
+            return ['error' => 'هیچ پروژهٔ سئوی فعالی در سیستم تعریف نشده است.'];
+        }
+
+        return [
+            'error' => 'چند پروژهٔ سئو در سیستم تعریف شده؛ لطفاً نام پروژهٔ موردنظر را مشخص کنید.',
+            'available_projects' => $projects->pluck('name')->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOverviewTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $latestDaily = $project->dailyMetrics()->latest('date')->first();
+        $openOpportunities = $project->opportunities()
+            ->whereIn('status', [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed])
+            ->count();
+        $latestAudit = $project->technicalAudits()->latest('completed_at')->first();
+
+        $contentByStatus = $project->contentItems()
+            ->selectRaw('status, count(*) as item_count')
+            ->groupBy('status')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->status->getLabel() => (int) $row->item_count]);
+
+        return [
+            'project' => $project->name,
+            'goal' => $project->goal?->getLabel(),
+            'website_url' => $project->website_url,
+            'google_connection_status' => $project->googleConnection?->status?->getLabel() ?? 'متصل نشده',
+            'last_synced_at' => $project->googleConnection?->last_synced_at?->toDateString(),
+            'latest_metrics_date' => $latestDaily?->date?->toDateString(),
+            'latest_clicks' => $latestDaily ? (int) $latestDaily->clicks : null,
+            'latest_impressions' => $latestDaily ? (int) $latestDaily->impressions : null,
+            'latest_ctr_percent' => $latestDaily ? round((float) $latestDaily->ctr * 100, 2) : null,
+            'latest_average_position' => $latestDaily ? round((float) $latestDaily->position, 1) : null,
+            'open_opportunities' => $openOpportunities,
+            'latest_technical_audit_score' => $latestAudit?->score,
+            'latest_technical_audit_date' => $latestAudit?->completed_at?->toDateString(),
+            'content_items_by_status' => $contentByStatus->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTrafficTrendTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(7, min(90, (int) ($arguments['days'] ?? 30)));
+        $end = today();
+        $start = $end->copy()->subDays($days - 1);
+        $previousEnd = $start->copy()->subDay();
+        $previousStart = $previousEnd->copy()->subDays($days - 1);
+
+        $current = $project->dailyMetrics()->whereBetween('date', [$start, $end])->orderBy('date')->get();
+        $previous = $project->dailyMetrics()->whereBetween('date', [$previousStart, $previousEnd])->get();
+
+        if ($current->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ ترافیکی (Search Console) برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        $currentClicks = (int) $current->sum('clicks');
+        $previousClicks = (int) $previous->sum('clicks');
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'total_clicks' => $currentClicks,
+            'total_impressions' => (int) $current->sum('impressions'),
+            'average_ctr_percent' => round((float) $current->avg('ctr') * 100, 2),
+            'average_position' => round((float) $current->avg('position'), 1),
+            'clicks_change_percent' => $previousClicks > 0 ? round(($currentClicks - $previousClicks) / $previousClicks * 100, 1) : null,
+            'daily' => $current->map(fn (SeoDailyMetric $metric) => [
+                'date' => $metric->date->toDateString(),
+                'clicks' => (int) $metric->clicks,
+                'impressions' => (int) $metric->impressions,
+                'position' => round((float) $metric->position, 1),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTopQueriesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 28)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+        $orderBy = ($arguments['order_by'] ?? 'clicks') === 'impressions' ? 'total_impressions' : 'total_clicks';
+
+        $rows = $project->queryMetrics()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->selectRaw('query, sum(clicks) as total_clicks, sum(impressions) as total_impressions, avg(position) as avg_position, avg(ctr) as avg_ctr')
+            ->groupBy('query')
+            ->orderByDesc($orderBy)
+            ->limit($limit)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ عبارت جستجویی برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'queries' => $rows->map(fn ($row) => [
+                'query' => $row->query,
+                'clicks' => (int) $row->total_clicks,
+                'impressions' => (int) $row->total_impressions,
+                'average_position' => round((float) $row->avg_position, 1),
+                'ctr_percent' => round((float) $row->avg_ctr * 100, 2),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTopPagesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 28)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+
+        $rows = $project->pageMetrics()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->selectRaw('page_url, sum(clicks) as total_clicks, sum(impressions) as total_impressions, avg(position) as avg_position')
+            ->groupBy('page_url')
+            ->orderByDesc('total_clicks')
+            ->limit($limit)
+            ->get();
+
+        if ($rows->isEmpty()) {
+            return ['message' => 'هیچ دادهٔ صفحه‌ای برای این پروژه در این بازه ثبت نشده است.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'pages' => $rows->map(fn ($row) => [
+                'page_url' => $row->page_url,
+                'clicks' => (int) $row->total_clicks,
+                'impressions' => (int) $row->total_impressions,
+                'average_position' => round((float) $row->avg_position, 1),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoKeywordRankingsTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $trend = SeoKeywordTrend::tryFrom((string) ($arguments['trend'] ?? ''));
+        $businessValue = SeoBusinessValue::tryFrom((string) ($arguments['business_value'] ?? ''));
+        $cannibalizationRisk = SeoCannibalizationRisk::tryFrom((string) ($arguments['cannibalization_risk'] ?? ''));
+        $intent = SeoSearchIntent::tryFrom((string) ($arguments['intent'] ?? ''));
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 30)));
+
+        $query = $project->keywordProfiles();
+
+        if ($trend) {
+            $query->where('trend', $trend);
+        }
+
+        if ($businessValue) {
+            $query->where('business_value', $businessValue);
+        }
+
+        if ($cannibalizationRisk) {
+            $query->where('cannibalization_risk', $cannibalizationRisk);
+        }
+
+        if ($intent) {
+            $query->where('intent', $intent);
+        }
+
+        $profiles = $query->orderBy('current_position')->limit($limit)->get();
+
+        if ($profiles->isEmpty()) {
+            return ['message' => 'هیچ کلیدواژه‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'count' => $profiles->count(),
+            'keywords' => $profiles->map(fn (SeoKeywordProfile $profile) => [
+                'query' => $profile->query,
+                'current_position' => $profile->current_position !== null ? round((float) $profile->current_position, 1) : null,
+                'previous_position' => $profile->previous_position !== null ? round((float) $profile->previous_position, 1) : null,
+                'trend' => $profile->trend?->getLabel(),
+                'clicks_28d' => $profile->clicks_28d,
+                'business_value' => $profile->business_value?->getLabel(),
+                'cannibalization_risk' => $profile->cannibalization_risk?->getLabel(),
+                'intent' => $profile->intent?->getLabel(),
+                'opportunity_score' => $profile->opportunity_score !== null ? round((float) $profile->opportunity_score, 1) : null,
+                'landing_page' => $profile->landing_page,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoKeywordRankHistoryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $keywordName = trim((string) ($arguments['keyword'] ?? ''));
+
+        if ($keywordName === '') {
+            return ['error' => 'نام کلیدواژه الزامی است.'];
+        }
+
+        $tracked = $project->trackedKeywords()->where('keyword', $keywordName)->first()
+            ?? $project->trackedKeywords()->where('keyword', 'like', "%{$keywordName}%")->first();
+
+        if (! $tracked) {
+            return [
+                'error' => "کلیدواژهٔ ردیابی‌شده‌ای با عبارت «{$keywordName}» پیدا نشد.",
+                'available_keywords' => $project->trackedKeywords()->where('is_active', true)->pluck('keyword')->all(),
+            ];
+        }
+
+        $days = max(7, min(180, (int) ($arguments['days'] ?? 30)));
+
+        $checks = $tracked->rankChecks()
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->orderBy('date')
+            ->get();
+
+        if ($checks->isEmpty()) {
+            return ['message' => "هنوز هیچ بررسی رتبه‌ای برای «{$tracked->keyword}» در این بازه ثبت نشده است."];
+        }
+
+        return [
+            'keyword' => $tracked->keyword,
+            'history' => $checks->map(fn (SeoKeywordRankCheck $check) => [
+                'date' => $check->date->toDateString(),
+                'position' => $check->position,
+                'found_url' => $check->found_url,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOpenOpportunitiesTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $priority = SeoOpportunityPriority::tryFrom((string) ($arguments['priority'] ?? ''));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = $project->opportunities()
+            ->whereIn('status', [SeoOpportunityStatus::Detected, SeoOpportunityStatus::Reviewed]);
+
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
+
+        $opportunities = $query->orderByDesc('detected_at')->limit($limit)->get();
+
+        if ($opportunities->isEmpty()) {
+            return ['message' => 'هیچ فرصت سئوی بازی برای این پروژه پیدا نشد.'];
+        }
+
+        $byType = $opportunities->groupBy(fn (SeoOpportunity $opportunity) => $opportunity->type->getLabel())->map->count();
+
+        return [
+            'project' => $project->name,
+            'open_count' => $opportunities->count(),
+            'by_type' => $byType->all(),
+            'opportunities' => $opportunities->map(fn (SeoOpportunity $opportunity) => [
+                'type' => $opportunity->type->getLabel(),
+                'title' => $opportunity->title,
+                'priority' => $opportunity->priority?->getLabel(),
+                'confidence' => $opportunity->confidence?->getLabel(),
+                'status' => $opportunity->status->getLabel(),
+                'subject_query' => $opportunity->subject_query,
+                'subject_page_url' => $opportunity->subject_page_url,
+                'recommended_actions' => $opportunity->recommended_actions,
+                'detected_at' => $opportunity->detected_at?->toDateString(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoOpportunityOutcomesSummaryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $outcomes = SeoOpportunityOutcome::query()
+            ->whereHas('opportunity', fn ($query) => $query->where('seo_project_id', $project->id))
+            ->get();
+
+        if ($outcomes->isEmpty()) {
+            return ['message' => 'هنوز هیچ فرصت سئویی پیگیری نتیجه نشده است.'];
+        }
+
+        $byVerdict = $outcomes->groupBy(fn (SeoOpportunityOutcome $outcome) => $outcome->verdict->getLabel())->map->count();
+
+        return [
+            'project' => $project->name,
+            'tracked_count' => $outcomes->count(),
+            'by_verdict' => $byVerdict->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoTechnicalAuditSummaryTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $audit = $project->technicalAudits()
+            ->where('status', SeoTechnicalAuditStatus::Completed)
+            ->latest('completed_at')
+            ->with('issues')
+            ->first();
+
+        if (! $audit) {
+            return ['message' => 'هنوز هیچ ممیزی فنی تکمیل‌شده‌ای برای این پروژه وجود ندارد.'];
+        }
+
+        $bySeverity = $audit->issues->groupBy(fn (SeoTechnicalAuditIssue $issue) => $issue->severity->getLabel())->map->count();
+        $criticalIssues = $audit->issues->where('severity', SeoTechnicalIssueSeverity::Critical);
+
+        return [
+            'project' => $project->name,
+            'audit_date' => $audit->completed_at?->toDateString(),
+            'score' => $audit->score,
+            'performance_score' => $audit->performance_score,
+            'pages_scanned' => $audit->pages_scanned,
+            'core_web_vitals' => $audit->core_web_vitals,
+            'issues_by_severity' => $bySeverity->all(),
+            'critical_issues' => $criticalIssues->map(fn (SeoTechnicalAuditIssue $issue) => [
+                'type' => $issue->type->getLabel(),
+                'url' => $issue->url,
+                'details' => $issue->details,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoContentCalendarStatusTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+
+        $query = $project->contentItems()->with('assignee');
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        $items = $query->get();
+
+        if ($items->isEmpty()) {
+            return ['message' => 'هیچ آیتم محتوایی برای این پروژه ثبت نشده است.'];
+        }
+
+        $byStatus = $items->groupBy(fn (SeoContentItem $item) => $item->status->getLabel())->map->count();
+
+        $overdue = $items->filter(fn (SeoContentItem $item) => $item->due_date
+            && $item->due_date->isPast()
+            && $item->status !== SeoContentItemStatus::Published);
+
+        return [
+            'project' => $project->name,
+            'by_status' => $byStatus->all(),
+            'overdue_count' => $overdue->count(),
+            'overdue_items' => $overdue->map(fn (SeoContentItem $item) => [
+                'title' => $item->title,
+                'target_keyword' => $item->target_keyword,
+                'assignee' => $item->assignee?->name,
+                'due_date' => $item->due_date->toDateString(),
+                'status' => $item->status->getLabel(),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function seoRankMoversTool(array $arguments): array
+    {
+        $project = $this->resolveSeoProject($arguments['seo_project_name'] ?? null);
+
+        if (is_array($project)) {
+            return $project;
+        }
+
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 7)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 15)));
+
+        $movers = $project->trackedKeywords()->where('is_active', true)->get()
+            ->map(function (SeoTrackedKeyword $keyword) use ($days) {
+                $recent = $keyword->rankChecks()->where('date', '>=', today()->subDays($days - 1))->orderBy('date')->get();
+
+                if ($recent->count() < 2 || $recent->first()->position === null || $recent->last()->position === null) {
+                    return null;
+                }
+
+                return [
+                    'keyword' => $keyword->keyword,
+                    'from_position' => $recent->first()->position,
+                    'to_position' => $recent->last()->position,
+                    // Negative = improved (moved to a lower/better position number).
+                    'change' => $recent->last()->position - $recent->first()->position,
+                ];
+            })
+            ->filter()
+            ->values();
+
+        if ($movers->isEmpty()) {
+            return ['message' => 'دادهٔ کافی برای محاسبهٔ تغییر رتبه در این بازه وجود ندارد.'];
+        }
+
+        return [
+            'project' => $project->name,
+            'period_days' => $days,
+            'improved' => $movers->where('change', '<', 0)->sortBy('change')->take($limit)->values()->all(),
+            'declined' => $movers->where('change', '>', 0)->sortByDesc('change')->take($limit)->values()->all(),
+        ];
+    }
+
     private function projectHealthSummary(): array
     {
         return Project::query()
@@ -1714,6 +2835,310 @@ trait HasAiAssistantEngine
             'late_count' => $records->where('status', AttendanceStatus::Late)->count(),
             'absent_count' => $records->where('status', AttendanceStatus::Absent)->count(),
             'top_late_users' => $topLateUsers->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchAttendanceRecordsTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+        $status = AttendanceStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+        $dateFrom = $arguments['date_from'] ?? null;
+        $dateTo = $arguments['date_to'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = AttendanceRecord::query()->with(['user.department']);
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($departmentName !== '') {
+            $query->whereHas('user.department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+        }
+
+        if ($dateFrom) {
+            $query->whereDate('date', '>=', $dateFrom);
+        }
+
+        if ($dateTo) {
+            $query->whereDate('date', '<=', $dateTo);
+        }
+
+        $records = $query->orderByDesc('date')->limit($limit)->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $records->count(),
+            'records' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'department' => $record->user?->department?->name,
+                'date' => $record->date->toDateString(),
+                'status' => $record->status->getLabel(),
+                'check_in_at' => $record->check_in_at?->format('H:i'),
+                'check_out_at' => $record->check_out_at?->format('H:i'),
+                'late_minutes' => (int) $record->late_minutes,
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Live, mid-day read of who hasn't checked in - deliberately NOT a
+     * query on status=Absent, since that status only exists once the
+     * attendance:mark-absentees command has run (end of day); before then
+     * the only ground truth is "no check_in_at row for today yet".
+     */
+    private function notCheckedInTodayTool(): array
+    {
+        if (today()->isFriday()) {
+            return ['message' => 'امروز جمعه است و غیبتی محاسبه نمی‌شود.'];
+        }
+
+        $usersWithShift = User::query()
+            ->whereNotNull('work_shift_id')
+            ->where('is_active', true)
+            ->with('department')
+            ->get();
+
+        $checkedInUserIds = AttendanceRecord::query()
+            ->whereDate('date', today())
+            ->whereNotNull('check_in_at')
+            ->pluck('user_id');
+
+        $notCheckedIn = $usersWithShift->whereNotIn('id', $checkedInUserIds);
+
+        if ($notCheckedIn->isEmpty()) {
+            return ['message' => 'امروز همهٔ کارمندان دارای شیفت، ورود ثبت کرده‌اند.'];
+        }
+
+        return [
+            'not_checked_in_count' => $notCheckedIn->count(),
+            'employees' => $notCheckedIn->map(fn (User $user) => [
+                'name' => $user->name,
+                'department' => $user->department?->name,
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function attendanceByUserTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->with('user');
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری با این مشخصات در این ماه پیدا نشد.'];
+        }
+
+        $byUser = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->name)
+            ->map(function (Collection $group, string $name) {
+                $totalDays = $group->count();
+                $absentDays = $group->where('status', AttendanceStatus::Absent)->count();
+
+                return [
+                    'user' => $name,
+                    'on_time_days' => $group->where('status', AttendanceStatus::OnTime)->count(),
+                    'late_days' => $group->where('status', AttendanceStatus::Late)->count(),
+                    'absent_days' => $absentDays,
+                    'total_late_minutes' => (int) $group->sum('late_minutes'),
+                    'total_worked_hours' => round($group->sum('worked_minutes') / 60, 1),
+                    'attendance_rate_percent' => $totalDays > 0 ? round(($totalDays - $absentDays) / $totalDays * 100, 1) : 0,
+                ];
+            })
+            ->sortBy('attendance_rate_percent')
+            ->values();
+
+        return ['month' => now()->format('Y-m'), 'users' => $byUser->all()];
+    }
+
+    private function departmentAttendanceSummaryTool(): array
+    {
+        $records = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->with('user.department')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد حضوری در این ماه ثبت نشده است.'];
+        }
+
+        $byDepartment = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->department?->name ?? 'بدون دپارتمان')
+            ->map(function (Collection $group, string $name) {
+                $total = $group->count();
+                $lateRecords = $group->where('status', AttendanceStatus::Late);
+
+                return [
+                    'department' => $name,
+                    'on_time_rate_percent' => $total > 0 ? round($group->where('status', AttendanceStatus::OnTime)->count() / $total * 100, 1) : 0,
+                    'late_days' => $lateRecords->count(),
+                    'absent_days' => $group->where('status', AttendanceStatus::Absent)->count(),
+                    'average_late_minutes' => $lateRecords->isNotEmpty() ? round($lateRecords->avg('late_minutes'), 1) : 0,
+                ];
+            })
+            ->sortBy('on_time_rate_percent')
+            ->values();
+
+        return ['departments' => $byDepartment->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function unusualDeviceCheckinsTool(array $arguments): array
+    {
+        $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+
+        $records = AttendanceRecord::query()
+            ->whereNotNull('check_in_device')
+            ->where('date', '>=', today()->subDays($days - 1))
+            ->with('user')
+            ->orderByDesc('date')
+            ->get()
+            ->filter(fn (AttendanceRecord $record) => $record->isDeviceUnusual());
+
+        if ($records->isEmpty()) {
+            return ['message' => 'در این بازه هیچ ورود با دستگاه غیرعادی ثبت نشده است.'];
+        }
+
+        return [
+            'flagged_count' => $records->count(),
+            'checkins' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'date' => $record->date->toDateString(),
+                'check_in_device' => $record->check_in_device,
+            ])->values()->all(),
+        ];
+    }
+
+    private function missingCheckoutsTool(): array
+    {
+        $records = AttendanceRecord::query()
+            ->whereNotNull('check_in_at')
+            ->whereNull('check_out_at')
+            ->with('user')
+            ->orderBy('date')
+            ->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ ثبت ورودی بدون خروج پیدا نشد.'];
+        }
+
+        return [
+            'count' => $records->count(),
+            'records' => $records->map(fn (AttendanceRecord $record) => [
+                'user' => $record->user?->name,
+                'date' => $record->date->toDateString(),
+                'check_in_at' => $record->check_in_at->format('H:i'),
+            ])->values()->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overtimeUndertimeSummaryTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = AttendanceRecord::query()
+            ->whereMonth('date', now()->month)
+            ->whereYear('date', now()->year)
+            ->whereNotNull('worked_minutes')
+            ->with(['user', 'workShift']);
+
+        if ($userName !== '') {
+            $query->whereHas('user', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $records = $query->get();
+
+        if ($records->isEmpty()) {
+            return ['message' => 'هیچ رکورد تکمیل‌شده‌ای (با ساعت کارکرد) در این ماه پیدا نشد.'];
+        }
+
+        $byUser = $records->groupBy(fn (AttendanceRecord $record) => $record->user?->name)
+            ->map(function (Collection $group, string $name) {
+                $expectedMinutes = $group->sum(function (AttendanceRecord $record) {
+                    if (! $record->workShift) {
+                        return 0;
+                    }
+
+                    return abs($record->workShift->start_time->diffInMinutes($record->workShift->end_time));
+                });
+                $actualMinutes = (int) $group->sum('worked_minutes');
+
+                return [
+                    'user' => $name,
+                    'expected_hours' => round($expectedMinutes / 60, 1),
+                    'actual_hours' => round($actualMinutes / 60, 1),
+                    'difference_hours' => round(($actualMinutes - $expectedMinutes) / 60, 1),
+                ];
+            })
+            ->sortBy('difference_hours')
+            ->values();
+
+        return ['month' => now()->format('Y-m'), 'users' => $byUser->all()];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function attendanceTrendTool(array $arguments): array
+    {
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+
+        $ranges = [
+            'این ماه' => [now()->copy()->startOfMonth(), now()->copy()->endOfMonth()],
+            'ماه قبل' => [now()->copy()->subMonthNoOverflow()->startOfMonth(), now()->copy()->subMonthNoOverflow()->endOfMonth()],
+        ];
+
+        $comparison = [];
+
+        foreach ($ranges as $label => [$start, $end]) {
+            $query = AttendanceRecord::query()->whereBetween('date', [$start, $end]);
+
+            if ($departmentName !== '') {
+                $query->whereHas('user.department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+            }
+
+            $records = $query->get();
+            $total = $records->count();
+            $onTime = $records->where('status', AttendanceStatus::OnTime)->count();
+
+            $comparison[$label] = [
+                'on_time' => $onTime,
+                'late' => $records->where('status', AttendanceStatus::Late)->count(),
+                'absent' => $records->where('status', AttendanceStatus::Absent)->count(),
+                'on_time_rate_percent' => $total > 0 ? round($onTime / $total * 100, 1) : 0,
+            ];
+        }
+
+        return [
+            'department' => $departmentName !== '' ? $departmentName : 'کل سازمان',
+            'comparison' => $comparison,
         ];
     }
 
