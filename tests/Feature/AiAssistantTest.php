@@ -151,6 +151,100 @@ class AiAssistantTest extends TestCase
         $this->assertSame('در حال حاضر ۲ وظیفه در صف انجام دارید.', $finalMessage->content);
     }
 
+    /**
+     * Regression guard for the gap a chat-only table answer left: a
+     * breakdown-shaped reporting tool's result must also reach the UI as a
+     * chart (see HasAiAssistantEngine::buildChartForTool()), attached only
+     * to the FINAL assistant message - never to the earlier one that only
+     * requested the tool call, since that round has no result yet to chart.
+     */
+    public function test_a_chartable_tool_result_attaches_a_bar_chart_to_the_final_answer_only(): void
+    {
+        AiProvider::factory()->active()->create();
+        Task::factory()->count(2)->create(['status' => TaskStatus::Todo]);
+        Task::factory()->create(['status' => TaskStatus::Done]);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'get_task_summary', 'arguments' => '{}'],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'وضعیت وظایف رو بررسی کردم.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'وضعیت وظایف رو با نمودار نشونم بده')
+            ->call('send');
+
+        $assistantMessages = AiConversation::sole()->messages->where('role', AiMessageRole::Assistant)->values();
+
+        // The round that only requested the tool call has no result yet to
+        // chart - it must never carry one.
+        $this->assertNull($assistantMessages[0]->chart);
+
+        $chart = $assistantMessages[1]->chart;
+        $this->assertSame('bar', $chart['type']);
+        $this->assertSame('وظایف بر اساس وضعیت', $chart['title']);
+        $this->assertSame(3, array_sum($chart['datasets'][0]['data']));
+        $this->assertContains('در صف انجام', $chart['labels']);
+        $this->assertContains('تکمیل‌شده', $chart['labels']);
+    }
+
+    /**
+     * Not every tool's result is chart-worthy (a detail lookup, a raw
+     * search) - this must never force a meaningless/empty chart onto one
+     * that returns nothing to plot (here, no workflow decisions exist at
+     * all yet, so get_approver_performance returns only a "message" key).
+     */
+    public function test_a_tool_result_with_no_chartable_data_leaves_the_final_message_without_a_chart(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'get_approver_performance', 'arguments' => '{}'],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [[
+                    'message' => ['role' => 'assistant', 'content' => 'هنوز هیچ تأیید یا ردی ثبت نشده.'],
+                ]],
+            ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'عملکرد تأییدکننده‌ها چطوره؟')
+            ->call('send');
+
+        $finalMessage = AiConversation::sole()->messages->where('role', AiMessageRole::Assistant)->last();
+
+        $this->assertNull($finalMessage->chart);
+    }
+
     public function test_the_create_task_tool_actually_creates_a_task(): void
     {
         AiProvider::factory()->active()->create();

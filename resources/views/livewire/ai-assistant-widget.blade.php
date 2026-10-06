@@ -2,6 +2,9 @@
     $hasProvider = (bool) \App\Models\AiProvider::active();
 @endphp
 
+@include('filament.components.chartjs-assets')
+@include('filament.components.ai-assistant-chart-renderer')
+
 <div
     x-data="aiAssistantWidget()"
     x-cloak
@@ -275,6 +278,17 @@
                                 {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
                             @endif
                         </div>
+
+                        @if (! $isUser && filled($message->chart))
+                            <div class="w-full max-w-[16rem] rounded-xl border border-gray-200 bg-white p-2.5 dark:border-white/10 dark:bg-white/5">
+                                <p class="mb-1.5 text-[11px] font-medium text-gray-500 dark:text-gray-400">{{ $message->chart['title'] }}</p>
+                                <canvas
+                                    x-data
+                                    x-init="window.renderAiAssistantChart($el, @js($message->chart))"
+                                    height="140"
+                                ></canvas>
+                            </div>
+                        @endif
                     </div>
                 </div>
             @empty

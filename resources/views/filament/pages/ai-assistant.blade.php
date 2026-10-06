@@ -40,6 +40,9 @@
         .dark .ai-markdown code { background: rgb(255 255 255 / 0.08); }
     </style>
 
+    @include('filament.components.chartjs-assets')
+    @include('filament.components.ai-assistant-chart-renderer')
+
     <div class="space-y-4" x-data="aiAssistantThread()" x-on:message-sent.window="scrollToBottom(true)" x-on:conversation-selected.window="scrollToBottom(true)">
         @if (! \App\Models\AiProvider::active())
             <div class="flex items-center gap-3 rounded-xl border border-warning-200 bg-warning-50 p-4 text-sm text-warning-800 dark:border-warning-500/20 dark:bg-warning-500/10 dark:text-warning-300">
@@ -155,6 +158,21 @@
                                         {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
                                     @endif
                                 </div>
+
+                                {{-- علاوه بر جدول/متن بالا، وقتی گزارش قابل
+                                    نمودارسازی بود (رجوع به
+                                    HasAiAssistantEngine::buildChartForTool) --}}
+                                @if (! $isUser && filled($message->chart))
+                                    <div class="w-full max-w-sm rounded-xl border border-gray-200 bg-white p-3 dark:border-white/10 dark:bg-white/5">
+                                        <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">{{ $message->chart['title'] }}</p>
+                                        <canvas
+                                            x-data
+                                            x-init="window.renderAiAssistantChart($el, @js($message->chart))"
+                                            height="160"
+                                        ></canvas>
+                                    </div>
+                                @endif
+
                                 <span class="px-1 text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
                             </div>
                         </div>
