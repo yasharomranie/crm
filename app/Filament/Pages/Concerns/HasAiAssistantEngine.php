@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Concerns;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
+use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
@@ -33,7 +34,10 @@ use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
 use App\Models\GuestTicket;
 use App\Models\Project;
+use App\Models\ProjectExpense;
+use App\Models\ProjectPhase;
 use App\Models\Room;
+use App\Models\RoomType;
 use App\Models\SalesChannel;
 use App\Models\Task;
 use App\Models\User;
@@ -292,6 +296,21 @@ trait HasAiAssistantEngine
             - وقتی مدیر می‌پرسد «کدام کارمند/مسئول فرمی را که باید تایید می‌کرد هنوز تایید نکرده»، «چه چیزی از مهلتش گذشته»، یا «با چه کسی باید پیگیری کنم»، هیچ‌وقت فقط به get_form_submissions_summary بسنده نکن - آن فقط یک عدد کلی (sla_breached_count) می‌دهد، بدون اسم. حتماً get_breached_sla_submissions را صدا بزن تا اسم دقیق مسئول (یا مسئولان) هر درخواست، فرم، و میزان تأخیرش را بگیری و در پاسخ بیاوری.
             - اگر سؤال دربارهٔ یک فرم تکرارشونده/روزانه است که خودِ کارمند باید آن را پر می‌کرد (نه اینکه منتظر تاییدِ کسی دیگر باشد؛ مثل چک‌لیست روزانه)، به‌جای get_breached_sla_submissions از get_daily_checklist_compliance استفاده کن - آن ابزار برای «پرنشدن» است، این یکی برای «تاییدنشدن».
             - برای یک گزارش عملکرد کامل و دقیق، می‌توانی get_breached_sla_submissions و get_daily_checklist_compliance را با get_approver_performance (نرخ رد/تایید و سرعت هر فرد در طول زمان) ترکیب کنی تا هم وضعیت فعلی (چه کسی الان عقب افتاده) و هم روند کلی (چه کسی به‌طور معمول کند/سریع عمل می‌کند) را یک‌جا بدهی.
+
+            دربارهٔ گزارش‌های هتل‌داری و رزرو:
+            - get_accommodation_summary فقط عدد همین امروز را می‌دهد. برای برنامه‌ریزی چند روز آینده («چند روز دیگه چقدر اتاق خالی داریم») از get_occupancy_forecast استفاده کن.
+            - برای لیست دقیق ورودی/خروجی‌های چند روز آینده (اسم مهمان، اتاق، تعداد شب - نه فقط یک عدد) از get_upcoming_arrivals و get_upcoming_departures استفاده کن.
+            - get_overdue_checkouts مهمانانی را نشان می‌دهد که باید خارج می‌شدند ولی هنوز چک‌اوت نشده‌اند؛ برای پیگیری فرانت‌دسک/نظافت استفاده کن.
+            - وقتی کاربر اسم یک مهمان یا شمارهٔ یک رزرو را می‌گوید، از search_bookings استفاده کن، نه search_everything.
+            - get_revenue_by_room_type، get_booking_source_breakdown و get_cancellation_summary همگی روی ماه جاری یا ماه قبل (شمسی) کار می‌کنند؛ پارامتر period را بر اساس سؤال کاربر («این ماه»/«ماه قبل») تنظیم کن.
+
+            دربارهٔ گزارش‌های وظایف و پروژه‌ها:
+            - وقتی مدیر می‌پرسد «کدام وظیفه/کارمند عقب افتاده» یا «با کی پیگیری کنم»، هیچ‌وقت فقط به get_task_summary بسنده نکن - آن فقط یک عدد کلی (overdue_count) می‌دهد. حتماً get_overdue_tasks را صدا بزن تا اسم دقیق هر وظیفه، مسئولش، و میزان تأخیرش را بگیری.
+            - برای جست‌وجوی یک وظیفهٔ خاص یا فیلتر کردن (مثلاً «کارهای باز رضا» یا «وظایف فوری این هفته») از search_tasks استفاده کن.
+            - برای مقایسهٔ بار کاری افراد («بار کاری کی سنگین‌تره») از get_tasks_by_assignee استفاده کن؛ برای نگاه از زاویهٔ ماتریس آیزنهاور (فوری/مهم) از get_task_priority_breakdown.
+            - get_project_health_summary فقط درصد EVM همهٔ پروژه‌های فعال را یک‌جا می‌دهد. برای جزئیات کامل یک پروژهٔ مشخص (بودجه، هزینهٔ واقعی، مسیر بحرانی) از get_project_detail با نام همان پروژه استفاده کن.
+            - وقتی سؤال دربارهٔ «چرا پروژه عقب افتاده» است، نه فقط «چقدر عقب افتاده»، از get_overdue_project_phases استفاده کن تا دقیقاً مشخص شود کدام فاز/بخش کار عقب است.
+            - برای مقایسهٔ بودجه و هزینهٔ واقعی (نه درصد EVM انتزاعی) از get_project_budget_summary، و برای دیدن ریز هزینه‌های یک پروژهٔ مشخص از get_project_expenses استفاده کن.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -381,10 +400,26 @@ trait HasAiAssistantEngine
         return match ($name) {
             'search_everything' => $this->globalSearchTool($arguments),
             'get_accommodation_summary' => $this->accommodationSummary(),
+            'get_occupancy_forecast' => $this->occupancyForecastTool($arguments),
+            'search_bookings' => $this->searchBookingsTool($arguments),
+            'get_upcoming_arrivals' => $this->upcomingArrivalsTool($arguments),
+            'get_upcoming_departures' => $this->upcomingDeparturesTool($arguments),
+            'get_overdue_checkouts' => $this->overdueCheckoutsTool(),
+            'get_revenue_by_room_type' => $this->revenueByRoomTypeTool($arguments),
+            'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
+            'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
+            'get_project_detail' => $this->projectDetailTool($arguments),
+            'get_overdue_project_phases' => $this->overdueProjectPhasesTool($arguments),
+            'get_project_budget_summary' => ['projects' => $this->projectBudgetSummaryTool()],
+            'get_project_expenses' => $this->projectExpensesTool($arguments),
             'get_attendance_summary' => $this->attendanceSummary(),
             'get_task_summary' => $this->taskSummary(),
+            'search_tasks' => $this->searchTasksTool($arguments),
+            'get_overdue_tasks' => $this->overdueTasksTool($arguments),
+            'get_tasks_by_assignee' => $this->tasksByAssigneeTool($arguments),
+            'get_task_priority_breakdown' => $this->taskPriorityBreakdownTool(),
             'get_channel_manager_summary' => ['channels' => $this->channelManagerSummary()],
             'list_alerts' => ['alerts' => static::computeAlerts()],
             'get_form_submissions_summary' => $this->formSubmissionsSummary(),
@@ -427,10 +462,117 @@ trait HasAiAssistantEngine
                 'required' => ['query'],
             ]);
             $tools[] = $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams);
+            $tools[] = $this->toolSchema('get_occupancy_forecast', 'Get a day-by-day room occupancy forecast for the upcoming days: occupied/available room counts, occupancy rate percent, and arrival/departure counts per day - use for planning questions like "چند روز آینده چقدر اتاق خالی داریم".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'Number of upcoming days to forecast, starting today - defaults to 7, max 30'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('search_bookings', 'Search/list bookings by guest name, reference code, status, or check-in date range - use to find a specific booking or list recent ones, e.g. "رزرو آقای/خانم فلانی رو پیدا کن" or "لیست آخرین رزروها رو بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'guest_name' => ['type' => 'string', 'description' => 'Partial or full guest name'],
+                    'reference_code' => ['type' => 'string', 'description' => 'Partial or full booking reference code, e.g. GNJ-BKG-000123'],
+                    'status' => ['type' => 'string', 'enum' => ['pending', 'confirmed', 'checked_in', 'checked_out', 'cancelled']],
+                    'check_in_from' => ['type' => 'string', 'description' => 'Earliest check-in date, format YYYY-MM-DD (Gregorian)'],
+                    'check_in_to' => ['type' => 'string', 'description' => 'Latest check-in date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results to return - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_upcoming_arrivals', 'Get the detailed list of guests due to check in over the next N days - guest name, room, nights, party size - not just a count. Use for "امروز/این چند روز کیا میان".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many days ahead to include, starting today - defaults to 1 (today only), max 14'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_upcoming_departures', 'Get the detailed list of currently in-house guests due to check out over the next N days - guest name, room, folio total - not just a count. Use for "امروز/این چند روز کیا میرن".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many days ahead to include, starting today - defaults to 1 (today only), max 14'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_checkouts', 'Get in-house guests whose scheduled check-out date has already passed but who have not actually been checked out yet - use for "کدام مهمان از تاریخ خروجش گذشته" / front-desk follow-up.', $noParams);
+            $tools[] = $this->toolSchema('get_revenue_by_room_type', 'Get revenue, nights sold, ADR (average daily rate), and occupancy rate broken down by room type, for this or last Jalali month - use for "کدام نوع اتاق بیشترین درآمد را داشته".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_booking_source_breakdown', 'Get checked-out booking count, revenue, and commission owed broken down by booking source (walk-in, phone, website, OTA), for this or last Jalali month - use for "چند درصد رزروها از سایت واسط میاد" یا مقایسهٔ حضوری و آنلاین.', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_cancellation_summary', 'Get how many bookings made this or last Jalali month ended up cancelled, and the cancellation rate - use for "نرخ کنسلی رزروها چقدره".', [
+                'type' => 'object',
+                'properties' => [
+                    'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
+            $tools[] = $this->toolSchema('get_project_detail', 'Get full detail on ONE specific project by name: status, budget vs actual cost, EV/PV/CV/SV, and its critical-path phase titles in order - use when the user names a specific project, e.g. "پروژه وب‌سایت جدید چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Partial or full project title or code'],
+                ],
+                'required' => ['project_name'],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_project_phases', 'Get the specific WBS phases that are overdue (past their planned end date with progress under 100%) across active projects - project name, phase title, planned end date, days overdue - not just a project-level percentage. Optionally scope to one project by name.', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Optional - partial or full project title to scope to; omit to check every active project'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_project_budget_summary', 'Get plain budget vs actual-spend numbers (not EVM percentages) for every active project: budget, amount spent, amount remaining, percent spent - use for "کدام پروژه داره از بودجه رد میشه".', $noParams);
+            $tools[] = $this->toolSchema('get_project_expenses', 'Get the recent expense line items (title, amount, date, phase) for ONE specific project - use for "پروژه فلان رو چی خرج کرده" / drilling into what a project\'s spend actually went to.', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Partial or full project title or code'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max expenses to return, most recent first - defaults to 20, max 50'],
+                ],
+                'required' => ['project_name'],
+            ]);
             $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
             $tools[] = $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams);
+            $tools[] = $this->toolSchema('search_tasks', 'Search/list tasks by assignee name, status, priority, department, or due date range - use to find specific tasks or list a filtered set, e.g. "کارهای باز رضا رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'assignee_name' => ['type' => 'string', 'description' => 'Partial or full name of the assigned user'],
+                    'status' => ['type' => 'string', 'enum' => ['todo', 'in_progress', 'done', 'overdue', 'cancelled']],
+                    'priority' => ['type' => 'string', 'enum' => ['urgent_important', 'not_urgent_important', 'urgent_not_important', 'neither'], 'description' => 'Eisenhower-matrix quadrant'],
+                    'department_name' => ['type' => 'string', 'description' => 'Partial or full department name'],
+                    'due_before' => ['type' => 'string', 'description' => 'Only tasks due on/before this date, format YYYY-MM-DD (Gregorian)'],
+                    'due_after' => ['type' => 'string', 'description' => 'Only tasks due on/after this date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_tasks', 'Get the detailed list of overdue tasks - title, assignee name, due date, days overdue - not just a count. Optionally scope to one assignee. Use for "کدام کارمند وظیفه‌اش عقب افتاده" / "با کی باید پیگیری کنم".', [
+                'type' => 'object',
+                'properties' => [
+                    'assignee_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one assignee to scope to; omit to list every overdue task'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 30, max 100'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_tasks_by_assignee', 'Get per-person task workload: open (todo/in_progress) count, overdue count, and tasks completed this Jalali month - grouped by assignee. Optionally scope to one person. Use for "بار کاری کی سنگین‌تره" / workload balancing.', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one user to scope to; omit to list every assignee'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_task_priority_breakdown', 'Get task counts and overdue counts grouped by Eisenhower-matrix priority quadrant (urgent+important, not urgent+important, urgent+not important, neither) - use for "چقدر از کارهای فوری و مهم عقب افتاده".', $noParams);
             $tools[] = $this->toolSchema('get_channel_manager_summary', 'Get commission owed and active booking counts per OTA sales channel.', $noParams);
             $tools[] = $this->toolSchema('list_alerts', 'Get the system\'s current rule-based alerts across all modules (overdue tasks, over-budget projects, breached ticket SLAs, chronic lateness, low occupancy).', $noParams);
             $tools[] = $this->toolSchema('get_form_submissions_summary', 'Get a system-wide snapshot of the dynamic form builder & approval workflow module: how many submissions are pending approval (overall and per form), this month\'s approved/rejected counts, and how many in-progress approvals have breached their step\'s SLA.', $noParams);
@@ -678,7 +820,13 @@ trait HasAiAssistantEngine
                 'خالی' => $result['available'] ?? 0,
                 'نیاز به نظافت' => $result['needs_cleaning'] ?? 0,
             ]),
+            'get_occupancy_forecast' => $this->chartFromRows('bar', 'نرخ اشغال پیش‌بینی‌شده به تفکیک روز (٪)', $result['forecast'] ?? [], 'jalali_date', 'occupancy_rate_percent'),
+            'get_revenue_by_room_type' => $this->chartFromRows('bar', 'درآمد به تفکیک نوع اتاق (تومان)', $result['room_types'] ?? [], 'room_type', 'revenue_toman'),
+            'get_booking_source_breakdown' => $this->chartFromRows('bar', 'درآمد به تفکیک منبع رزرو (تومان)', $result['sources'] ?? [], 'source', 'revenue_toman'),
             'get_task_summary' => $this->chartFromCounts('bar', 'وظایف بر اساس وضعیت', $result['by_status'] ?? []),
+            'get_tasks_by_assignee' => $this->chartFromRows('bar', 'وظایف باز به تفکیک مسئول', $result['assignees'] ?? [], 'user', 'open_count'),
+            'get_task_priority_breakdown' => $this->chartFromRows('bar', 'وظایف بر اساس اولویت (ماتریس آیزنهاور)', $result['priorities'] ?? [], 'priority', 'count'),
+            'get_project_budget_summary' => $this->chartFromRows('bar', 'درصد بودجهٔ مصرف‌شده به تفکیک پروژه (٪)', $result['projects'] ?? [], 'title', 'percent_spent'),
             'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
             'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
             'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
@@ -1013,6 +1161,343 @@ trait HasAiAssistantEngine
         ];
     }
 
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function occupancyForecastTool(array $arguments): array
+    {
+        $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+        $totalRooms = Room::where('is_active', true)->count();
+
+        $forecast = [];
+
+        for ($i = 0; $i < $days; $i++) {
+            $date = today()->addDays($i);
+
+            // A room can't have two overlapping active bookings
+            // (Booking::assertRoomAvailable enforces this), so counting
+            // distinct room_id here is just defensive, not load-bearing.
+            $occupied = Booking::query()
+                ->whereIn('status', [BookingStatus::Confirmed, BookingStatus::CheckedIn])
+                ->where('check_in_date', '<=', $date)
+                ->where('check_out_date', '>', $date)
+                ->pluck('room_id')
+                ->unique()
+                ->count();
+
+            $arrivals = Booking::query()
+                ->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed])
+                ->whereDate('check_in_date', $date)
+                ->count();
+
+            $departures = Booking::query()
+                ->where('status', BookingStatus::CheckedIn)
+                ->whereDate('check_out_date', $date)
+                ->count();
+
+            $forecast[] = [
+                'date' => $date->toDateString(),
+                'jalali_date' => Jalalian::fromCarbon($date)->format('%d %B'),
+                'occupied' => $occupied,
+                'available' => max(0, $totalRooms - $occupied),
+                'occupancy_rate_percent' => $totalRooms > 0 ? round($occupied / $totalRooms * 100, 1) : 0,
+                'arrivals' => $arrivals,
+                'departures' => $departures,
+            ];
+        }
+
+        return ['total_active_rooms' => $totalRooms, 'forecast' => $forecast];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchBookingsTool(array $arguments): array
+    {
+        $guestName = trim((string) ($arguments['guest_name'] ?? ''));
+        $referenceCode = trim((string) ($arguments['reference_code'] ?? ''));
+        $status = BookingStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $checkInFrom = $arguments['check_in_from'] ?? null;
+        $checkInTo = $arguments['check_in_to'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Booking::query()->with(['guest', 'room.roomType', 'channel']);
+
+        if ($guestName !== '') {
+            $query->whereHas('guest', fn ($q) => $q->where('name', 'like', "%{$guestName}%"));
+        }
+
+        if ($referenceCode !== '') {
+            $query->where('reference_code', 'like', "%{$referenceCode}%");
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($checkInFrom) {
+            $query->whereDate('check_in_date', '>=', $checkInFrom);
+        }
+
+        if ($checkInTo) {
+            $query->whereDate('check_in_date', '<=', $checkInTo);
+        }
+
+        $bookings = $query->orderByDesc('check_in_date')->limit($limit)->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'هیچ رزروی با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $bookings->count(),
+            'bookings' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_in_date' => $booking->check_in_date->toDateString(),
+                'check_out_date' => $booking->check_out_date->toDateString(),
+                'nights' => $booking->nights(),
+                'status' => $booking->status->getLabel(),
+                'source' => $booking->source->getLabel(),
+                'channel' => $booking->channel?->name,
+                'total_amount_toman' => $booking->totalAmount(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function upcomingArrivalsTool(array $arguments): array
+    {
+        $days = max(1, min(14, (int) ($arguments['days'] ?? 1)));
+        $from = today();
+        $to = today()->addDays($days - 1);
+
+        $bookings = Booking::query()
+            ->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed])
+            ->whereBetween('check_in_date', [$from, $to])
+            ->with(['guest', 'room.roomType'])
+            ->orderBy('check_in_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'در این بازه هیچ ورود (چک-این) برنامه‌ریزی‌شده‌ای وجود ندارد.'];
+        }
+
+        return [
+            'arrivals_count' => $bookings->count(),
+            'arrivals' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_in_date' => $booking->check_in_date->toDateString(),
+                'jalali_check_in_date' => Jalalian::fromCarbon($booking->check_in_date)->format('%d %B'),
+                'nights' => $booking->nights(),
+                'adults' => $booking->adults_count,
+                'children' => $booking->children_count,
+                'status' => $booking->status->getLabel(),
+                'source' => $booking->source->getLabel(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function upcomingDeparturesTool(array $arguments): array
+    {
+        $days = max(1, min(14, (int) ($arguments['days'] ?? 1)));
+        $from = today();
+        $to = today()->addDays($days - 1);
+
+        $bookings = Booking::query()
+            ->where('status', BookingStatus::CheckedIn)
+            ->whereBetween('check_out_date', [$from, $to])
+            ->with(['guest', 'room.roomType', 'charges'])
+            ->orderBy('check_out_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'در این بازه هیچ خروج (چک-اوت) برنامه‌ریزی‌شده‌ای وجود ندارد.'];
+        }
+
+        return [
+            'departures_count' => $bookings->count(),
+            'departures' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'room_type' => $booking->room?->roomType?->name,
+                'check_out_date' => $booking->check_out_date->toDateString(),
+                'jalali_check_out_date' => Jalalian::fromCarbon($booking->check_out_date)->format('%d %B'),
+                'nights' => $booking->nights(),
+                'total_amount_toman' => $booking->totalAmount(),
+            ])->all(),
+        ];
+    }
+
+    private function overdueCheckoutsTool(): array
+    {
+        $bookings = Booking::query()
+            ->where('status', BookingStatus::CheckedIn)
+            ->where('check_out_date', '<', today())
+            ->with(['guest', 'room'])
+            ->orderBy('check_out_date')
+            ->get();
+
+        if ($bookings->isEmpty()) {
+            return ['message' => 'هیچ مهمان مقیمی از تاریخ خروج برنامه‌ریزی‌شده‌اش عقب نیفتاده است.'];
+        }
+
+        return [
+            'overdue_count' => $bookings->count(),
+            'overdue_checkouts' => $bookings->map(fn (Booking $booking) => [
+                'reference_code' => $booking->reference_code,
+                'guest_name' => $booking->guest?->name,
+                'guest_mobile' => $booking->guest?->mobile,
+                'room' => $booking->room?->name,
+                'scheduled_check_out_date' => $booking->check_out_date->toDateString(),
+                // Carbon 3's diffInDays() defaults to a signed result (today
+                // is later than a past check-out date), unlike Carbon 2 -
+                // abs() keeps this a plain "how many days late" count.
+                'days_overdue' => (int) abs(today()->diffInDays($booking->check_out_date)),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * Resolves a "this_month"/"last_month" period keyword to a [start, end]
+     * Carbon range anchored to the Jalali calendar - the business's actual
+     * accounting month, not the Gregorian one - shared by the hospitality
+     * reporting tools below.
+     *
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolveJalaliPeriod(string $period): array
+    {
+        $thisMonth = Jalalian::now();
+
+        if ($period === 'last_month') {
+            $lastMonth = $thisMonth->subMonths(1);
+
+            return [$lastMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $lastMonth->getEndDayOfMonth()->toCarbon()->endOfDay()];
+        }
+
+        return [$thisMonth->getFirstDayOfMonth()->toCarbon()->startOfDay(), $thisMonth->getEndDayOfMonth()->toCarbon()->endOfDay()->min(now())];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function revenueByRoomTypeTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+        $periodDays = max(1, $start->diffInDays($end) + 1);
+
+        $roomTypes = RoomType::query()
+            ->where('is_active', true)
+            ->get()
+            ->map(function (RoomType $roomType) use ($start, $end, $periodDays) {
+                $roomCount = $roomType->rooms()->where('is_active', true)->count();
+
+                $bookings = Booking::query()
+                    ->whereHas('room', fn ($q) => $q->where('room_type_id', $roomType->id))
+                    ->where('status', BookingStatus::CheckedOut)
+                    ->whereBetween('actual_check_out_at', [$start, $end])
+                    ->with('charges')
+                    ->get();
+
+                $nightsSold = $bookings->sum(fn (Booking $booking) => $booking->nights());
+                $revenue = (int) $bookings->sum(fn (Booking $booking) => $booking->totalAmount());
+                $availableRoomNights = $roomCount * $periodDays;
+
+                return [
+                    'room_type' => $roomType->name,
+                    'bookings_checked_out' => $bookings->count(),
+                    'nights_sold' => $nightsSold,
+                    'revenue_toman' => $revenue,
+                    'adr_toman' => $nightsSold > 0 ? (int) round($revenue / $nightsSold) : 0,
+                    'occupancy_rate_percent' => $availableRoomNights > 0 ? round($nightsSold / $availableRoomNights * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('revenue_toman')
+            ->values();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'room_types' => $roomTypes->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function bookingSourceBreakdownTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        $sources = collect(BookingSource::cases())
+            ->map(function (BookingSource $source) use ($start, $end) {
+                $bookings = Booking::query()
+                    ->where('source', $source)
+                    ->where('status', BookingStatus::CheckedOut)
+                    ->whereBetween('actual_check_out_at', [$start, $end])
+                    ->with('charges')
+                    ->get();
+
+                return [
+                    'source' => $source->getLabel(),
+                    'bookings' => $bookings->count(),
+                    'revenue_toman' => (int) $bookings->sum(fn (Booking $booking) => $booking->totalAmount()),
+                    'commission_owed_toman' => (int) $bookings->sum('commission_amount'),
+                ];
+            })
+            ->filter(fn (array $row) => $row['bookings'] > 0)
+            ->values();
+
+        if ($sources->isEmpty()) {
+            return ['message' => 'در این بازه هیچ رزرو تسویه‌شده‌ای ثبت نشده است.'];
+        }
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'sources' => $sources->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function cancellationSummaryTool(array $arguments): array
+    {
+        $period = (string) ($arguments['period'] ?? 'this_month');
+        [$start, $end] = $this->resolveJalaliPeriod($period);
+
+        // Defined as one cohort - of the bookings MADE in this period, how
+        // many ended up cancelled (as of now) - rather than mixing
+        // "created in period" against "cancelled in period" counts from two
+        // different cohorts, which would make the rate meaningless.
+        $createdInPeriod = Booking::query()->whereBetween('created_at', [$start, $end])->get();
+        $cancelledOfThose = $createdInPeriod->where('status', BookingStatus::Cancelled)->count();
+
+        return [
+            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'bookings_created' => $createdInPeriod->count(),
+            'cancelled_count' => $cancelledOfThose,
+            'cancellation_rate_percent' => $createdInPeriod->count() > 0
+                ? round($cancelledOfThose / $createdInPeriod->count() * 100, 1)
+                : 0,
+        ];
+    }
+
     private function crmSummary(): array
     {
         $dealsByStage = Deal::query()
@@ -1050,6 +1535,160 @@ trait HasAiAssistantEngine
                 'schedule_variance_toman' => (int) $project->scheduleVariance(),
             ])
             ->all();
+    }
+
+    private function findProjectByName(string $name): ?Project
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Project::query()->where('title', $name)->first()
+            ?? Project::query()->where('code', $name)->first()
+            ?? Project::query()->where('title', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function projectDetailTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['project_name'] ?? ''));
+        $project = $this->findProjectByName($name);
+
+        if (! $project) {
+            return [
+                'error' => "پروژه‌ای با نام «{$name}» پیدا نشد.",
+                'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $criticalPathTitles = ProjectPhase::query()->whereIn('id', $project->criticalPathPhaseIds())->pluck('title', 'id');
+
+        return [
+            'title' => $project->title,
+            'code' => $project->code,
+            'status' => $project->status->getLabel(),
+            'owner' => $project->owner?->name,
+            'start_date' => $project->start_date?->toDateString(),
+            'end_date' => $project->end_date?->toDateString(),
+            'budget_toman' => (int) $project->budget,
+            'actual_cost_toman' => (int) $project->actualCost(),
+            'earned_value_percent' => round($project->earnedValuePercent(), 1),
+            'planned_value_percent' => round($project->plannedValuePercent(), 1),
+            'cost_variance_toman' => (int) $project->costVariance(),
+            'schedule_variance_toman' => (int) $project->scheduleVariance(),
+            // In critical-path order (earliest to latest), not DB order.
+            'critical_path_phases' => collect($project->criticalPathPhaseIds())
+                ->map(fn (int $id) => $criticalPathTitles[$id] ?? null)
+                ->filter()
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overdueProjectPhasesTool(array $arguments): array
+    {
+        $projectName = trim((string) ($arguments['project_name'] ?? ''));
+        $projectsQuery = Project::query()->whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress]);
+
+        if ($projectName !== '') {
+            $project = $this->findProjectByName($projectName);
+
+            if (! $project) {
+                return [
+                    'error' => "پروژه‌ای با نام «{$projectName}» پیدا نشد.",
+                    'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+                ];
+            }
+
+            $projectsQuery->whereKey($project->id);
+        }
+
+        $overduePhases = $projectsQuery->get()
+            ->flatMap(fn (Project $project) => $project->leafPhases()->get()
+                ->filter(fn (ProjectPhase $phase) => $phase->isOverdue())
+                ->map(fn (ProjectPhase $phase) => [
+                    'project' => $project->title,
+                    'phase' => $phase->title,
+                    'planned_end_date' => $phase->end_date->toDateString(),
+                    'progress_percent' => (float) $phase->progress_percent,
+                    'days_overdue' => (int) abs(today()->diffInDays($phase->end_date)),
+                ]))
+            ->sortByDesc('days_overdue')
+            ->values();
+
+        if ($overduePhases->isEmpty()) {
+            return ['message' => 'هیچ فاز عقب‌افتاده‌ای در پروژه‌های فعال پیدا نشد.'];
+        }
+
+        return ['overdue_count' => $overduePhases->count(), 'phases' => $overduePhases->all()];
+    }
+
+    private function projectBudgetSummaryTool(): array
+    {
+        return Project::query()
+            ->whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress])
+            ->get()
+            ->map(function (Project $project) {
+                $budget = (int) $project->budget;
+                $spent = (int) $project->actualCost();
+
+                return [
+                    'title' => $project->title,
+                    'budget_toman' => $budget,
+                    'spent_toman' => $spent,
+                    'remaining_toman' => $budget - $spent,
+                    'percent_spent' => $budget > 0 ? round($spent / $budget * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('percent_spent')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function projectExpensesTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['project_name'] ?? ''));
+        $project = $this->findProjectByName($name);
+
+        if (! $project) {
+            return [
+                'error' => "پروژه‌ای با نام «{$name}» پیدا نشد.",
+                'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $expenses = $project->expenses()
+            ->with('phase')
+            ->orderByDesc('spent_at')
+            ->limit($limit)
+            ->get();
+
+        if ($expenses->isEmpty()) {
+            return ['message' => "هیچ هزینه‌ای برای پروژهٔ «{$project->title}» ثبت نشده است."];
+        }
+
+        return [
+            'project' => $project->title,
+            'total_spent_toman' => (int) $project->actualCost(),
+            'expenses' => $expenses->map(fn (ProjectExpense $expense) => [
+                'title' => $expense->title,
+                'amount_toman' => (int) $expense->amount,
+                'spent_at' => $expense->spent_at?->toDateString(),
+                'phase' => $expense->phase?->title,
+            ])->all(),
+        ];
     }
 
     private function attendanceSummary(): array
@@ -1095,6 +1734,172 @@ trait HasAiAssistantEngine
             'overdue_count' => $overdue,
             'by_status' => $byStatus->all(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchTasksTool(array $arguments): array
+    {
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+        $status = TaskStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $priority = TaskPriority::tryFrom((string) ($arguments['priority'] ?? ''));
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+        $dueBefore = $arguments['due_before'] ?? null;
+        $dueAfter = $arguments['due_after'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Task::query()->with(['assignee', 'department']);
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
+
+        if ($departmentName !== '') {
+            $query->whereHas('department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+        }
+
+        if ($dueBefore) {
+            $query->whereDate('due_at', '<=', $dueBefore);
+        }
+
+        if ($dueAfter) {
+            $query->whereDate('due_at', '>=', $dueAfter);
+        }
+
+        $tasks = $query->orderByDesc('due_at')->limit($limit)->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفه‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $tasks->count(),
+            'tasks' => $tasks->map(fn (Task $task) => [
+                'title' => $task->title,
+                'assignee' => $task->assignee?->name,
+                'department' => $task->department?->name,
+                'priority' => $task->priority->getLabel(),
+                'status' => $task->status->getLabel(),
+                'due_at' => $task->due_at?->toDateString(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overdueTasksTool(array $arguments): array
+    {
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 30)));
+
+        $query = Task::query()
+            ->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->with(['assignee', 'department']);
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        $tasks = $query->orderBy('due_at')->limit($limit)->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفهٔ عقب‌افتاده‌ای پیدا نشد.'];
+        }
+
+        return [
+            'overdue_count' => $tasks->count(),
+            'tasks' => $tasks->map(fn (Task $task) => [
+                'title' => $task->title,
+                'assignee' => $task->assignee?->name,
+                'department' => $task->department?->name,
+                'priority' => $task->priority->getLabel(),
+                'due_at' => $task->due_at->toDateString(),
+                // due_at is a datetime (unlike a booking's date-only
+                // check_out_date), so comparing it raw against today()
+                // under-counts whenever due_at's time-of-day is later than
+                // midnight - startOfDay() keeps this a whole-calendar-days count.
+                'days_overdue' => (int) abs(today()->diffInDays($task->due_at->copy()->startOfDay())),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function tasksByAssigneeTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = Task::query()->whereNotNull('assigned_to')->with('assignee');
+
+        if ($userName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $tasks = $query->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفه‌ای با مسئول مشخص پیدا نشد.'];
+        }
+
+        $thisMonthStart = now()->startOfMonth();
+
+        $assignees = $tasks->groupBy(fn (Task $task) => $task->assignee?->name)
+            ->map(fn (Collection $group, string $name) => [
+                'user' => $name,
+                'open_count' => $group->whereIn('status', [TaskStatus::Todo, TaskStatus::InProgress])->count(),
+                'overdue_count' => $group->filter(fn (Task $task) => $task->due_at
+                    && $task->due_at->isPast()
+                    && ! in_array($task->status, [TaskStatus::Done, TaskStatus::Cancelled], true))->count(),
+                'completed_this_month' => $group->where('status', TaskStatus::Done)
+                    ->filter(fn (Task $task) => $task->completed_at && $task->completed_at->gte($thisMonthStart))
+                    ->count(),
+            ])
+            ->sortByDesc('open_count')
+            ->values();
+
+        return ['assignees' => $assignees->all()];
+    }
+
+    private function taskPriorityBreakdownTool(): array
+    {
+        $byPriority = Task::query()
+            ->selectRaw('priority, count(*) as task_count')
+            ->groupBy('priority')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->priority->value => (int) $row->task_count]);
+
+        $overdueByPriority = Task::query()
+            ->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->selectRaw('priority, count(*) as overdue_count')
+            ->groupBy('priority')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->priority->value => (int) $row->overdue_count]);
+
+        $priorities = collect(TaskPriority::cases())
+            ->map(fn (TaskPriority $priority) => [
+                'priority' => $priority->getLabel(),
+                'count' => (int) ($byPriority[$priority->value] ?? 0),
+                'overdue_count' => (int) ($overdueByPriority[$priority->value] ?? 0),
+            ])
+            ->filter(fn (array $row) => $row['count'] > 0)
+            ->values();
+
+        return ['priorities' => $priorities->all()];
     }
 
     private function channelManagerSummary(): array
