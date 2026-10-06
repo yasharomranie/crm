@@ -34,6 +34,8 @@ use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
 use App\Models\GuestTicket;
 use App\Models\Project;
+use App\Models\ProjectExpense;
+use App\Models\ProjectPhase;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
@@ -301,6 +303,14 @@ trait HasAiAssistantEngine
             - get_overdue_checkouts مهمانانی را نشان می‌دهد که باید خارج می‌شدند ولی هنوز چک‌اوت نشده‌اند؛ برای پیگیری فرانت‌دسک/نظافت استفاده کن.
             - وقتی کاربر اسم یک مهمان یا شمارهٔ یک رزرو را می‌گوید، از search_bookings استفاده کن، نه search_everything.
             - get_revenue_by_room_type، get_booking_source_breakdown و get_cancellation_summary همگی روی ماه جاری یا ماه قبل (شمسی) کار می‌کنند؛ پارامتر period را بر اساس سؤال کاربر («این ماه»/«ماه قبل») تنظیم کن.
+
+            دربارهٔ گزارش‌های وظایف و پروژه‌ها:
+            - وقتی مدیر می‌پرسد «کدام وظیفه/کارمند عقب افتاده» یا «با کی پیگیری کنم»، هیچ‌وقت فقط به get_task_summary بسنده نکن - آن فقط یک عدد کلی (overdue_count) می‌دهد. حتماً get_overdue_tasks را صدا بزن تا اسم دقیق هر وظیفه، مسئولش، و میزان تأخیرش را بگیری.
+            - برای جست‌وجوی یک وظیفهٔ خاص یا فیلتر کردن (مثلاً «کارهای باز رضا» یا «وظایف فوری این هفته») از search_tasks استفاده کن.
+            - برای مقایسهٔ بار کاری افراد («بار کاری کی سنگین‌تره») از get_tasks_by_assignee استفاده کن؛ برای نگاه از زاویهٔ ماتریس آیزنهاور (فوری/مهم) از get_task_priority_breakdown.
+            - get_project_health_summary فقط درصد EVM همهٔ پروژه‌های فعال را یک‌جا می‌دهد. برای جزئیات کامل یک پروژهٔ مشخص (بودجه، هزینهٔ واقعی، مسیر بحرانی) از get_project_detail با نام همان پروژه استفاده کن.
+            - وقتی سؤال دربارهٔ «چرا پروژه عقب افتاده» است، نه فقط «چقدر عقب افتاده»، از get_overdue_project_phases استفاده کن تا دقیقاً مشخص شود کدام فاز/بخش کار عقب است.
+            - برای مقایسهٔ بودجه و هزینهٔ واقعی (نه درصد EVM انتزاعی) از get_project_budget_summary، و برای دیدن ریز هزینه‌های یک پروژهٔ مشخص از get_project_expenses استفاده کن.
             PROMPT;
 
         // The model has no reliable notion of "today" on its own (it can
@@ -400,8 +410,16 @@ trait HasAiAssistantEngine
             'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
             'get_project_health_summary' => ['projects' => $this->projectHealthSummary()],
+            'get_project_detail' => $this->projectDetailTool($arguments),
+            'get_overdue_project_phases' => $this->overdueProjectPhasesTool($arguments),
+            'get_project_budget_summary' => ['projects' => $this->projectBudgetSummaryTool()],
+            'get_project_expenses' => $this->projectExpensesTool($arguments),
             'get_attendance_summary' => $this->attendanceSummary(),
             'get_task_summary' => $this->taskSummary(),
+            'search_tasks' => $this->searchTasksTool($arguments),
+            'get_overdue_tasks' => $this->overdueTasksTool($arguments),
+            'get_tasks_by_assignee' => $this->tasksByAssigneeTool($arguments),
+            'get_task_priority_breakdown' => $this->taskPriorityBreakdownTool(),
             'get_channel_manager_summary' => ['channels' => $this->channelManagerSummary()],
             'list_alerts' => ['alerts' => static::computeAlerts()],
             'get_form_submissions_summary' => $this->formSubmissionsSummary(),
@@ -501,8 +519,60 @@ trait HasAiAssistantEngine
             ]);
             $tools[] = $this->toolSchema('get_crm_summary', 'Get the sales pipeline (deals grouped by stage with counts and values) and support ticket / SLA status.', $noParams);
             $tools[] = $this->toolSchema('get_project_health_summary', 'Get earned-value (EVM) health for every active project: earned/planned value percent, cost variance, schedule variance.', $noParams);
+            $tools[] = $this->toolSchema('get_project_detail', 'Get full detail on ONE specific project by name: status, budget vs actual cost, EV/PV/CV/SV, and its critical-path phase titles in order - use when the user names a specific project, e.g. "پروژه وب‌سایت جدید چطوره".', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Partial or full project title or code'],
+                ],
+                'required' => ['project_name'],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_project_phases', 'Get the specific WBS phases that are overdue (past their planned end date with progress under 100%) across active projects - project name, phase title, planned end date, days overdue - not just a project-level percentage. Optionally scope to one project by name.', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Optional - partial or full project title to scope to; omit to check every active project'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_project_budget_summary', 'Get plain budget vs actual-spend numbers (not EVM percentages) for every active project: budget, amount spent, amount remaining, percent spent - use for "کدام پروژه داره از بودجه رد میشه".', $noParams);
+            $tools[] = $this->toolSchema('get_project_expenses', 'Get the recent expense line items (title, amount, date, phase) for ONE specific project - use for "پروژه فلان رو چی خرج کرده" / drilling into what a project\'s spend actually went to.', [
+                'type' => 'object',
+                'properties' => [
+                    'project_name' => ['type' => 'string', 'description' => 'Partial or full project title or code'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max expenses to return, most recent first - defaults to 20, max 50'],
+                ],
+                'required' => ['project_name'],
+            ]);
             $tools[] = $this->toolSchema('get_attendance_summary', 'Get this calendar month\'s staff attendance: on-time/late/absent counts and the users with the most lateness.', $noParams);
             $tools[] = $this->toolSchema('get_task_summary', 'Get the overdue task count and a breakdown of all tasks by status.', $noParams);
+            $tools[] = $this->toolSchema('search_tasks', 'Search/list tasks by assignee name, status, priority, department, or due date range - use to find specific tasks or list a filtered set, e.g. "کارهای باز رضا رو نشون بده".', [
+                'type' => 'object',
+                'properties' => [
+                    'assignee_name' => ['type' => 'string', 'description' => 'Partial or full name of the assigned user'],
+                    'status' => ['type' => 'string', 'enum' => ['todo', 'in_progress', 'done', 'overdue', 'cancelled']],
+                    'priority' => ['type' => 'string', 'enum' => ['urgent_important', 'not_urgent_important', 'urgent_not_important', 'neither'], 'description' => 'Eisenhower-matrix quadrant'],
+                    'department_name' => ['type' => 'string', 'description' => 'Partial or full department name'],
+                    'due_before' => ['type' => 'string', 'description' => 'Only tasks due on/before this date, format YYYY-MM-DD (Gregorian)'],
+                    'due_after' => ['type' => 'string', 'description' => 'Only tasks due on/after this date, format YYYY-MM-DD (Gregorian)'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_overdue_tasks', 'Get the detailed list of overdue tasks - title, assignee name, due date, days overdue - not just a count. Optionally scope to one assignee. Use for "کدام کارمند وظیفه‌اش عقب افتاده" / "با کی باید پیگیری کنم".', [
+                'type' => 'object',
+                'properties' => [
+                    'assignee_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one assignee to scope to; omit to list every overdue task'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 30, max 100'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_tasks_by_assignee', 'Get per-person task workload: open (todo/in_progress) count, overdue count, and tasks completed this Jalali month - grouped by assignee. Optionally scope to one person. Use for "بار کاری کی سنگین‌تره" / workload balancing.', [
+                'type' => 'object',
+                'properties' => [
+                    'user_name' => ['type' => 'string', 'description' => 'Optional - partial or full name of one user to scope to; omit to list every assignee'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_task_priority_breakdown', 'Get task counts and overdue counts grouped by Eisenhower-matrix priority quadrant (urgent+important, not urgent+important, urgent+not important, neither) - use for "چقدر از کارهای فوری و مهم عقب افتاده".', $noParams);
             $tools[] = $this->toolSchema('get_channel_manager_summary', 'Get commission owed and active booking counts per OTA sales channel.', $noParams);
             $tools[] = $this->toolSchema('list_alerts', 'Get the system\'s current rule-based alerts across all modules (overdue tasks, over-budget projects, breached ticket SLAs, chronic lateness, low occupancy).', $noParams);
             $tools[] = $this->toolSchema('get_form_submissions_summary', 'Get a system-wide snapshot of the dynamic form builder & approval workflow module: how many submissions are pending approval (overall and per form), this month\'s approved/rejected counts, and how many in-progress approvals have breached their step\'s SLA.', $noParams);
@@ -754,6 +824,9 @@ trait HasAiAssistantEngine
             'get_revenue_by_room_type' => $this->chartFromRows('bar', 'درآمد به تفکیک نوع اتاق (تومان)', $result['room_types'] ?? [], 'room_type', 'revenue_toman'),
             'get_booking_source_breakdown' => $this->chartFromRows('bar', 'درآمد به تفکیک منبع رزرو (تومان)', $result['sources'] ?? [], 'source', 'revenue_toman'),
             'get_task_summary' => $this->chartFromCounts('bar', 'وظایف بر اساس وضعیت', $result['by_status'] ?? []),
+            'get_tasks_by_assignee' => $this->chartFromRows('bar', 'وظایف باز به تفکیک مسئول', $result['assignees'] ?? [], 'user', 'open_count'),
+            'get_task_priority_breakdown' => $this->chartFromRows('bar', 'وظایف بر اساس اولویت (ماتریس آیزنهاور)', $result['priorities'] ?? [], 'priority', 'count'),
+            'get_project_budget_summary' => $this->chartFromRows('bar', 'درصد بودجهٔ مصرف‌شده به تفکیک پروژه (٪)', $result['projects'] ?? [], 'title', 'percent_spent'),
             'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
             'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
             'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
@@ -1464,6 +1537,160 @@ trait HasAiAssistantEngine
             ->all();
     }
 
+    private function findProjectByName(string $name): ?Project
+    {
+        $name = trim($name);
+
+        if ($name === '') {
+            return null;
+        }
+
+        return Project::query()->where('title', $name)->first()
+            ?? Project::query()->where('code', $name)->first()
+            ?? Project::query()->where('title', 'like', "%{$name}%")->first();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function projectDetailTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['project_name'] ?? ''));
+        $project = $this->findProjectByName($name);
+
+        if (! $project) {
+            return [
+                'error' => "پروژه‌ای با نام «{$name}» پیدا نشد.",
+                'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $criticalPathTitles = ProjectPhase::query()->whereIn('id', $project->criticalPathPhaseIds())->pluck('title', 'id');
+
+        return [
+            'title' => $project->title,
+            'code' => $project->code,
+            'status' => $project->status->getLabel(),
+            'owner' => $project->owner?->name,
+            'start_date' => $project->start_date?->toDateString(),
+            'end_date' => $project->end_date?->toDateString(),
+            'budget_toman' => (int) $project->budget,
+            'actual_cost_toman' => (int) $project->actualCost(),
+            'earned_value_percent' => round($project->earnedValuePercent(), 1),
+            'planned_value_percent' => round($project->plannedValuePercent(), 1),
+            'cost_variance_toman' => (int) $project->costVariance(),
+            'schedule_variance_toman' => (int) $project->scheduleVariance(),
+            // In critical-path order (earliest to latest), not DB order.
+            'critical_path_phases' => collect($project->criticalPathPhaseIds())
+                ->map(fn (int $id) => $criticalPathTitles[$id] ?? null)
+                ->filter()
+                ->values()
+                ->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overdueProjectPhasesTool(array $arguments): array
+    {
+        $projectName = trim((string) ($arguments['project_name'] ?? ''));
+        $projectsQuery = Project::query()->whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress]);
+
+        if ($projectName !== '') {
+            $project = $this->findProjectByName($projectName);
+
+            if (! $project) {
+                return [
+                    'error' => "پروژه‌ای با نام «{$projectName}» پیدا نشد.",
+                    'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+                ];
+            }
+
+            $projectsQuery->whereKey($project->id);
+        }
+
+        $overduePhases = $projectsQuery->get()
+            ->flatMap(fn (Project $project) => $project->leafPhases()->get()
+                ->filter(fn (ProjectPhase $phase) => $phase->isOverdue())
+                ->map(fn (ProjectPhase $phase) => [
+                    'project' => $project->title,
+                    'phase' => $phase->title,
+                    'planned_end_date' => $phase->end_date->toDateString(),
+                    'progress_percent' => (float) $phase->progress_percent,
+                    'days_overdue' => (int) abs(today()->diffInDays($phase->end_date)),
+                ]))
+            ->sortByDesc('days_overdue')
+            ->values();
+
+        if ($overduePhases->isEmpty()) {
+            return ['message' => 'هیچ فاز عقب‌افتاده‌ای در پروژه‌های فعال پیدا نشد.'];
+        }
+
+        return ['overdue_count' => $overduePhases->count(), 'phases' => $overduePhases->all()];
+    }
+
+    private function projectBudgetSummaryTool(): array
+    {
+        return Project::query()
+            ->whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress])
+            ->get()
+            ->map(function (Project $project) {
+                $budget = (int) $project->budget;
+                $spent = (int) $project->actualCost();
+
+                return [
+                    'title' => $project->title,
+                    'budget_toman' => $budget,
+                    'spent_toman' => $spent,
+                    'remaining_toman' => $budget - $spent,
+                    'percent_spent' => $budget > 0 ? round($spent / $budget * 100, 1) : 0,
+                ];
+            })
+            ->sortByDesc('percent_spent')
+            ->values()
+            ->all();
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function projectExpensesTool(array $arguments): array
+    {
+        $name = trim((string) ($arguments['project_name'] ?? ''));
+        $project = $this->findProjectByName($name);
+
+        if (! $project) {
+            return [
+                'error' => "پروژه‌ای با نام «{$name}» پیدا نشد.",
+                'available_projects' => Project::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $expenses = $project->expenses()
+            ->with('phase')
+            ->orderByDesc('spent_at')
+            ->limit($limit)
+            ->get();
+
+        if ($expenses->isEmpty()) {
+            return ['message' => "هیچ هزینه‌ای برای پروژهٔ «{$project->title}» ثبت نشده است."];
+        }
+
+        return [
+            'project' => $project->title,
+            'total_spent_toman' => (int) $project->actualCost(),
+            'expenses' => $expenses->map(fn (ProjectExpense $expense) => [
+                'title' => $expense->title,
+                'amount_toman' => (int) $expense->amount,
+                'spent_at' => $expense->spent_at?->toDateString(),
+                'phase' => $expense->phase?->title,
+            ])->all(),
+        ];
+    }
+
     private function attendanceSummary(): array
     {
         $records = AttendanceRecord::with('user')
@@ -1507,6 +1734,172 @@ trait HasAiAssistantEngine
             'overdue_count' => $overdue,
             'by_status' => $byStatus->all(),
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function searchTasksTool(array $arguments): array
+    {
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+        $status = TaskStatus::tryFrom((string) ($arguments['status'] ?? ''));
+        $priority = TaskPriority::tryFrom((string) ($arguments['priority'] ?? ''));
+        $departmentName = trim((string) ($arguments['department_name'] ?? ''));
+        $dueBefore = $arguments['due_before'] ?? null;
+        $dueAfter = $arguments['due_after'] ?? null;
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $query = Task::query()->with(['assignee', 'department']);
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        if ($status) {
+            $query->where('status', $status);
+        }
+
+        if ($priority) {
+            $query->where('priority', $priority);
+        }
+
+        if ($departmentName !== '') {
+            $query->whereHas('department', fn ($q) => $q->where('name', 'like', "%{$departmentName}%"));
+        }
+
+        if ($dueBefore) {
+            $query->whereDate('due_at', '<=', $dueBefore);
+        }
+
+        if ($dueAfter) {
+            $query->whereDate('due_at', '>=', $dueAfter);
+        }
+
+        $tasks = $query->orderByDesc('due_at')->limit($limit)->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفه‌ای با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $tasks->count(),
+            'tasks' => $tasks->map(fn (Task $task) => [
+                'title' => $task->title,
+                'assignee' => $task->assignee?->name,
+                'department' => $task->department?->name,
+                'priority' => $task->priority->getLabel(),
+                'status' => $task->status->getLabel(),
+                'due_at' => $task->due_at?->toDateString(),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function overdueTasksTool(array $arguments): array
+    {
+        $assigneeName = trim((string) ($arguments['assignee_name'] ?? ''));
+        $limit = max(1, min(100, (int) ($arguments['limit'] ?? 30)));
+
+        $query = Task::query()
+            ->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->with(['assignee', 'department']);
+
+        if ($assigneeName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$assigneeName}%"));
+        }
+
+        $tasks = $query->orderBy('due_at')->limit($limit)->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفهٔ عقب‌افتاده‌ای پیدا نشد.'];
+        }
+
+        return [
+            'overdue_count' => $tasks->count(),
+            'tasks' => $tasks->map(fn (Task $task) => [
+                'title' => $task->title,
+                'assignee' => $task->assignee?->name,
+                'department' => $task->department?->name,
+                'priority' => $task->priority->getLabel(),
+                'due_at' => $task->due_at->toDateString(),
+                // due_at is a datetime (unlike a booking's date-only
+                // check_out_date), so comparing it raw against today()
+                // under-counts whenever due_at's time-of-day is later than
+                // midnight - startOfDay() keeps this a whole-calendar-days count.
+                'days_overdue' => (int) abs(today()->diffInDays($task->due_at->copy()->startOfDay())),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function tasksByAssigneeTool(array $arguments): array
+    {
+        $userName = trim((string) ($arguments['user_name'] ?? ''));
+
+        $query = Task::query()->whereNotNull('assigned_to')->with('assignee');
+
+        if ($userName !== '') {
+            $query->whereHas('assignee', fn ($q) => $q->where('name', 'like', "%{$userName}%"));
+        }
+
+        $tasks = $query->get();
+
+        if ($tasks->isEmpty()) {
+            return ['message' => 'هیچ وظیفه‌ای با مسئول مشخص پیدا نشد.'];
+        }
+
+        $thisMonthStart = now()->startOfMonth();
+
+        $assignees = $tasks->groupBy(fn (Task $task) => $task->assignee?->name)
+            ->map(fn (Collection $group, string $name) => [
+                'user' => $name,
+                'open_count' => $group->whereIn('status', [TaskStatus::Todo, TaskStatus::InProgress])->count(),
+                'overdue_count' => $group->filter(fn (Task $task) => $task->due_at
+                    && $task->due_at->isPast()
+                    && ! in_array($task->status, [TaskStatus::Done, TaskStatus::Cancelled], true))->count(),
+                'completed_this_month' => $group->where('status', TaskStatus::Done)
+                    ->filter(fn (Task $task) => $task->completed_at && $task->completed_at->gte($thisMonthStart))
+                    ->count(),
+            ])
+            ->sortByDesc('open_count')
+            ->values();
+
+        return ['assignees' => $assignees->all()];
+    }
+
+    private function taskPriorityBreakdownTool(): array
+    {
+        $byPriority = Task::query()
+            ->selectRaw('priority, count(*) as task_count')
+            ->groupBy('priority')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->priority->value => (int) $row->task_count]);
+
+        $overdueByPriority = Task::query()
+            ->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled])
+            ->whereNotNull('due_at')
+            ->where('due_at', '<', now())
+            ->selectRaw('priority, count(*) as overdue_count')
+            ->groupBy('priority')
+            ->get()
+            ->mapWithKeys(fn ($row) => [$row->priority->value => (int) $row->overdue_count]);
+
+        $priorities = collect(TaskPriority::cases())
+            ->map(fn (TaskPriority $priority) => [
+                'priority' => $priority->getLabel(),
+                'count' => (int) ($byPriority[$priority->value] ?? 0),
+                'overdue_count' => (int) ($overdueByPriority[$priority->value] ?? 0),
+            ])
+            ->filter(fn (array $row) => $row['count'] > 0)
+            ->values();
+
+        return ['priorities' => $priorities->all()];
     }
 
     private function channelManagerSummary(): array
