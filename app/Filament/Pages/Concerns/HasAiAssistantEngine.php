@@ -86,6 +86,16 @@ trait HasAiAssistantEngine
 
     public bool $isThinking = false;
 
+    /**
+     * Transient within a single send() call only - never a Livewire-synced
+     * property, since it only needs to survive from a tool's execution
+     * earlier in runAgentLoop() to the final assistant message created
+     * later in the very same request. See buildChartForTool().
+     *
+     * @var array<string, mixed>|null
+     */
+    private ?array $pendingChart = null;
+
     public function mount(): void
     {
         $this->conversationId = $this->getConversations()->first()?->id;
@@ -179,6 +189,10 @@ trait HasAiAssistantEngine
     {
         $messages = $this->buildChatHistory($conversation);
         $tools = $this->getToolDefinitions();
+        // Reset per send() - a chart from an earlier, unrelated question
+        // must never leak onto a later turn that calls no chartable tool
+        // at all (e.g. a plain "ممنون" reply).
+        $this->pendingChart = null;
 
         for ($round = 0; $round < 5; $round++) {
             $assistantMessage = $provider->chatCompletion($messages, $tools);
@@ -188,6 +202,12 @@ trait HasAiAssistantEngine
                 'role' => AiMessageRole::Assistant,
                 'content' => $assistantMessage['content'] ?? null,
                 'tool_calls' => $toolCalls,
+                // Only a final answer (no further tool calls queued) ever
+                // carries a chart - and only once every tool call it
+                // depended on has actually run, which by this point in the
+                // loop (tool execution happens strictly before the NEXT
+                // round reaches here) is guaranteed.
+                'chart' => $toolCalls ? null : $this->pendingChart,
             ]);
 
             $messages[] = $assistantMessage;
@@ -200,6 +220,16 @@ trait HasAiAssistantEngine
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
                 $result = $this->executeTool($toolCall['function']['name'], $arguments);
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
+
+                // Last chartable tool this turn wins - keeps whatever was
+                // already pending when this particular call's result isn't
+                // itself chart-worthy (a detail lookup after a summary,
+                // say), instead of blanking it back out.
+                $chart = $this->buildChartForTool($toolCall['function']['name'], $result);
+
+                if ($chart !== null) {
+                    $this->pendingChart = $chart;
+                }
 
                 $conversation->messages()->create([
                     'role' => AiMessageRole::Tool,
@@ -615,6 +645,101 @@ trait HasAiAssistantEngine
                 'description' => $description,
                 'parameters' => $parameters,
             ],
+        ];
+    }
+
+    // --- Charts (rendered under the final assistant message - see
+    // resources/views/filament/pages/ai-assistant.blade.php) -------------------
+
+    /**
+     * Not every reporting tool's result is chart-worthy - forcing one onto
+     * a detail-oriented result (one submission, raw search hits, a list of
+     * missed calendar days) would be noise, not insight. This only returns
+     * a spec for the tools whose result is genuinely aggregate/breakdown-
+     * shaped, and - per the actual request that prompted this ("با توجه به
+     * کاربرد هرکدام") - picks the chart type that fits THAT tool's own data
+     * shape rather than reusing one default everywhere: doughnut for a
+     * small proportion-of-a-whole (attendance, room status), bar for a
+     * ranked/categorical comparison (everything else here).
+     *
+     * @param  array<string, mixed>  $result
+     * @return array{type: string, title: string, labels: array<int, string>, datasets: array<int, array{label: string, data: array<int, float|int>}>}|null
+     */
+    private function buildChartForTool(string $name, array $result): ?array
+    {
+        return match ($name) {
+            'get_attendance_summary' => $this->chartFromCounts('doughnut', 'وضعیت حضور این ماه', [
+                'به‌موقع' => $result['on_time_count'] ?? 0,
+                'تأخیر' => $result['late_count'] ?? 0,
+                'غیبت' => $result['absent_count'] ?? 0,
+            ]),
+            'get_accommodation_summary' => $this->chartFromCounts('doughnut', 'وضعیت اتاق‌ها', [
+                'اشغال' => $result['occupied'] ?? 0,
+                'خالی' => $result['available'] ?? 0,
+                'نیاز به نظافت' => $result['needs_cleaning'] ?? 0,
+            ]),
+            'get_task_summary' => $this->chartFromCounts('bar', 'وظایف بر اساس وضعیت', $result['by_status'] ?? []),
+            'get_form_submissions_summary' => $this->chartFromCounts('bar', 'درخواست‌های در انتظار تایید بر اساس فرم', $result['pending_by_form'] ?? []),
+            'get_crm_summary' => $this->chartFromRows('bar', 'ارزش معاملات بر اساس مرحله (تومان)', $result['deals_by_stage'] ?? [], 'stage', 'total_value_toman'),
+            'get_channel_manager_summary' => $this->chartFromRows('bar', 'کمیسیون بدهکار بر اساس کانال فروش (تومان)', $result['channels'] ?? [], 'name', 'commission_owed_toman'),
+            'get_approver_performance' => $this->chartFromRows('bar', 'نرخ رد درخواست به تفکیک تأییدکننده (٪)', $result['approvers'] ?? [], 'user', 'rejection_rate_percent'),
+            'get_breached_sla_submissions' => $this->chartFromRows('bar', 'میزان تاخیر از مهلت تایید (ساعت)', $result['items'] ?? [], 'form', 'overdue_hours'),
+            'get_project_health_summary' => $this->chartFromRows('bar', 'درصد پیشرفت واقعی پروژه‌ها', $result['projects'] ?? [], 'title', 'earned_value_percent'),
+            'get_workflow_bottleneck_analysis' => $this->chartFromRows('bar', 'میانگین زمان پاسخ به تفکیک مرحله (ساعت)', $result['bottlenecks'] ?? [], 'workflow_and_step', 'average_hours'),
+            default => null,
+        };
+    }
+
+    /**
+     * A doughnut/bar spec straight from a flat label => value map (an
+     * already-grouped breakdown like by_status or pending_by_form) - every
+     * non-numeric entry (e.g. a 'message' key on an otherwise-empty
+     * result) is dropped, and an all-zero or empty map returns null rather
+     * than a technically-valid but meaningless blank chart.
+     *
+     * @param  array<string, mixed>  $counts
+     */
+    private function chartFromCounts(string $type, string $title, array $counts): ?array
+    {
+        $numeric = array_filter($counts, 'is_numeric');
+
+        if ($numeric === [] || array_sum($numeric) <= 0) {
+            return null;
+        }
+
+        return [
+            'type' => $type,
+            'title' => $title,
+            'labels' => array_keys($numeric),
+            'datasets' => [['label' => $title, 'data' => array_values($numeric)]],
+        ];
+    }
+
+    /**
+     * The same spec shape, but built from a list of row arrays (one bar
+     * per row) instead of a flat map - e.g. get_breached_sla_submissions'
+     * "items", each needing its $labelKey ('form') and $valueKey
+     * ('overdue_hours') picked out. Capped at 10 bars: beyond that a chart
+     * stops being readable, and the model's own text/table answer already
+     * covers the long tail.
+     *
+     * @param  array<int, mixed>  $rows
+     */
+    private function chartFromRows(string $type, string $title, array $rows, string $labelKey, string $valueKey): ?array
+    {
+        $filtered = collect($rows)
+            ->filter(fn ($row) => is_array($row) && isset($row[$labelKey]) && is_numeric($row[$valueKey] ?? null))
+            ->take(10);
+
+        if ($filtered->isEmpty()) {
+            return null;
+        }
+
+        return [
+            'type' => $type,
+            'title' => $title,
+            'labels' => $filtered->pluck($labelKey)->map(fn ($value) => (string) $value)->all(),
+            'datasets' => [['label' => $title, 'data' => $filtered->pluck($valueKey)->map(fn ($value) => (float) $value)->all()]],
         ];
     }
 
