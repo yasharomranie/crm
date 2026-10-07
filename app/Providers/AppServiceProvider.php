@@ -5,6 +5,7 @@ namespace App\Providers;
 use App\Http\Middleware\EnsureIdempotentLivewireUpdate;
 use App\Livewire\AiAssistantWidget;
 use App\Models\Booking;
+use App\Models\CustomerAppNavItem;
 use App\Models\Deal;
 use App\Models\FormSubmission;
 use App\Models\User;
@@ -16,10 +17,12 @@ use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\View;
 use Illuminate\Support\Number;
 use Illuminate\Support\ServiceProvider;
 use Livewire\Livewire;
@@ -52,6 +55,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerPersianNumberMacro();
         $this->registerRateLimiters();
         $this->registerAuthRedirects();
+        $this->registerCustomerAppNavComposer();
 
         // Filament's own number formatting (TextColumn::numeric(), the
         // table pagination/selection UI, etc.) already resolves to Persian
@@ -160,6 +164,29 @@ class AppServiceProvider extends ServiceProvider
             return $request->is('app/*')
                 ? route('customer-app.auth.login')
                 : route('login');
+        });
+    }
+
+    /**
+     * Shares the وب‌اپ مشتریان's bottom nav bar items with every page that
+     * renders partials.customer-app-bottom-nav, instead of each
+     * controller re-fetching/resolving them - keeps the per-controller
+     * code free of a concern (what the global nav looks like right now)
+     * that belongs to the nav itself, see CustomerAppNavItem::forDisplay().
+     */
+    protected function registerCustomerAppNavComposer(): void
+    {
+        View::composer([
+            'customer-app',
+            'customer-app-bookings',
+            'customer-app-wallet',
+            'customer-app-tickets',
+            'customer-app-support',
+        ], function ($view) {
+            $view->with('navItems', CustomerAppNavItem::forDisplay(
+                Auth::guard('customer')->user(),
+                Route::currentRouteName(),
+            ));
         });
     }
 

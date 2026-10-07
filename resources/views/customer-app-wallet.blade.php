@@ -197,7 +197,7 @@
             <h1>کیف پول و باشگاه مشتریان</h1>
         </header>
 
-        <main class="content">
+        <main class="content has-bottom-nav">
             <section class="wallet-card">
                 <div class="label">موجودی کیف پول</div>
                 <div class="amount">{{ number_format($guest->wallet_balance) }} تومان</div>
@@ -245,5 +245,7 @@
             </section>
         </main>
     </div>
+
+    @include('partials.customer-app-bottom-nav')
 </body>
 </html>

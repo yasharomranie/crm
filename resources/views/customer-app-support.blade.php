@@ -202,7 +202,7 @@
             <h1>تیکت پشتیبانی</h1>
         </header>
 
-        <main class="content">
+        <main class="content has-bottom-nav">
             @if (session('success'))
                 <div class="flash">{{ session('success') }}</div>
             @endif
@@ -249,5 +249,7 @@
             </section>
         </main>
     </div>
+
+    @include('partials.customer-app-bottom-nav')
 </body>
 </html>

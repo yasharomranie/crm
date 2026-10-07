@@ -6,6 +6,7 @@ use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
 use App\Filament\Pages\CustomerAppAuthSettings;
 use App\Filament\Pages\CustomerAppGoogleSettings;
+use App\Filament\Pages\CustomerAppNavSettings;
 use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\Messenger;
@@ -186,5 +187,6 @@ return [
         'web-app-domain-settings' => ['page' => WebAppDomainSettings::class, 'label' => 'دامنه اختصاصی', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-auth-settings' => ['page' => CustomerAppAuthSettings::class, 'label' => 'روش‌های ورود', 'group' => 'وب‌اپ مشتریان'],
+        'customer-app-nav-settings' => ['page' => CustomerAppNavSettings::class, 'label' => 'منوی پایین اپ', 'group' => 'وب‌اپ مشتریان'],
     ],
 ];
