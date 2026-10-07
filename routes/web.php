@@ -3,6 +3,7 @@
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
+use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -110,4 +111,11 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
         ->middleware('guest:customer')->name('google.callback');
     Route::post('/logout', [CustomerAppAuthController::class, 'logout'])
         ->middleware('auth:customer')->name('logout');
+});
+
+// Customer-app account features - "سفارش‌های من" etc. - all behind the
+// 'customer' guard (see config/auth.php), never the staff 'auth' group.
+Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
+    Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
+    Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
 });

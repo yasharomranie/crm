@@ -313,7 +313,7 @@
 
             <nav class="tabs">
                 @if ($guest)
-                    <button type="button" class="tab" data-toast="سفارش‌های من">سفارش‌های من</button>
+                    <a href="{{ route('customer-app.bookings') }}" class="tab">سفارش‌های من</a>
                     <button type="button" class="tab" data-toast="کیف پول">کیف پول</button>
                     <button type="button" class="tab" data-toast="باشگاه">باشگاه</button>
                 @else

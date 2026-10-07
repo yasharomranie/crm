@@ -12,7 +12,9 @@ use App\Observers\BookingObserver;
 use App\Observers\DealObserver;
 use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
+use Illuminate\Auth\Middleware\Authenticate;
 use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
 use Illuminate\Support\Facades\RateLimiter;
@@ -49,6 +51,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerJalaliDateMacro();
         $this->registerPersianNumberMacro();
         $this->registerRateLimiters();
+        $this->registerAuthRedirects();
 
         // Filament's own number formatting (TextColumn::numeric(), the
         // table pagination/selection UI, etc.) already resolves to Persian
@@ -137,6 +140,26 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(3)->by('otp-mobile:'.$request->input('mobile')),
                 Limit::perMinute(10)->by('otp-ip:'.$request->ip()),
             ];
+        });
+    }
+
+    /**
+     * An unauthenticated hit on an 'auth:customer' route (see
+     * routes/web.php's وب‌اپ مشتریان group) must land on the customer-app's
+     * own login screen, not the staff one - Laravel's own default redirect
+     * target is a route named 'login', which this app never defines
+     * (Filament's own is 'filament.admin.auth.login'), so every other
+     * 'auth'-gated area intentionally still 500s on a guest hit instead of
+     * redirecting (see Seo\GoogleOAuthControllerTest's own note on this) -
+     * preserved here by falling through to that same route('login') call
+     * for every path outside /app.
+     */
+    protected function registerAuthRedirects(): void
+    {
+        Authenticate::redirectUsing(function (Request $request) {
+            return $request->is('app/*')
+                ? route('customer-app.auth.login')
+                : route('login');
         });
     }
 
