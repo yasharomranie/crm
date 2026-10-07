@@ -314,8 +314,8 @@
             <nav class="tabs">
                 @if ($guest)
                     <a href="{{ route('customer-app.bookings') }}" class="tab">سفارش‌های من</a>
-                    <button type="button" class="tab" data-toast="کیف پول">کیف پول</button>
-                    <button type="button" class="tab" data-toast="باشگاه">باشگاه</button>
+                    <a href="{{ route('customer-app.wallet') }}" class="tab">کیف پول</a>
+                    <a href="{{ route('customer-app.wallet') }}" class="tab">باشگاه</a>
                 @else
                     <a href="{{ route('customer-app.auth.login') }}" class="tab">سفارش‌های من</a>
                     <a href="{{ route('customer-app.auth.login') }}" class="tab">کیف پول</a>

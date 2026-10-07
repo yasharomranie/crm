@@ -4,6 +4,7 @@ use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
+use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -118,4 +119,5 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
     Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
     Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
+    Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
 });
