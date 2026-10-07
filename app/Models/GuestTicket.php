@@ -6,6 +6,7 @@ use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class GuestTicket extends Model
 {
@@ -39,6 +40,11 @@ class GuestTicket extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function replies(): HasMany
+    {
+        return $this->hasMany(GuestTicketReply::class)->oldest();
     }
 
     public function isOverdue(): bool

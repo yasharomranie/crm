@@ -8,6 +8,7 @@ use App\Models\Booking;
 use App\Models\CustomerAppNavItem;
 use App\Models\Deal;
 use App\Models\FormSubmission;
+use App\Models\GuestTicketReply;
 use App\Models\User;
 use App\Observers\BookingObserver;
 use App\Observers\DealObserver;
@@ -185,6 +186,7 @@ class AppServiceProvider extends ServiceProvider
             'customer-app-wallet',
             'customer-app-tickets',
             'customer-app-support',
+            'customer-app-support-show',
             'customer-app-profile',
         ], function ($view) {
             $guest = Auth::guard('customer')->user();
@@ -231,5 +233,12 @@ class AppServiceProvider extends ServiceProvider
 
             Gate::policy($definition['model'], $bindingKey);
         }
+
+        // A reply is never a standalone module in its own right (see
+        // GuestTickets\RelationManagers\RepliesRelationManager) - it shares
+        // the parent ticket's own "guest-tickets" permission rather than
+        // needing a brand new permission a role would have to be granted
+        // separately just to reply to tickets it can already manage.
+        Gate::policy(GuestTicketReply::class, 'policy.access-control.guest-tickets');
     }
 }

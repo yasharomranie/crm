@@ -5,6 +5,7 @@ namespace App\Filament\Resources\GuestTickets;
 use App\Filament\Resources\GuestTickets\Pages\CreateGuestTicket;
 use App\Filament\Resources\GuestTickets\Pages\EditGuestTicket;
 use App\Filament\Resources\GuestTickets\Pages\ListGuestTickets;
+use App\Filament\Resources\GuestTickets\RelationManagers\RepliesRelationManager;
 use App\Filament\Resources\GuestTickets\Schemas\GuestTicketForm;
 use App\Filament\Resources\GuestTickets\Tables\GuestTicketsTable;
 use App\Models\GuestTicket;
@@ -41,7 +42,7 @@ class GuestTicketResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            RepliesRelationManager::class,
         ];
     }
 
