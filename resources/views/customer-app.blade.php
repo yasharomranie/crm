@@ -121,6 +121,36 @@
             border-bottom-color: var(--orange);
         }
 
+        /* ---------- Account bar ---------- */
+
+        .account-bar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: .6rem 1rem;
+            background: var(--orange-soft);
+            font-size: .8rem;
+            color: var(--orange-dark);
+        }
+
+        .account-bar a {
+            color: var(--orange-dark);
+            font-weight: 700;
+            text-decoration: none;
+        }
+
+        .account-bar form button {
+            appearance: none;
+            border: none;
+            background: none;
+            font-family: inherit;
+            font-size: .8rem;
+            color: var(--orange-dark);
+            font-weight: 700;
+            cursor: pointer;
+            padding: 0;
+        }
+
         /* ---------- Scroll area ---------- */
 
         .content {
@@ -282,12 +312,30 @@
             </label>
 
             <nav class="tabs">
-                <button type="button" class="tab" data-toast="سفارش‌های من">سفارش‌های من</button>
-                <button type="button" class="tab" data-toast="کیف پول">کیف پول</button>
-                <button type="button" class="tab" data-toast="باشگاه">باشگاه</button>
+                @if ($guest)
+                    <a href="{{ route('customer-app.bookings') }}" class="tab">سفارش‌های من</a>
+                    <a href="{{ route('customer-app.wallet') }}" class="tab">کیف پول</a>
+                    <a href="{{ route('customer-app.wallet') }}" class="tab">باشگاه</a>
+                @else
+                    <a href="{{ route('customer-app.auth.login') }}" class="tab">سفارش‌های من</a>
+                    <a href="{{ route('customer-app.auth.login') }}" class="tab">کیف پول</a>
+                    <a href="{{ route('customer-app.auth.login') }}" class="tab">باشگاه</a>
+                @endif
                 <button type="button" class="tab" data-active="true">خانه</button>
             </nav>
         </header>
+
+        <div class="account-bar">
+            @if ($guest)
+                <span>سلام {{ $guest->name }}</span>
+                <form method="POST" action="{{ route('customer-app.auth.logout') }}">
+                    @csrf
+                    <button type="submit">خروج</button>
+                </form>
+            @else
+                <a href="{{ route('customer-app.auth.login') }}">ورود / ثبت‌نام</a>
+            @endif
+        </div>
 
         <main class="content">
             @if ($banners->isNotEmpty())

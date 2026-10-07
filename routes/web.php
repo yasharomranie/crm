@@ -2,6 +2,11 @@
 
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
+use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
+use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
+use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSupportTicketController;
+use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
+use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -87,3 +92,38 @@ Route::redirect('/api-docs', '/system-guide#ch-13');
 // Content is fully admin-managed via the "وب‌اپ مشتریان" Filament
 // resources (WebAppBanner/WebAppSection/WebAppSectionItem).
 Route::get('/app', [CustomerAppController::class, 'index'])->name('customer-app');
+
+// Customer-app auth (see config/auth.php's "customer" guard and
+// App\Http\Controllers\CustomerApp\AuthController) - deliberately its own
+// route group, never the staff 'auth' middleware group above: a customer
+// session must never satisfy an admin-panel auth check, and vice versa.
+Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
+    Route::get('/login', [CustomerAppAuthController::class, 'showLogin'])
+        ->middleware('guest:customer')->name('login');
+    Route::post('/otp/request', [CustomerAppAuthController::class, 'requestOtp'])
+        ->middleware(['guest:customer', 'throttle:customer-otp'])->name('otp.request');
+    Route::post('/otp/verify', [CustomerAppAuthController::class, 'verifyOtp'])
+        ->middleware('guest:customer')->name('otp.verify');
+    Route::post('/register', [CustomerAppAuthController::class, 'register'])
+        ->middleware('guest:customer')->name('register');
+    Route::post('/login', [CustomerAppAuthController::class, 'loginWithPassword'])
+        ->middleware('guest:customer')->name('login.attempt');
+    Route::get('/google/redirect', [CustomerAppAuthController::class, 'redirectToGoogle'])
+        ->middleware('guest:customer')->name('google.redirect');
+    Route::get('/google/callback', [CustomerAppAuthController::class, 'googleCallback'])
+        ->middleware('guest:customer')->name('google.callback');
+    Route::post('/logout', [CustomerAppAuthController::class, 'logout'])
+        ->middleware('auth:customer')->name('logout');
+});
+
+// Customer-app account features - "سفارش‌های من" etc. - all behind the
+// 'customer' guard (see config/auth.php), never the staff 'auth' group.
+Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
+    Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
+    Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
+    Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
+    Route::get('/tickets', [CustomerAppTicketController::class, 'index'])->name('tickets');
+    Route::post('/tickets', [CustomerAppTicketController::class, 'store'])->name('tickets.store');
+    Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');
+    Route::post('/support', [CustomerAppSupportTicketController::class, 'store'])->name('support.store');
+});

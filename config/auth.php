@@ -1,5 +1,6 @@
 <?php
 
+use App\Models\Guest;
 use App\Models\User;
 
 return [
@@ -42,6 +43,15 @@ return [
             'driver' => 'session',
             'provider' => 'users',
         ],
+
+        // The customer-facing وب‌اپ مشتریان (see CustomerAppController) logs
+        // in Guest records, never staff Users - kept as a fully separate
+        // guard/provider so a customer session can never pass an
+        // auth:web/admin-panel check, and vice versa.
+        'customer' => [
+            'driver' => 'session',
+            'provider' => 'guests',
+        ],
     ],
 
     /*
@@ -71,6 +81,11 @@ return [
         //     'driver' => 'database',
         //     'table' => 'users',
         // ],
+
+        'guests' => [
+            'driver' => 'eloquent',
+            'model' => Guest::class,
+        ],
     ],
 
     /*

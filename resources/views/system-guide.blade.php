@@ -484,6 +484,7 @@
       <li><a href="#ch-11">زیرساخت سازمانی و دسترسی‌ها</a></li>
       <li><a href="#ch-12">کار بدون اینترنت</a></li>
       <li><a href="#ch-13">REST API برای سامانه‌های بیرونی</a></li>
+      <li><a href="#ch-14">مرکز سئو</a></li>
     </ol>
   </nav>
 
@@ -1840,6 +1841,79 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
         <div>
           <span class="label">اصل کمترین دسترسی</span>
           <p>فقط عملیات‌هایی که واقعاً استفاده می‌کنید را برای هر اکانت فعال کنید. یک اکانت می‌تواند به فهرست مشخصی از محصولات هم محدود شود (خالی = دسترسی به همه‌ی محصولات).</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 14 — SEO CENTER ============ -->
+  <section class="chapter" id="ch-14">
+    <div class="chapter-head">
+      <div class="chapter-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><path d="m20 20-4.35-4.35"/><path d="M6.5 11.5 9 9l2 2 3.5-3.5"/></svg>
+      </div>
+      <div>
+        <span class="chapter-num">فصل ۱۴</span>
+        <h2>مرکز سئو</h2>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="lede">
+        بزرگ‌ترین و کامل‌ترین بخش سامانه: از اتصال مستقیم به Google Search Console و رصد زنده‌ی کلمات کلیدی، تا
+        هوش مصنوعیِ کشف فرصت و تولید پیشنهاد محتوا، ممیزی فنی سایت، تقویم محتوایی و گزارش دوره‌ای مدیریتی — همه برای
+        هر سایت/پروژه به‌صورت جداگانه و بر پایه‌ی داده‌ی واقعی گوگل، نه حدس و گمان.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="name">پروژه‌های سئو و اتصال گوگل</div><div class="desc">تعریف هر سایت به‌عنوان یک «پروژه‌ی سئو» با هدف، مخاطب و خدمات واقعی کسب‌وکار، و اتصال جداگانه‌ی هر پروژه به اکانت Search Console خودش.</div></div>
+        <div class="feature-card"><div class="name">داشبورد و صف اقدام</div><div class="desc">یک نگاه به وضعیت کلی همه‌ی پروژه‌ها، و فهرست اولویت‌بندی‌شده‌ی «الان چه باید کرد» که فرصت‌ها و مشکلات فنی را در یک صف واحد کنار هم می‌چیند.</div></div>
+        <div class="feature-card"><div class="name">کلمات کلیدی و رتبه‌ها</div><div class="desc">عملکرد واقعی هر کلمه‌ی کلیدی از Search Console: رتبه، روند، کلیک و ایمپرشن، Intent، ارزش تجاری و هشدار کانیبالیزیشن (رقابت صفحات خودی با هم).</div></div>
+        <div class="feature-card"><div class="name">پیشنهادهای هوش مصنوعی کلمات کلیدی</div><div class="desc">کشف خودکار کلمات کلیدی جدید توسط هوش مصنوعی بر پایه‌ی خدمات واقعی و نقشه‌ی موضوعی پروژه، با امکان تأیید یا رد هر پیشنهاد.</div></div>
+        <div class="feature-card"><div class="name">نقشه موضوعی (پیلار-کلاستر)</div><div class="desc">نمای درختیِ خوشه‌های موضوعی سایت و کلمات کلیدی هر خوشه، برای دیدن سریع کدام موضوع محتوای تکراری دارد و کدام هنوز خالی است.</div></div>
+        <div class="feature-card"><div class="name">فرصت‌های سئو</div><div class="desc">شناسایی خودکار فرصت‌های بهبود (افت رتبه، کلیک کم با ایمپرشن بالا، کانیبالیزیشن و…) همراه با شواهد، و سنجش نتیجه‌ی واقعی اقدام پس از حدود ۲۸ روز.</div></div>
+        <div class="feature-card"><div class="name">تقویم محتوا</div><div class="desc">مدیریت محتوای برنامه‌ریزی‌شده از ایده تا انتشار، با مسئول و مهلت مشخص، بررسی ایندکس‌شدن صفحه‌ی تازه‌منتشرشده در گوگل، و گزارش عملکرد پس از انتشار.</div></div>
+        <div class="feature-card"><div class="name">ممیزی فنی سئو و تحلیل‌گر Sitemap</div><div class="desc">اسکن فنی سایت با امتیاز کلی، امتیاز سرعت موبایل (PageSpeed Insights) و فهرست مشکلات بر اساس شدت؛ به‌علاوه تحلیل سلامت و رشد نقشه‌ی سایت (sitemap.xml).</div></div>
+        <div class="feature-card"><div class="name">هشدار و گزارش دوره‌ای</div><div class="desc">تنظیم آستانه‌ی افت رتبه و کانال‌های اطلاع‌رسانی برای هشدار خودکار، و تولید گزارش مدیریتی چاپ‌پذیر برای هر بازه‌ی زمانی.</div></div>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><path d="M12 3v3M12 18v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M3 12h3M18 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/><circle cx="12" cy="12" r="4"/></svg>
+        <div>
+          <span class="label">همه‌چیز از دادهٔ واقعی گوگل شروع می‌شود</span>
+          <p>تا پروژه‌ی سئو به اکانت Search Console خودش وصل نشود، کلمات کلیدی، ترافیک و خیلی از فرصت‌ها قابل محاسبه نیستند —
+          اتصال گوگل از «تنظیمات اتصال گوگل» و سپس فرم ویرایش هر پروژه انجام می‌شود. برای سوال درباره‌ی وضعیت سئو هر
+          پروژه می‌توانید همان لحظه از «دستیار هوشمند مدیریتی» هم بپرسید؛ جدول کامل آن در فصل «دستیار هوشمند مدیریتی».</p>
+        </div>
+      </div>
+      <div class="howto">
+        <div class="howto-label">مراحل استفاده</div>
+        <div class="shots">
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/36-seo-dashboard.png" alt="داشبورد سئو">
+            <figcaption><span class="step-n">۱</span> داشبورد سئو: نرخ موفقیت اقدامات، فرصت‌های باز، محتوای نزدیک به مهلت و پیشنهادهای در انتظار تأیید، در یک نگاه.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/37-seo-projects-list.png" alt="فهرست پروژه‌های سئو">
+            <figcaption><span class="step-n">۲</span> فهرست پروژه‌های سئو: هر سایت یک پروژه‌ی مستقل با هدف، وضعیت اتصال Search Console و فعال/غیرفعال بودن.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/38-seo-keyword-profiles.png" alt="کلمات کلیدی">
+            <figcaption><span class="step-n">۳</span> کلمات کلیدی: رتبه، روند، کلیک و ایمپرشن واقعی هر کلمه از Search Console، با فیلتر بر اساس روند، Intent و کانیبالیزیشن.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/44-seo-keyword-suggestions.png" alt="پیشنهادهای کلمات کلیدی هوش مصنوعی">
+            <figcaption><span class="step-n">۴</span> پیشنهادهای کلمات کلیدی: نتیجه‌ی «کشف کلمات کلیدی جدید» با هوش مصنوعی، آماده‌ی تأیید یا رد.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/42-seo-pillar-cluster-map.png" alt="نقشه موضوعی پیلار-کلاستر">
+            <figcaption><span class="step-n">۵</span> نقشه موضوعی: نمای درختی خوشه‌های محتوایی پروژه و کلمات کلیدی هر خوشه.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/41-seo-content-calendar.png" alt="تقویم محتوا">
+            <figcaption><span class="step-n">۶</span> تقویم محتوا: پیگیری هر آیتم محتوایی از ایده تا انتشار، با مسئول و مهلت انجام.</figcaption>
+          </figure>
+          <figure class="shot">
+            <img src="/system-guide-assets/shots/40-seo-technical-audits.png" alt="ممیزی فنی سئو">
+            <figcaption><span class="step-n">۷</span> ممیزی فنی سئو: امتیاز کلی و امتیاز سرعت موبایل هر اسکن، با تعداد مشکلات یافت‌شده روی هر پروژه.</figcaption>
+          </figure>
         </div>
       </div>
     </div>
