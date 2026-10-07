@@ -59,6 +59,11 @@ class Guest extends Authenticatable
         return $this->hasMany(GuestTicket::class);
     }
 
+    public function tripPlans(): HasMany
+    {
+        return $this->hasMany(TripPlan::class);
+    }
+
     /**
      * Completed stays only - a booking that hasn't checked out yet
      * shouldn't count toward RFM.
