@@ -31,24 +31,20 @@
         top: -1.55rem;
         left: 50%;
         transform: translateX(-50%);
-        display: flex;
-        flex-direction: column;
-        align-items: center;
-        gap: .25rem;
         text-decoration: none;
-        color: var(--ink-faint);
     }
 
     .bottom-nav-auth .circle {
         box-sizing: border-box;
-        width: 3.3rem;
-        height: 3.3rem;
+        width: 3.6rem;
+        height: 3.6rem;
         aspect-ratio: 1 / 1;
         border-radius: 50%;
-        flex-shrink: 0;
         display: flex;
+        flex-direction: column;
         align-items: center;
         justify-content: center;
+        gap: .05rem;
         background: linear-gradient(135deg, var(--orange), var(--orange-dark));
         border: 3px solid #fff;
         box-shadow: 0 8px 18px rgb(194 65 12 / .38), inset 0 1px 1px rgb(255 255 255 / .35);
@@ -61,24 +57,23 @@
     }
 
     .bottom-nav-auth .circle svg {
-        width: 22px;
-        height: 22px;
+        width: 18px;
+        height: 18px;
         color: #fff;
     }
 
-    .bottom-nav-auth .circle span {
-        font-size: 1.1rem;
+    .bottom-nav-auth .circle .initial {
+        font-size: .95rem;
         font-weight: 800;
+        line-height: 1;
         color: #fff;
     }
 
-    .bottom-nav-auth span.label {
-        font-size: .68rem;
-        font-weight: 600;
-    }
-
-    .bottom-nav-auth[data-active="true"] {
-        color: var(--orange-dark);
+    .bottom-nav-auth .circle .label {
+        font-size: .56rem;
+        font-weight: 700;
+        line-height: 1;
+        color: #fff;
     }
 
     .bottom-nav-auth[data-active="true"] .circle {
@@ -157,11 +152,11 @@
     <a href="{{ $authNavItem['url'] }}" class="bottom-nav-auth" data-active="{{ $authNavItem['active'] ? 'true' : 'false' }}">
         <span class="circle">
             @if ($authNavItem['initial'])
-                <span>{{ $authNavItem['initial'] }}</span>
+                <span class="initial">{{ $authNavItem['initial'] }}</span>
             @else
                 <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
             @endif
+            <span class="label">{{ $authNavItem['label'] }}</span>
         </span>
-        <span class="label">{{ $authNavItem['label'] }}</span>
     </a>
 </nav>
