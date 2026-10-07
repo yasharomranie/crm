@@ -4,6 +4,8 @@ use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
+use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSupportTicketController;
+use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
 use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
@@ -120,4 +122,8 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
     Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
     Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
+    Route::get('/tickets', [CustomerAppTicketController::class, 'index'])->name('tickets');
+    Route::post('/tickets', [CustomerAppTicketController::class, 'store'])->name('tickets.store');
+    Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');
+    Route::post('/support', [CustomerAppSupportTicketController::class, 'store'])->name('support.store');
 });
