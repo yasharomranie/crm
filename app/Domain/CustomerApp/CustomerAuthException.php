@@ -15,6 +15,11 @@ class CustomerAuthException extends Exception
         return new self('ورود با گوگل در حال حاضر فعال نیست.');
     }
 
+    public static function googleDisabled(): self
+    {
+        return new self('ورود با گوگل توسط مدیر سامانه غیرفعال شده است.');
+    }
+
     public static function googleRequestFailed(string $reason): self
     {
         return new self("ورود با گوگل ناموفق بود: {$reason}");

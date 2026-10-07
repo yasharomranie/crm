@@ -255,13 +255,22 @@
             </div>
         @endif
 
-        <div class="mode-switch" role="tablist">
-            <button type="button" data-mode-tab="otp" aria-selected="true">ورود با کد پیامکی</button>
-            <button type="button" data-mode-tab="password" aria-selected="false">رمز عبور</button>
-        </div>
+        @php $defaultMode = $otpEnabled ? 'otp' : ($passwordEnabled ? 'password' : null); @endphp
+
+        @if ($otpEnabled && $passwordEnabled)
+            <div class="mode-switch" role="tablist">
+                <button type="button" data-mode-tab="otp" aria-selected="{{ $defaultMode === 'otp' ? 'true' : 'false' }}">ورود با کد پیامکی</button>
+                <button type="button" data-mode-tab="password" aria-selected="{{ $defaultMode === 'password' ? 'true' : 'false' }}">رمز عبور</button>
+            </div>
+        @endif
+
+        @if (! $otpEnabled && ! $passwordEnabled && ! $googleConfigured)
+            <div class="errors">در حال حاضر هیچ روش ورودی برای اپ مشتریان فعال نیست. لطفاً بعداً دوباره تلاش کنید.</div>
+        @endif
 
         {{-- ---------- OTP mode ---------- --}}
-        <div class="panel" data-mode-panel="otp" data-open="true">
+        @if ($otpEnabled)
+        <div class="panel" data-mode-panel="otp" data-open="{{ $defaultMode === 'otp' ? 'true' : 'false' }}">
             @if ($otpRequestedFor)
                 <form method="POST" action="{{ route('customer-app.auth.otp.verify') }}" style="display:flex;flex-direction:column;gap:.9rem">
                     @csrf
@@ -284,9 +293,11 @@
                 </form>
             @endif
         </div>
+        @endif
 
         {{-- ---------- Password mode ---------- --}}
-        <div class="panel" data-mode-panel="password">
+        @if ($passwordEnabled)
+        <div class="panel" data-mode-panel="password" data-open="{{ $defaultMode === 'password' ? 'true' : 'false' }}">
             <form method="POST" action="{{ route('customer-app.auth.login.attempt') }}" data-password-form="login">
                 @csrf
                 <label class="field">
@@ -323,6 +334,7 @@
                 <p class="hint">قبلاً ثبت‌نام کرده‌اید؟ <button type="button" data-password-switch="login">وارد شوید</button></p>
             </form>
         </div>
+        @endif
 
         @if ($googleConfigured)
             <div class="divider">یا</div>
