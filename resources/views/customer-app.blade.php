@@ -95,32 +95,6 @@
             color: var(--ink-faint);
         }
 
-        .tabs {
-            display: flex;
-            gap: 1.25rem;
-            margin-top: .75rem;
-            overflow-x: auto;
-        }
-
-        .tab {
-            appearance: none;
-            border: none;
-            background: none;
-            font-family: inherit;
-            font-size: .82rem;
-            color: var(--ink-faint);
-            padding: 0 0 .55rem;
-            white-space: nowrap;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-        }
-
-        .tab[data-active="true"] {
-            color: var(--orange-dark);
-            font-weight: 700;
-            border-bottom-color: var(--orange);
-        }
-
         /* ---------- Account bar ---------- */
 
         .account-bar {
@@ -155,7 +129,7 @@
 
         .content {
             flex: 1;
-            padding: 1rem 1rem 6rem;
+            padding: 1rem;
             display: flex;
             flex-direction: column;
             gap: 1.5rem;
@@ -279,7 +253,7 @@
         #toast {
             position: fixed;
             inset-inline: 0;
-            bottom: max(1rem, env(safe-area-inset-bottom));
+            bottom: calc(4.8rem + env(safe-area-inset-bottom));
             display: flex;
             justify-content: center;
             pointer-events: none;
@@ -310,19 +284,6 @@
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
                 <input type="text" id="tile-search" placeholder="جستجو در امکانات گنجنامه…" autocomplete="off">
             </label>
-
-            <nav class="tabs">
-                @if ($guest)
-                    <a href="{{ route('customer-app.bookings') }}" class="tab">سفارش‌های من</a>
-                    <a href="{{ route('customer-app.wallet') }}" class="tab">کیف پول</a>
-                    <a href="{{ route('customer-app.wallet') }}" class="tab">باشگاه</a>
-                @else
-                    <a href="{{ route('customer-app.auth.login') }}" class="tab">سفارش‌های من</a>
-                    <a href="{{ route('customer-app.auth.login') }}" class="tab">کیف پول</a>
-                    <a href="{{ route('customer-app.auth.login') }}" class="tab">باشگاه</a>
-                @endif
-                <button type="button" class="tab" data-active="true">خانه</button>
-            </nav>
         </header>
 
         <div class="account-bar">
@@ -337,7 +298,7 @@
             @endif
         </div>
 
-        <main class="content">
+        <main class="content has-bottom-nav">
             @if ($banners->isNotEmpty())
                 <div class="banners">
                     @foreach ($banners as $banner)
@@ -391,6 +352,8 @@
             @endforelse
         </main>
     </div>
+
+    @include('partials.customer-app-bottom-nav')
 
     <div id="toast"><span></span></div>
 
