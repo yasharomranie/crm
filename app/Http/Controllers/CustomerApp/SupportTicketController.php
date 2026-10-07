@@ -6,6 +6,7 @@ use App\Enums\TicketPriority;
 use App\Enums\TicketStatus;
 use App\Http\Controllers\Controller;
 use App\Models\Guest;
+use App\Models\GuestTicket;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -48,5 +49,46 @@ class SupportTicketController extends Controller
         ]);
 
         return redirect()->route('customer-app.support')->with('success', 'تیکت شما ثبت شد. تیم پشتیبانی به‌زودی پاسخ می‌دهد.');
+    }
+
+    public function show(GuestTicket $ticket): View
+    {
+        /** @var Guest $guest */
+        $guest = Auth::guard('customer')->user();
+
+        // 404 rather than 403 on a ticket that isn't this guest's own, so
+        // the response gives no hint that the id belongs to someone else.
+        abort_unless($ticket->guest_id === $guest->id, 404);
+
+        return view('customer-app-support-show', [
+            'guest' => $guest,
+            'ticket' => $ticket->load('replies.guest', 'replies.user'),
+        ]);
+    }
+
+    public function reply(Request $request, GuestTicket $ticket): RedirectResponse
+    {
+        /** @var Guest $guest */
+        $guest = Auth::guard('customer')->user();
+
+        abort_unless($ticket->guest_id === $guest->id, 404);
+
+        $data = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $ticket->replies()->create([
+            'guest_id' => $guest->id,
+            'body' => $data['body'],
+        ]);
+
+        // A customer reply means the conversation is active again - a
+        // ticket staff had already marked resolved/closed shouldn't stay
+        // that way once the guest has come back with something new to say.
+        if (in_array($ticket->status, [TicketStatus::Resolved, TicketStatus::Closed], true)) {
+            $ticket->update(['status' => TicketStatus::InProgress]);
+        }
+
+        return redirect()->route('customer-app.support.show', $ticket)->with('success', 'پاسخ شما ثبت شد.');
     }
 }

@@ -150,6 +150,8 @@
             align-items: center;
             justify-content: space-between;
             gap: .8rem;
+            text-decoration: none;
+            color: inherit;
         }
 
         .ticket-row:last-child {
@@ -237,13 +239,13 @@
                     <p class="empty">هنوز تیکتی ثبت نکرده‌اید.</p>
                 @else
                     @foreach ($tickets as $ticket)
-                        <div class="ticket-row">
+                        <a href="{{ route('customer-app.support.show', $ticket) }}" class="ticket-row">
                             <div class="meta">
                                 <span class="subject">{{ $ticket->subject }}</span>
                                 <span class="date">{{ $ticket->created_at->toJalali('Y/m/d H:i') }}</span>
                             </div>
                             <span class="badge {{ $ticket->status->getColor() }}">{{ $ticket->status->getLabel() }}</span>
-                        </div>
+                        </a>
                     @endforeach
                 @endif
             </section>

@@ -148,7 +148,7 @@
 
         .banner {
             scroll-snap-align: start;
-            flex: 0 0 88%;
+            flex: 0 0 100%;
             border-radius: 1rem;
             overflow: hidden;
             position: relative;

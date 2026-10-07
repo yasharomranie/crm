@@ -128,4 +128,6 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::post('/tickets', [CustomerAppTicketController::class, 'store'])->name('tickets.store');
     Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');
     Route::post('/support', [CustomerAppSupportTicketController::class, 'store'])->name('support.store');
+    Route::get('/support/{ticket}', [CustomerAppSupportTicketController::class, 'show'])->name('support.show');
+    Route::post('/support/{ticket}/replies', [CustomerAppSupportTicketController::class, 'reply'])->name('support.reply');
 });
