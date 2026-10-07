@@ -299,6 +299,25 @@ class CustomerAppAuthTest extends TestCase
             ->assertSee('رضا محمدی');
     }
 
+    public function test_the_side_drawer_shows_the_login_link_when_signed_out(): void
+    {
+        $this->get(route('customer-app'))
+            ->assertOk()
+            ->assertSee('مهمان گنجنامه');
+    }
+
+    public function test_the_side_drawer_shows_the_guests_wallet_balance_and_quick_links_when_signed_in(): void
+    {
+        $guest = Guest::factory()->create(['name' => 'رضا محمدی', 'wallet_balance' => 50000]);
+
+        $response = $this->actingAs($guest, 'customer')->get(route('customer-app'));
+
+        $response->assertOk();
+        $response->assertSee(number_format(50000));
+        $response->assertSee('مشاهده پروفایل');
+        $response->assertSee(route('customer-app.profile'), false);
+    }
+
     // ---------- Per-method enable/disable toggles ----------
 
     public function test_a_disabled_otp_method_rejects_a_request_even_when_posted_directly(): void

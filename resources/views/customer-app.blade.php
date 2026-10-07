@@ -64,9 +64,34 @@
             background: #fff;
             padding: max(.9rem, env(safe-area-inset-top)) 1rem .6rem;
             border-bottom: 1px solid var(--line);
+            display: flex;
+            align-items: center;
+            gap: .6rem;
+        }
+
+        .menu-trigger {
+            flex-shrink: 0;
+            width: 2.3rem;
+            height: 2.3rem;
+            border-radius: 50%;
+            border: 1px solid var(--line);
+            background: var(--paper);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 0;
+            cursor: pointer;
+        }
+
+        .menu-trigger svg {
+            width: 19px;
+            height: 19px;
+            color: var(--ink);
         }
 
         .search {
+            flex: 1;
+            min-width: 0;
             display: flex;
             align-items: center;
             gap: .5rem;
@@ -280,6 +305,9 @@
 <body>
     <div class="shell">
         <header class="topbar">
+            <button type="button" class="menu-trigger" data-app-menu-open aria-label="باز کردن منو">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+            </button>
             <label class="search">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.2-3.2"/></svg>
                 <input type="text" id="tile-search" placeholder="جستجو در امکانات گنجنامه…" autocomplete="off">
@@ -352,6 +380,7 @@
     </div>
 
     @include('partials.customer-app-bottom-nav')
+    @include('partials.customer-app-drawer')
 
     <div id="toast"><span></span></div>
 
