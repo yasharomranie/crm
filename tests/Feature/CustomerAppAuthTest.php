@@ -34,7 +34,7 @@ class CustomerAppAuthTest extends TestCase
             'code' => $code->code,
         ]);
 
-        $response->assertRedirect(route('customer-app'));
+        $response->assertRedirect(route('customer-app.profile'));
         $this->assertAuthenticated('customer');
 
         $guest = Guest::where('mobile', '09120000012')->first();
@@ -129,7 +129,7 @@ class CustomerAppAuthTest extends TestCase
             'password_confirmation' => 'a-strong-password',
         ]);
 
-        $response->assertRedirect(route('customer-app'));
+        $response->assertRedirect(route('customer-app.profile'));
         $this->assertAuthenticated('customer');
 
         $guest = Guest::where('mobile', '09120000021')->first();
@@ -160,7 +160,7 @@ class CustomerAppAuthTest extends TestCase
             'password' => 'correct-password',
         ]);
 
-        $response->assertRedirect(route('customer-app'));
+        $response->assertRedirect(route('customer-app.profile'));
         $this->assertAuthenticated('customer');
     }
 
@@ -173,7 +173,7 @@ class CustomerAppAuthTest extends TestCase
             'password' => 'correct-password',
         ]);
 
-        $response->assertRedirect(route('customer-app'));
+        $response->assertRedirect(route('customer-app.profile'));
         $this->assertAuthenticated('customer');
     }
 
@@ -238,7 +238,7 @@ class CustomerAppAuthTest extends TestCase
         $response = $this->withSession(['customer_google_oauth_state' => 'state-1'])
             ->get(route('customer-app.auth.google.callback', ['state' => 'state-1', 'code' => 'auth-code']));
 
-        $response->assertRedirect(route('customer-app'));
+        $response->assertRedirect(route('customer-app.profile'));
         $this->assertAuthenticated('customer');
 
         $guest = Guest::where('google_id', 'google-sub-1')->first();
@@ -286,7 +286,7 @@ class CustomerAppAuthTest extends TestCase
     {
         $this->get(route('customer-app'))
             ->assertOk()
-            ->assertSee('ورود / ثبت‌نام');
+            ->assertSee(route('customer-app.auth.login'), false);
     }
 
     public function test_the_home_page_greets_a_signed_in_guest(): void

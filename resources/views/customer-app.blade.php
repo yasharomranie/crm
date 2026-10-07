@@ -286,17 +286,15 @@
             </label>
         </header>
 
-        <div class="account-bar">
-            @if ($guest)
+        @if ($guest)
+            <div class="account-bar">
                 <span>سلام {{ $guest->name }}</span>
                 <form method="POST" action="{{ route('customer-app.auth.logout') }}">
                     @csrf
                     <button type="submit">خروج</button>
                 </form>
-            @else
-                <a href="{{ route('customer-app.auth.login') }}">ورود / ثبت‌نام</a>
-            @endif
-        </div>
+            </div>
+        @endif
 
         <main class="content has-bottom-nav">
             @if ($banners->isNotEmpty())

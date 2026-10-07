@@ -116,7 +116,7 @@ class AuthController extends Controller
 
         $request->session()->regenerate();
 
-        return redirect()->intended(route('customer-app'));
+        return redirect()->intended(route('customer-app.profile'));
     }
 
     public function redirectToGoogle(Request $request): RedirectResponse
@@ -187,6 +187,6 @@ class AuthController extends Controller
         Auth::guard('customer')->login($guest, remember: true);
         $request->session()->regenerate();
 
-        return redirect()->intended(route('customer-app'));
+        return redirect()->intended(route('customer-app.profile'));
     }
 }
