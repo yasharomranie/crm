@@ -194,6 +194,7 @@ class AppServiceProvider extends ServiceProvider
 
             $view->with('authNavItem', [
                 'url' => $guest ? route('customer-app.profile') : route('customer-app.auth.login'),
+                'label' => $guest ? 'پروفایل' : 'ورود',
                 'initial' => $guest ? mb_substr($guest->name, 0, 1) : null,
                 'active' => $currentRouteName === 'customer-app.profile',
             ]);

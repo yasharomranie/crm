@@ -5,8 +5,8 @@
     so an admin can relabel/re-icon/reorder/hide a tab from "منوی پایین
     اپ مشتریان" in the panel without a deploy. Expects a $navItems
     collection of ['key','label','icon','url','active'] arrays, plus an
-    $authNavItem array (['url','initial','active']) for the raised,
-    round ورود/پروفایل button - see
+    $authNavItem array (['url','label','initial','active']) for the
+    raised, round ورود/پروفایل button - see
     AppServiceProvider::registerCustomerAppNavComposer(). That button's
     own destination is fixed in code (never admin-editable), same as
     every other tab's route.
@@ -28,34 +28,61 @@
 
     .bottom-nav-auth {
         position: absolute;
-        top: -1.35rem;
+        top: -1.55rem;
         left: 50%;
         transform: translateX(-50%);
-        width: 3.1rem;
-        height: 3.1rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: .25rem;
+        text-decoration: none;
+        color: var(--ink-faint);
+    }
+
+    .bottom-nav-auth .circle {
+        box-sizing: border-box;
+        width: 3.3rem;
+        height: 3.3rem;
+        aspect-ratio: 1 / 1;
         border-radius: 50%;
+        flex-shrink: 0;
         display: flex;
         align-items: center;
         justify-content: center;
-        background: var(--orange);
-        color: #fff;
+        background: linear-gradient(135deg, var(--orange), var(--orange-dark));
         border: 3px solid #fff;
-        box-shadow: 0 6px 14px rgb(249 115 22 / .4);
-        text-decoration: none;
+        box-shadow: 0 8px 18px rgb(194 65 12 / .38), inset 0 1px 1px rgb(255 255 255 / .35);
+        transition: transform .15s ease, box-shadow .15s ease;
     }
 
-    .bottom-nav-auth svg {
-        width: 24px;
-        height: 24px;
+    .bottom-nav-auth:active .circle {
+        transform: scale(.93);
+        box-shadow: 0 4px 10px rgb(194 65 12 / .35), inset 0 1px 1px rgb(255 255 255 / .25);
     }
 
-    .bottom-nav-auth span {
-        font-size: 1.15rem;
+    .bottom-nav-auth .circle svg {
+        width: 22px;
+        height: 22px;
+        color: #fff;
+    }
+
+    .bottom-nav-auth .circle span {
+        font-size: 1.1rem;
         font-weight: 800;
+        color: #fff;
+    }
+
+    .bottom-nav-auth span.label {
+        font-size: .68rem;
+        font-weight: 600;
     }
 
     .bottom-nav-auth[data-active="true"] {
-        background: var(--orange-dark);
+        color: var(--orange-dark);
+    }
+
+    .bottom-nav-auth[data-active="true"] .circle {
+        background: linear-gradient(135deg, var(--orange-dark), #9a3412);
     }
 
     .bottom-nav a {
@@ -128,10 +155,13 @@
     @endforeach
 
     <a href="{{ $authNavItem['url'] }}" class="bottom-nav-auth" data-active="{{ $authNavItem['active'] ? 'true' : 'false' }}">
-        @if ($authNavItem['initial'])
-            <span>{{ $authNavItem['initial'] }}</span>
-        @else
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
-        @endif
+        <span class="circle">
+            @if ($authNavItem['initial'])
+                <span>{{ $authNavItem['initial'] }}</span>
+            @else
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.5"/><path d="M4.5 20a7.5 7.5 0 0 1 15 0"/></svg>
+            @endif
+        </span>
+        <span class="label">{{ $authNavItem['label'] }}</span>
     </a>
 </nav>
