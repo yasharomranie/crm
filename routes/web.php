@@ -7,6 +7,7 @@ use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingCont
 use App\Http\Controllers\CustomerApp\ProfileController as CustomerAppProfileController;
 use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSupportTicketController;
 use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
+use App\Http\Controllers\CustomerApp\TripPlannerController as CustomerAppTripPlannerController;
 use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
@@ -130,4 +131,7 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::post('/support', [CustomerAppSupportTicketController::class, 'store'])->name('support.store');
     Route::get('/support/{ticket}', [CustomerAppSupportTicketController::class, 'show'])->name('support.show');
     Route::post('/support/{ticket}/replies', [CustomerAppSupportTicketController::class, 'reply'])->name('support.reply');
+    Route::get('/trip-planner', [CustomerAppTripPlannerController::class, 'index'])->name('trip-planner');
+    Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->name('trip-planner.store');
+    Route::get('/trip-planner/{plan}', [CustomerAppTripPlannerController::class, 'show'])->name('trip-planner.show');
 });

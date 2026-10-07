@@ -175,6 +175,7 @@
     <nav class="app-menu-links">
         @if ($guest)
             <a href="{{ route('customer-app.profile') }}">مشاهده پروفایل</a>
+            <a href="{{ route('customer-app.trip-planner') }}">تریپ‌پلنر هوشمند</a>
             <a href="{{ route('customer-app.bookings') }}">سفارش‌های من</a>
             <a href="{{ route('customer-app.wallet') }}">کیف پول و باشگاه</a>
             <a href="{{ route('customer-app.tickets') }}">بلیط و چک‌این</a>

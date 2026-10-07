@@ -49,5 +49,6 @@ class DatabaseSeeder extends Seeder
         ]);
 
         $this->call(WebAppContentSeeder::class);
+        $this->call(AttractionSeeder::class);
     }
 }

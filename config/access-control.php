@@ -22,9 +22,11 @@ use App\Filament\Pages\SeoPillarClusterMap;
 use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WebAppDomainSettings;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
+use App\Models\Attraction;
 use App\Models\Booking;
 use App\Models\ChannelAllotment;
 use App\Models\Company;
@@ -136,6 +138,8 @@ return [
         'seo-tracked-keywords' => ['model' => SeoTrackedKeyword::class, 'label' => 'ترکر کلمه کلیدی', 'group' => 'مرکز سئو'],
         'seo-technical-audits' => ['model' => SeoTechnicalAudit::class, 'label' => 'ممیزی فنی سئو', 'group' => 'مرکز سئو'],
         'seo-periodic-reports' => ['model' => SeoPeriodicReport::class, 'label' => 'گزارش دوره‌ای مدیریتی', 'group' => 'مرکز سئو'],
+
+        'attractions' => ['model' => Attraction::class, 'label' => 'جاذبه‌های گردشگری', 'group' => 'تریپ‌پلنر'],
     ],
 
     /*
@@ -188,5 +192,6 @@ return [
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-auth-settings' => ['page' => CustomerAppAuthSettings::class, 'label' => 'روش‌های ورود', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-nav-settings' => ['page' => CustomerAppNavSettings::class, 'label' => 'منوی پایین اپ', 'group' => 'وب‌اپ مشتریان'],
+        'trip-planner-settings' => ['page' => TripPlannerSettings::class, 'label' => 'تنظیمات دستیار سفر', 'group' => 'تریپ‌پلنر'],
     ],
 ];

@@ -188,6 +188,8 @@ class AppServiceProvider extends ServiceProvider
             'customer-app-support',
             'customer-app-support-show',
             'customer-app-profile',
+            'customer-app-trip-planner',
+            'customer-app-trip-plan-show',
         ], function ($view) {
             $guest = Auth::guard('customer')->user();
             $currentRouteName = Route::currentRouteName();
