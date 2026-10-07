@@ -110,6 +110,14 @@
         color: var(--orange);
     }
 
+    /* Keeps the two tabs flanking the raised circle from crowding it -
+       a blank flex item the same width as the circle's own footprint,
+       dropped into the middle of the row so the real tabs push apart
+       around it instead of sitting right against it. */
+    .bottom-nav-spacer {
+        flex: 0 0 3.8rem;
+    }
+
     /* Keeps page content from sitting under the fixed bar - each page's
        own scrollable container should carry this class. */
     .has-bottom-nav {
@@ -147,6 +155,9 @@
             @endswitch
             <span>{{ $item['label'] }}</span>
         </a>
+        @if ($loop->index === 1)
+            <span class="bottom-nav-spacer" aria-hidden="true"></span>
+        @endif
     @endforeach
 
     <a href="{{ $authNavItem['url'] }}" class="bottom-nav-auth" data-active="{{ $authNavItem['active'] ? 'true' : 'false' }}">
