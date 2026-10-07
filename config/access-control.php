@@ -4,6 +4,7 @@ use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
+use App\Filament\Pages\CustomerAppGoogleSettings;
 use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\Messenger;
@@ -182,5 +183,6 @@ return [
         ],
         'gate-scanner' => ['page' => GateScanner::class, 'label' => 'اسکن بلیط (گیت)', 'group' => 'گیشه بلیط'],
         'web-app-domain-settings' => ['page' => WebAppDomainSettings::class, 'label' => 'دامنه اختصاصی', 'group' => 'وب‌اپ مشتریان'],
+        'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
     ],
 ];

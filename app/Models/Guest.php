@@ -7,19 +7,30 @@ use App\Enums\LoyaltyTier;
 use App\Enums\WalletTransactionType;
 use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
-use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Foundation\Auth\User as Authenticatable;
 
-class Guest extends Model
+/**
+ * Doubles as the customer-app's authenticatable identity (see config/auth.php's
+ * "customer" guard) on top of its original role as the CRM's guest record -
+ * one row per person, so a wallet/loyalty history created by staff from the
+ * admin panel is the exact same history the person sees after logging into
+ * the customer app with that same mobile number.
+ */
+class Guest extends Authenticatable
 {
     use HasFactory, HasTags;
 
-    protected $fillable = ['name', 'national_code', 'mobile', 'email', 'notes', 'wallet_balance'];
+    protected $fillable = ['name', 'national_code', 'mobile', 'email', 'password', 'google_id', 'mobile_verified_at', 'notes', 'wallet_balance'];
+
+    protected $hidden = ['password', 'remember_token'];
 
     protected function casts(): array
     {
         return [
             'wallet_balance' => 'decimal:0',
+            'password' => 'hashed',
+            'mobile_verified_at' => 'datetime',
         ];
     }
 

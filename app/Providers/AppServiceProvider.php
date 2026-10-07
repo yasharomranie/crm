@@ -12,8 +12,10 @@ use App\Observers\BookingObserver;
 use App\Observers\DealObserver;
 use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
+use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Gate;
+use Illuminate\Support\Facades\RateLimiter;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Number;
@@ -46,6 +48,7 @@ class AppServiceProvider extends ServiceProvider
         $this->registerAccessControl();
         $this->registerJalaliDateMacro();
         $this->registerPersianNumberMacro();
+        $this->registerRateLimiters();
 
         // Filament's own number formatting (TextColumn::numeric(), the
         // table pagination/selection UI, etc.) already resolves to Persian
@@ -119,6 +122,22 @@ class AppServiceProvider extends ServiceProvider
     protected function registerPersianNumberMacro(): void
     {
         Number::macro('toPersian', fn (string|int|float $value): string => CalendarUtils::convertNumbers((string) $value));
+    }
+
+    /**
+     * Keyed by mobile number (not just IP) so one phone can't be SMS-bombed
+     * from many IPs, and one IP can't cycle through many phone numbers -
+     * both limits apply together on every OTP request (see
+     * App\Http\Controllers\CustomerApp\AuthController::requestOtp()).
+     */
+    protected function registerRateLimiters(): void
+    {
+        RateLimiter::for('customer-otp', function ($request) {
+            return [
+                Limit::perMinute(3)->by('otp-mobile:'.$request->input('mobile')),
+                Limit::perMinute(10)->by('otp-ip:'.$request->ip()),
+            ];
+        });
     }
 
     /**
