@@ -1,10 +1,15 @@
 {{--
     The persistent bottom tab bar of the گنجنامه customer app - shared by
     every customer-app-*.blade.php page (home, bookings, wallet, tickets,
-    support), fed by App\Models\CustomerAppNavItem::forDisplay() so an
-    admin can relabel/re-icon/reorder/hide a tab from "منوی پایین اپ
-    مشتریان" in the panel without a deploy. Expects a $navItems collection
-    of ['key','label','icon','url','active'] arrays.
+    support, profile), fed by App\Models\CustomerAppNavItem::forDisplay()
+    so an admin can relabel/re-icon/reorder/hide a tab from "منوی پایین
+    اپ مشتریان" in the panel without a deploy. Expects a $navItems
+    collection of ['key','label','icon','url','active'] arrays, plus an
+    $authNavItem array (['url','initial','active']) for the raised,
+    round ورود/پروفایل button - see
+    AppServiceProvider::registerCustomerAppNavComposer(). That button's
+    own destination is fixed in code (never admin-editable), same as
+    every other tab's route.
 --}}
 <style>
     .bottom-nav {
@@ -19,6 +24,38 @@
         padding: .45rem .5rem calc(.45rem + env(safe-area-inset-bottom));
         display: flex;
         box-shadow: 0 -2px 12px rgb(0 0 0 / .04);
+    }
+
+    .bottom-nav-auth {
+        position: absolute;
+        top: -1.35rem;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 3.1rem;
+        height: 3.1rem;
+        border-radius: 50%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--orange);
+        color: #fff;
+        border: 3px solid #fff;
+        box-shadow: 0 6px 14px rgb(249 115 22 / .4);
+        text-decoration: none;
+    }
+
+    .bottom-nav-auth svg {
+        width: 24px;
+        height: 24px;
+    }
+
+    .bottom-nav-auth span {
+        font-size: 1.15rem;
+        font-weight: 800;
+    }
+
+    .bottom-nav-auth[data-active="true"] {
+        background: var(--orange-dark);
     }
 
     .bottom-nav a {
@@ -89,4 +126,12 @@
             <span>{{ $item['label'] }}</span>
         </a>
     @endforeach
+
+    <a href="{{ $authNavItem['url'] }}" class="bottom-nav-auth" data-active="{{ $authNavItem['active'] ? 'true' : 'false' }}">
+        @if ($authNavItem['initial'])
+            <span>{{ $authNavItem['initial'] }}</span>
+        @else
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"/><path d="M10 17l5-5-5-5"/><path d="M15 12H3"/></svg>
+        @endif
+    </a>
 </nav>

@@ -168,11 +168,14 @@ class AppServiceProvider extends ServiceProvider
     }
 
     /**
-     * Shares the وب‌اپ مشتریان's bottom nav bar items with every page that
-     * renders partials.customer-app-bottom-nav, instead of each
-     * controller re-fetching/resolving them - keeps the per-controller
-     * code free of a concern (what the global nav looks like right now)
-     * that belongs to the nav itself, see CustomerAppNavItem::forDisplay().
+     * Shares the وب‌اپ مشتریان's bottom nav bar items - and its raised,
+     * round auth button (see partials.customer-app-bottom-nav) - with
+     * every page that renders that partial, instead of each controller
+     * re-resolving them: keeps the per-controller code free of a concern
+     * (what the global nav looks like right now) that belongs to the nav
+     * itself. The auth button's own destination is fixed here, never
+     * admin-editable, same reasoning as CustomerAppNavItem::forDisplay():
+     * signed out it goes to login, signed in it goes to "پروفایل کاربری".
      */
     protected function registerCustomerAppNavComposer(): void
     {
@@ -182,11 +185,18 @@ class AppServiceProvider extends ServiceProvider
             'customer-app-wallet',
             'customer-app-tickets',
             'customer-app-support',
+            'customer-app-profile',
         ], function ($view) {
-            $view->with('navItems', CustomerAppNavItem::forDisplay(
-                Auth::guard('customer')->user(),
-                Route::currentRouteName(),
-            ));
+            $guest = Auth::guard('customer')->user();
+            $currentRouteName = Route::currentRouteName();
+
+            $view->with('navItems', CustomerAppNavItem::forDisplay($guest, $currentRouteName));
+
+            $view->with('authNavItem', [
+                'url' => $guest ? route('customer-app.profile') : route('customer-app.auth.login'),
+                'initial' => $guest ? mb_substr($guest->name, 0, 1) : null,
+                'active' => $currentRouteName === 'customer-app.profile',
+            ]);
         });
     }
 
