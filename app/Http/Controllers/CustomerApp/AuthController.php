@@ -6,6 +6,7 @@ use App\Domain\CustomerApp\CustomerAuthException;
 use App\Domain\CustomerApp\CustomerGoogleOAuthService;
 use App\Domain\CustomerApp\OtpService;
 use App\Http\Controllers\Controller;
+use App\Models\CustomerAppAuthSetting;
 use App\Models\CustomerAppGoogleSetting;
 use App\Models\Guest;
 use Illuminate\Contracts\View\View;
@@ -33,14 +34,20 @@ class AuthController extends Controller
 
     public function showLogin(Request $request): View
     {
+        $settings = CustomerAppAuthSetting::current();
+
         return view('customer-app-auth', [
             'otpRequestedFor' => $request->query('step') === 'otp' ? $request->query('mobile') : null,
-            'googleConfigured' => CustomerAppGoogleSetting::current()->isConfigured(),
+            'otpEnabled' => $settings->otp_enabled,
+            'passwordEnabled' => $settings->password_enabled,
+            'googleConfigured' => $settings->google_enabled && CustomerAppGoogleSetting::current()->isConfigured(),
         ]);
     }
 
     public function requestOtp(Request $request): RedirectResponse
     {
+        abort_unless(CustomerAppAuthSetting::current()->otp_enabled, 403, 'ورود با کد پیامکی غیرفعال است.');
+
         $data = $request->validate(['mobile' => ['required', 'string', 'max:32']]);
 
         $this->otp->requestOtp($data['mobile']);
@@ -50,6 +57,8 @@ class AuthController extends Controller
 
     public function verifyOtp(Request $request): RedirectResponse
     {
+        abort_unless(CustomerAppAuthSetting::current()->otp_enabled, 403, 'ورود با کد پیامکی غیرفعال است.');
+
         $data = $request->validate([
             'mobile' => ['required', 'string', 'max:32'],
             'code' => ['required', 'string'],
@@ -73,6 +82,8 @@ class AuthController extends Controller
 
     public function register(Request $request): RedirectResponse
     {
+        abort_unless(CustomerAppAuthSetting::current()->password_enabled, 403, 'ورود با رمز عبور غیرفعال است.');
+
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'string', 'max:32', 'unique:guests,mobile'],
@@ -90,6 +101,8 @@ class AuthController extends Controller
 
     public function loginWithPassword(Request $request): RedirectResponse
     {
+        abort_unless(CustomerAppAuthSetting::current()->password_enabled, 403, 'ورود با رمز عبور غیرفعال است.');
+
         $data = $request->validate([
             'login' => ['required', 'string'],
             'password' => ['required', 'string'],
@@ -108,6 +121,10 @@ class AuthController extends Controller
 
     public function redirectToGoogle(Request $request): RedirectResponse
     {
+        if (! CustomerAppAuthSetting::current()->google_enabled) {
+            return redirect()->route('customer-app.auth.login')->withErrors(['google' => CustomerAuthException::googleDisabled()->getMessage()]);
+        }
+
         $state = Str::random(40);
         $request->session()->put('customer_google_oauth_state', $state);
 
@@ -120,6 +137,10 @@ class AuthController extends Controller
 
     public function googleCallback(Request $request): RedirectResponse
     {
+        if (! CustomerAppAuthSetting::current()->google_enabled) {
+            return redirect()->route('customer-app.auth.login')->withErrors(['google' => CustomerAuthException::googleDisabled()->getMessage()]);
+        }
+
         $expectedState = $request->session()->pull('customer_google_oauth_state');
         $code = $request->query('code');
 

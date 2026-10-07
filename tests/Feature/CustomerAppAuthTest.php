@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Models\CustomerAppAuthSetting;
 use App\Models\CustomerAppGoogleSetting;
 use App\Models\Guest;
 use App\Models\GuestOtpCode;
@@ -296,5 +297,58 @@ class CustomerAppAuthTest extends TestCase
             ->get(route('customer-app'))
             ->assertOk()
             ->assertSee('رضا محمدی');
+    }
+
+    // ---------- Per-method enable/disable toggles ----------
+
+    public function test_a_disabled_otp_method_rejects_a_request_even_when_posted_directly(): void
+    {
+        CustomerAppAuthSetting::current()->update(['otp_enabled' => false]);
+
+        $this->post(route('customer-app.auth.otp.request'), ['mobile' => '09120000041'])
+            ->assertForbidden();
+    }
+
+    public function test_a_disabled_password_method_rejects_login_even_when_posted_directly(): void
+    {
+        CustomerAppAuthSetting::current()->update(['password_enabled' => false]);
+        Guest::factory()->create(['mobile' => '09120000042', 'password' => 'correct-password']);
+
+        $this->post(route('customer-app.auth.login.attempt'), [
+            'login' => '09120000042',
+            'password' => 'correct-password',
+        ])->assertForbidden();
+    }
+
+    public function test_a_disabled_password_method_rejects_registration_even_when_posted_directly(): void
+    {
+        CustomerAppAuthSetting::current()->update(['password_enabled' => false]);
+
+        $this->post(route('customer-app.auth.register'), [
+            'name' => 'کاربر تست',
+            'mobile' => '09120000043',
+            'password' => 'a-strong-password',
+            'password_confirmation' => 'a-strong-password',
+        ])->assertForbidden();
+    }
+
+    public function test_a_disabled_google_method_bounces_back_to_login_with_an_error(): void
+    {
+        CustomerAppGoogleSetting::current()->update(['client_id' => 'id', 'client_secret' => 'secret']);
+        CustomerAppAuthSetting::current()->update(['google_enabled' => false]);
+
+        $response = $this->get(route('customer-app.auth.google.redirect'));
+
+        $response->assertRedirect(route('customer-app.auth.login'));
+        $response->assertSessionHasErrors('google');
+    }
+
+    public function test_the_login_page_hides_disabled_methods(): void
+    {
+        CustomerAppAuthSetting::current()->update(['otp_enabled' => false]);
+
+        $this->get(route('customer-app.auth.login'))
+            ->assertOk()
+            ->assertDontSee('ارسال کد ورود');
     }
 }
