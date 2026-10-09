@@ -11,6 +11,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\TimePicker;
 use Filament\Forms\Components\Toggle;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 use Illuminate\Support\Str;
 
@@ -58,12 +59,13 @@ class AttractionForm
                     ->components([
                         TextInput::make('lat')
                             ->label('عرض جغرافیایی (lat)')
-                            ->required()
+                            ->required(fn (Get $get): bool => (bool) $get('is_active'))
                             ->numeric()
-                            ->step(0.0000001),
+                            ->step(0.0000001)
+                            ->helperText('تا وقتی خالی است، جاذبه پیش‌نویس می‌ماند و «فعال» را نمی‌توان روشن کرد.'),
                         TextInput::make('lng')
                             ->label('طول جغرافیایی (lng)')
-                            ->required()
+                            ->required(fn (Get $get): bool => (bool) $get('is_active'))
                             ->numeric()
                             ->step(0.0000001)
                             ->helperText('مختصات را می‌توانید از روی Google Maps (راست‌کلیک روی نقطه) کپی کنید.'),
@@ -108,7 +110,8 @@ class AttractionForm
                             ->columnSpanFull(),
                         Toggle::make('is_active')
                             ->label('فعال (در فهرست و پیشنهادها نمایش داده شود)')
-                            ->default(true),
+                            ->default(true)
+                            ->live(),
                         TextInput::make('sort_order')
                             ->label('ترتیب نمایش')
                             ->numeric()
