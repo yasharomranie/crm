@@ -42,3 +42,7 @@ Thumbs.db
 # Python (ui-ux-pro-max skill scripts)
 __pycache__/
 *.pyc
+
+# Generated locally by the graphify dev-tool (code knowledge graph) -
+# regenerable, not application code.
+/graphify-out/
