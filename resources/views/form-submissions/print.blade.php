@@ -271,6 +271,7 @@
         @media (max-width: 640px) {
             .sheet {
                 padding: 1.75rem 1.25rem;
+                overflow-x: auto;
             }
 
             .letterhead {
