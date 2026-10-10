@@ -54,6 +54,8 @@ class AiAssistantsHub extends Page
 
     public bool $newIsShared = false;
 
+    public string $newSpecialties = '';
+
     /**
      * @return array<int, array{label: string, description: string, url: string, shape: string, color: string}>
      */
@@ -128,7 +130,7 @@ class AiAssistantsHub extends Page
 
     public function openCreateForm(): void
     {
-        $this->reset(['newName', 'newDescription', 'newShape', 'newColor', 'newIsShared']);
+        $this->reset(['newName', 'newDescription', 'newShape', 'newColor', 'newIsShared', 'newSpecialties']);
         $this->showCreateForm = true;
     }
 
@@ -154,7 +156,14 @@ class AiAssistantsHub extends Page
             'newShape' => ['required', 'string', 'in:'.implode(',', array_keys(AiAssistantAvatar::SHAPES))],
             'newColor' => ['required', 'string', 'in:'.implode(',', array_keys(AiAssistantAvatar::COLORS))],
             'newIsShared' => ['boolean'],
+            'newSpecialties' => ['nullable', 'string', 'max:255'],
         ]);
+
+        $specialties = collect(explode(',', $data['newSpecialties'] ?? ''))
+            ->map(fn (string $tag) => trim($tag))
+            ->filter()
+            ->values()
+            ->all();
 
         $profile = AiAssistantProfile::create([
             'created_by' => Auth::id(),
@@ -163,6 +172,7 @@ class AiAssistantsHub extends Page
             'avatar_shape' => $data['newShape'],
             'avatar_color' => $data['newColor'],
             'is_shared' => $data['newIsShared'],
+            'specialties' => $specialties,
         ]);
 
         $this->showCreateForm = false;

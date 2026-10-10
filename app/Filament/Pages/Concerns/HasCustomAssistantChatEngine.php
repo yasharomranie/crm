@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\SafeUrlFetcher;
 use App\Enums\AiKnowledgeEntrySource;
@@ -17,6 +18,7 @@ use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Str;
 use Livewire\WithFileUploads;
 
 /**
@@ -31,11 +33,22 @@ use Livewire\WithFileUploads;
  * lets it read a specific page the user points it to and turn what it
  * finds into knowledge entries the same way - plus the document-upload
  * path (processKnowledgeUpload) below, a third way to seed the same
- * knowledge base from a file the owner already has.
+ * knowledge base from a file the owner already has, and consult_assistant
+ * (AssistantConsultationService), which lets this profile hand a specific
+ * question to another visible, consultable profile when it's outside its
+ * own specialty, instead of guessing or the user manually forwarding the
+ * whole conversation (forwardConversationTo).
  */
 trait HasCustomAssistantChatEngine
 {
     use WithFileUploads;
+
+    /**
+     * Per sendToProfile() call, not per tool call - a profile could
+     * otherwise ask several different colleagues in the same round and
+     * multiply the cost of a single user message.
+     */
+    private const MAX_CONSULTATIONS_PER_SEND = 3;
 
     public ?int $activeProfileId = null;
 
@@ -230,8 +243,10 @@ trait HasCustomAssistantChatEngine
             ...$conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all(),
         ];
 
+        $consultationsRemaining = self::MAX_CONSULTATIONS_PER_SEND;
+
         for ($round = 0; $round < 3; $round++) {
-            $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions(), $profile->model);
+            $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions($profile), $profile->model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
             $conversation->messages()->create([
@@ -250,6 +265,7 @@ trait HasCustomAssistantChatEngine
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
                 $result = match ($toolCall['function']['name'] ?? null) {
                     'fetch_url' => $this->fetchUrlFromTool($arguments),
+                    'consult_assistant' => $this->consultAssistantFromTool($profile, $conversation, $arguments, $consultationsRemaining),
                     default => $this->saveKnowledgeEntryFromTool($profile, $arguments),
                 };
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -281,15 +297,34 @@ trait HasCustomAssistantChatEngine
 
         $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
 
+        $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
+
+        if ($consultants->isNotEmpty()) {
+            $directory = $consultants
+                ->map(fn (AiAssistantProfile $consultant) => '- شناسه '.$consultant->id.': '.$consultant->displayName().' (تخصص: '.$this->describeSpecialty($consultant).')')
+                ->implode("\n");
+
+            $prompt .= "\n\nدستیارهای دیگری که در دسترس‌اند و در صورت نیاز می‌توانی با ابزار consult_assistant یک سؤال مشخص از آن‌ها بپرسی:\n{$directory}\nفقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن، نه برای هر سؤال، و سؤال را کوتاه و مستقل بپرس چون آن دستیار تاریخچهٔ این گفتگو را نمی‌بیند.";
+        }
+
         return $prompt;
+    }
+
+    private function describeSpecialty(AiAssistantProfile $profile): string
+    {
+        if (filled($profile->specialties)) {
+            return implode('، ', $profile->specialties);
+        }
+
+        return Str::limit((string) $profile->description, 80);
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function profileToolDefinitions(): array
+    private function profileToolDefinitions(AiAssistantProfile $profile): array
     {
-        return [
+        $tools = [
             [
                 'type' => 'function',
                 'function' => [
@@ -325,6 +360,35 @@ trait HasCustomAssistantChatEngine
                 ],
             ],
         ];
+
+        $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
+
+        if ($consultants->isNotEmpty()) {
+            $tools[] = [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'consult_assistant',
+                    'description' => 'یک سؤال مشخص و مستقل را از دستیار دیگری که در تخصصی دیگر مهارت دارد می‌پرسد و پاسخش را برمی‌گرداند. فقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'target_profile_id' => [
+                                'type' => 'integer',
+                                'enum' => $consultants->pluck('id')->all(),
+                                'description' => 'شناسهٔ دستیاری که باید از او سؤال شود (از فهرست دستور سیستمی).',
+                            ],
+                            'question' => [
+                                'type' => 'string',
+                                'description' => 'سؤال مشخص و مستقل، بدون فرض دانستن تاریخچهٔ این گفتگو.',
+                            ],
+                        ],
+                        'required' => ['target_profile_id', 'question'],
+                    ],
+                ],
+            ];
+        }
+
+        return $tools;
     }
 
     /**
@@ -360,6 +424,53 @@ trait HasCustomAssistantChatEngine
         }
 
         return app(SafeUrlFetcher::class)->fetch($url);
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function consultAssistantFromTool(AiAssistantProfile $requester, AiConversation $conversation, array $arguments, int &$consultationsRemaining): array
+    {
+        if ($consultationsRemaining <= 0) {
+            return ['error' => 'سقف تعداد مشورت در این پیام به پایان رسیده است.'];
+        }
+
+        $targetId = (int) ($arguments['target_profile_id'] ?? 0);
+        $question = trim((string) ($arguments['question'] ?? ''));
+
+        if ($targetId <= 0 || $question === '') {
+            return ['error' => 'شناسهٔ دستیار یا سؤال نامعتبر است.'];
+        }
+
+        $service = app(AssistantConsultationService::class);
+        $target = $service->availableConsultantsFor($requester, Auth::user())->firstWhere('id', $targetId);
+
+        if (! $target) {
+            return ['error' => 'این دستیار برای مشورت در دسترس نیست.'];
+        }
+
+        $consultationsRemaining--;
+
+        return $service->consult($requester, $target, $question, $conversation);
+    }
+
+    /**
+     * The directory shown in the knowledge panel, so the owner can see
+     * which colleagues this profile is allowed to consult before it
+     * happens mid-conversation.
+     *
+     * @return Collection<int, AiAssistantProfile>
+     */
+    public function getAvailableConsultants(): Collection
+    {
+        $profile = $this->activeProfile();
+
+        if (! $profile) {
+            return new Collection;
+        }
+
+        return app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
     }
 
     /**
@@ -410,6 +521,29 @@ trait HasCustomAssistantChatEngine
     {
         $profile = $this->ownedActiveProfile();
         $profile?->update(['knowledge_auto_save' => ! $profile->knowledge_auto_save]);
+    }
+
+    /**
+     * $specialties is a comma-separated string straight from the input
+     * field - split and trimmed here rather than asking the UI to post an
+     * array, matching the plain-text-input pattern used throughout this
+     * trait (addManualKnowledgeEntry, addWatchedSource).
+     */
+    public function updateProfileSpecialties(string $specialties): void
+    {
+        $tags = collect(explode(',', $specialties))
+            ->map(fn (string $tag) => trim($tag))
+            ->filter()
+            ->values()
+            ->all();
+
+        $this->ownedActiveProfile()?->update(['specialties' => $tags]);
+    }
+
+    public function toggleProfileConsultable(): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $profile?->update(['consultable' => ! $profile->consultable]);
     }
 
     /**

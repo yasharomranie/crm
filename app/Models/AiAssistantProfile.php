@@ -16,9 +16,11 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * Hub (app/Filament/Pages/AiAssistantsHub.php). Unlike the built-in
  * management/legal assistants (HasAiAssistantEngine), a profile runs no
  * general-purpose tools - allowed_tools is reserved for a future phase -
- * except for the one narrow, self-contained save_knowledge_entry tool
- * (see HasCustomAssistantChatEngine) that lets it grow its own knowledge
- * base through ordinary use instead of only through manual notes.
+ * except for the narrow, self-contained tools in HasCustomAssistantChat
+ * Engine: save_knowledge_entry and fetch_url (knowledge base), and
+ * consult_assistant (AssistantConsultationService), which lets this
+ * profile ask another visible, consultable profile a specific question
+ * by specialty instead of answering outside its own expertise.
  */
 class AiAssistantProfile extends Model
 {
@@ -26,7 +28,7 @@ class AiAssistantProfile extends Model
 
     protected $fillable = [
         'created_by', 'name', 'description', 'avatar_shape', 'avatar_color', 'is_shared', 'allowed_tools', 'model',
-        'knowledge_auto_save',
+        'knowledge_auto_save', 'specialties', 'consultable',
     ];
 
     protected function casts(): array
@@ -35,6 +37,8 @@ class AiAssistantProfile extends Model
             'is_shared' => 'boolean',
             'allowed_tools' => 'array',
             'knowledge_auto_save' => 'boolean',
+            'specialties' => 'array',
+            'consultable' => 'boolean',
         ];
     }
 
