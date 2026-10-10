@@ -412,7 +412,7 @@
                                                 <div class="space-y-2">
                                                     @foreach ($pendingEntries as $entry)
                                                         <div wire:key="pending-{{ $entry->id }}" class="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/20 dark:bg-warning-500/10">
-                                                            <p class="text-sm text-gray-800 dark:text-gray-100">{{ $entry->content }}</p>
+                                                            <div class="ai-markdown text-sm text-gray-800 dark:text-gray-100">{!! \Illuminate\Support\Str::markdown($entry->content) !!}</div>
                                                             <div class="mt-2 flex gap-2">
                                                                 <button type="button" wire:click="approveKnowledgeEntry({{ $entry->id }})" class="rounded-lg bg-success-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-success-500">تأیید</button>
                                                                 <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">رد</button>
@@ -426,9 +426,12 @@
                                         <div class="mb-4">
                                             <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">دانستنی‌های تأییدشده ({{ $approvedEntries->count() }})</p>
                                             @forelse ($approvedEntries as $entry)
-                                                @php $isLong = mb_strlen($entry->content) > 140; @endphp
+                                                @php
+                                                    $isLong = mb_strlen($entry->content) > 140;
+                                                    $entryHtml = \Illuminate\Support\Str::markdown($entry->content);
+                                                @endphp
                                                 <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5" x-data="{ expanded: false }">
-                                                    <p class="text-sm text-gray-700 dark:text-gray-300" x-text="expanded ? @js($entry->content) : @js(\Illuminate\Support\Str::limit($entry->content, 140))"></p>
+                                                    <div class="ai-markdown min-w-0 flex-1 text-sm text-gray-700 dark:text-gray-300" :class="{{ $isLong ? 'true' : 'false' }} && ! expanded ? 'line-clamp-4' : ''">{!! $entryHtml !!}</div>
                                                     <div class="flex shrink-0 items-start gap-1">
                                                         @if ($isLong)
                                                             <button type="button" x-on:click="expanded = ! expanded" class="shrink-0 rounded-lg p-1 text-[11px] font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-500/10" x-text="expanded ? 'کمتر' : 'بیشتر'"></button>
