@@ -1,6 +1,7 @@
 <?php
 
 use App\Filament\Pages\AiAssistant;
+use App\Filament\Pages\AiAssistantsHub;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
@@ -152,6 +153,7 @@ return [
     |
     */
     'pages' => [
+        'ai-assistants-hub' => ['page' => AiAssistantsHub::class, 'label' => 'مرکز دستیاران هوشمند', 'group' => 'دستیار هوشمند مدیریتی'],
         'ai-assistant' => [
             'page' => AiAssistant::class,
             'label' => 'دستیار هوشمند',
