@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\SafeUrlFetcher;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
@@ -20,9 +21,11 @@ use Illuminate\Support\Facades\Auth;
  * AiAssistantsHub.php). It reuses the exact same AiConversation/AiMessage
  * models and AiProvider::chatCompletion() call, but never calls the
  * ~50-tool agent loop that trait runs - a custom profile's only
- * "capability" beyond the system prompt the user wrote for it is the one
- * narrow, self-contained save_knowledge_entry tool below, which lets it
- * grow its own knowledge base through ordinary use.
+ * "capability" beyond the system prompt the user wrote for it is the two
+ * narrow, self-contained tools below: save_knowledge_entry, which lets it
+ * grow its own knowledge base through ordinary use, and fetch_url, which
+ * lets it read a specific page the user points it to and turn what it
+ * finds into knowledge entries the same way.
  */
 trait HasCustomAssistantChatEngine
 {
@@ -220,7 +223,7 @@ trait HasCustomAssistantChatEngine
         ];
 
         for ($round = 0; $round < 3; $round++) {
-            $assistantMessage = $provider->chatCompletion($messages, $this->knowledgeToolDefinition(), $profile->model);
+            $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions(), $profile->model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
             $conversation->messages()->create([
@@ -237,7 +240,10 @@ trait HasCustomAssistantChatEngine
 
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
-                $result = $this->saveKnowledgeEntryFromTool($profile, $arguments);
+                $result = match ($toolCall['function']['name'] ?? null) {
+                    'fetch_url' => $this->fetchUrlFromTool($arguments),
+                    default => $this->saveKnowledgeEntryFromTool($profile, $arguments),
+                };
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
 
                 $conversation->messages()->create([
@@ -265,31 +271,52 @@ trait HasCustomAssistantChatEngine
             $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
         }
 
+        $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
+
         return $prompt;
     }
 
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function knowledgeToolDefinition(): array
+    private function profileToolDefinitions(): array
     {
-        return [[
-            'type' => 'function',
-            'function' => [
-                'name' => 'save_knowledge_entry',
-                'description' => 'یک نکتهٔ مهم و قابل‌استفاده در گفتگوهای آیندهٔ همین دستیار را در دانش‌نامه‌اش ذخیره می‌کند. فقط برای اطلاعات واقعاً مفید و پایدار استفاده کن (نه چیزهای موقت یا خاص همین یک پیام).',
-                'parameters' => [
-                    'type' => 'object',
-                    'properties' => [
-                        'content' => [
-                            'type' => 'string',
-                            'description' => 'متن نکته، کوتاه و دقیق، به فارسی.',
+        return [
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'save_knowledge_entry',
+                    'description' => 'یک نکتهٔ مهم و قابل‌استفاده در گفتگوهای آیندهٔ همین دستیار را در دانش‌نامه‌اش ذخیره می‌کند. فقط برای اطلاعات واقعاً مفید و پایدار استفاده کن (نه چیزهای موقت یا خاص همین یک پیام).',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'content' => [
+                                'type' => 'string',
+                                'description' => 'متن نکته، کوتاه و دقیق، به فارسی.',
+                            ],
                         ],
+                        'required' => ['content'],
                     ],
-                    'required' => ['content'],
                 ],
             ],
-        ]];
+            [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'fetch_url',
+                    'description' => 'محتوای متنی یک صفحهٔ وب عمومی را می‌خواند، فقط وقتی کاربر خودش لینکی داده یا صریحاً خواسته دربارهٔ موضوعی از یک منبع وب اطلاعات بیاوری. بعد از خواندن، نکته‌های مفید را با save_knowledge_entry ذخیره کن.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'url' => [
+                                'type' => 'string',
+                                'description' => 'آدرس کامل صفحهٔ وب (باید با http:// یا https:// شروع شود).',
+                            ],
+                        ],
+                        'required' => ['url'],
+                    ],
+                ],
+            ],
+        ];
     }
 
     /**
@@ -316,6 +343,21 @@ trait HasCustomAssistantChatEngine
             'saved' => true,
             'status' => $status->value,
         ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function fetchUrlFromTool(array $arguments): array
+    {
+        $url = trim((string) ($arguments['url'] ?? ''));
+
+        if ($url === '') {
+            return ['error' => 'آدرسی داده نشد.'];
+        }
+
+        return app(SafeUrlFetcher::class)->fetch($url);
     }
 
     /**
