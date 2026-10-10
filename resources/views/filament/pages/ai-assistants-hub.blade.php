@@ -152,7 +152,7 @@
                                 type="text"
                                 wire:model="newName"
                                 placeholder="مثلاً «پشتیبان مهمانان»"
-                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             />
                         </div>
 
@@ -163,7 +163,7 @@
                                 wire:model="newDescription"
                                 rows="5"
                                 placeholder="وظیفه را دقیق و عملیاتی بنویس: کار این دستیار چیست، چه لحنی دارد، چه کاری نباید انجام دهد. از صفت‌های کلی مثل «فوق‌العاده باش» یا «حرفه‌ای باش» پرهیز کن."
-                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white block w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             ></textarea>
                             @error('newDescription')
                                 <p class="mt-1 text-xs text-danger-600 dark:text-danger-400">{{ $message }}</p>
@@ -184,7 +184,7 @@
                                 type="text"
                                 wire:model="newSpecialties"
                                 placeholder="مثلاً: حقوقی، قرارداد"
-                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white block w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             />
                             <p class="mt-1 text-[11px] text-gray-400">دستیارهای دیگر، در صورت نیاز، بر اساس همین تخصص‌ها می‌توانند از این دستیار سؤال بپرسند (مشورت بین‌دستیاری).</p>
                         </div>
@@ -331,13 +331,15 @@
                                 </button>
 
                                 <div x-show="open" x-cloak x-on:click.self="open = false" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4">
-                                    <div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
-                                        <div class="mb-4 flex items-center justify-between">
+                                    <div class="flex max-h-[85vh] w-full max-w-lg flex-col overflow-hidden rounded-2xl bg-white shadow-xl dark:bg-gray-900">
+                                        <div class="flex shrink-0 items-center justify-between border-b border-gray-100 px-5 py-4 dark:border-white/5">
                                             <h3 class="text-base font-semibold text-gray-950 dark:text-white">دانش‌نامهٔ {{ $activeProfile->displayName() }}</h3>
                                             <button type="button" x-on:click="open = false" class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
                                                 <x-heroicon-o-x-mark class="h-5 w-5" />
                                             </button>
                                         </div>
+
+                                        <div class="overflow-y-auto p-5">
 
                                         <button
                                             type="button"
@@ -378,7 +380,7 @@
                                                     x-ref="specialtiesInput"
                                                     value="{{ implode('، ', $activeProfile->specialties ?? []) }}"
                                                     placeholder="مثلاً: حقوقی، قرارداد"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -424,11 +426,17 @@
                                         <div class="mb-4">
                                             <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">دانستنی‌های تأییدشده ({{ $approvedEntries->count() }})</p>
                                             @forelse ($approvedEntries as $entry)
-                                                <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5">
-                                                    <p class="text-sm text-gray-700 dark:text-gray-300">{{ $entry->content }}</p>
-                                                    <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
-                                                        <x-heroicon-o-trash class="h-3.5 w-3.5" />
-                                                    </button>
+                                                @php $isLong = mb_strlen($entry->content) > 140; @endphp
+                                                <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5" x-data="{ expanded: false }">
+                                                    <p class="text-sm text-gray-700 dark:text-gray-300" x-text="expanded ? @js($entry->content) : @js(\Illuminate\Support\Str::limit($entry->content, 140))"></p>
+                                                    <div class="flex shrink-0 items-start gap-1">
+                                                        @if ($isLong)
+                                                            <button type="button" x-on:click="expanded = ! expanded" class="shrink-0 rounded-lg p-1 text-[11px] font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-500/10" x-text="expanded ? 'کمتر' : 'بیشتر'"></button>
+                                                        @endif
+                                                        <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
+                                                            <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
                                                 </div>
                                             @empty
                                                 <p class="text-xs text-gray-400">هنوز دانشی ثبت نشده - یا خودتان یکی اضافه کنید، یا بگذارید دستیار حین گفتگو یاد بگیرد.</p>
@@ -444,7 +452,7 @@
                                                     x-ref="knowledgeInput"
                                                     placeholder="مثلاً «نرخ کمیسیون فروش ۵ درصد است»"
                                                     x-on:keydown.enter.prevent="$wire.addManualKnowledgeEntry($refs.knowledgeInput.value); $refs.knowledgeInput.value = ''"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -464,7 +472,7 @@
                                                     type="file"
                                                     wire:model="knowledgeUploadFile"
                                                     accept=".txt,.docx,.pdf"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -505,13 +513,13 @@
                                                     type="url"
                                                     x-ref="watchedSourceUrlInput"
                                                     placeholder="آدرس صفحه (https://...)"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <input
                                                     type="text"
                                                     x-ref="watchedSourceLabelInput"
                                                     placeholder="برچسب (اختیاری)"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -521,6 +529,8 @@
                                                     افزودن
                                                 </button>
                                             </div>
+                                        </div>
+
                                         </div>
                                     </div>
                                 </div>
@@ -591,7 +601,7 @@
                             placeholder="پیام خود را بنویسید..."
                             wire:loading.attr="disabled"
                             wire:target="sendToProfile"
-                            class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whitemax-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                            class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white max-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                         ></textarea>
                         <button
                             type="submit"
