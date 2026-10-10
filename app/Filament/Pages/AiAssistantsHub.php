@@ -150,7 +150,7 @@ class AiAssistantsHub extends Page
     {
         $data = $this->validate([
             'newName' => ['nullable', 'string', 'max:60'],
-            'newDescription' => ['required', 'string', 'min:10', 'max:4000'],
+            'newDescription' => ['required', 'string', 'min:10'],
             'newShape' => ['required', 'string', 'in:'.implode(',', array_keys(AiAssistantAvatar::SHAPES))],
             'newColor' => ['required', 'string', 'in:'.implode(',', array_keys(AiAssistantAvatar::COLORS))],
             'newIsShared' => ['boolean'],
