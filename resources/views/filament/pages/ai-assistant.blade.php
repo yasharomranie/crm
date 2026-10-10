@@ -77,7 +77,7 @@
                     <x-heroicon-o-cpu-chip class="h-3.5 w-3.5 shrink-0" />
                     <span class="truncate">مدل: {{ $this->preferredModel() ?: 'پیش‌فرض ارائه‌دهنده' }}</span>
                 </button>
-                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-gray-800">
+                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute left-0 top-full z-20 mt-1 max-h-64 w-56 max-w-[calc(100vw-2rem)] overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-gray-800">
                     <button type="button" wire:click="updatePreferredModel('')" x-on:click="open = false" @class(['flex w-full items-center px-3 py-2 text-start text-xs hover:bg-gray-50 dark:hover:bg-white/5', 'font-medium text-primary-600 dark:text-primary-400' => blank($this->preferredModel()), 'text-gray-700 dark:text-gray-200' => filled($this->preferredModel())])>
                         پیش‌فرض ارائه‌دهنده
                     </button>
