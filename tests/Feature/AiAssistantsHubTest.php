@@ -2,9 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AiKnowledgeEntrySource;
+use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
+use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
@@ -102,9 +105,14 @@ class AiAssistantsHubTest extends TestCase
             $conversation->messages->pluck('role')->all(),
         );
 
-        // No tools are ever offered to a custom profile's chat (tools-free
-        // by design in this phase).
-        Http::assertSent(fn ($request) => ! array_key_exists('tools', $request->data()));
+        // The only tool ever offered to a custom profile's chat is the
+        // narrow, self-contained save_knowledge_entry tool - never the
+        // general-purpose CRM toolset the built-in assistants get.
+        Http::assertSent(function ($request) {
+            $tools = $request->data()['tools'] ?? [];
+
+            return count($tools) === 1 && $tools[0]['function']['name'] === 'save_knowledge_entry';
+        });
     }
 
     public function test_a_private_profile_is_invisible_to_a_different_user(): void
@@ -261,5 +269,201 @@ class AiAssistantsHubTest extends TestCase
         $ids = $component->instance()->getConversations()->pluck('id')->all();
 
         $this->assertSame([$globalConversation->id], $ids);
+    }
+
+    public function test_an_approved_knowledge_entry_is_included_in_the_system_prompt(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'توضیح پایه.']);
+        AiAssistantKnowledgeEntry::factory()->for($profile, 'profile')->create(['content' => 'نرخ مالیات بر ارزش افزوده ۱۰ درصد است.']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'باشه']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $system = collect($request->data()['messages'])->firstWhere('role', 'system');
+
+            return str_contains($system['content'], 'نرخ مالیات بر ارزش افزوده ۱۰ درصد است.');
+        });
+    }
+
+    public function test_a_pending_knowledge_entry_is_not_included_in_the_system_prompt(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'توضیح پایه.']);
+        AiAssistantKnowledgeEntry::factory()->pending()->for($profile, 'profile')->create(['content' => 'یک حدس تأییدنشده.']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'باشه']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $system = collect($request->data()['messages'])->firstWhere('role', 'system');
+
+            return ! str_contains($system['content'], 'یک حدس تأییدنشده.');
+        });
+    }
+
+    public function test_the_assistant_can_save_a_new_knowledge_entry_as_pending_by_default(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'save_knowledge_entry',
+                                'arguments' => json_encode(['content' => 'نرخ کمیسیون فروش ۵ درصد است.']),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'ذخیره شد.']]],
+            ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'یادت باشه کمیسیون فروش ۵ درصده')
+            ->call('sendToProfile');
+
+        $entry = AiAssistantKnowledgeEntry::sole();
+        $this->assertSame('نرخ کمیسیون فروش ۵ درصد است.', $entry->content);
+        $this->assertSame(AiKnowledgeEntryStatus::Pending, $entry->status);
+        $this->assertSame(AiKnowledgeEntrySource::AiSuggested, $entry->source);
+    }
+
+    public function test_the_assistant_can_save_a_knowledge_entry_as_approved_when_auto_save_is_on(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'knowledge_auto_save' => true]);
+
+        Http::fakeSequence()
+            ->push([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => [
+                                'name' => 'save_knowledge_entry',
+                                'arguments' => json_encode(['content' => 'ساعت کاری دفتر ۹ تا ۱۷ است.']),
+                            ],
+                        ]],
+                    ],
+                ]],
+            ])
+            ->push([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'ذخیره شد.']]],
+            ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'ساعت کاری رو یادت باشه')
+            ->call('sendToProfile');
+
+        $this->assertSame(AiKnowledgeEntryStatus::Approved, AiAssistantKnowledgeEntry::sole()->status);
+    }
+
+    public function test_adding_a_manual_knowledge_entry_is_approved_immediately(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('addManualKnowledgeEntry', 'آدرس دفتر مرکزی خیابان آزادی است.');
+
+        $entry = AiAssistantKnowledgeEntry::sole();
+        $this->assertSame('آدرس دفتر مرکزی خیابان آزادی است.', $entry->content);
+        $this->assertSame(AiKnowledgeEntryStatus::Approved, $entry->status);
+        $this->assertSame(AiKnowledgeEntrySource::Manual, $entry->source);
+    }
+
+    public function test_approving_a_pending_entry_changes_its_status(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $entry = AiAssistantKnowledgeEntry::factory()->pending()->for($profile, 'profile')->create();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('approveKnowledgeEntry', $entry->id);
+
+        $this->assertSame(AiKnowledgeEntryStatus::Approved, $entry->fresh()->status);
+    }
+
+    public function test_deleting_a_knowledge_entry_removes_it(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $entry = AiAssistantKnowledgeEntry::factory()->for($profile, 'profile')->create();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('deleteKnowledgeEntry', $entry->id);
+
+        $this->assertDatabaseMissing('ai_assistant_knowledge_entries', ['id' => $entry->id]);
+    }
+
+    public function test_toggling_knowledge_auto_save_flips_the_setting(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'knowledge_auto_save' => false]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleKnowledgeAutoSave');
+
+        $this->assertTrue($profile->fresh()->knowledge_auto_save);
+    }
+
+    public function test_a_non_owner_cannot_manage_a_shared_profiles_knowledge_base(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true, 'knowledge_auto_save' => false]);
+        $pending = AiAssistantKnowledgeEntry::factory()->pending()->for($profile, 'profile')->create();
+
+        $this->actingAsHubUser();
+
+        $component = Livewire::test(AiAssistantsHub::class)->call('openProfile', $profile->id);
+        $component->call('approveKnowledgeEntry', $pending->id);
+        $component->call('deleteKnowledgeEntry', $pending->id);
+        $component->call('addManualKnowledgeEntry', 'نکتهٔ غیرمجاز');
+        $component->call('toggleKnowledgeAutoSave');
+
+        $this->assertSame(AiKnowledgeEntryStatus::Pending, $pending->fresh()->status);
+        $this->assertDatabaseHas('ai_assistant_knowledge_entries', ['id' => $pending->id]);
+        $this->assertDatabaseMissing('ai_assistant_knowledge_entries', ['content' => 'نکتهٔ غیرمجاز']);
+        $this->assertFalse($profile->fresh()->knowledge_auto_save);
     }
 }
