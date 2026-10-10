@@ -9,7 +9,17 @@ deployment:
     # last "START" line with no matching "DONE" line is the one stuck.
     - echo "[$(date +%H:%M:%S)] ===== DEPLOY START $(git rev-parse --short HEAD) =====" >> storage/logs/deploy.log
     - echo "[$(date +%H:%M:%S)] START composer install" >> storage/logs/deploy.log
-    - php composer.phar install --no-dev --optimize-autoloader --no-interaction --no-progress >> storage/logs/deploy.log 2>&1
+    # --no-scripts: this host's PHP has proc_open disabled, so composer's
+    # post-autoload-dump scripts (which run "@php artisan ..." as a
+    # separate subprocess under the hood) fail with "The Process class
+    # relies on proc_open, which is not available". Skipping composer's
+    # own scripts and running the same two artisan commands directly
+    # below gets the identical end result without ever needing a
+    # subprocess, since an artisan command run directly (not spawned by
+    # composer) executes in-process.
+    - php composer.phar install --no-dev --optimize-autoloader --no-interaction --no-progress --no-scripts >> storage/logs/deploy.log 2>&1
+    - php artisan package:discover --ansi >> storage/logs/deploy.log 2>&1
+    - php artisan filament:upgrade >> storage/logs/deploy.log 2>&1
     - echo "[$(date +%H:%M:%S)] DONE composer install" >> storage/logs/deploy.log
     - echo "[$(date +%H:%M:%S)] START migrate" >> storage/logs/deploy.log
     - php artisan migrate --force >> storage/logs/deploy.log 2>&1
