@@ -137,6 +137,10 @@ trait HasAiAssistantEngine
     {
         return AiConversation::query()
             ->where('user_id', Auth::id())
+            // Conversations started from a custom AiAssistantProfile (the
+            // AI Assistants Hub) are scoped out of this, the global
+            // management assistant's own list - the two never mix.
+            ->whereNull('ai_assistant_profile_id')
             ->latest('updated_at')
             ->get();
     }

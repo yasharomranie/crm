@@ -13,11 +13,16 @@ class AiConversation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'title'];
+    protected $fillable = ['user_id', 'ai_assistant_profile_id', 'title'];
 
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function profile(): BelongsTo
+    {
+        return $this->belongsTo(AiAssistantProfile::class, 'ai_assistant_profile_id');
     }
 
     public function messages(): HasMany
