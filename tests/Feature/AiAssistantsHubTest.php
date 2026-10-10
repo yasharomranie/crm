@@ -95,7 +95,7 @@ class AiAssistantsHubTest extends TestCase
         Http::assertSent(function ($request) {
             $system = collect($request->data()['messages'])->firstWhere('role', 'system');
 
-            return $system['content'] === 'فقط به زبان رسمی پاسخ بده.';
+            return str_starts_with($system['content'], 'فقط به زبان رسمی پاسخ بده.');
         });
 
         $conversation = AiConversation::sole();
@@ -105,13 +105,13 @@ class AiAssistantsHubTest extends TestCase
             $conversation->messages->pluck('role')->all(),
         );
 
-        // The only tool ever offered to a custom profile's chat is the
-        // narrow, self-contained save_knowledge_entry tool - never the
+        // The only tools ever offered to a custom profile's chat are the
+        // two narrow, self-contained ones below - never the
         // general-purpose CRM toolset the built-in assistants get.
         Http::assertSent(function ($request) {
-            $tools = $request->data()['tools'] ?? [];
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
 
-            return count($tools) === 1 && $tools[0]['function']['name'] === 'save_knowledge_entry';
+            return $toolNames === ['save_knowledge_entry', 'fetch_url'];
         });
     }
 
@@ -465,5 +465,105 @@ class AiAssistantsHubTest extends TestCase
         $this->assertDatabaseHas('ai_assistant_knowledge_entries', ['id' => $pending->id]);
         $this->assertDatabaseMissing('ai_assistant_knowledge_entries', ['content' => 'نکتهٔ غیرمجاز']);
         $this->assertFalse($profile->fresh()->knowledge_auto_save);
+    }
+
+    public function test_the_assistant_can_fetch_a_url_and_save_a_knowledge_entry_from_it(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => null,
+                            'tool_calls' => [[
+                                'id' => 'call_1',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'fetch_url',
+                                    'arguments' => json_encode(['url' => 'http://8.8.8.8/prices']),
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ])
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => null,
+                            'tool_calls' => [[
+                                'id' => 'call_2',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'save_knowledge_entry',
+                                    'arguments' => json_encode(['content' => 'قیمت پایهٔ ویلا ۲ میلیون تومان است.']),
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'نکته را ذخیره کردم.']]],
+                ]),
+            'http://8.8.8.8/prices' => Http::response('<html><body><p>قیمت پایهٔ ویلا ۲ میلیون تومان است.</p></body></html>'),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'از http://8.8.8.8/prices قیمت پایه رو برام پیدا کن')
+            ->call('sendToProfile');
+
+        $entry = AiAssistantKnowledgeEntry::sole();
+        $this->assertSame('قیمت پایهٔ ویلا ۲ میلیون تومان است.', $entry->content);
+        $this->assertSame(AiKnowledgeEntryStatus::Pending, $entry->status);
+        $this->assertSame(AiKnowledgeEntrySource::AiSuggested, $entry->source);
+
+        Http::assertSent(fn ($request) => $request->url() === 'http://8.8.8.8/prices');
+    }
+
+    public function test_fetching_a_private_network_url_returns_an_error_instead_of_crashing(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => null,
+                            'tool_calls' => [[
+                                'id' => 'call_1',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'fetch_url',
+                                    'arguments' => json_encode(['url' => 'http://169.254.169.254/latest/meta-data/']),
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'نتوانستم آن آدرس را بخوانم.']]],
+                ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'از http://169.254.169.254/latest/meta-data/ اطلاعات بیار')
+            ->call('sendToProfile');
+
+        $this->assertSame(0, AiAssistantKnowledgeEntry::count());
+        Http::assertNotSent(fn ($request) => $request->url() === 'http://169.254.169.254/latest/meta-data/');
+
+        $toolMessage = $profile->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->sole();
+        $this->assertStringContainsString('error', $toolMessage->content);
     }
 }
