@@ -20,7 +20,7 @@ class AiAssistantProfile extends Model
     use HasFactory;
 
     protected $fillable = [
-        'created_by', 'name', 'description', 'avatar_shape', 'avatar_color', 'is_shared', 'allowed_tools',
+        'created_by', 'name', 'description', 'avatar_shape', 'avatar_color', 'is_shared', 'allowed_tools', 'model',
     ];
 
     protected function casts(): array

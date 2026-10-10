@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Filament\Pages\ContractAssistant;
+use App\Models\AiAssistantModelSetting;
 use App\Models\AiProvider;
 use App\Models\Company;
 use App\Models\Contract;
@@ -156,6 +157,47 @@ class ContractAssistantTest extends TestCase
             'body' => 'متن قرارداد نمونه',
             'created_by' => $user->id,
         ]);
+    }
+
+    public function test_generating_a_draft_uses_the_preferred_model_when_one_is_set(): void
+    {
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+        AiAssistantModelSetting::setModelFor('contract-assistant', 'gpt-4o');
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'متن قرارداد']]],
+            ]),
+        ]);
+
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(ContractAssistant::class)
+            ->set('counterpartyName', 'آقای برق')
+            ->set('brief', 'توضیح مختصر')
+            ->call('generateDraft');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o');
+    }
+
+    public function test_generating_a_draft_falls_back_to_the_providers_default_model_when_none_is_preferred(): void
+    {
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'متن قرارداد']]],
+            ]),
+        ]);
+
+        $this->actingAs(User::factory()->create());
+
+        Livewire::test(ContractAssistant::class)
+            ->set('counterpartyName', 'آقای برق')
+            ->set('brief', 'توضیح مختصر')
+            ->call('generateDraft');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o-mini');
     }
 
     public function test_the_print_route_is_denied_to_a_role_without_contract_permission(): void

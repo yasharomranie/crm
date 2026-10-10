@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Exceptions\AiProviderException;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Models\AiAssistantModelSetting;
 use App\Models\AiProvider;
 use App\Models\Company;
 use App\Models\Contract;
@@ -77,6 +78,42 @@ class ContractAssistant extends Page
     }
 
     /**
+     * @var array<string, string> model id => model id - loaded on demand
+     *                            (loadModelOptions()), not on every render.
+     */
+    public array $modelOptions = [];
+
+    public function loadModelOptions(): void
+    {
+        if ($this->modelOptions !== []) {
+            return;
+        }
+
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            return;
+        }
+
+        try {
+            $models = $provider->listModels();
+            $this->modelOptions = array_combine($models, $models);
+        } catch (\Throwable) {
+            $this->modelOptions = [];
+        }
+    }
+
+    public function preferredModel(): ?string
+    {
+        return AiAssistantModelSetting::modelFor('contract-assistant');
+    }
+
+    public function updatePreferredModel(?string $model): void
+    {
+        AiAssistantModelSetting::setModelFor('contract-assistant', $model);
+    }
+
+    /**
      * Drafts a brand-new contract from scratch, then runs the deterministic
      * clause audit against it.
      */
@@ -147,10 +184,13 @@ class ContractAssistant extends Page
                 "بندهای مربوطه را در جای مناسب (با شمارهٔ مادهٔ بعدی) به متن اضافه کن و کل متن نهاییِ اصلاح‌شدهٔ قرارداد را کامل برگردان (بدون توضیح اضافه، فقط متن قرارداد).\n\n".
                 "متن فعلی قرارداد:\n\n{$this->body}";
 
-            $response = $provider->chatCompletion([
-                ['role' => 'system', 'content' => $this->systemPrompt()],
-                ['role' => 'user', 'content' => $message],
-            ]);
+            $response = $provider->chatCompletion(
+                [
+                    ['role' => 'system', 'content' => $this->systemPrompt()],
+                    ['role' => 'user', 'content' => $message],
+                ],
+                model: $this->preferredModel(),
+            );
 
             $content = trim($response['content'] ?? '');
 
@@ -243,10 +283,13 @@ class ContractAssistant extends Page
             "توضیح کارفرما دربارهٔ این قرارداد:\n{$brief}",
         ])->filter()->implode("\n\n");
 
-        $response = $provider->chatCompletion([
-            ['role' => 'system', 'content' => $this->systemPrompt()],
-            ['role' => 'user', 'content' => $context],
-        ]);
+        $response = $provider->chatCompletion(
+            [
+                ['role' => 'system', 'content' => $this->systemPrompt()],
+                ['role' => 'user', 'content' => $context],
+            ],
+            model: $this->preferredModel(),
+        );
 
         $content = trim($response['content'] ?? '');
 

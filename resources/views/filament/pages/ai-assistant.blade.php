@@ -66,6 +66,32 @@
             </div>
         @endif
 
+        <div class="flex justify-end">
+            <div class="relative" x-data="{ open: false }">
+                <button
+                    type="button"
+                    wire:click="loadModelOptions"
+                    x-on:click="open = ! open"
+                    class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                >
+                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5" />
+                    مدل: {{ $this->preferredModel() ?: 'پیش‌فرض ارائه‌دهنده' }}
+                </button>
+                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-10 mt-1">
+                    <select
+                        wire:change="updatePreferredModel($event.target.value)"
+                        x-on:change="open = false"
+                        class="fi-input w-56 rounded-lg border-gray-300 py-1.5 text-xs shadow-lg dark:border-white/10 dark:bg-gray-800"
+                    >
+                        <option value="" @selected(blank($this->preferredModel()))>پیش‌فرض ارائه‌دهنده</option>
+                        @foreach ($this->modelOptions as $modelId)
+                            <option value="{{ $modelId }}" @selected($this->preferredModel() === $modelId)>{{ $modelId }}</option>
+                        @endforeach
+                    </select>
+                </div>
+            </div>
+        </div>
+
         <div class="flex h-[calc(100dvh-12rem)] min-h-[26rem] overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm md:h-[calc(100dvh-14rem)] md:min-h-[30rem] dark:border-white/10 dark:bg-gray-900">
             {{-- Conversation list: full-width "screen" on mobile (hidden while
                 a thread is open), a fixed-width sidebar from md: up, always

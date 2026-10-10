@@ -279,6 +279,33 @@
                             {{ $selected?->title ?: 'گفتگوی جدید' }}
                         </span>
 
+                        @if ($activeProfile->created_by === auth()->id())
+                            <div class="relative shrink-0" x-data="{ open: false }">
+                                <button
+                                    type="button"
+                                    wire:click="loadModelOptionsForProfile"
+                                    x-on:click="open = ! open"
+                                    title="مدل زبانی این دستیار"
+                                    class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                                >
+                                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5" />
+                                    {{ $activeProfile->model ?: 'پیش‌فرض' }}
+                                </button>
+                                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-10 mt-1">
+                                    <select
+                                        wire:change="updateProfileModel($event.target.value)"
+                                        x-on:change="open = false"
+                                        class="fi-input w-56 rounded-lg border-gray-300 py-1.5 text-xs shadow-lg dark:border-white/10 dark:bg-gray-800"
+                                    >
+                                        <option value="" @selected(blank($activeProfile->model))>پیش‌فرض ارائه‌دهنده</option>
+                                        @foreach ($this->modelOptionsForProfile as $modelId)
+                                            <option value="{{ $modelId }}" @selected($activeProfile->model === $modelId)>{{ $modelId }}</option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            </div>
+                        @endif
+
                         @if ($selected && $visibleMessages->isNotEmpty() && $forwardTargets->isNotEmpty())
                             <div class="relative" x-data="{ open: false }">
                                 <button type="button" x-on:click="open = ! open" title="ارسال گفتگو به دستیار دیگر" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5">

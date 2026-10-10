@@ -45,12 +45,16 @@ class AiProvider extends Model
     /**
      * @param  array<int, array<string, mixed>>  $messages
      * @param  array<int, array<string, mixed>>  $tools
+     * @param  string|null  $model  overrides $this->default_model for this call only - the
+     *                              per-assistant "مدل زبانی" preference (see AiAssistantProfile,
+     *                              AiAssistantModelSetting), falling back to the provider's own
+     *                              default when the assistant has none set.
      * @return array<string, mixed> the assistant message (content and/or tool_calls)
      */
-    public function chatCompletion(array $messages, array $tools = []): array
+    public function chatCompletion(array $messages, array $tools = [], ?string $model = null): array
     {
         $payload = [
-            'model' => $this->default_model,
+            'model' => $model ?: $this->default_model,
             'messages' => $messages,
         ];
 
