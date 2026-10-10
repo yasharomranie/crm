@@ -2,8 +2,11 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Enums\AiKnowledgeEntrySource;
+use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Exceptions\AiProviderException;
+use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
@@ -12,12 +15,14 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 
 /**
- * A small, tools-free sibling of HasAiAssistantEngine, for the custom
- * assistants created in the AI Assistants Hub (app/Filament/Pages/
+ * A small sibling of HasAiAssistantEngine, for the custom assistants
+ * created in the AI Assistants Hub (app/Filament/Pages/
  * AiAssistantsHub.php). It reuses the exact same AiConversation/AiMessage
  * models and AiProvider::chatCompletion() call, but never calls the
  * ~50-tool agent loop that trait runs - a custom profile's only
- * "capability" in this phase is the system prompt the user wrote for it.
+ * "capability" beyond the system prompt the user wrote for it is the one
+ * narrow, self-contained save_knowledge_entry tool below, which lets it
+ * grow its own knowledge base through ordinary use.
  */
 trait HasCustomAssistantChatEngine
 {
@@ -37,6 +42,18 @@ trait HasCustomAssistantChatEngine
 
         return AiAssistantProfile::query()
             ->visibleTo(Auth::user())
+            ->find($this->activeProfileId);
+    }
+
+    /**
+     * The active profile, but only when the current user is its creator -
+     * guards every knowledge-management and settings action below the
+     * same way deleteProfile() (AiAssistantsHub) already guards deletion.
+     */
+    private function ownedActiveProfile(): ?AiAssistantProfile
+    {
+        return AiAssistantProfile::query()
+            ->where('created_by', Auth::id())
             ->find($this->activeProfileId);
     }
 
@@ -73,15 +90,7 @@ trait HasCustomAssistantChatEngine
      */
     public function updateProfileModel(?string $model): void
     {
-        $profile = AiAssistantProfile::query()
-            ->where('created_by', Auth::id())
-            ->find($this->activeProfileId);
-
-        if (! $profile) {
-            return;
-        }
-
-        $profile->update(['model' => filled($model) ? $model : null]);
+        $this->ownedActiveProfile()?->update(['model' => filled($model) ? $model : null]);
     }
 
     /**
@@ -187,17 +196,7 @@ trait HasCustomAssistantChatEngine
         $this->isThinking = true;
 
         try {
-            $messages = [
-                ['role' => 'system', 'content' => $profile->description ?: 'شما یک دستیار هوشمند کمکی هستید.'],
-                ...$conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all(),
-            ];
-
-            $assistantMessage = $provider->chatCompletion($messages, model: $profile->model);
-
-            $conversation->messages()->create([
-                'role' => AiMessageRole::Assistant,
-                'content' => $assistantMessage['content'] ?? null,
-            ]);
+            $this->runProfileAgentLoop($conversation, $provider, $profile);
         } catch (AiProviderException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
         } finally {
@@ -205,6 +204,168 @@ trait HasCustomAssistantChatEngine
         }
 
         $this->dispatch('message-sent');
+    }
+
+    /**
+     * Mirrors HasAiAssistantEngine::runAgentLoop()'s tool round-trip
+     * pattern, but capped at 3 rounds (instead of 5) and offering exactly
+     * one tool - this never needs the multi-tool, multi-round agent loop
+     * that trait runs.
+     */
+    private function runProfileAgentLoop(AiConversation $conversation, AiProvider $provider, AiAssistantProfile $profile): void
+    {
+        $messages = [
+            ['role' => 'system', 'content' => $this->buildProfileSystemPrompt($profile)],
+            ...$conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all(),
+        ];
+
+        for ($round = 0; $round < 3; $round++) {
+            $assistantMessage = $provider->chatCompletion($messages, $this->knowledgeToolDefinition(), $profile->model);
+            $toolCalls = $assistantMessage['tool_calls'] ?? null;
+
+            $conversation->messages()->create([
+                'role' => AiMessageRole::Assistant,
+                'content' => $assistantMessage['content'] ?? null,
+                'tool_calls' => $toolCalls,
+            ]);
+
+            $messages[] = $assistantMessage;
+
+            if (! $toolCalls) {
+                return;
+            }
+
+            foreach ($toolCalls as $toolCall) {
+                $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
+                $result = $this->saveKnowledgeEntryFromTool($profile, $arguments);
+                $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
+
+                $conversation->messages()->create([
+                    'role' => AiMessageRole::Tool,
+                    'content' => $encodedResult,
+                    'tool_call_id' => $toolCall['id'],
+                    'tool_name' => $toolCall['function']['name'],
+                ]);
+
+                $messages[] = [
+                    'role' => 'tool',
+                    'tool_call_id' => $toolCall['id'],
+                    'content' => $encodedResult,
+                ];
+            }
+        }
+    }
+
+    private function buildProfileSystemPrompt(AiAssistantProfile $profile): string
+    {
+        $prompt = $profile->description ?: 'شما یک دستیار هوشمند کمکی هستید.';
+        $knowledge = $profile->approvedKnowledgeForPrompt();
+
+        if ($knowledge !== []) {
+            $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
+        }
+
+        return $prompt;
+    }
+
+    /**
+     * @return array<int, array<string, mixed>>
+     */
+    private function knowledgeToolDefinition(): array
+    {
+        return [[
+            'type' => 'function',
+            'function' => [
+                'name' => 'save_knowledge_entry',
+                'description' => 'یک نکتهٔ مهم و قابل‌استفاده در گفتگوهای آیندهٔ همین دستیار را در دانش‌نامه‌اش ذخیره می‌کند. فقط برای اطلاعات واقعاً مفید و پایدار استفاده کن (نه چیزهای موقت یا خاص همین یک پیام).',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'content' => [
+                            'type' => 'string',
+                            'description' => 'متن نکته، کوتاه و دقیق، به فارسی.',
+                        ],
+                    ],
+                    'required' => ['content'],
+                ],
+            ],
+        ]];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function saveKnowledgeEntryFromTool(AiAssistantProfile $profile, array $arguments): array
+    {
+        $content = trim((string) ($arguments['content'] ?? ''));
+
+        if ($content === '') {
+            return ['error' => 'متن نکته خالی بود، ذخیره نشد.'];
+        }
+
+        $status = $profile->knowledge_auto_save ? AiKnowledgeEntryStatus::Approved : AiKnowledgeEntryStatus::Pending;
+
+        $profile->knowledgeEntries()->create([
+            'content' => $content,
+            'source' => AiKnowledgeEntrySource::AiSuggested,
+            'status' => $status,
+        ]);
+
+        return [
+            'saved' => true,
+            'status' => $status->value,
+        ];
+    }
+
+    /**
+     * @return Collection<int, AiAssistantKnowledgeEntry>
+     */
+    public function getKnowledgeEntries(): Collection
+    {
+        return $this->activeProfile()?->knowledgeEntries()->get() ?? new Collection;
+    }
+
+    public function pendingKnowledgeCount(): int
+    {
+        return $this->ownedActiveProfile()?->knowledgeEntries()->pending()->count() ?? 0;
+    }
+
+    /**
+     * A manually-typed note is written by the profile's own creator, so
+     * unlike an AI-suggested one it needs no review - it's Approved
+     * immediately.
+     */
+    public function addManualKnowledgeEntry(string $content): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $content = trim($content);
+
+        if (! $profile || $content === '') {
+            return;
+        }
+
+        $profile->knowledgeEntries()->create([
+            'content' => $content,
+            'source' => AiKnowledgeEntrySource::Manual,
+            'status' => AiKnowledgeEntryStatus::Approved,
+        ]);
+    }
+
+    public function approveKnowledgeEntry(int $entryId): void
+    {
+        $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->update(['status' => AiKnowledgeEntryStatus::Approved]);
+    }
+
+    public function deleteKnowledgeEntry(int $entryId): void
+    {
+        $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->delete();
+    }
+
+    public function toggleKnowledgeAutoSave(): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $profile?->update(['knowledge_auto_save' => ! $profile->knowledge_auto_save]);
     }
 
     /**

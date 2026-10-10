@@ -304,6 +304,106 @@
                             </div>
                         @endif
 
+                        @if ($activeProfile->created_by === auth()->id())
+                            <div class="relative shrink-0" x-data="{ open: false }">
+                                <button
+                                    type="button"
+                                    x-on:click="open = true"
+                                    title="دانش‌نامهٔ این دستیار"
+                                    class="relative flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5"
+                                >
+                                    <x-heroicon-o-book-open class="h-4 w-4" />
+                                    @if ($this->pendingKnowledgeCount() > 0)
+                                        <span class="absolute -end-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-danger-500 text-[9px] font-bold text-white">{{ $this->pendingKnowledgeCount() }}</span>
+                                    @endif
+                                </button>
+
+                                <div x-show="open" x-cloak x-on:click.self="open = false" class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4">
+                                    <div class="max-h-[85vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
+                                        <div class="mb-4 flex items-center justify-between">
+                                            <h3 class="text-base font-semibold text-gray-950 dark:text-white">دانش‌نامهٔ {{ $activeProfile->displayName() }}</h3>
+                                            <button type="button" x-on:click="open = false" class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
+                                                <x-heroicon-o-x-mark class="h-5 w-5" />
+                                            </button>
+                                        </div>
+
+                                        <button
+                                            type="button"
+                                            wire:click="toggleKnowledgeAutoSave"
+                                            class="mb-4 flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2.5 text-start dark:border-white/10"
+                                        >
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">ذخیرهٔ خودکار نکات پیشنهادی دستیار (بدون نیاز به تأیید شما)</span>
+                                            <span @class([
+                                                'inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition',
+                                                'bg-primary-600 justify-end' => $activeProfile->knowledge_auto_save,
+                                                'bg-gray-300 justify-start dark:bg-white/10' => ! $activeProfile->knowledge_auto_save,
+                                            ])>
+                                                <span class="h-4 w-4 rounded-full bg-white shadow"></span>
+                                            </span>
+                                        </button>
+
+                                        @php
+                                            $knowledgeEntries = $this->getKnowledgeEntries();
+                                            $pendingEntries = $knowledgeEntries->where('status', \App\Enums\AiKnowledgeEntryStatus::Pending);
+                                            $approvedEntries = $knowledgeEntries->where('status', \App\Enums\AiKnowledgeEntryStatus::Approved);
+                                        @endphp
+
+                                        @if ($pendingEntries->isNotEmpty())
+                                            <div class="mb-4">
+                                                <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">پیشنهادهای دستیار برای بررسی ({{ $pendingEntries->count() }})</p>
+                                                <div class="space-y-2">
+                                                    @foreach ($pendingEntries as $entry)
+                                                        <div wire:key="pending-{{ $entry->id }}" class="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/20 dark:bg-warning-500/10">
+                                                            <p class="text-sm text-gray-800 dark:text-gray-100">{{ $entry->content }}</p>
+                                                            <div class="mt-2 flex gap-2">
+                                                                <button type="button" wire:click="approveKnowledgeEntry({{ $entry->id }})" class="rounded-lg bg-success-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-success-500">تأیید</button>
+                                                                <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">رد</button>
+                                                            </div>
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
+                                        <div class="mb-4">
+                                            <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">دانستنی‌های تأییدشده ({{ $approvedEntries->count() }})</p>
+                                            @forelse ($approvedEntries as $entry)
+                                                <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5">
+                                                    <p class="text-sm text-gray-700 dark:text-gray-300">{{ $entry->content }}</p>
+                                                    <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
+                                                        <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            @empty
+                                                <p class="text-xs text-gray-400">هنوز دانشی ثبت نشده - یا خودتان یکی اضافه کنید، یا بگذارید دستیار حین گفتگو یاد بگیرد.</p>
+                                            @endforelse
+                                        </div>
+
+                                        <div>
+                                            <label for="newKnowledgeContent" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">افزودن نکتهٔ جدید</label>
+                                            <div class="flex gap-2">
+                                                <input
+                                                    id="newKnowledgeContent"
+                                                    type="text"
+                                                    x-ref="knowledgeInput"
+                                                    placeholder="مثلاً «نرخ کمیسیون فروش ۵ درصد است»"
+                                                    x-on:keydown.enter.prevent="$wire.addManualKnowledgeEntry($refs.knowledgeInput.value); $refs.knowledgeInput.value = ''"
+                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    x-on:click="$wire.addManualKnowledgeEntry($refs.knowledgeInput.value); $refs.knowledgeInput.value = ''"
+                                                    class="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-500"
+                                                >
+                                                    افزودن
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         @if ($selected && $visibleMessages->isNotEmpty() && $forwardTargets->isNotEmpty())
                             <div class="relative" x-data="{ open: false }">
                                 <button type="button" x-on:click="open = ! open" title="ارسال گفتگو به دستیار دیگر" class="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg text-gray-500 hover:bg-gray-100 dark:text-gray-400 dark:hover:bg-white/5">

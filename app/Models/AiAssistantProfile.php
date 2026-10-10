@@ -9,11 +9,14 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
- * A user-created, tools-free custom AI assistant: a saved system prompt
- * plus a "blob mascot" avatar (shape + color), shown as a card in the AI
- * Assistants Hub (app/Filament/Pages/AiAssistantsHub.php). Unlike the
- * built-in management/legal assistants (HasAiAssistantEngine), a profile
- * runs no tools in Phase 1 - allowed_tools is reserved for a future phase.
+ * A user-created custom AI assistant: a saved system prompt plus a "blob
+ * mascot" avatar (shape + color), shown as a card in the AI Assistants
+ * Hub (app/Filament/Pages/AiAssistantsHub.php). Unlike the built-in
+ * management/legal assistants (HasAiAssistantEngine), a profile runs no
+ * general-purpose tools - allowed_tools is reserved for a future phase -
+ * except for the one narrow, self-contained save_knowledge_entry tool
+ * (see HasCustomAssistantChatEngine) that lets it grow its own knowledge
+ * base through ordinary use instead of only through manual notes.
  */
 class AiAssistantProfile extends Model
 {
@@ -21,6 +24,7 @@ class AiAssistantProfile extends Model
 
     protected $fillable = [
         'created_by', 'name', 'description', 'avatar_shape', 'avatar_color', 'is_shared', 'allowed_tools', 'model',
+        'knowledge_auto_save',
     ];
 
     protected function casts(): array
@@ -28,6 +32,7 @@ class AiAssistantProfile extends Model
         return [
             'is_shared' => 'boolean',
             'allowed_tools' => 'array',
+            'knowledge_auto_save' => 'boolean',
         ];
     }
 
@@ -39,6 +44,28 @@ class AiAssistantProfile extends Model
     public function conversations(): HasMany
     {
         return $this->hasMany(AiConversation::class);
+    }
+
+    public function knowledgeEntries(): HasMany
+    {
+        return $this->hasMany(AiAssistantKnowledgeEntry::class)->latest();
+    }
+
+    /**
+     * The approved knowledge, newest first, capped at a fixed count so a
+     * long-lived assistant's prompt (and the provider's per-request bill)
+     * never grows unbounded - once this cap is reached, the oldest
+     * approved notes simply stop being included, which for a knowledge
+     * base built from ordinary conversation is an acceptable trade-off
+     * for Phase 1.
+     */
+    public function approvedKnowledgeForPrompt(): array
+    {
+        return $this->knowledgeEntries()
+            ->approved()
+            ->limit(100)
+            ->pluck('content')
+            ->all();
     }
 
     /**
