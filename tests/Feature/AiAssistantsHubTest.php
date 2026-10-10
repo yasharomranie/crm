@@ -132,6 +132,72 @@ class AiAssistantsHubTest extends TestCase
         $this->assertSame($profile->id, $component->get('activeProfileId'));
     }
 
+    public function test_sending_a_message_uses_the_profiles_preferred_model_when_one_is_set(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'model' => 'gpt-4o']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o');
+    }
+
+    public function test_sending_a_message_falls_back_to_the_providers_default_model_when_the_profile_has_none_preferred(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'model' => null]);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o-mini');
+    }
+
+    public function test_updating_the_profile_model_persists_it_for_the_owner(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('updateProfileModel', 'gpt-4o');
+
+        $this->assertSame('gpt-4o', $profile->fresh()->model);
+    }
+
+    public function test_a_non_owner_cannot_change_a_shared_profiles_model(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true, 'model' => null]);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('updateProfileModel', 'gpt-4o');
+
+        $this->assertNull($profile->fresh()->model);
+    }
+
     public function test_a_user_cannot_delete_another_users_profile(): void
     {
         $owner = User::factory()->create();

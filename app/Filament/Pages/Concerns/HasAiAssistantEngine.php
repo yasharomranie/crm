@@ -31,6 +31,7 @@ use App\Enums\WalletTransactionType;
 use App\Enums\WorkflowActionType;
 use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
+use App\Models\AiAssistantModelSetting;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
@@ -176,6 +177,48 @@ trait HasAiAssistantEngine
     }
 
     /**
+     * @var array<string, string> model id => model id - loaded on demand
+     *                            (loadModelOptions(), fired when the "مدل
+     *                            زبانی" picker is actually opened) rather
+     *                            than on every render, since this trait's
+     *                            send() already runs on every message and
+     *                            a live /models call on top of THAT would
+     *                            multiply the load on the shared provider
+     *                            for no reason most turns never need.
+     */
+    public array $modelOptions = [];
+
+    public function loadModelOptions(): void
+    {
+        if ($this->modelOptions !== []) {
+            return;
+        }
+
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            return;
+        }
+
+        try {
+            $models = $provider->listModels();
+            $this->modelOptions = array_combine($models, $models);
+        } catch (\Throwable) {
+            $this->modelOptions = [];
+        }
+    }
+
+    public function preferredModel(): ?string
+    {
+        return AiAssistantModelSetting::modelFor('ai-assistant');
+    }
+
+    public function updatePreferredModel(?string $model): void
+    {
+        AiAssistantModelSetting::setModelFor('ai-assistant', $model);
+    }
+
+    /**
      * Sends the user's message, then drives the tool-calling loop until the
      * model returns a final answer (or gives up after a few rounds).
      */
@@ -227,8 +270,10 @@ trait HasAiAssistantEngine
         // at all (e.g. a plain "ممنون" reply).
         $this->pendingChart = null;
 
+        $model = AiAssistantModelSetting::modelFor('ai-assistant');
+
         for ($round = 0; $round < 5; $round++) {
-            $assistantMessage = $provider->chatCompletion($messages, $tools);
+            $assistantMessage = $provider->chatCompletion($messages, $tools, $model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
             $conversation->messages()->create([

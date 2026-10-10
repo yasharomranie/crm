@@ -50,6 +50,36 @@ class AiProviderTest extends TestCase
         $this->assertSame('سلام!', $message['content']);
     }
 
+    public function test_chat_completion_sends_the_providers_default_model_when_no_override_is_given(): void
+    {
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        $provider = AiProvider::factory()->create(['default_model' => 'gpt-4o-mini']);
+
+        $provider->chatCompletion([['role' => 'user', 'content' => 'سلام']]);
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o-mini');
+    }
+
+    public function test_chat_completion_sends_an_explicit_model_override_instead_of_the_default(): void
+    {
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        $provider = AiProvider::factory()->create(['default_model' => 'gpt-4o-mini']);
+
+        $provider->chatCompletion([['role' => 'user', 'content' => 'سلام']], model: 'gpt-4o');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o');
+    }
+
     public function test_chat_completion_throws_on_a_failed_request(): void
     {
         Http::fake([

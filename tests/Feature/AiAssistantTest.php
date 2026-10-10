@@ -7,6 +7,7 @@ use App\Enums\ApproverType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\TaskStatus;
 use App\Filament\Pages\AiAssistant;
+use App\Models\AiAssistantModelSetting;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\Department;
@@ -771,6 +772,67 @@ class AiAssistantTest extends TestCase
             ->call('send');
 
         $this->assertSame(0, WorkflowDefinition::count());
+    }
+
+    public function test_sending_a_message_uses_the_preferred_model_when_one_is_set(): void
+    {
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+        AiAssistantModelSetting::setModelFor('ai-assistant', 'gpt-4o');
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)->set('body', 'سلام')->call('send');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o');
+    }
+
+    public function test_sending_a_message_falls_back_to_the_providers_default_model_when_none_is_preferred(): void
+    {
+        AiProvider::factory()->active()->create(['default_model' => 'gpt-4o-mini']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)->set('body', 'سلام')->call('send');
+
+        Http::assertSent(fn ($request) => $request->data()['model'] === 'gpt-4o-mini');
+    }
+
+    public function test_loading_model_options_populates_them_from_the_providers_live_list(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        Http::fake([
+            '*/models' => Http::response(['data' => [['id' => 'gpt-4o'], ['id' => 'gpt-4o-mini']]]),
+        ]);
+
+        $this->actingAsFullyPermittedAiUser();
+
+        $component = Livewire::test(AiAssistant::class)->call('loadModelOptions');
+
+        $this->assertSame(['gpt-4o' => 'gpt-4o', 'gpt-4o-mini' => 'gpt-4o-mini'], $component->get('modelOptions'));
+    }
+
+    public function test_updating_the_preferred_model_persists_it(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        $this->actingAsFullyPermittedAiUser();
+
+        Livewire::test(AiAssistant::class)->call('updatePreferredModel', 'gpt-4o');
+
+        $this->assertSame('gpt-4o', AiAssistantModelSetting::modelFor('ai-assistant'));
     }
 
     public function test_alerts_flag_overdue_tasks(): void

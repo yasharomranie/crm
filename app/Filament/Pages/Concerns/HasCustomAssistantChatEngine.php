@@ -41,6 +41,50 @@ trait HasCustomAssistantChatEngine
     }
 
     /**
+     * @var array<string, string> model id => model id - loaded on demand
+     *                            (loadModelOptionsForProfile()), not on
+     *                            every render.
+     */
+    public array $modelOptionsForProfile = [];
+
+    public function loadModelOptionsForProfile(): void
+    {
+        if ($this->modelOptionsForProfile !== []) {
+            return;
+        }
+
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            return;
+        }
+
+        try {
+            $models = $provider->listModels();
+            $this->modelOptionsForProfile = array_combine($models, $models);
+        } catch (\Throwable) {
+            $this->modelOptionsForProfile = [];
+        }
+    }
+
+    /**
+     * Only the profile's own creator may change which model it uses -
+     * same ownership rule as deleting it (AiAssistantsHub::deleteProfile).
+     */
+    public function updateProfileModel(?string $model): void
+    {
+        $profile = AiAssistantProfile::query()
+            ->where('created_by', Auth::id())
+            ->find($this->activeProfileId);
+
+        if (! $profile) {
+            return;
+        }
+
+        $profile->update(['model' => filled($model) ? $model : null]);
+    }
+
+    /**
      * @return Collection<int, AiConversation>
      */
     public function getProfileConversations(): Collection
@@ -148,7 +192,7 @@ trait HasCustomAssistantChatEngine
                 ...$conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all(),
             ];
 
-            $assistantMessage = $provider->chatCompletion($messages);
+            $assistantMessage = $provider->chatCompletion($messages, model: $profile->model);
 
             $conversation->messages()->create([
                 'role' => AiMessageRole::Assistant,
