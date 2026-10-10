@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\SafeUrlFetcher;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
@@ -9,11 +10,14 @@ use App\Enums\AiMessageRole;
 use App\Exceptions\AiProviderException;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
+use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Auth;
+use Livewire\WithFileUploads;
 
 /**
  * A small sibling of HasAiAssistantEngine, for the custom assistants
@@ -25,10 +29,14 @@ use Illuminate\Support\Facades\Auth;
  * narrow, self-contained tools below: save_knowledge_entry, which lets it
  * grow its own knowledge base through ordinary use, and fetch_url, which
  * lets it read a specific page the user points it to and turn what it
- * finds into knowledge entries the same way.
+ * finds into knowledge entries the same way - plus the document-upload
+ * path (processKnowledgeUpload) below, a third way to seed the same
+ * knowledge base from a file the owner already has.
  */
 trait HasCustomAssistantChatEngine
 {
+    use WithFileUploads;
+
     public ?int $activeProfileId = null;
 
     public ?int $conversationId = null;
@@ -331,17 +339,11 @@ trait HasCustomAssistantChatEngine
             return ['error' => 'متن نکته خالی بود، ذخیره نشد.'];
         }
 
-        $status = $profile->knowledge_auto_save ? AiKnowledgeEntryStatus::Approved : AiKnowledgeEntryStatus::Pending;
-
-        $profile->knowledgeEntries()->create([
-            'content' => $content,
-            'source' => AiKnowledgeEntrySource::AiSuggested,
-            'status' => $status,
-        ]);
+        $entry = $profile->recordAiSuggestedKnowledge($content);
 
         return [
             'saved' => true,
-            'status' => $status->value,
+            'status' => $entry->status->value,
         ];
     }
 
@@ -408,6 +410,135 @@ trait HasCustomAssistantChatEngine
     {
         $profile = $this->ownedActiveProfile();
         $profile?->update(['knowledge_auto_save' => ! $profile->knowledge_auto_save]);
+    }
+
+    /**
+     * @return Collection<int, AiAssistantWatchedSource>
+     */
+    public function getWatchedSources(): Collection
+    {
+        return $this->activeProfile()?->watchedSources()->get() ?? new Collection;
+    }
+
+    public function addWatchedSource(string $url, string $label = ''): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $url = trim($url);
+
+        if (! $profile || $url === '') {
+            return;
+        }
+
+        $profile->watchedSources()->create([
+            'url' => $url,
+            'label' => trim($label) !== '' ? trim($label) : null,
+        ]);
+    }
+
+    public function deleteWatchedSource(int $watchedSourceId): void
+    {
+        $this->ownedActiveProfile()?->watchedSources()->whereKey($watchedSourceId)->delete();
+    }
+
+    public ?UploadedFile $knowledgeUploadFile = null;
+
+    /**
+     * Third way to build a profile's knowledge base, alongside ordinary
+     * chat and the fetch_url tool: the owner uploads a file they already
+     * have (a price list, a law's text, a catalogue), its text is pulled
+     * out locally (DocumentTextExtractor - no AI call, no cost), and then
+     * ONE chat-completion call turns that raw text into a handful of
+     * short, stand-alone notes - a bounded, owner-triggered cost, unlike
+     * WatchedSourceChecker's unattended daily runs, which never call the
+     * AI at all. Notes land in the same review queue as everything else.
+     */
+    public function processKnowledgeUpload(): void
+    {
+        $profile = $this->ownedActiveProfile();
+
+        if (! $profile || ! $this->knowledgeUploadFile) {
+            return;
+        }
+
+        $this->validate(['knowledgeUploadFile' => ['required', 'file', 'mimes:txt,docx,pdf', 'max:5120']]);
+
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            Notification::make()->title(AiProviderException::noActiveProvider()->getMessage())->warning()->send();
+
+            return;
+        }
+
+        $extraction = app(DocumentTextExtractor::class)->extract(
+            $this->knowledgeUploadFile->getRealPath(),
+            $this->knowledgeUploadFile->getClientOriginalExtension(),
+        );
+
+        if (isset($extraction['error'])) {
+            Notification::make()->title($extraction['error'])->danger()->send();
+            $this->reset('knowledgeUploadFile');
+
+            return;
+        }
+
+        $notes = $this->extractKnowledgeNotesFromDocument($profile, $provider, $extraction['content']);
+
+        foreach ($notes as $note) {
+            $profile->recordAiSuggestedKnowledge($note);
+        }
+
+        $this->reset('knowledgeUploadFile');
+
+        Notification::make()->title($notes === [] ? 'هیچ نکتهٔ قابل‌استفاده‌ای در فایل پیدا نشد.' : count($notes).' نکته از فایل استخراج شد و در صف بررسی قرار گرفت.')->success()->send();
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractKnowledgeNotesFromDocument(AiAssistantProfile $profile, AiProvider $provider, string $text): array
+    {
+        $messages = [
+            [
+                'role' => 'system',
+                'content' => 'تو یک دستیار استخراج اطلاعاتی. از متن کاربر، مهم‌ترین نکات مستقل و قابل‌استفاده را استخراج کن (حداکثر ۱۵ نکته، هر نکته کوتاه و به فارسی). پاسخ تو باید فقط و فقط یک آرایهٔ JSON از رشته‌ها باشد، بدون هیچ توضیح یا متن اضافه.',
+            ],
+            ['role' => 'user', 'content' => $text],
+        ];
+
+        try {
+            $response = $provider->chatCompletion($messages, [], $profile->model);
+        } catch (AiProviderException $exception) {
+            Notification::make()->title($exception->getMessage())->danger()->send();
+
+            return [];
+        }
+
+        $notes = json_decode($this->stripJsonFences((string) ($response['content'] ?? '')), true);
+
+        if (! is_array($notes)) {
+            return [];
+        }
+
+        return collect($notes)
+            ->map(fn ($note) => trim((string) $note))
+            ->filter(fn (string $note) => $note !== '')
+            ->take(15)
+            ->values()
+            ->all();
+    }
+
+    /**
+     * Some providers wrap a JSON response in a ```json ... ``` fence even
+     * when told not to - strip it before decoding.
+     */
+    private function stripJsonFences(string $content): string
+    {
+        $content = trim($content);
+        $content = preg_replace('/^```(?:json)?/i', '', $content) ?? $content;
+        $content = preg_replace('/```$/', '', $content) ?? $content;
+
+        return trim($content);
     }
 
     /**

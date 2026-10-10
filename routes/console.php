@@ -80,3 +80,12 @@ Schedule::command('seo:sync-sitemaps')
     ->dailyAt('05:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// فاز دوم نالج‌بیس دستیارهای هاب: صفحاتی که مالک یک دستیار برای رصد
+// تغییرات ثبت کرده را روزی یک‌بار دوباره می‌خواند و در صورت تغییر محتوا،
+// یک نکتهٔ پیشنهادی جدید (در انتظار تأیید) می‌سازد - بدون هیچ تماسی با
+// ارائه‌دهندهٔ هوش مصنوعی، پس هزینه‌ای به سهمیهٔ مشترک چت تحمیل نمی‌کند.
+Schedule::command('ai-assistants:check-watched-sources')
+    ->dailyAt('04:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
