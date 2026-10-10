@@ -152,7 +152,7 @@
                                 type="text"
                                 wire:model="newName"
                                 placeholder="مثلاً «پشتیبان مهمانان»"
-                                class="fi-input block w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             />
                         </div>
 
@@ -163,7 +163,7 @@
                                 wire:model="newDescription"
                                 rows="5"
                                 placeholder="وظیفه را دقیق و عملیاتی بنویس: کار این دستیار چیست، چه لحنی دارد، چه کاری نباید انجام دهد. از صفت‌های کلی مثل «فوق‌العاده باش» یا «حرفه‌ای باش» پرهیز کن."
-                                class="fi-input block w-full resize-y rounded-lg border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full resize-y rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             ></textarea>
                             @error('newDescription')
                                 <p class="mt-1 text-xs text-danger-600 dark:text-danger-400">{{ $message }}</p>
@@ -184,7 +184,7 @@
                                 type="text"
                                 wire:model="newSpecialties"
                                 placeholder="مثلاً: حقوقی، قرارداد"
-                                class="fi-input block w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                                class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteblock w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                             />
                             <p class="mt-1 text-[11px] text-gray-400">دستیارهای دیگر، در صورت نیاز، بر اساس همین تخصص‌ها می‌توانند از این دستیار سؤال بپرسند (مشورت بین‌دستیاری).</p>
                         </div>
@@ -378,7 +378,7 @@
                                                     x-ref="specialtiesInput"
                                                     value="{{ implode('، ', $activeProfile->specialties ?? []) }}"
                                                     placeholder="مثلاً: حقوقی، قرارداد"
-                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -444,7 +444,7 @@
                                                     x-ref="knowledgeInput"
                                                     placeholder="مثلاً «نرخ کمیسیون فروش ۵ درصد است»"
                                                     x-on:keydown.enter.prevent="$wire.addManualKnowledgeEntry($refs.knowledgeInput.value); $refs.knowledgeInput.value = ''"
-                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -464,7 +464,7 @@
                                                     type="file"
                                                     wire:model="knowledgeUploadFile"
                                                     accept=".txt,.docx,.pdf"
-                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -505,13 +505,13 @@
                                                     type="url"
                                                     x-ref="watchedSourceUrlInput"
                                                     placeholder="آدرس صفحه (https://...)"
-                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <input
                                                     type="text"
                                                     x-ref="watchedSourceLabelInput"
                                                     placeholder="برچسب (اختیاری)"
-                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whiteflex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -591,7 +591,7 @@
                             placeholder="پیام خود را بنویسید..."
                             wire:loading.attr="disabled"
                             wire:target="sendToProfile"
-                            class="fi-input max-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                            class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-whitemax-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                         ></textarea>
                         <button
                             type="submit"
