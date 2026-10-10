@@ -399,6 +399,73 @@
                                                 </button>
                                             </div>
                                         </div>
+
+                                        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5">
+                                            <label for="knowledgeUploadFile" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">افزودن از فایل (txt، docx یا pdf - حداکثر ۵ مگابایت)</label>
+                                            <div class="flex gap-2">
+                                                <input
+                                                    id="knowledgeUploadFile"
+                                                    type="file"
+                                                    wire:model="knowledgeUploadFile"
+                                                    accept=".txt,.docx,.pdf"
+                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    wire:click="processKnowledgeUpload"
+                                                    wire:loading.attr="disabled"
+                                                    wire:target="processKnowledgeUpload,knowledgeUploadFile"
+                                                    class="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-500 disabled:cursor-not-allowed disabled:opacity-50"
+                                                >
+                                                    استخراج نکات
+                                                </button>
+                                            </div>
+                                            @error('knowledgeUploadFile')
+                                                <p class="mt-1 text-xs text-danger-600">{{ $message }}</p>
+                                            @enderror
+                                        </div>
+
+                                        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5">
+                                            <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">منابع تحت نظر (هر روز بررسی می‌شود؛ در صورت تغییر، نکته‌ای پیشنهاد می‌شود)</p>
+                                            @php $watchedSources = $this->getWatchedSources(); @endphp
+                                            @forelse ($watchedSources as $source)
+                                                <div wire:key="watched-{{ $source->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5">
+                                                    <div class="min-w-0">
+                                                        <p class="truncate text-sm text-gray-700 dark:text-gray-300">{{ $source->displayLabel() }}</p>
+                                                        <p class="text-[11px] text-gray-400">
+                                                            {{ $source->last_checked_at ? 'آخرین بررسی: '.$source->last_checked_at->format('Y/m/d H:i') : 'هنوز بررسی نشده' }}
+                                                        </p>
+                                                    </div>
+                                                    <button type="button" wire:click="deleteWatchedSource({{ $source->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
+                                                        <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                                    </button>
+                                                </div>
+                                            @empty
+                                                <p class="text-xs text-gray-400">هیچ منبعی تحت نظر نیست.</p>
+                                            @endforelse
+
+                                            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                                                <input
+                                                    type="url"
+                                                    x-ref="watchedSourceUrlInput"
+                                                    placeholder="آدرس صفحه (https://...)"
+                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <input
+                                                    type="text"
+                                                    x-ref="watchedSourceLabelInput"
+                                                    placeholder="برچسب (اختیاری)"
+                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    x-on:click="$wire.addWatchedSource($refs.watchedSourceUrlInput.value, $refs.watchedSourceLabelInput.value); $refs.watchedSourceUrlInput.value = ''; $refs.watchedSourceLabelInput.value = ''"
+                                                    class="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-500"
+                                                >
+                                                    افزودن
+                                                </button>
+                                            </div>
+                                        </div>
                                     </div>
                                 </div>
                             </div>

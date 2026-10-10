@@ -2,6 +2,8 @@
 
 namespace App\Models;
 
+use App\Enums\AiKnowledgeEntrySource;
+use App\Enums\AiKnowledgeEntryStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -49,6 +51,28 @@ class AiAssistantProfile extends Model
     public function knowledgeEntries(): HasMany
     {
         return $this->hasMany(AiAssistantKnowledgeEntry::class)->latest();
+    }
+
+    public function watchedSources(): HasMany
+    {
+        return $this->hasMany(AiAssistantWatchedSource::class)->latest();
+    }
+
+    /**
+     * Records a note the AI itself produced (from a tool call during chat,
+     * or from WatchedSourceChecker finding a changed watched page) -
+     * Approved immediately if the owner turned knowledge_auto_save on,
+     * Pending (awaiting a one-tap review) otherwise. A manually-typed note
+     * (HasCustomAssistantChatEngine::addManualKnowledgeEntry) never goes
+     * through here - the owner wrote it themselves, so it needs no review.
+     */
+    public function recordAiSuggestedKnowledge(string $content): AiAssistantKnowledgeEntry
+    {
+        return $this->knowledgeEntries()->create([
+            'content' => $content,
+            'source' => AiKnowledgeEntrySource::AiSuggested,
+            'status' => $this->knowledge_auto_save ? AiKnowledgeEntryStatus::Approved : AiKnowledgeEntryStatus::Pending,
+        ]);
     }
 
     /**

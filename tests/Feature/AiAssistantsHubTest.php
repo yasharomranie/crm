@@ -9,10 +9,12 @@ use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
+use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
@@ -565,5 +567,111 @@ class AiAssistantsHubTest extends TestCase
 
         $toolMessage = $profile->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->sole();
         $this->assertStringContainsString('error', $toolMessage->content);
+    }
+
+    public function test_the_owner_can_add_and_remove_a_watched_source(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $component = Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('addWatchedSource', 'https://example.com/prices', 'قیمت رقیب');
+
+        $source = AiAssistantWatchedSource::sole();
+        $this->assertSame('https://example.com/prices', $source->url);
+        $this->assertSame('قیمت رقیب', $source->label);
+        $this->assertSame($profile->id, $source->ai_assistant_profile_id);
+
+        $component->call('deleteWatchedSource', $source->id);
+
+        $this->assertDatabaseMissing('ai_assistant_watched_sources', ['id' => $source->id]);
+    }
+
+    public function test_a_non_owner_cannot_add_or_remove_a_shared_profiles_watched_sources(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        $source = AiAssistantWatchedSource::factory()->for($profile, 'profile')->create();
+
+        $this->actingAsHubUser();
+
+        $component = Livewire::test(AiAssistantsHub::class)->call('openProfile', $profile->id);
+        $component->call('addWatchedSource', 'https://example.com/evil');
+        $component->call('deleteWatchedSource', $source->id);
+
+        $this->assertDatabaseMissing('ai_assistant_watched_sources', ['url' => 'https://example.com/evil']);
+        $this->assertDatabaseHas('ai_assistant_watched_sources', ['id' => $source->id]);
+    }
+
+    public function test_the_owner_can_upload_a_document_and_get_pending_knowledge_entries(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => json_encode(['نرخ کمیسیون فروش ۵ درصد است.', 'ساعت کاری دفتر ۹ تا ۱۷ است.']),
+                    ],
+                ]],
+            ]),
+        ]);
+
+        $file = UploadedFile::fake()->createWithContent('price-list.txt', 'نرخ کمیسیون فروش ۵ درصد است. ساعت کاری دفتر ۹ تا ۱۷ است.');
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('knowledgeUploadFile', $file)
+            ->call('processKnowledgeUpload');
+
+        $entries = AiAssistantKnowledgeEntry::all();
+        $this->assertCount(2, $entries);
+        $this->assertTrue($entries->every(fn (AiAssistantKnowledgeEntry $entry) => $entry->status === AiKnowledgeEntryStatus::Pending));
+        $this->assertTrue($entries->every(fn (AiAssistantKnowledgeEntry $entry) => $entry->source === AiKnowledgeEntrySource::AiSuggested));
+    }
+
+    public function test_an_unsupported_file_type_is_rejected_before_any_ai_call(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake();
+
+        $file = UploadedFile::fake()->create('malware.exe', 10);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('knowledgeUploadFile', $file)
+            ->call('processKnowledgeUpload')
+            ->assertHasErrors(['knowledgeUploadFile']);
+
+        Http::assertNothingSent();
+        $this->assertSame(0, AiAssistantKnowledgeEntry::count());
+    }
+
+    public function test_a_non_owner_cannot_upload_a_document_to_a_shared_profile(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        AiProvider::factory()->active()->create();
+
+        $this->actingAsHubUser();
+
+        Http::fake();
+
+        $file = UploadedFile::fake()->createWithContent('note.txt', 'نکتهٔ محرمانه');
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('knowledgeUploadFile', $file)
+            ->call('processKnowledgeUpload');
+
+        Http::assertNothingSent();
+        $this->assertSame(0, AiAssistantKnowledgeEntry::count());
     }
 }
