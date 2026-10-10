@@ -286,22 +286,20 @@
                                     wire:click="loadModelOptionsForProfile"
                                     x-on:click="open = ! open"
                                     title="مدل زبانی این دستیار"
-                                    class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                                    class="flex max-w-[6.5rem] items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
                                 >
-                                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5" />
-                                    {{ $activeProfile->model ?: 'پیش‌فرض' }}
+                                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5 shrink-0" />
+                                    <span class="truncate">{{ $activeProfile->model ?: 'پیش‌فرض' }}</span>
                                 </button>
-                                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-10 mt-1">
-                                    <select
-                                        wire:change="updateProfileModel($event.target.value)"
-                                        x-on:change="open = false"
-                                        class="fi-input w-56 rounded-lg border-gray-300 py-1.5 text-xs shadow-lg dark:border-white/10 dark:bg-gray-800"
-                                    >
-                                        <option value="" @selected(blank($activeProfile->model))>پیش‌فرض ارائه‌دهنده</option>
-                                        @foreach ($this->modelOptionsForProfile as $modelId)
-                                            <option value="{{ $modelId }}" @selected($activeProfile->model === $modelId)>{{ $modelId }}</option>
-                                        @endforeach
-                                    </select>
+                                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-gray-800">
+                                    <button type="button" wire:click="updateProfileModel('')" x-on:click="open = false" @class(['flex w-full items-center px-3 py-2 text-start text-xs hover:bg-gray-50 dark:hover:bg-white/5', 'font-medium text-primary-600 dark:text-primary-400' => blank($activeProfile->model), 'text-gray-700 dark:text-gray-200' => filled($activeProfile->model)])>
+                                        پیش‌فرض ارائه‌دهنده
+                                    </button>
+                                    @foreach ($this->modelOptionsForProfile as $modelId)
+                                        <button type="button" wire:click="updateProfileModel('{{ $modelId }}')" x-on:click="open = false" @class(['flex w-full items-center px-3 py-2 text-start text-xs hover:bg-gray-50 dark:hover:bg-white/5', 'font-medium text-primary-600 dark:text-primary-400' => $activeProfile->model === $modelId, 'text-gray-700 dark:text-gray-200' => $activeProfile->model !== $modelId])>
+                                            {{ $modelId }}
+                                        </button>
+                                    @endforeach
                                 </div>
                             </div>
                         @endif

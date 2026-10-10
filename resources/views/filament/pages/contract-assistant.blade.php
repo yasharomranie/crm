@@ -24,22 +24,20 @@
                     type="button"
                     wire:click="loadModelOptions"
                     x-on:click="open = ! open"
-                    class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                    class="flex max-w-[14rem] items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
                 >
-                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5" />
-                    مدل: {{ $this->preferredModel() ?: 'پیش‌فرض ارائه‌دهنده' }}
+                    <x-heroicon-o-cpu-chip class="h-3.5 w-3.5 shrink-0" />
+                    <span class="truncate">مدل: {{ $this->preferredModel() ?: 'پیش‌فرض ارائه‌دهنده' }}</span>
                 </button>
-                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-10 mt-1">
-                    <select
-                        wire:change="updatePreferredModel($event.target.value)"
-                        x-on:change="open = false"
-                        class="fi-input w-56 rounded-lg border-gray-300 py-1.5 text-xs shadow-lg dark:border-white/10 dark:bg-gray-800"
-                    >
-                        <option value="" @selected(blank($this->preferredModel()))>پیش‌فرض ارائه‌دهنده</option>
-                        @foreach ($this->modelOptions as $modelId)
-                            <option value="{{ $modelId }}" @selected($this->preferredModel() === $modelId)>{{ $modelId }}</option>
-                        @endforeach
-                    </select>
+                <div x-show="open" x-cloak x-on:click.outside="open = false" class="absolute end-0 top-full z-20 mt-1 max-h-64 w-56 overflow-y-auto rounded-lg border border-gray-200 bg-white py-1 shadow-lg dark:border-white/10 dark:bg-gray-800">
+                    <button type="button" wire:click="updatePreferredModel('')" x-on:click="open = false" @class(['flex w-full items-center px-3 py-2 text-start text-xs hover:bg-gray-50 dark:hover:bg-white/5', 'font-medium text-primary-600 dark:text-primary-400' => blank($this->preferredModel()), 'text-gray-700 dark:text-gray-200' => filled($this->preferredModel())])>
+                        پیش‌فرض ارائه‌دهنده
+                    </button>
+                    @foreach ($this->modelOptions as $modelId)
+                        <button type="button" wire:click="updatePreferredModel('{{ $modelId }}')" x-on:click="open = false" @class(['flex w-full items-center px-3 py-2 text-start text-xs hover:bg-gray-50 dark:hover:bg-white/5', 'font-medium text-primary-600 dark:text-primary-400' => $this->preferredModel() === $modelId, 'text-gray-700 dark:text-gray-200' => $this->preferredModel() !== $modelId])>
+                            {{ $modelId }}
+                        </button>
+                    @endforeach
                 </div>
             </div>
         </div>
