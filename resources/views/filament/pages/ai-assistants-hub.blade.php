@@ -178,6 +178,18 @@
                         </label>
 
                         <div>
+                            <label for="newSpecialties" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">تخصص‌ها (اختیاری، با ویرگول جدا کن)</label>
+                            <input
+                                id="newSpecialties"
+                                type="text"
+                                wire:model="newSpecialties"
+                                placeholder="مثلاً: حقوقی، قرارداد"
+                                class="fi-input block w-full rounded-lg border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                            />
+                            <p class="mt-1 text-[11px] text-gray-400">دستیارهای دیگر، در صورت نیاز، بر اساس همین تخصص‌ها می‌توانند از این دستیار سؤال بپرسند (مشورت بین‌دستیاری).</p>
+                        </div>
+
+                        <div>
                             <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">یا از یک الگوی آماده شروع کن</p>
                             <div class="flex flex-wrap gap-2">
                                 @foreach ($this->starterTemplates() as $template)
@@ -341,6 +353,50 @@
                                                 <span class="h-4 w-4 rounded-full bg-white shadow"></span>
                                             </span>
                                         </button>
+
+                                        <div class="mb-4 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                                            <button
+                                                type="button"
+                                                wire:click="toggleProfileConsultable"
+                                                class="flex w-full items-center justify-between gap-2 text-start"
+                                            >
+                                                <span class="text-sm text-gray-700 dark:text-gray-300">قابل‌مشورت توسط دستیارهای دیگر</span>
+                                                <span @class([
+                                                    'inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition',
+                                                    'bg-primary-600 justify-end' => $activeProfile->consultable,
+                                                    'bg-gray-300 justify-start dark:bg-white/10' => ! $activeProfile->consultable,
+                                                ])>
+                                                    <span class="h-4 w-4 rounded-full bg-white shadow"></span>
+                                                </span>
+                                            </button>
+
+                                            <label for="profileSpecialties" class="mb-1 mt-3 block text-xs font-medium text-gray-600 dark:text-gray-300">تخصص‌ها (با ویرگول جدا کن)</label>
+                                            <div class="flex gap-2">
+                                                <input
+                                                    id="profileSpecialties"
+                                                    type="text"
+                                                    x-ref="specialtiesInput"
+                                                    value="{{ implode('، ', $activeProfile->specialties ?? []) }}"
+                                                    placeholder="مثلاً: حقوقی، قرارداد"
+                                                    class="fi-input flex-1 rounded-lg border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    x-on:click="$wire.updateProfileSpecialties($refs.specialtiesInput.value)"
+                                                    class="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-500"
+                                                >
+                                                    ذخیره
+                                                </button>
+                                            </div>
+
+                                            @php $consultants = $this->getAvailableConsultants(); @endphp
+                                            @if ($consultants->isNotEmpty())
+                                                <p class="mt-3 text-[11px] text-gray-400">
+                                                    این دستیار، در صورت نیاز، می‌تواند از این دستیارها مشورت بگیرد:
+                                                    {{ $consultants->map(fn ($c) => $c->displayName())->implode('، ') }}
+                                                </p>
+                                            @endif
+                                        </div>
 
                                         @php
                                             $knowledgeEntries = $this->getKnowledgeEntries();

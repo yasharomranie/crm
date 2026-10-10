@@ -7,6 +7,7 @@ use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
+use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
 use App\Models\AiAssistantWatchedSource;
@@ -462,11 +463,28 @@ class AiAssistantsHubTest extends TestCase
         $component->call('deleteKnowledgeEntry', $pending->id);
         $component->call('addManualKnowledgeEntry', 'نکتهٔ غیرمجاز');
         $component->call('toggleKnowledgeAutoSave');
+        $component->call('toggleProfileConsultable');
+        $component->call('updateProfileSpecialties', 'تخصص غیرمجاز');
 
         $this->assertSame(AiKnowledgeEntryStatus::Pending, $pending->fresh()->status);
         $this->assertDatabaseHas('ai_assistant_knowledge_entries', ['id' => $pending->id]);
         $this->assertDatabaseMissing('ai_assistant_knowledge_entries', ['content' => 'نکتهٔ غیرمجاز']);
         $this->assertFalse($profile->fresh()->knowledge_auto_save);
+        $this->assertTrue($profile->fresh()->consultable);
+        $this->assertNull($profile->fresh()->specialties);
+    }
+
+    public function test_creating_a_profile_with_specialties_saves_them_as_a_list(): void
+    {
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openCreateForm')
+            ->set('newDescription', 'وظیفهٔ تو پاسخ به سوالات حقوقی است.')
+            ->set('newSpecialties', 'حقوقی, قرارداد ,  مالیاتی')
+            ->call('createProfile');
+
+        $this->assertSame(['حقوقی', 'قرارداد', 'مالیاتی'], AiAssistantProfile::sole()->specialties);
     }
 
     public function test_the_assistant_can_fetch_a_url_and_save_a_knowledge_entry_from_it(): void
@@ -673,5 +691,160 @@ class AiAssistantsHubTest extends TestCase
 
         Http::assertNothingSent();
         $this->assertSame(0, AiAssistantKnowledgeEntry::count());
+    }
+
+    public function test_the_consult_assistant_tool_is_not_offered_when_no_other_consultable_profile_exists(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام.']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
+
+            return $toolNames === ['save_knowledge_entry', 'fetch_url'];
+        });
+    }
+
+    public function test_a_profile_can_consult_another_consultable_profile_and_weave_the_answer_in(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'دستیار فروش']);
+        $target = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'دستیار حقوقی', 'specialties' => ['حقوقی']]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => null,
+                            'tool_calls' => [[
+                                'id' => 'call_1',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'consult_assistant',
+                                    'arguments' => json_encode(['target_profile_id' => $target->id, 'question' => 'آیا این بند قراردادی معتبر است؟']),
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'طبق قانون، این بند معتبر است.']]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'طبق مشورت با دستیار حقوقی، این بند معتبر است.']]],
+                ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'این بند قراردادی معتبره؟')
+            ->call('sendToProfile');
+
+        $consultation = AiAssistantConsultation::sole();
+        $this->assertSame($requester->id, $consultation->consulting_ai_assistant_profile_id);
+        $this->assertSame($target->id, $consultation->consulted_ai_assistant_profile_id);
+        $this->assertSame('طبق قانون، این بند معتبر است.', $consultation->answer);
+
+        $finalMessage = $requester->conversations->sole()->messages()->where('role', AiMessageRole::Assistant)->orderByDesc('id')->first();
+        $this->assertSame('طبق مشورت با دستیار حقوقی، این بند معتبر است.', $finalMessage->content);
+    }
+
+    public function test_consulting_an_inaccessible_profile_is_rejected_without_any_call_to_it(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $other = User::factory()->create();
+        $outOfScope = AiAssistantProfile::factory()->create(['created_by' => $other->id, 'is_shared' => false]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => [
+                            'role' => 'assistant',
+                            'content' => null,
+                            'tool_calls' => [[
+                                'id' => 'call_1',
+                                'type' => 'function',
+                                'function' => [
+                                    'name' => 'consult_assistant',
+                                    'arguments' => json_encode(['target_profile_id' => $outOfScope->id, 'question' => 'سؤال؟']),
+                                ],
+                            ]],
+                        ],
+                    ]],
+                ])
+                ->push([
+                    'choices' => [['message' => ['role' => 'assistant', 'content' => 'نتوانستم مشورت بگیرم.']]],
+                ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'یه چیزی بپرس')
+            ->call('sendToProfile');
+
+        $this->assertSame(0, AiAssistantConsultation::count());
+
+        $toolMessage = $requester->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->sole();
+        $this->assertStringContainsString('error', $toolMessage->content);
+    }
+
+    public function test_consultations_are_capped_per_message_even_within_a_single_round(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $targets = AiAssistantProfile::factory()->count(4)->create(['created_by' => $user->id]);
+
+        $toolCalls = $targets->map(fn (AiAssistantProfile $target, int $index) => [
+            'id' => 'call_'.$index,
+            'type' => 'function',
+            'function' => [
+                'name' => 'consult_assistant',
+                'arguments' => json_encode(['target_profile_id' => $target->id, 'question' => 'سؤال '.$index]),
+            ],
+        ])->all();
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push([
+                    'choices' => [[
+                        'message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => $toolCalls],
+                    ]],
+                ])
+                // One chatCompletion response per consultation actually performed (capped at 3), then the final round.
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'پاسخ ۱']]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'پاسخ ۲']]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'پاسخ ۳']]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'جمع‌بندی نهایی.']]]]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'از همه بپرس')
+            ->call('sendToProfile');
+
+        $this->assertSame(3, AiAssistantConsultation::count());
+
+        $toolMessages = $requester->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->get();
+        $this->assertTrue($toolMessages->contains(fn ($message) => str_contains($message->content, 'سقف تعداد مشورت')));
     }
 }
