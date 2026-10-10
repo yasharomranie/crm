@@ -1,13 +1,26 @@
 ---
 deployment:
   tasks:
-    - php composer.phar install --no-dev --optimize-autoloader
-    - php artisan migrate --force
-    - php artisan access-control:sync --no-interaction
-    - php artisan config:clear
-    - php artisan config:cache
-    - php artisan route:cache
-    - php artisan view:cache
+    # Every step below appends to storage/logs/deploy.log instead of only
+    # going to cPanel's own (often invisible/truncated) deploy output, and
+    # each line is tagged so that if the deploy ever appears to hang again,
+    # opening this file in cPanel File Manager (no SSH needed) shows
+    # exactly which step was the last one to start - the step after the
+    # last "START" line with no matching "DONE" line is the one stuck.
+    - echo "[$(date +%H:%M:%S)] ===== DEPLOY START $(git rev-parse --short HEAD) =====" >> storage/logs/deploy.log
+    - echo "[$(date +%H:%M:%S)] START composer install" >> storage/logs/deploy.log
+    - php composer.phar install --no-dev --optimize-autoloader --no-interaction --no-progress >> storage/logs/deploy.log 2>&1
+    - echo "[$(date +%H:%M:%S)] DONE composer install" >> storage/logs/deploy.log
+    - echo "[$(date +%H:%M:%S)] START migrate" >> storage/logs/deploy.log
+    - php artisan migrate --force >> storage/logs/deploy.log 2>&1
+    - echo "[$(date +%H:%M:%S)] DONE migrate" >> storage/logs/deploy.log
+    - echo "[$(date +%H:%M:%S)] START access-control:sync" >> storage/logs/deploy.log
+    - php artisan access-control:sync --no-interaction >> storage/logs/deploy.log 2>&1
+    - echo "[$(date +%H:%M:%S)] DONE access-control:sync" >> storage/logs/deploy.log
+    - php artisan config:clear >> storage/logs/deploy.log 2>&1
+    - php artisan config:cache >> storage/logs/deploy.log 2>&1
+    - php artisan route:cache >> storage/logs/deploy.log 2>&1
+    - php artisan view:cache >> storage/logs/deploy.log 2>&1
     # config:cache/route:cache/view:cache above only rebuild Laravel's own
     # framework caches - they don't touch PHP's OPcache, which keeps
     # compiled bytecode of every PHP class (controllers, Filament
@@ -22,3 +35,4 @@ deployment:
     # no-op and PHP-FPM still needs restarting some other way (e.g.
     # reselecting the PHP version for the domain in MultiPHP Manager).
     - php -r "if (function_exists('opcache_reset')) { opcache_reset(); }"
+    - echo "[$(date +%H:%M:%S)] ===== DEPLOY FINISHED =====" >> storage/logs/deploy.log
