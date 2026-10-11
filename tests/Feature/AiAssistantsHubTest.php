@@ -1400,4 +1400,73 @@ class AiAssistantsHubTest extends TestCase
 
         $this->assertNull($message->fresh()->feedback);
     }
+
+    public function test_regenerating_the_last_response_replaces_it_with_a_new_one(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $conversation->messages()->create(['role' => AiMessageRole::User, 'content' => 'امکانات ویلا چیست؟']);
+        $weakReply = $conversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'نمی‌دانم.']);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'ویلا سه خوابه با جکوزی و حیاط اختصاصی دارد.']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('regenerateLastResponse');
+
+        $this->assertModelMissing($weakReply);
+        $messages = $conversation->refresh()->messages;
+        $this->assertSame(
+            [AiMessageRole::User, AiMessageRole::Assistant],
+            $messages->pluck('role')->all(),
+        );
+        $this->assertSame('ویلا سه خوابه با جکوزی و حیاط اختصاصی دارد.', $messages->last()->content);
+    }
+
+    public function test_regenerating_is_a_noop_when_the_last_message_is_not_an_assistant_reply(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $conversation->messages()->create(['role' => AiMessageRole::User, 'content' => 'سلام']);
+
+        Http::fake();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('regenerateLastResponse');
+
+        Http::assertNothingSent();
+        $this->assertSame(1, $conversation->refresh()->messages()->count());
+    }
+
+    public function test_a_user_cannot_regenerate_a_response_in_another_users_conversation(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        $ownersConversation = AiConversation::create(['user_id' => $owner->id, 'ai_assistant_profile_id' => $profile->id]);
+        $ownersConversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ']);
+
+        $this->actingAsHubUser();
+        Http::fake();
+
+        // conversationId is forged directly (bypassing selectProfileConversation,
+        // as a tampered request could) to prove getSelectedProfileConversation()'s
+        // own user_id scoping - not just the UI's normal selection path - is what
+        // blocks this.
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('conversationId', $ownersConversation->id)
+            ->call('regenerateLastResponse');
+
+        Http::assertNothingSent();
+        $this->assertSame(1, $ownersConversation->refresh()->messages()->count());
+    }
 }
