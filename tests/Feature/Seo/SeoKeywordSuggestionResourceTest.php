@@ -89,6 +89,31 @@ class SeoKeywordSuggestionResourceTest extends TestCase
             ->assertTableActionHidden('createContentItem', $suggestion);
     }
 
+    public function test_the_export_action_downloads_a_csv_of_the_filtered_suggestions(): void
+    {
+        $project = SeoProject::factory()->create(['name' => 'ویلا گنجنامه']);
+        $included = SeoKeywordSuggestion::factory()->create([
+            'seo_project_id' => $project->id,
+            'keyword' => 'اجاره ویلا همدان',
+            'status' => SeoKeywordSuggestionStatus::New,
+        ]);
+        $excluded = SeoKeywordSuggestion::factory()->create([
+            'status' => SeoKeywordSuggestionStatus::Approved,
+            'keyword' => 'کلمه‌ی خارج از فیلتر',
+        ]);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(ManageSeoKeywordSuggestions::class)
+            ->filterTable('status', SeoKeywordSuggestionStatus::New->value)
+            ->callAction('exportKeywordSuggestions')
+            ->assertFileDownloaded('پیشنهادهای-کلمات-کلیدی.csv');
+
+        $csv = base64_decode($component->effects['download']['content']);
+
+        $this->assertStringContainsString($included->keyword, $csv);
+        $this->assertStringNotContainsString($excluded->keyword, $csv);
+    }
+
     public function test_the_discover_keywords_header_action_dispatches_the_job_for_the_chosen_project(): void
     {
         Queue::fake();
