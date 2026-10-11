@@ -847,4 +847,293 @@ class AiAssistantsHubTest extends TestCase
         $toolMessages = $requester->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->get();
         $this->assertTrue($toolMessages->contains(fn ($message) => str_contains($message->content, 'سقف تعداد مشورت')));
     }
+
+    public function test_the_owner_can_update_a_profiles_name_description_avatar_and_visibility(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create([
+            'created_by' => $user->id,
+            'name' => 'قدیمی',
+            'avatar_shape' => 'circle',
+            'avatar_color' => 'Amber',
+            'is_shared' => false,
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openEditForm', $profile->id)
+            ->set('newName', 'جدید')
+            ->set('newDescription', 'دستورالعمل تازه برای این دستیار است.')
+            ->set('newShape', 'hexagon')
+            ->set('newColor', 'Indigo')
+            ->set('newIsShared', true)
+            ->set('newSpecialties', 'حقوقی, قرارداد')
+            ->call('updateProfile');
+
+        $profile->refresh();
+        $this->assertSame('جدید', $profile->name);
+        $this->assertSame('دستورالعمل تازه برای این دستیار است.', $profile->description);
+        $this->assertSame('hexagon', $profile->avatar_shape);
+        $this->assertSame('Indigo', $profile->avatar_color);
+        $this->assertTrue($profile->is_shared);
+        $this->assertSame(['حقوقی', 'قرارداد'], $profile->specialties);
+    }
+
+    public function test_a_non_owner_cannot_update_a_shared_profile(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true, 'name' => 'اصلی']);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openEditForm', $profile->id)
+            ->set('newName', 'دستکاری‌شده')
+            ->set('newDescription', 'توضیحات جایگزین برای این دستیار.')
+            ->call('updateProfile');
+
+        $this->assertSame('اصلی', $profile->fresh()->name);
+    }
+
+    public function test_duplicating_a_profile_copies_its_configuration_but_not_its_knowledge_or_watched_sources(): void
+    {
+        $user = $this->actingAsHubUser();
+        $source = AiAssistantProfile::factory()->create([
+            'created_by' => $user->id,
+            'name' => 'اصلی',
+            'description' => 'وظیفهٔ این دستیار پاسخ به سوالات فروش است.',
+            'specialties' => ['فروش'],
+            'is_shared' => true,
+            'consultable' => true,
+        ]);
+        $source->knowledgeEntries()->create(['content' => 'نکتهٔ محرمانه', 'status' => AiKnowledgeEntryStatus::Approved, 'source' => AiKnowledgeEntrySource::Manual]);
+        $source->watchedSources()->create(['url' => 'https://example.com']);
+
+        Livewire::test(AiAssistantsHub::class)->call('duplicateProfile', $source->id);
+
+        $clone = AiAssistantProfile::where('id', '!=', $source->id)->sole();
+        $this->assertSame('اصلی (کپی)', $clone->name);
+        $this->assertSame($source->description, $clone->description);
+        $this->assertSame(['فروش'], $clone->specialties);
+        $this->assertFalse($clone->is_shared);
+        $this->assertSame(0, $clone->knowledgeEntries()->count());
+        $this->assertSame(0, $clone->watchedSources()->count());
+    }
+
+    public function test_duplicating_someone_elses_shared_profile_is_allowed_and_creates_a_private_copy(): void
+    {
+        $owner = User::factory()->create();
+        $source = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+
+        $user = $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)->call('duplicateProfile', $source->id);
+
+        $clone = AiAssistantProfile::where('id', '!=', $source->id)->sole();
+        $this->assertSame($user->id, $clone->created_by);
+        $this->assertFalse($clone->is_shared);
+    }
+
+    public function test_duplicating_a_private_profile_owned_by_someone_else_is_rejected(): void
+    {
+        $owner = User::factory()->create();
+        $source = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => false]);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)->call('duplicateProfile', $source->id);
+
+        $this->assertSame(1, AiAssistantProfile::count());
+    }
+
+    public function test_the_owner_can_rename_a_conversation(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id, 'title' => 'قدیمی']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('renameConversation', $conversation->id, 'نام تازه');
+
+        $this->assertSame('نام تازه', $conversation->fresh()->title);
+    }
+
+    public function test_the_owner_can_delete_a_conversation_and_the_selection_falls_back_to_another_one(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $older = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id, 'title' => 'قدیمی‌تر']);
+        $newer = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id, 'title' => 'جدیدتر']);
+
+        $component = Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('selectProfileConversation', $newer->id)
+            ->call('deleteConversation', $newer->id);
+
+        $this->assertDatabaseMissing('ai_conversations', ['id' => $newer->id]);
+        $this->assertSame($older->id, $component->get('conversationId'));
+    }
+
+    public function test_a_user_cannot_delete_another_users_conversation_with_a_shared_profile(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        $ownersConversation = AiConversation::create(['user_id' => $owner->id, 'ai_assistant_profile_id' => $profile->id]);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('deleteConversation', $ownersConversation->id);
+
+        $this->assertDatabaseHas('ai_conversations', ['id' => $ownersConversation->id]);
+    }
+
+    public function test_the_owner_can_edit_an_approved_knowledge_entrys_content(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $entry = $profile->knowledgeEntries()->create(['content' => 'متن اشتباه', 'status' => AiKnowledgeEntryStatus::Approved, 'source' => AiKnowledgeEntrySource::Manual]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('updateKnowledgeEntry', $entry->id, 'متن درست‌شده');
+
+        $this->assertSame('متن درست‌شده', $entry->fresh()->content);
+        $this->assertSame(AiKnowledgeEntryStatus::Approved, $entry->fresh()->status);
+    }
+
+    public function test_a_non_owner_cannot_edit_a_shared_profiles_knowledge_entry(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        $entry = $profile->knowledgeEntries()->create(['content' => 'اصلی', 'status' => AiKnowledgeEntryStatus::Approved, 'source' => AiKnowledgeEntrySource::Manual]);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('updateKnowledgeEntry', $entry->id, 'دستکاری‌شده');
+
+        $this->assertSame('اصلی', $entry->fresh()->content);
+    }
+
+    public function test_toggling_fetch_url_access_flips_the_setting(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'fetch_url_enabled' => true]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleProfileFetchUrl');
+
+        $this->assertFalse($profile->fresh()->fetch_url_enabled);
+    }
+
+    public function test_disabling_fetch_url_access_removes_the_tool_from_the_offered_tools(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'fetch_url_enabled' => false]);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]],
+            ]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
+
+            return $toolNames === ['save_knowledge_entry'];
+        });
+    }
+
+    public function test_the_chat_shows_a_visible_chip_when_the_assistant_consults_another_profile(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $target = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'name' => 'دستیار حقوقی', 'specialties' => ['حقوقی']]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push(['choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'consult_assistant', 'arguments' => json_encode(['target_profile_id' => $target->id, 'question' => 'سؤال؟'])],
+                        ]],
+                    ],
+                ]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'پاسخ تخصصی.']]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'جمع‌بندی.']]]]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'سؤال؟')
+            ->call('sendToProfile')
+            ->assertSee('از «دستیار حقوقی» مشورت گرفت');
+    }
+
+    public function test_the_chat_shows_a_visible_chip_when_the_assistant_reads_a_web_page(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push(['choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'fetch_url', 'arguments' => json_encode(['url' => 'http://8.8.8.8/info'])],
+                        ]],
+                    ],
+                ]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'خواندم.']]]]),
+            'http://8.8.8.8/info' => Http::response('<html><body>متن صفحه</body></html>'),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'از http://8.8.8.8/info بخون')
+            ->call('sendToProfile')
+            ->assertSee('8.8.8.8');
+    }
+
+    public function test_the_knowledge_panel_shows_consultation_history_for_both_the_asking_and_answering_profile(): void
+    {
+        $user = $this->actingAsHubUser();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'name' => 'فروش']);
+        $target = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'name' => 'حقوقی']);
+
+        AiAssistantConsultation::create([
+            'consulting_ai_assistant_profile_id' => $requester->id,
+            'consulted_ai_assistant_profile_id' => $target->id,
+            'question' => 'این قرارداد معتبر است؟',
+            'answer' => 'بله.',
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->assertSee('از «حقوقی» پرسید');
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $target->id)
+            ->assertSee('«فروش» از این دستیار پرسید');
+    }
 }

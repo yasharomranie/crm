@@ -70,18 +70,40 @@
                                 <p class="mt-1.5 text-[11px] text-gray-400">به‌روزرسانی {{ $profile->updated_at->diffForHumans() }}</p>
                             </div>
 
-                            @if ($profile->created_by === auth()->id())
+                            <div class="relative z-10 flex shrink-0 flex-col items-center gap-1 opacity-100 transition md:opacity-0 md:group-hover:opacity-100">
                                 <button
                                     type="button"
-                                    wire:click="deleteProfile({{ $profile->id }})"
-                                    wire:confirm="این دستیار و تمام گفتگوهایش حذف شود؟"
-                                    aria-label="حذف دستیار"
-                                    title="حذف دستیار"
-                                    class="relative z-10 shrink-0 rounded-lg p-1.5 text-gray-300 opacity-100 transition hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10"
+                                    wire:click="duplicateProfile({{ $profile->id }})"
+                                    aria-label="کپی از این دستیار"
+                                    title="کپی از این دستیار"
+                                    class="rounded-lg p-1.5 text-gray-300 hover:bg-primary-50 hover:text-primary-600 dark:text-gray-600 dark:hover:bg-primary-500/10"
                                 >
-                                    <x-heroicon-o-trash class="h-4 w-4" />
+                                    <x-heroicon-o-document-duplicate class="h-4 w-4" />
                                 </button>
-                            @endif
+
+                                @if ($profile->created_by === auth()->id())
+                                    <button
+                                        type="button"
+                                        wire:click="openEditForm({{ $profile->id }})"
+                                        aria-label="ویرایش دستیار"
+                                        title="ویرایش دستیار"
+                                        class="rounded-lg p-1.5 text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-600 dark:hover:bg-white/5"
+                                    >
+                                        <x-heroicon-o-pencil-square class="h-4 w-4" />
+                                    </button>
+
+                                    <button
+                                        type="button"
+                                        wire:click="deleteProfile({{ $profile->id }})"
+                                        wire:confirm="این دستیار و تمام گفتگوهایش حذف شود؟"
+                                        aria-label="حذف دستیار"
+                                        title="حذف دستیار"
+                                        class="rounded-lg p-1.5 text-gray-300 hover:bg-danger-50 hover:text-danger-600 dark:text-gray-600 dark:hover:bg-danger-500/10"
+                                    >
+                                        <x-heroicon-o-trash class="h-4 w-4" />
+                                    </button>
+                                @endif
+                            </div>
                         </div>
                     @endforeach
 
@@ -102,7 +124,7 @@
             <div class="fixed inset-0 z-50 flex items-center justify-center bg-gray-950/50 p-4" wire:click.self="closeCreateForm">
                 <div class="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-2xl bg-white p-5 shadow-xl dark:bg-gray-900">
                     <div class="mb-4 flex items-center justify-between">
-                        <h3 class="text-base font-semibold text-gray-950 dark:text-white">ساخت دستیار جدید</h3>
+                        <h3 class="text-base font-semibold text-gray-950 dark:text-white">{{ $editingProfileId ? 'ویرایش دستیار' : 'ساخت دستیار جدید' }}</h3>
                         <button type="button" wire:click="closeCreateForm" class="rounded-lg p-1 text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5">
                             <x-heroicon-o-x-mark class="h-5 w-5" />
                         </button>
@@ -189,26 +211,28 @@
                             <p class="mt-1 text-[11px] text-gray-400">دستیارهای دیگر، در صورت نیاز، بر اساس همین تخصص‌ها می‌توانند از این دستیار سؤال بپرسند (مشورت بین‌دستیاری).</p>
                         </div>
 
-                        <div>
-                            <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">یا از یک الگوی آماده شروع کن</p>
-                            <div class="flex flex-wrap gap-2">
-                                @foreach ($this->starterTemplates() as $template)
-                                    <button
-                                        type="button"
-                                        wire:click="applyStarterTemplate(@js($template['name']), @js($template['description']), '{{ $template['shape'] }}', '{{ $template['color'] }}')"
-                                        class="flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
-                                    >
-                                        <x-ai-assistant-avatar :shape="$template['shape']" :color="$template['color']" :size="18" :animated="false" />
-                                        {{ $template['name'] }}
-                                    </button>
-                                @endforeach
+                        @unless ($editingProfileId)
+                            <div>
+                                <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">یا از یک الگوی آماده شروع کن</p>
+                                <div class="flex flex-wrap gap-2">
+                                    @foreach ($this->starterTemplates() as $template)
+                                        <button
+                                            type="button"
+                                            wire:click="applyStarterTemplate(@js($template['name']), @js($template['description']), '{{ $template['shape'] }}', '{{ $template['color'] }}')"
+                                            class="flex items-center gap-1.5 rounded-full border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 transition hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                                        >
+                                            <x-ai-assistant-avatar :shape="$template['shape']" :color="$template['color']" :size="18" :animated="false" />
+                                            {{ $template['name'] }}
+                                        </button>
+                                    @endforeach
+                                </div>
                             </div>
-                        </div>
+                        @endunless
                     </div>
 
                     <div class="mt-5 flex justify-end gap-2">
                         <button type="button" wire:click="closeCreateForm" class="rounded-lg px-4 py-2 text-sm text-gray-600 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-white/5">انصراف</button>
-                        <button type="button" wire:click="createProfile" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500">ساخت دستیار</button>
+                        <button type="button" wire:click="{{ $editingProfileId ? 'updateProfile' : 'createProfile' }}" class="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-500">{{ $editingProfileId ? 'ذخیره تغییرات' : 'ساخت دستیار' }}</button>
                     </div>
                 </div>
             </div>
@@ -219,7 +243,8 @@
             $conversations = $this->getProfileConversations();
             $selected = $this->getSelectedProfileConversation();
             $visibleMessages = $this->getProfileMessages()->filter(fn ($message) => $message->role === \App\Enums\AiMessageRole::User
-                || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content)));
+                || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content))
+                || ($message->role === \App\Enums\AiMessageRole::Tool && $this->describeToolActivity($message) !== null));
             $forwardTargets = $this->getForwardTargets();
         @endphp
 
@@ -259,15 +284,59 @@
                     <div class="flex-1 space-y-1 overflow-y-auto p-2">
                         @forelse ($conversations as $conversation)
                             @php $isActive = $selected && $selected->id === $conversation->id; @endphp
-                            <button
-                                type="button"
-                                wire:click="selectProfileConversation({{ $conversation->id }})"
-                                x-on:click="mobileView = 'thread'"
-                                class="flex w-full items-center gap-2 rounded-lg px-2.5 py-3 text-start text-sm transition hover:bg-gray-50 md:py-2.5 dark:hover:bg-white/5 {{ $isActive ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
+                            <div
+                                wire:key="conversation-{{ $conversation->id }}"
+                                x-data="{ renaming: false }"
+                                @class([
+                                    'group relative flex items-center rounded-lg',
+                                    'bg-primary-50 dark:bg-primary-500/10' => $isActive,
+                                ])
                             >
-                                <x-heroicon-o-chat-bubble-left-right class="h-4 w-4 shrink-0" />
-                                <span class="truncate">{{ $conversation->title ?: 'گفتگوی جدید' }}</span>
-                            </button>
+                                <button
+                                    type="button"
+                                    wire:click="selectProfileConversation({{ $conversation->id }})"
+                                    x-on:click="mobileView = 'thread'"
+                                    x-show="! renaming"
+                                    class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-3 text-start text-sm transition hover:bg-gray-50 md:py-2.5 dark:hover:bg-white/5 {{ $isActive ? 'font-medium text-primary-700 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
+                                >
+                                    <x-heroicon-o-chat-bubble-left-right class="h-4 w-4 shrink-0" />
+                                    <span class="truncate">{{ $conversation->title ?: 'گفتگوی جدید' }}</span>
+                                </button>
+
+                                <div x-show="renaming" x-cloak class="min-w-0 flex-1 py-1 ps-2.5 pe-1">
+                                    <input
+                                        type="text"
+                                        x-ref="renameInput{{ $conversation->id }}"
+                                        value="{{ $conversation->title }}"
+                                        x-on:keydown.enter="$wire.renameConversation({{ $conversation->id }}, $event.target.value); renaming = false"
+                                        x-on:keydown.escape="renaming = false"
+                                        x-on:blur="renaming = false"
+                                        class="min-w-0 w-full rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                    />
+                                </div>
+
+                                <div x-show="! renaming" class="relative z-10 flex shrink-0 items-center gap-0.5 pe-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                    <button
+                                        type="button"
+                                        x-on:click="renaming = true; $nextTick(() => $refs['renameInput{{ $conversation->id }}'].focus())"
+                                        aria-label="تغییر نام گفتگو"
+                                        title="تغییر نام گفتگو"
+                                        class="rounded-lg p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-600 dark:hover:bg-white/5"
+                                    >
+                                        <x-heroicon-o-pencil-square class="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                        type="button"
+                                        wire:click="deleteConversation({{ $conversation->id }})"
+                                        wire:confirm="این گفتگو حذف شود؟"
+                                        aria-label="حذف گفتگو"
+                                        title="حذف گفتگو"
+                                        class="rounded-lg p-1 text-gray-300 hover:bg-danger-50 hover:text-danger-600 dark:text-gray-600 dark:hover:bg-danger-500/10"
+                                    >
+                                        <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                    </button>
+                                </div>
+                            </div>
                         @empty
                             <div class="flex h-full flex-col items-center justify-center gap-2 px-4 py-12 text-center">
                                 <x-heroicon-o-sparkles class="h-8 w-8 text-gray-300 dark:text-gray-600" />
@@ -398,7 +467,40 @@
                                                     {{ $consultants->map(fn ($c) => $c->displayName())->implode('، ') }}
                                                 </p>
                                             @endif
+
+                                            @php $consultationHistory = $this->getConsultationHistory(); @endphp
+                                            @if ($consultationHistory->isNotEmpty())
+                                                <div class="mt-3 border-t border-gray-100 pt-3 dark:border-white/5">
+                                                    <p class="mb-2 text-[11px] font-medium text-gray-500 dark:text-gray-400">تاریخچهٔ مشورت‌ها</p>
+                                                    <div class="space-y-2">
+                                                        @foreach ($consultationHistory as $consultation)
+                                                            @php $askedByThisProfile = $consultation->consulting_ai_assistant_profile_id === $activeProfile->id; @endphp
+                                                            <div class="rounded-lg bg-gray-50 p-2 text-[11px] dark:bg-white/5">
+                                                                <p class="text-gray-500 dark:text-gray-400">
+                                                                    {{ $askedByThisProfile ? '🔄 از «'.($consultation->consultedProfile?->displayName() ?? 'دستیاری حذف‌شده').'» پرسید' : '🔄 «'.($consultation->consultingProfile?->displayName() ?? 'دستیاری حذف‌شده').'» از این دستیار پرسید' }}
+                                                                </p>
+                                                                <p class="mt-1 text-gray-700 dark:text-gray-300">{{ \Illuminate\Support\Str::limit($consultation->question, 100) }}</p>
+                                                            </div>
+                                                        @endforeach
+                                                    </div>
+                                                </div>
+                                            @endif
                                         </div>
+
+                                        <button
+                                            type="button"
+                                            wire:click="toggleProfileFetchUrl"
+                                            class="mb-4 flex w-full items-center justify-between gap-2 rounded-lg border border-gray-200 px-3 py-2.5 text-start dark:border-white/10"
+                                        >
+                                            <span class="text-sm text-gray-700 dark:text-gray-300">دسترسی به خواندن صفحات وب (fetch_url)</span>
+                                            <span @class([
+                                                'inline-flex h-5 w-9 shrink-0 items-center rounded-full px-0.5 transition',
+                                                'bg-primary-600 justify-end' => $activeProfile->fetch_url_enabled,
+                                                'bg-gray-300 justify-start dark:bg-white/10' => ! $activeProfile->fetch_url_enabled,
+                                            ])>
+                                                <span class="h-4 w-4 rounded-full bg-white shadow"></span>
+                                            </span>
+                                        </button>
 
                                         @php
                                             $knowledgeEntries = $this->getKnowledgeEntries();
@@ -411,11 +513,19 @@
                                                 <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">پیشنهادهای دستیار برای بررسی ({{ $pendingEntries->count() }})</p>
                                                 <div class="space-y-2">
                                                     @foreach ($pendingEntries as $entry)
-                                                        <div wire:key="pending-{{ $entry->id }}" class="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/20 dark:bg-warning-500/10">
-                                                            <div class="ai-markdown text-sm text-gray-800 dark:text-gray-100">{!! \Illuminate\Support\Str::markdown($entry->content) !!}</div>
-                                                            <div class="mt-2 flex gap-2">
+                                                        <div wire:key="pending-{{ $entry->id }}" class="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/20 dark:bg-warning-500/10" x-data="{ editing: false }">
+                                                            <div x-show="! editing" class="ai-markdown text-sm text-gray-800 dark:text-gray-100">{!! \Illuminate\Support\Str::markdown($entry->content) !!}</div>
+                                                            <div x-show="editing" x-cloak>
+                                                                <textarea x-ref="editInput{{ $entry->id }}" rows="3" class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white">{{ $entry->content }}</textarea>
+                                                            </div>
+                                                            <div class="mt-2 flex gap-2" x-show="! editing">
                                                                 <button type="button" wire:click="approveKnowledgeEntry({{ $entry->id }})" class="rounded-lg bg-success-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-success-500">تأیید</button>
+                                                                <button type="button" x-on:click="editing = true" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">ویرایش</button>
                                                                 <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">رد</button>
+                                                            </div>
+                                                            <div class="mt-2 flex gap-2" x-show="editing" x-cloak>
+                                                                <button type="button" x-on:click="$wire.updateKnowledgeEntry({{ $entry->id }}, $refs['editInput{{ $entry->id }}'].value); editing = false" class="rounded-lg bg-primary-600 px-2.5 py-1 text-xs font-medium text-white hover:bg-primary-500">ذخیره</button>
+                                                                <button type="button" x-on:click="editing = false" class="rounded-lg border border-gray-300 px-2.5 py-1 text-xs text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">انصراف</button>
                                                             </div>
                                                         </div>
                                                     @endforeach
@@ -430,12 +540,24 @@
                                                     $isLong = mb_strlen($entry->content) > 140;
                                                     $entryHtml = \Illuminate\Support\Str::markdown($entry->content);
                                                 @endphp
-                                                <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5" x-data="{ expanded: false }">
-                                                    <div class="ai-markdown min-w-0 flex-1 text-sm text-gray-700 dark:text-gray-300" :class="{{ $isLong ? 'true' : 'false' }} && ! expanded ? 'line-clamp-4' : ''">{!! $entryHtml !!}</div>
-                                                    <div class="flex shrink-0 items-start gap-1">
+                                                <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5" x-data="{ expanded: false, editing: false }">
+                                                    <div class="min-w-0 flex-1">
+                                                        <div x-show="! editing" class="ai-markdown text-sm text-gray-700 dark:text-gray-300" :class="{{ $isLong ? 'true' : 'false' }} && ! expanded ? 'line-clamp-4' : ''">{!! $entryHtml !!}</div>
+                                                        <div x-show="editing" x-cloak>
+                                                            <textarea x-ref="editInput{{ $entry->id }}" rows="3" class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white">{{ $entry->content }}</textarea>
+                                                            <div class="mt-1 flex gap-1">
+                                                                <button type="button" x-on:click="$wire.updateKnowledgeEntry({{ $entry->id }}, $refs['editInput{{ $entry->id }}'].value); editing = false" class="rounded-lg bg-primary-600 px-2 py-1 text-[11px] font-medium text-white hover:bg-primary-500">ذخیره</button>
+                                                                <button type="button" x-on:click="editing = false" class="rounded-lg border border-gray-300 px-2 py-1 text-[11px] text-gray-600 hover:bg-gray-100 dark:border-white/10 dark:text-gray-300 dark:hover:bg-white/5">انصراف</button>
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                    <div class="flex shrink-0 items-start gap-1" x-show="! editing">
                                                         @if ($isLong)
                                                             <button type="button" x-on:click="expanded = ! expanded" class="shrink-0 rounded-lg p-1 text-[11px] font-medium text-primary-600 hover:bg-primary-50 dark:text-primary-400 dark:hover:bg-primary-500/10" x-text="expanded ? 'کمتر' : 'بیشتر'"></button>
                                                         @endif
+                                                        <button type="button" x-on:click="editing = true" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-gray-100 hover:text-gray-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-white/5">
+                                                            <x-heroicon-o-pencil-square class="h-3.5 w-3.5" />
+                                                        </button>
                                                         <button type="button" wire:click="deleteKnowledgeEntry({{ $entry->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
                                                             <x-heroicon-o-trash class="h-3.5 w-3.5" />
                                                         </button>
@@ -560,23 +682,32 @@
 
                     <div x-ref="messages" class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                         @forelse ($visibleMessages as $message)
-                            @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
-                            <div class="flex {{ $isUser ? 'justify-start' : 'justify-end' }}">
-                                <div class="flex max-w-[85%] flex-col gap-1 {{ $isUser ? 'items-start' : 'items-end' }}">
-                                    <div @class([
-                                        'rounded-2xl px-4 py-2.5 text-sm',
-                                        'rounded-bl-md bg-primary-600 text-white' => $isUser,
-                                        'ai-markdown rounded-br-md bg-gray-100 text-gray-900 dark:bg-white/5 dark:text-gray-100' => ! $isUser,
-                                    ])>
-                                        @if ($isUser)
-                                            <span class="whitespace-pre-line">{{ $message->content }}</span>
-                                        @else
-                                            {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
-                                        @endif
-                                    </div>
-                                    <span class="px-1 text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                            @if ($message->role === \App\Enums\AiMessageRole::Tool)
+                                <div class="flex justify-center">
+                                    <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[11px] text-gray-500 dark:bg-white/5 dark:text-gray-400">
+                                        {{ $message->tool_name === 'consult_assistant' ? '🔄' : '🌐' }}
+                                        {{ $this->describeToolActivity($message) }}
+                                    </span>
                                 </div>
-                            </div>
+                            @else
+                                @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
+                                <div class="flex {{ $isUser ? 'justify-start' : 'justify-end' }}">
+                                    <div class="flex max-w-[85%] flex-col gap-1 {{ $isUser ? 'items-start' : 'items-end' }}">
+                                        <div @class([
+                                            'rounded-2xl px-4 py-2.5 text-sm',
+                                            'rounded-bl-md bg-primary-600 text-white' => $isUser,
+                                            'ai-markdown rounded-br-md bg-gray-100 text-gray-900 dark:bg-white/5 dark:text-gray-100' => ! $isUser,
+                                        ])>
+                                            @if ($isUser)
+                                                <span class="whitespace-pre-line">{{ $message->content }}</span>
+                                            @else
+                                                {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
+                                            @endif
+                                        </div>
+                                        <span class="px-1 text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                                    </div>
+                                </div>
+                            @endif
                         @empty
                             <div class="flex h-full flex-col items-center justify-center gap-3 text-center">
                                 <x-ai-assistant-avatar :shape="$activeProfile->avatar_shape" :color="$activeProfile->avatar_color" :size="64" />

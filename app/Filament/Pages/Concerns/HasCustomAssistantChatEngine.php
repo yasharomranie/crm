@@ -9,10 +9,12 @@ use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Exceptions\AiProviderException;
+use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
 use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
+use App\Models\AiMessage;
 use App\Models\AiProvider;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
@@ -187,6 +189,46 @@ trait HasCustomAssistantChatEngine
         $this->body = '';
     }
 
+    /**
+     * Conversations belong to the signed-in user (not the profile's
+     * creator), same as getProfileConversations() - so unlike the
+     * knowledge-base and settings actions above, this isn't gated through
+     * ownedActiveProfile(): anyone who can see and chat with a profile can
+     * manage their own conversation list with it, shared profile or not.
+     */
+    public function deleteConversation(int $conversationId): void
+    {
+        $conversation = AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->where('ai_assistant_profile_id', $this->activeProfileId)
+            ->find($conversationId);
+
+        if (! $conversation) {
+            return;
+        }
+
+        $conversation->delete();
+
+        if ($this->conversationId === $conversationId) {
+            $this->conversationId = $this->getProfileConversations()->first()?->id;
+        }
+    }
+
+    public function renameConversation(int $conversationId, string $title): void
+    {
+        $title = trim($title);
+
+        if ($title === '') {
+            return;
+        }
+
+        AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->where('ai_assistant_profile_id', $this->activeProfileId)
+            ->whereKey($conversationId)
+            ->update(['title' => $title]);
+    }
+
     public function sendToProfile(): void
     {
         $profile = $this->activeProfile();
@@ -264,7 +306,7 @@ trait HasCustomAssistantChatEngine
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
                 $result = match ($toolCall['function']['name'] ?? null) {
-                    'fetch_url' => $this->fetchUrlFromTool($arguments),
+                    'fetch_url' => $this->fetchUrlFromTool($profile, $arguments),
                     'consult_assistant' => $this->consultAssistantFromTool($profile, $conversation, $arguments, $consultationsRemaining),
                     default => $this->saveKnowledgeEntryFromTool($profile, $arguments),
                 };
@@ -295,7 +337,9 @@ trait HasCustomAssistantChatEngine
             $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
         }
 
-        $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
+        if ($profile->fetch_url_enabled) {
+            $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
+        }
 
         $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
 
@@ -342,7 +386,10 @@ trait HasCustomAssistantChatEngine
                     ],
                 ],
             ],
-            [
+        ];
+
+        if ($profile->fetch_url_enabled) {
+            $tools[] = [
                 'type' => 'function',
                 'function' => [
                     'name' => 'fetch_url',
@@ -358,8 +405,8 @@ trait HasCustomAssistantChatEngine
                         'required' => ['url'],
                     ],
                 ],
-            ],
-        ];
+            ];
+        }
 
         $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
 
@@ -415,8 +462,12 @@ trait HasCustomAssistantChatEngine
      * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
-    private function fetchUrlFromTool(array $arguments): array
+    private function fetchUrlFromTool(AiAssistantProfile $profile, array $arguments): array
     {
+        if (! $profile->fetch_url_enabled) {
+            return ['error' => 'دسترسی به وب برای این دستیار غیرفعال است.'];
+        }
+
         $url = trim((string) ($arguments['url'] ?? ''));
 
         if ($url === '') {
@@ -512,6 +563,17 @@ trait HasCustomAssistantChatEngine
         $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->update(['status' => AiKnowledgeEntryStatus::Approved]);
     }
 
+    public function updateKnowledgeEntry(int $entryId, string $content): void
+    {
+        $content = trim($content);
+
+        if ($content === '') {
+            return;
+        }
+
+        $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->update(['content' => $content]);
+    }
+
     public function deleteKnowledgeEntry(int $entryId): void
     {
         $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->delete();
@@ -544,6 +606,69 @@ trait HasCustomAssistantChatEngine
     {
         $profile = $this->ownedActiveProfile();
         $profile?->update(['consultable' => ! $profile->consultable]);
+    }
+
+    public function toggleProfileFetchUrl(): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $profile?->update(['fetch_url_enabled' => ! $profile->fetch_url_enabled]);
+    }
+
+    /**
+     * A short, human-readable description of what a `consult_assistant` or
+     * `fetch_url` tool call actually did, shown as a small chip inline in
+     * the chat (ai-assistants-hub.blade.php) so the collaboration this
+     * profile does behind the scenes isn't entirely invisible to the user
+     * - unlike save_knowledge_entry, which stays silent since it's routine
+     * bookkeeping rather than something the user would want surfaced every
+     * time. Returns null for anything that shouldn't get a chip (an
+     * unrecognized tool, or a call that errored out).
+     */
+    public function describeToolActivity(AiMessage $message): ?string
+    {
+        if ($message->role !== AiMessageRole::Tool) {
+            return null;
+        }
+
+        $result = json_decode((string) $message->content, true);
+        $result = is_array($result) ? $result : [];
+
+        return match ($message->tool_name) {
+            'consult_assistant' => isset($result['consulted'])
+                ? 'از «'.$result['consulted'].'» مشورت گرفت'
+                : null,
+            'fetch_url' => isset($result['url'])
+                ? 'صفحهٔ «'.(parse_url((string) $result['url'], PHP_URL_HOST) ?: $result['url']).'» را خواند'
+                : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Recent consultations this profile took part in, either side -
+     * AiAssistantConsultation is written on every consult_assistant call
+     * (AssistantConsultationService::consult) but otherwise has no UI of
+     * its own, so without this the exchange only shows up as the chat
+     * chip above for the asking side, and not at all for the answering
+     * side.
+     *
+     * @return Collection<int, AiAssistantConsultation>
+     */
+    public function getConsultationHistory(): Collection
+    {
+        $profile = $this->ownedActiveProfile();
+
+        if (! $profile) {
+            return new Collection;
+        }
+
+        return AiAssistantConsultation::query()
+            ->where('consulting_ai_assistant_profile_id', $profile->id)
+            ->orWhere('consulted_ai_assistant_profile_id', $profile->id)
+            ->with(['consultingProfile', 'consultedProfile'])
+            ->latest()
+            ->limit(10)
+            ->get();
     }
 
     /**
