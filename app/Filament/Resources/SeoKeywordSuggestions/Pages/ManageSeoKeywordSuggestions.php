@@ -4,6 +4,7 @@ namespace App\Filament\Resources\SeoKeywordSuggestions\Pages;
 
 use App\Filament\Resources\SeoKeywordSuggestions\SeoKeywordSuggestionResource;
 use App\Jobs\DiscoverSeoKeywordsJob;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Select;
@@ -11,6 +12,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRecords;
 use Filament\Support\Icons\Heroicon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class ManageSeoKeywordSuggestions extends ManageRecords
 {
@@ -27,6 +29,12 @@ class ManageSeoKeywordSuggestions extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('exportKeywordSuggestions')
+                ->label('خروجی اکسل')
+                ->icon(Heroicon::OutlinedArrowDownTray)
+                ->color('gray')
+                ->tooltip('خروجی اکسل از پیشنهادهای کلمات کلیدی، مطابق با فیلترها و جست‌وجوی فعلی جدول - برای تحویل به نویسنده‌ی محتوا.')
+                ->action(fn (): StreamedResponse => $this->exportKeywordSuggestionsToExcel()),
             Action::make('discoverKeywords')
                 ->label('کشف کلمات کلیدی جدید')
                 ->icon(Heroicon::OutlinedLightBulb)
@@ -63,5 +71,43 @@ class ManageSeoKeywordSuggestions extends ManageRecords
                         ->send();
                 }),
         ];
+    }
+
+    /**
+     * A plain CSV (UTF-8 + BOM, so Excel reads the Persian text correctly)
+     * built straight from getTableQueryForExport() - the same filtered,
+     * searched, sorted query Filament's own ExportAction uses - rather
+     * than the full async Exporter/queue pipeline, since this list is
+     * small and the writer just needs the file immediately.
+     */
+    private function exportKeywordSuggestionsToExcel(): StreamedResponse
+    {
+        return response()->streamDownload(function (): void {
+            $handle = fopen('php://output', 'w');
+            fwrite($handle, "\xEF\xBB\xBF");
+
+            fputcsv($handle, [
+                'پروژه', 'کلمه کلیدی پیشنهادی', 'Intent', 'خوشه موضوعی',
+                'نوع محتوای پیشنهادی', 'دلیل', 'وضعیت',
+            ]);
+
+            $this->getTableQueryForExport()
+                ->with(['project', 'topicCluster'])
+                ->each(function (SeoKeywordSuggestion $suggestion) use ($handle): void {
+                    fputcsv($handle, [
+                        $suggestion->project?->name,
+                        $suggestion->keyword,
+                        $suggestion->intent?->getLabel(),
+                        $suggestion->topicCluster?->name,
+                        $suggestion->suggested_content_type,
+                        $suggestion->reason,
+                        $suggestion->status->getLabel(),
+                    ]);
+                });
+
+            fclose($handle);
+        }, 'پیشنهادهای-کلمات-کلیدی.csv', [
+            'Content-Type' => 'text/csv; charset=UTF-8',
+        ]);
     }
 }
