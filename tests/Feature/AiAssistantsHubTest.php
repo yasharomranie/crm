@@ -13,6 +13,7 @@ use App\Models\AiAssistantProfile;
 use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
 use App\Models\AiProvider;
+use App\Models\Guest;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
@@ -1135,5 +1136,268 @@ class AiAssistantsHubTest extends TestCase
         Livewire::test(AiAssistantsHub::class)
             ->call('openProfile', $target->id)
             ->assertSee('«فروش» از این دستیار پرسید');
+    }
+
+    private function grantAiAssistantReportPermission(User $user): void
+    {
+        $user->givePermissionTo(Permission::where('name', 'ai-assistant.report')->sole());
+    }
+
+    public function test_the_owner_can_grant_and_revoke_a_crm_tool(): void
+    {
+        $user = $this->actingAsHubUser();
+        $this->grantAiAssistantReportPermission($user);
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleAllowedCrmTool', 'check_room_availability');
+
+        $this->assertSame(['check_room_availability'], $profile->fresh()->allowed_tools);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleAllowedCrmTool', 'check_room_availability');
+
+        $this->assertSame([], $profile->fresh()->allowed_tools);
+    }
+
+    public function test_an_unknown_tool_name_cannot_be_granted(): void
+    {
+        $user = $this->actingAsHubUser();
+        $this->grantAiAssistantReportPermission($user);
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleAllowedCrmTool', 'delete_everything');
+
+        $this->assertSame([], $profile->fresh()->allowed_tools ?? []);
+    }
+
+    public function test_a_granted_crm_tool_is_only_offered_when_the_viewer_has_the_report_permission(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'allowed_tools' => ['check_room_availability']]);
+
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]]])]);
+
+        // Without "ai-assistant.report", the granted tool is withheld.
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
+
+            return ! in_array('check_room_availability', $toolNames, true);
+        });
+
+        $this->grantAiAssistantReportPermission($user);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('newProfileConversation')
+            ->set('body', 'سلام دوباره')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
+
+            return in_array('check_room_availability', $toolNames, true);
+        });
+    }
+
+    public function test_the_assistant_can_call_a_granted_crm_tool_and_use_its_result(): void
+    {
+        $user = $this->actingAsHubUser();
+        $this->grantAiAssistantReportPermission($user);
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'allowed_tools' => ['lookup_guest']]);
+
+        Guest::factory()->create(['name' => 'رضا کریمی', 'mobile' => '09120000000']);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push(['choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => null,
+                        'tool_calls' => [[
+                            'id' => 'call_1',
+                            'type' => 'function',
+                            'function' => ['name' => 'lookup_guest', 'arguments' => json_encode(['name_or_mobile' => 'رضا کریمی'])],
+                        ]],
+                    ],
+                ]]])
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'مشتری رضا کریمی پیدا شد.']]]]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'رضا کریمی رو پیدا کن')
+            ->call('sendToProfile');
+
+        $toolMessage = $profile->conversations->sole()->messages()->where('role', AiMessageRole::Tool)->sole();
+        $payload = json_decode($toolMessage->content, true);
+
+        $this->assertSame('رضا کریمی', $payload['name']);
+    }
+
+    public function test_a_tool_not_granted_to_the_profile_is_not_offered_even_if_in_the_catalog(): void
+    {
+        $user = $this->actingAsHubUser();
+        $this->grantAiAssistantReportPermission($user);
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'allowed_tools' => ['lookup_guest']]);
+
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]]])]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        Http::assertSent(function ($request) {
+            $toolNames = collect($request->data()['tools'] ?? [])->pluck('function.name')->all();
+
+            return in_array('lookup_guest', $toolNames, true) && ! in_array('check_room_availability', $toolNames, true);
+        });
+    }
+
+    public function test_the_owner_can_add_and_remove_a_scheduled_prompt(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $component = Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('addScheduledPrompt', 'مهمان‌های امروز رو چک کن', '08:30');
+
+        $scheduledPrompt = $profile->scheduledPrompts()->sole();
+        $this->assertSame('مهمان‌های امروز رو چک کن', $scheduledPrompt->prompt);
+        $this->assertSame('08:30', $scheduledPrompt->run_at_time);
+        $this->assertTrue($scheduledPrompt->is_active);
+
+        $component->call('deleteScheduledPrompt', $scheduledPrompt->id);
+
+        $this->assertSame(0, $profile->scheduledPrompts()->count());
+    }
+
+    public function test_adding_a_scheduled_prompt_with_an_invalid_time_is_rejected(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('addScheduledPrompt', 'چیزی را چک کن', 'نیمه‌شب');
+
+        $this->assertSame(0, $profile->scheduledPrompts()->count());
+    }
+
+    public function test_toggling_a_scheduled_prompt_flips_its_active_state(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $scheduledPrompt = $profile->scheduledPrompts()->create(['prompt' => 'چیزی را چک کن', 'run_at_time' => '08:00']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('toggleScheduledPromptActive', $scheduledPrompt->id);
+
+        $this->assertFalse($scheduledPrompt->fresh()->is_active);
+    }
+
+    public function test_a_non_owner_cannot_manage_a_shared_profiles_scheduled_prompts(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('addScheduledPrompt', 'دستکاری', '08:00');
+
+        $this->assertSame(0, $profile->scheduledPrompts()->count());
+    }
+
+    public function test_setting_feedback_on_an_assistant_message_persists_it(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $message = $conversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('setMessageFeedback', $message->id, 'up');
+
+        $this->assertSame('up', $message->fresh()->feedback);
+    }
+
+    public function test_setting_the_same_feedback_twice_clears_it(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $message = $conversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ']);
+
+        $component = Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('setMessageFeedback', $message->id, 'down');
+
+        $this->assertSame('down', $message->fresh()->feedback);
+
+        $component->call('setMessageFeedback', $message->id, 'down');
+
+        $this->assertNull($message->fresh()->feedback);
+    }
+
+    public function test_feedback_cannot_be_set_on_a_user_message(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $message = $conversation->messages()->create(['role' => AiMessageRole::User, 'content' => 'سلام']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('setMessageFeedback', $message->id, 'up');
+
+        $this->assertNull($message->fresh()->feedback);
+    }
+
+    public function test_feedback_cannot_be_set_on_another_users_conversation(): void
+    {
+        $owner = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id, 'is_shared' => true]);
+        $ownersConversation = AiConversation::create(['user_id' => $owner->id, 'ai_assistant_profile_id' => $profile->id]);
+        $message = $ownersConversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ']);
+
+        $this->actingAsHubUser();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('setMessageFeedback', $message->id, 'up');
+
+        $this->assertNull($message->fresh()->feedback);
+    }
+
+    public function test_an_invalid_feedback_value_is_ignored(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $conversation = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $message = $conversation->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->call('setMessageFeedback', $message->id, 'sideways');
+
+        $this->assertNull($message->fresh()->feedback);
     }
 }

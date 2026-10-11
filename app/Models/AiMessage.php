@@ -12,7 +12,7 @@ class AiMessage extends Model
     use HasFactory;
 
     protected $fillable = [
-        'ai_conversation_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'chart',
+        'ai_conversation_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'chart', 'feedback',
     ];
 
     protected function casts(): array

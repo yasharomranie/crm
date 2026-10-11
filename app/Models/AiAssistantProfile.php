@@ -63,6 +63,11 @@ class AiAssistantProfile extends Model
         return $this->hasMany(AiAssistantWatchedSource::class)->latest();
     }
 
+    public function scheduledPrompts(): HasMany
+    {
+        return $this->hasMany(AiAssistantScheduledPrompt::class)->latest();
+    }
+
     public function consultationsAsRequester(): HasMany
     {
         return $this->hasMany(AiAssistantConsultation::class, 'consulting_ai_assistant_profile_id');

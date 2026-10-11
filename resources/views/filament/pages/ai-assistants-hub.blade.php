@@ -502,6 +502,32 @@
                                             </span>
                                         </button>
 
+                                        @php $crmToolCatalog = $this->getCrmToolCatalogForOwner(); @endphp
+                                        @if ($crmToolCatalog !== [])
+                                            <div class="mb-4 rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                                                <p class="mb-2 text-sm text-gray-700 dark:text-gray-300">دسترسی به ابزارهای واقعی CRM (فقط‌خواندنی)</p>
+                                                <div class="space-y-1">
+                                                    @foreach ($crmToolCatalog as $toolName => $toolLabel)
+                                                        @php $isGranted = in_array($toolName, $activeProfile->allowed_tools ?? [], true); @endphp
+                                                        <button
+                                                            type="button"
+                                                            wire:click="toggleAllowedCrmTool('{{ $toolName }}')"
+                                                            class="flex w-full items-center justify-between gap-2 rounded-lg px-2 py-1.5 text-start hover:bg-gray-50 dark:hover:bg-white/5"
+                                                        >
+                                                            <span class="text-xs text-gray-600 dark:text-gray-300">{{ $toolLabel }}</span>
+                                                            <span @class([
+                                                                'inline-flex h-4 w-7 shrink-0 items-center rounded-full px-0.5 transition',
+                                                                'bg-primary-600 justify-end' => $isGranted,
+                                                                'bg-gray-300 justify-start dark:bg-white/10' => ! $isGranted,
+                                                            ])>
+                                                                <span class="h-3 w-3 rounded-full bg-white shadow"></span>
+                                                            </span>
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
                                         @php
                                             $knowledgeEntries = $this->getKnowledgeEntries();
                                             $pendingEntries = $knowledgeEntries->where('status', \App\Enums\AiKnowledgeEntryStatus::Pending);
@@ -656,6 +682,58 @@
                                             </div>
                                         </div>
 
+                                        <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5">
+                                            <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">اجرای خودکار روزانه (هر روز در ساعت تعیین‌شده اجرا می‌شود و نتیجه به‌عنوان نکتهٔ پیشنهادی ثبت می‌شود)</p>
+                                            @php $scheduledPrompts = $this->getScheduledPrompts(); @endphp
+                                            @forelse ($scheduledPrompts as $scheduledPrompt)
+                                                <div wire:key="scheduled-{{ $scheduledPrompt->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5">
+                                                    <div class="min-w-0 flex-1">
+                                                        <p class="truncate text-sm text-gray-700 dark:text-gray-300">{{ $scheduledPrompt->prompt }}</p>
+                                                        <p class="text-[11px] text-gray-400">
+                                                            ساعت {{ $scheduledPrompt->run_at_time }} -
+                                                            {{ $scheduledPrompt->last_run_at ? 'آخرین اجرا: '.$scheduledPrompt->last_run_at->format('Y/m/d H:i') : 'هنوز اجرا نشده' }}
+                                                        </p>
+                                                    </div>
+                                                    <div class="flex shrink-0 items-start gap-1">
+                                                        <button type="button" wire:click="toggleScheduledPromptActive({{ $scheduledPrompt->id }})" title="{{ $scheduledPrompt->is_active ? 'موقوف کردن' : 'از سرگیری' }}" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-gray-100 hover:text-gray-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-white/5">
+                                                            @if ($scheduledPrompt->is_active)
+                                                                <x-heroicon-o-pause class="h-3.5 w-3.5" />
+                                                            @else
+                                                                <x-heroicon-o-play class="h-3.5 w-3.5" />
+                                                            @endif
+                                                        </button>
+                                                        <button type="button" wire:click="deleteScheduledPrompt({{ $scheduledPrompt->id }})" class="relative shrink-0 rounded-lg p-1 text-gray-300 opacity-100 hover:bg-danger-50 hover:text-danger-600 md:opacity-0 md:group-hover:opacity-100 dark:text-gray-600 dark:hover:bg-danger-500/10">
+                                                            <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            @empty
+                                                <p class="text-xs text-gray-400">هیچ اجرای خودکاری تنظیم نشده.</p>
+                                            @endforelse
+
+                                            <div class="mt-2 flex flex-col gap-2 sm:flex-row">
+                                                <input
+                                                    type="text"
+                                                    x-ref="scheduledPromptInput"
+                                                    placeholder="مثلاً «مهمان‌های امروز رو چک کن و اگه کسی چک‌این دیر کرده بگو»"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <input
+                                                    type="time"
+                                                    x-ref="scheduledPromptTimeInput"
+                                                    value="08:00"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[7rem] dark:border-white/10 dark:bg-white/5"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    x-on:click="$wire.addScheduledPrompt($refs.scheduledPromptInput.value, $refs.scheduledPromptTimeInput.value); $refs.scheduledPromptInput.value = ''"
+                                                    class="shrink-0 rounded-lg bg-primary-600 px-3 py-2 text-xs font-medium text-white hover:bg-primary-500"
+                                                >
+                                                    افزودن
+                                                </button>
+                                            </div>
+                                        </div>
+
                                         </div>
                                     </div>
                                 </div>
@@ -704,7 +782,17 @@
                                                 {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
                                             @endif
                                         </div>
-                                        <span class="px-1 text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                                        <div class="flex items-center gap-1 px-1">
+                                            <span class="text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                                            @if (! $isUser)
+                                                <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'up')" title="پاسخ خوبی بود" class="rounded p-0.5 {{ $message->feedback === 'up' ? 'text-success-600 dark:text-success-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
+                                                    <x-heroicon-o-hand-thumb-up class="h-3.5 w-3.5" />
+                                                </button>
+                                                <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'down')" title="پاسخ ضعیفی بود" class="rounded p-0.5 {{ $message->feedback === 'down' ? 'text-danger-600 dark:text-danger-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
+                                                    <x-heroicon-o-hand-thumb-down class="h-3.5 w-3.5" />
+                                                </button>
+                                            @endif
+                                        </div>
                                     </div>
                                 </div>
                             @endif
