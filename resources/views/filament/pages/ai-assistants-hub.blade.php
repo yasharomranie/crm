@@ -380,7 +380,7 @@
                                                     x-ref="specialtiesInput"
                                                     value="{{ implode('، ', $activeProfile->specialties ?? []) }}"
                                                     placeholder="مثلاً: حقوقی، قرارداد"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -455,7 +455,7 @@
                                                     x-ref="knowledgeInput"
                                                     placeholder="مثلاً «نرخ کمیسیون فروش ۵ درصد است»"
                                                     x-on:keydown.enter.prevent="$wire.addManualKnowledgeEntry($refs.knowledgeInput.value); $refs.knowledgeInput.value = ''"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -475,7 +475,7 @@
                                                     type="file"
                                                     wire:model="knowledgeUploadFile"
                                                     accept=".txt,.docx,.pdf"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -516,13 +516,13 @@
                                                     type="url"
                                                     x-ref="watchedSourceUrlInput"
                                                     placeholder="آدرس صفحه (https://...)"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <input
                                                     type="text"
                                                     x-ref="watchedSourceLabelInput"
                                                     placeholder="برچسب (اختیاری)"
-                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
+                                                    class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 flex-1 rounded-lg border border-gray-300 px-3 py-2 text-sm sm:max-w-[8rem] dark:border-white/10 dark:bg-white/5"
                                                 />
                                                 <button
                                                     type="button"
@@ -604,7 +604,7 @@
                             placeholder="پیام خود را بنویسید..."
                             wire:loading.attr="disabled"
                             wire:target="sendToProfile"
-                            class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white max-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
+                            class="bg-white text-gray-950 placeholder:text-gray-400 dark:text-white min-w-0 max-h-32 min-h-[3.25rem] flex-1 resize-none rounded-xl border border-gray-300 px-3.5 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-primary-500 dark:border-white/10 dark:bg-white/5"
                         ></textarea>
                         <button
                             type="submit"
