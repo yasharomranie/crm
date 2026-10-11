@@ -246,9 +246,10 @@
                 || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content))
                 || ($message->role === \App\Enums\AiMessageRole::Tool && $this->describeToolActivity($message) !== null));
             $forwardTargets = $this->getForwardTargets();
+            $lastAssistantMessageId = optional($visibleMessages->filter(fn ($message) => $message->role === \App\Enums\AiMessageRole::Assistant)->last())->id;
         @endphp
 
-        <div class="space-y-3" x-data="aiAssistantsHubThread()" x-on:message-sent.window="scrollToBottom(true)">
+        <div class="space-y-3" x-data="aiAssistantsHubThread()" x-on:message-sent.window="streaming = false; scrollToBottom(true)">
             <div class="flex items-center gap-2">
                 <button
                     type="button"
@@ -782,9 +783,23 @@
                                                 {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
                                             @endif
                                         </div>
-                                        <div class="flex items-center gap-1 px-1">
+                                        <div class="flex items-center gap-1 px-1" @if (! $isUser) x-data="{ copied: false }" @endif>
                                             <span class="text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
                                             @if (! $isUser)
+                                                <button
+                                                    type="button"
+                                                    x-on:click="copied = true; navigator.clipboard.writeText(@js($message->content ?? '')); setTimeout(() => copied = false, 1500)"
+                                                    title="کپی پاسخ"
+                                                    class="rounded p-0.5 text-gray-300 hover:text-gray-500 dark:text-gray-600"
+                                                >
+                                                    <x-heroicon-o-check class="h-3.5 w-3.5 text-success-600 dark:text-success-400" x-show="copied" x-cloak />
+                                                    <x-heroicon-o-clipboard class="h-3.5 w-3.5" x-show="! copied" />
+                                                </button>
+                                                @if ($message->id === $lastAssistantMessageId)
+                                                    <button type="button" x-on:click="streaming = true; streamHasText = false; $wire.regenerateLastResponse().then(() => streaming = false)" wire:loading.attr="disabled" wire:target="regenerateLastResponse" title="تولید دوباره" class="rounded p-0.5 text-gray-300 hover:text-gray-500 disabled:cursor-not-allowed disabled:opacity-50 dark:text-gray-600">
+                                                        <x-heroicon-o-arrow-path class="h-3.5 w-3.5" />
+                                                    </button>
+                                                @endif
                                                 <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'up')" title="پاسخ خوبی بود" class="rounded p-0.5 {{ $message->feedback === 'up' ? 'text-success-600 dark:text-success-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
                                                     <x-heroicon-o-hand-thumb-up class="h-3.5 w-3.5" />
                                                 </button>
@@ -803,22 +818,23 @@
                             </div>
                         @endforelse
 
-                        @if ($isThinking)
-                            <div class="flex justify-end">
-                                <div class="flex items-center gap-1 rounded-2xl rounded-br-md bg-gray-100 px-4 py-3 dark:bg-white/5">
+                        <div x-show="streaming" x-cloak class="flex justify-end">
+                            <div class="ai-markdown max-w-[85%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-gray-100 px-4 py-3 text-sm text-gray-900 dark:bg-white/5 dark:text-gray-100">
+                                <span wire:stream="assistant-stream"></span>
+                                <span x-show="! streamHasText" class="inline-flex gap-1 align-middle">
                                     <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style="animation-delay: 0ms"></span>
                                     <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style="animation-delay: 150ms"></span>
                                     <span class="h-1.5 w-1.5 animate-bounce rounded-full bg-gray-400" style="animation-delay: 300ms"></span>
-                                </div>
+                                </span>
                             </div>
-                        @endif
+                        </div>
                     </div>
 
-                    <form wire:submit.prevent="sendToProfile" class="flex items-end gap-2 border-t border-gray-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/10">
+                    <form x-on:submit.prevent="streaming = true; streamHasText = false; $wire.sendToProfile().then(() => streaming = false)" class="flex items-end gap-2 border-t border-gray-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] dark:border-white/10">
                         <textarea
                             wire:model="body"
                             x-on:input="autoGrow($event.target)"
-                            @keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.sendToProfile(); }"
+                            @keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $event.target.closest('form').requestSubmit(); }"
                             rows="2"
                             placeholder="پیام خود را بنویسید..."
                             wire:loading.attr="disabled"
@@ -846,6 +862,8 @@
             wasNearBottom: true,
             observer: null,
             mobileView: 'thread',
+            streaming: false,
+            streamHasText: false,
 
             init() {
                 this.scrollToBottom(true);
@@ -859,8 +877,11 @@
                     if (this.wasNearBottom) {
                         this.scrollToBottom();
                     }
+
+                    const streamEl = el.querySelector('[wire\\:stream="assistant-stream"]');
+                    this.streamHasText = !! (streamEl && streamEl.textContent.trim() !== '');
                 });
-                this.observer.observe(el, { childList: true, subtree: true });
+                this.observer.observe(el, { childList: true, subtree: true, characterData: true });
 
                 el.addEventListener('scroll', () => {
                     this.wasNearBottom = this.isNearBottom();

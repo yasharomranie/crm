@@ -60,8 +60,6 @@ trait HasCustomAssistantChatEngine
 
     public string $body = '';
 
-    public bool $isThinking = false;
-
     public function activeProfile(): ?AiAssistantProfile
     {
         if (! $this->activeProfileId) {
@@ -290,14 +288,51 @@ trait HasCustomAssistantChatEngine
             $conversation->update(['title' => $conversation->deriveTitle()]);
         }
 
-        $this->isThinking = true;
+        $this->runLoopAndNotify($conversation, $provider, $profile);
+    }
 
+    /**
+     * Discards the active conversation's last reply and asks the provider
+     * again for the same context - lets a weak answer be retried without
+     * retyping the question. Only acts when that last message really is a
+     * finished assistant reply (never a user message, or a tool message
+     * from an agent loop that didn't finish), the same ownership check as
+     * setMessageFeedback() above.
+     */
+    public function regenerateLastResponse(): void
+    {
+        $profile = $this->activeProfile();
+        $conversation = $this->getSelectedProfileConversation();
+
+        if (! $profile || ! $conversation) {
+            return;
+        }
+
+        $lastMessage = $conversation->messages()->latest('id')->first();
+
+        if (! $lastMessage || $lastMessage->role !== AiMessageRole::Assistant) {
+            return;
+        }
+
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            Notification::make()->title(AiProviderException::noActiveProvider()->getMessage())->warning()->send();
+
+            return;
+        }
+
+        $lastMessage->delete();
+
+        $this->runLoopAndNotify($conversation, $provider, $profile);
+    }
+
+    private function runLoopAndNotify(AiConversation $conversation, AiProvider $provider, AiAssistantProfile $profile): void
+    {
         try {
             $this->runProfileAgentLoop($conversation, $provider, $profile);
         } catch (AiProviderException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
-        } finally {
-            $this->isThinking = false;
         }
 
         $this->dispatch('message-sent');
@@ -321,6 +356,10 @@ trait HasCustomAssistantChatEngine
         for ($round = 0; $round < 3; $round++) {
             $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions($profile), $profile->model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
+
+            if (! $toolCalls && filled($assistantMessage['content'] ?? null)) {
+                $this->streamAssistantContent($assistantMessage['content']);
+            }
 
             $conversation->messages()->create([
                 'role' => AiMessageRole::Assistant,
@@ -358,6 +397,35 @@ trait HasCustomAssistantChatEngine
                     'content' => $encodedResult,
                 ];
             }
+        }
+    }
+
+    /**
+     * A progressive, word-by-word reveal of the final answer, streamed to
+     * the "assistant-stream" element (ai-assistants-hub.blade.php) via
+     * Livewire's wire:stream while this request is still in flight - the
+     * message itself is only persisted once this finishes, so a page
+     * reload or a second device always just sees the complete answer.
+     * This is a client-side typing effect, not a pass-through of the
+     * provider's own token stream: AiProvider::chatCompletion() still
+     * waits for the full response first. A true token-level relay would
+     * need every provider (OpenAI, and the GapGPT-style resellers this
+     * app also supports) to reliably support SSE, and would require every
+     * existing chatCompletion() fake across the test suite to speak SSE -
+     * not worth it for what is, from the user's seat, the same experience.
+     */
+    private function streamAssistantContent(string $content): void
+    {
+        if ($content === '' || app()->runningUnitTests()) {
+            return;
+        }
+
+        foreach (preg_split('/(?<=\s)/u', $content, -1, PREG_SPLIT_NO_EMPTY) as $chunk) {
+            // e(): the stream is inserted client-side via insertAdjacentHTML
+            // (Livewire's wire:stream), not treated as text - unescaped
+            // content could be read as markup instead of displayed as-is.
+            $this->stream(content: e($chunk), to: 'assistant-stream');
+            usleep(20000);
         }
     }
 
