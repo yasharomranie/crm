@@ -3,16 +3,20 @@
 namespace App\Filament\Pages\Concerns;
 
 use App\Domain\Ai\AssistantConsultationService;
+use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\SafeUrlFetcher;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Exceptions\AiProviderException;
+use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
+use App\Models\AiAssistantScheduledPrompt;
 use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
+use App\Models\AiMessage;
 use App\Models\AiProvider;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Collection;
@@ -187,6 +191,75 @@ trait HasCustomAssistantChatEngine
         $this->body = '';
     }
 
+    /**
+     * Conversations belong to the signed-in user (not the profile's
+     * creator), same as getProfileConversations() - so unlike the
+     * knowledge-base and settings actions above, this isn't gated through
+     * ownedActiveProfile(): anyone who can see and chat with a profile can
+     * manage their own conversation list with it, shared profile or not.
+     */
+    public function deleteConversation(int $conversationId): void
+    {
+        $conversation = AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->where('ai_assistant_profile_id', $this->activeProfileId)
+            ->find($conversationId);
+
+        if (! $conversation) {
+            return;
+        }
+
+        $conversation->delete();
+
+        if ($this->conversationId === $conversationId) {
+            $this->conversationId = $this->getProfileConversations()->first()?->id;
+        }
+    }
+
+    /**
+     * Thumbs up/down on one of the profile's own assistant replies, in a
+     * conversation the current user owns - clicking the same reaction
+     * again clears it, so it's a toggle, not a one-way vote. This is
+     * purely a signal for the owner to skim (getProfileMessageFeedbackCounts()
+     * below, surfaced on the usage dashboard) - it never feeds back into
+     * approvedKnowledgeForPrompt() or anything else automatically.
+     */
+    public function setMessageFeedback(int $messageId, string $feedback): void
+    {
+        if (! in_array($feedback, ['up', 'down'], true)) {
+            return;
+        }
+
+        $message = AiMessage::query()
+            ->where('id', $messageId)
+            ->where('role', AiMessageRole::Assistant)
+            ->whereHas('conversation', fn ($query) => $query
+                ->where('user_id', Auth::id())
+                ->where('ai_assistant_profile_id', $this->activeProfileId))
+            ->first();
+
+        if (! $message) {
+            return;
+        }
+
+        $message->update(['feedback' => $message->feedback === $feedback ? null : $feedback]);
+    }
+
+    public function renameConversation(int $conversationId, string $title): void
+    {
+        $title = trim($title);
+
+        if ($title === '') {
+            return;
+        }
+
+        AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->where('ai_assistant_profile_id', $this->activeProfileId)
+            ->whereKey($conversationId)
+            ->update(['title' => $title]);
+    }
+
     public function sendToProfile(): void
     {
         $profile = $this->activeProfile();
@@ -263,9 +336,11 @@ trait HasCustomAssistantChatEngine
 
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
-                $result = match ($toolCall['function']['name'] ?? null) {
-                    'fetch_url' => $this->fetchUrlFromTool($arguments),
-                    'consult_assistant' => $this->consultAssistantFromTool($profile, $conversation, $arguments, $consultationsRemaining),
+                $toolName = $toolCall['function']['name'] ?? null;
+                $result = match (true) {
+                    $toolName === 'fetch_url' => $this->fetchUrlFromTool($profile, $arguments),
+                    $toolName === 'consult_assistant' => $this->consultAssistantFromTool($profile, $conversation, $arguments, $consultationsRemaining),
+                    is_string($toolName) && array_key_exists($toolName, $this->grantedCrmToolNames($profile)) => app(CrmToolCatalog::class)->execute($toolName, $arguments),
                     default => $this->saveKnowledgeEntryFromTool($profile, $arguments),
                 };
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
@@ -295,7 +370,15 @@ trait HasCustomAssistantChatEngine
             $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
         }
 
-        $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
+        if ($profile->fetch_url_enabled) {
+            $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
+        }
+
+        $crmTools = $this->grantedCrmToolNames($profile);
+
+        if ($crmTools !== []) {
+            $prompt .= "\n\nبرای سؤالات دربارهٔ وضعیت واقعی اقامتگاه (مثل اتاق خالی، رزرو، مشتری، تیکت پشتیبانی)، به‌جای حدس زدن یا تکیه بر دانش‌نامهٔ خودت، از این ابزارها استفاده کن تا جواب دقیق و به‌روز بدهی: ".implode('، ', array_keys($crmTools)).'.';
+        }
 
         $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
 
@@ -317,6 +400,33 @@ trait HasCustomAssistantChatEngine
         }
 
         return Str::limit((string) $profile->description, 80);
+    }
+
+    /**
+     * The real-CRM-data tools (CrmToolCatalog) this profile's owner has
+     * explicitly granted it (AiAssistantProfile::$allowed_tools), filtered
+     * down to tools that still exist in the catalog and to whether the
+     * CURRENT acting user (not necessarily the owner - a shared profile
+     * can be chatted with by anyone who can see it) actually holds
+     * "ai-assistant.report", the same permission that gates these same
+     * read-only lookups for the built-in management assistant. Granting a
+     * tool on the profile only ever narrows access further - it can never
+     * grant a viewer a permission they don't already have.
+     *
+     * @return array<string, array{description: string, parameters: array<string, mixed>}>
+     */
+    private function grantedCrmToolNames(AiAssistantProfile $profile): array
+    {
+        if (! Auth::user()?->can('ai-assistant.report')) {
+            return [];
+        }
+
+        $catalog = app(CrmToolCatalog::class)->definitions();
+
+        return collect($profile->allowed_tools ?? [])
+            ->filter(fn (string $toolName) => isset($catalog[$toolName]))
+            ->mapWithKeys(fn (string $toolName) => [$toolName => $catalog[$toolName]])
+            ->all();
     }
 
     /**
@@ -342,7 +452,10 @@ trait HasCustomAssistantChatEngine
                     ],
                 ],
             ],
-            [
+        ];
+
+        if ($profile->fetch_url_enabled) {
+            $tools[] = [
                 'type' => 'function',
                 'function' => [
                     'name' => 'fetch_url',
@@ -358,8 +471,8 @@ trait HasCustomAssistantChatEngine
                         'required' => ['url'],
                     ],
                 ],
-            ],
-        ];
+            ];
+        }
 
         $consultants = app(AssistantConsultationService::class)->availableConsultantsFor($profile, Auth::user());
 
@@ -384,6 +497,17 @@ trait HasCustomAssistantChatEngine
                         ],
                         'required' => ['target_profile_id', 'question'],
                     ],
+                ],
+            ];
+        }
+
+        foreach ($this->grantedCrmToolNames($profile) as $toolName => $definition) {
+            $tools[] = [
+                'type' => 'function',
+                'function' => [
+                    'name' => $toolName,
+                    'description' => $definition['description'],
+                    'parameters' => $definition['parameters'],
                 ],
             ];
         }
@@ -415,8 +539,12 @@ trait HasCustomAssistantChatEngine
      * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
-    private function fetchUrlFromTool(array $arguments): array
+    private function fetchUrlFromTool(AiAssistantProfile $profile, array $arguments): array
     {
+        if (! $profile->fetch_url_enabled) {
+            return ['error' => 'دسترسی به وب برای این دستیار غیرفعال است.'];
+        }
+
         $url = trim((string) ($arguments['url'] ?? ''));
 
         if ($url === '') {
@@ -512,6 +640,17 @@ trait HasCustomAssistantChatEngine
         $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->update(['status' => AiKnowledgeEntryStatus::Approved]);
     }
 
+    public function updateKnowledgeEntry(int $entryId, string $content): void
+    {
+        $content = trim($content);
+
+        if ($content === '') {
+            return;
+        }
+
+        $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->update(['content' => $content]);
+    }
+
     public function deleteKnowledgeEntry(int $entryId): void
     {
         $this->ownedActiveProfile()?->knowledgeEntries()->whereKey($entryId)->delete();
@@ -546,6 +685,114 @@ trait HasCustomAssistantChatEngine
         $profile?->update(['consultable' => ! $profile->consultable]);
     }
 
+    public function toggleProfileFetchUrl(): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $profile?->update(['fetch_url_enabled' => ! $profile->fetch_url_enabled]);
+    }
+
+    /**
+     * Grants or revokes ONE CrmToolCatalog tool on the active profile -
+     * only the owner can change this, and only an actual catalog tool
+     * name is ever accepted, so a crafted/arbitrary string can never end
+     * up inside allowed_tools.
+     */
+    public function toggleAllowedCrmTool(string $toolName): void
+    {
+        $profile = $this->ownedActiveProfile();
+
+        if (! $profile || ! app(CrmToolCatalog::class)->label($toolName)) {
+            return;
+        }
+
+        $allowed = collect($profile->allowed_tools ?? []);
+
+        $profile->update([
+            'allowed_tools' => $allowed->contains($toolName)
+                ? $allowed->reject(fn (string $name) => $name === $toolName)->values()->all()
+                : [...$allowed->all(), $toolName],
+        ]);
+    }
+
+    /**
+     * The knowledge panel's CRM-tool checklist renders only for a viewer
+     * who actually holds "ai-assistant.report" (otherwise granting a tool
+     * would be pointless - grantedCrmToolNames() would just filter it back
+     * out at send time), so the catalog is only exposed here under that
+     * same gate.
+     *
+     * @return array<string, string>
+     */
+    public function getCrmToolCatalogForOwner(): array
+    {
+        if (! Auth::user()?->can('ai-assistant.report')) {
+            return [];
+        }
+
+        $catalog = app(CrmToolCatalog::class);
+
+        return collect($catalog->definitions())
+            ->mapWithKeys(fn (array $definition, string $toolName) => [$toolName => $catalog->label($toolName) ?? $toolName])
+            ->all();
+    }
+
+    /**
+     * A short, human-readable description of what a `consult_assistant` or
+     * `fetch_url` tool call actually did, shown as a small chip inline in
+     * the chat (ai-assistants-hub.blade.php) so the collaboration this
+     * profile does behind the scenes isn't entirely invisible to the user
+     * - unlike save_knowledge_entry, which stays silent since it's routine
+     * bookkeeping rather than something the user would want surfaced every
+     * time. Returns null for anything that shouldn't get a chip (an
+     * unrecognized tool, or a call that errored out).
+     */
+    public function describeToolActivity(AiMessage $message): ?string
+    {
+        if ($message->role !== AiMessageRole::Tool) {
+            return null;
+        }
+
+        $result = json_decode((string) $message->content, true);
+        $result = is_array($result) ? $result : [];
+
+        return match ($message->tool_name) {
+            'consult_assistant' => isset($result['consulted'])
+                ? 'از «'.$result['consulted'].'» مشورت گرفت'
+                : null,
+            'fetch_url' => isset($result['url'])
+                ? 'صفحهٔ «'.(parse_url((string) $result['url'], PHP_URL_HOST) ?: $result['url']).'» را خواند'
+                : null,
+            default => null,
+        };
+    }
+
+    /**
+     * Recent consultations this profile took part in, either side -
+     * AiAssistantConsultation is written on every consult_assistant call
+     * (AssistantConsultationService::consult) but otherwise has no UI of
+     * its own, so without this the exchange only shows up as the chat
+     * chip above for the asking side, and not at all for the answering
+     * side.
+     *
+     * @return Collection<int, AiAssistantConsultation>
+     */
+    public function getConsultationHistory(): Collection
+    {
+        $profile = $this->ownedActiveProfile();
+
+        if (! $profile) {
+            return new Collection;
+        }
+
+        return AiAssistantConsultation::query()
+            ->where('consulting_ai_assistant_profile_id', $profile->id)
+            ->orWhere('consulted_ai_assistant_profile_id', $profile->id)
+            ->with(['consultingProfile', 'consultedProfile'])
+            ->latest()
+            ->limit(10)
+            ->get();
+    }
+
     /**
      * @return Collection<int, AiAssistantWatchedSource>
      */
@@ -572,6 +819,45 @@ trait HasCustomAssistantChatEngine
     public function deleteWatchedSource(int $watchedSourceId): void
     {
         $this->ownedActiveProfile()?->watchedSources()->whereKey($watchedSourceId)->delete();
+    }
+
+    /**
+     * @return Collection<int, AiAssistantScheduledPrompt>
+     */
+    public function getScheduledPrompts(): Collection
+    {
+        return $this->activeProfile()?->scheduledPrompts()->get() ?? new Collection;
+    }
+
+    /**
+     * $runAtTime is a plain "HH:MM" string straight from an <input
+     * type="time">, matching the free-text-input pattern used throughout
+     * this trait (addWatchedSource, updateProfileSpecialties).
+     */
+    public function addScheduledPrompt(string $prompt, string $runAtTime): void
+    {
+        $profile = $this->ownedActiveProfile();
+        $prompt = trim($prompt);
+
+        if (! $profile || $prompt === '' || ! preg_match('/^([01]\d|2[0-3]):[0-5]\d$/', $runAtTime)) {
+            return;
+        }
+
+        $profile->scheduledPrompts()->create([
+            'prompt' => $prompt,
+            'run_at_time' => $runAtTime,
+        ]);
+    }
+
+    public function deleteScheduledPrompt(int $scheduledPromptId): void
+    {
+        $this->ownedActiveProfile()?->scheduledPrompts()->whereKey($scheduledPromptId)->delete();
+    }
+
+    public function toggleScheduledPromptActive(int $scheduledPromptId): void
+    {
+        $scheduledPrompt = $this->ownedActiveProfile()?->scheduledPrompts()->whereKey($scheduledPromptId)->first();
+        $scheduledPrompt?->update(['is_active' => ! $scheduledPrompt->is_active]);
     }
 
     public ?UploadedFile $knowledgeUploadFile = null;

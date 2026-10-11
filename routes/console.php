@@ -89,3 +89,12 @@ Schedule::command('ai-assistants:check-watched-sources')
     ->dailyAt('04:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
+
+// اجرای خودکار روزانهٔ دستورهای زمان‌بندی‌شدهٔ دستیارهای هاب - چون زمان هر
+// دستور را خودِ مالک آزادانه انتخاب می‌کند (نه یک ساعت ثابت سراسری)، این
+// دستور هر ۱۵ دقیقه بررسی می‌کند که آیا زمان کدام دستور فرارسیده و امروز
+// هنوز اجرا نشده است.
+Schedule::command('ai-assistants:run-scheduled-prompts')
+    ->everyFifteenMinutes()
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();

@@ -12,7 +12,23 @@ use App\Http\Controllers\Api\V1\External\RoomAvailabilityController;
 use App\Http\Controllers\Api\V1\External\TicketController;
 use App\Http\Controllers\Api\V1\External\TicketVariantController;
 use App\Http\Controllers\Api\V1\External\WebhookSubscriptionController;
+use App\Http\Controllers\Api\V1\WhatsAppWebhookController;
 use Illuminate\Support\Facades\Route;
+
+/*
+|--------------------------------------------------------------------------
+| WhatsApp Cloud API webhook
+|--------------------------------------------------------------------------
+|
+| Public, called directly by Meta - no API-key auth (Meta has no notion
+| of one), gated instead by WhatsAppBusinessSetting::isUsable() and the
+| configured verify_token (see WhatsAppWebhookController). GET is Meta's
+| one-time handshake when this URL is entered in the developer dashboard;
+| POST is every actual incoming-message notification after that.
+|
+*/
+Route::get('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'verify']);
+Route::post('/v1/whatsapp/webhook', [WhatsAppWebhookController::class, 'receive']);
 
 /*
 |--------------------------------------------------------------------------

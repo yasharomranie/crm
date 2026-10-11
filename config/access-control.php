@@ -2,6 +2,7 @@
 
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
+use App\Filament\Pages\AiAssistantUsageDashboard;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\ContractAssistant;
@@ -25,6 +26,7 @@ use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WebAppDomainSettings;
+use App\Filament\Pages\WhatsAppSettings;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Attraction;
@@ -154,6 +156,8 @@ return [
     */
     'pages' => [
         'ai-assistants-hub' => ['page' => AiAssistantsHub::class, 'label' => 'مرکز دستیاران هوشمند', 'group' => 'دستیار هوشمند مدیریتی'],
+        'ai-assistant-usage-dashboard' => ['page' => AiAssistantUsageDashboard::class, 'label' => 'آمار مصرف دستیاران', 'group' => 'دستیار هوشمند مدیریتی'],
+        'whatsapp-settings' => ['page' => WhatsAppSettings::class, 'label' => 'اتصال واتس‌اپ', 'group' => 'دستیار هوشمند مدیریتی'],
         'ai-assistant' => [
             'page' => AiAssistant::class,
             'label' => 'دستیار هوشمند',

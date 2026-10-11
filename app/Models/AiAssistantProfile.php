@@ -28,7 +28,7 @@ class AiAssistantProfile extends Model
 
     protected $fillable = [
         'created_by', 'name', 'description', 'avatar_shape', 'avatar_color', 'is_shared', 'allowed_tools', 'model',
-        'knowledge_auto_save', 'specialties', 'consultable',
+        'knowledge_auto_save', 'specialties', 'consultable', 'fetch_url_enabled',
     ];
 
     protected function casts(): array
@@ -39,6 +39,7 @@ class AiAssistantProfile extends Model
             'knowledge_auto_save' => 'boolean',
             'specialties' => 'array',
             'consultable' => 'boolean',
+            'fetch_url_enabled' => 'boolean',
         ];
     }
 
@@ -60,6 +61,21 @@ class AiAssistantProfile extends Model
     public function watchedSources(): HasMany
     {
         return $this->hasMany(AiAssistantWatchedSource::class)->latest();
+    }
+
+    public function scheduledPrompts(): HasMany
+    {
+        return $this->hasMany(AiAssistantScheduledPrompt::class)->latest();
+    }
+
+    public function consultationsAsRequester(): HasMany
+    {
+        return $this->hasMany(AiAssistantConsultation::class, 'consulting_ai_assistant_profile_id');
+    }
+
+    public function consultationsAsConsultant(): HasMany
+    {
+        return $this->hasMany(AiAssistantConsultation::class, 'consulted_ai_assistant_profile_id');
     }
 
     /**

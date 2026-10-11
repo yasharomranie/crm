@@ -56,6 +56,8 @@ class AiAssistantsHub extends Page
 
     public string $newSpecialties = '';
 
+    public ?int $editingProfileId = null;
+
     /**
      * @return array<int, array{label: string, description: string, url: string, shape: string, color: string}>
      */
@@ -130,25 +132,55 @@ class AiAssistantsHub extends Page
 
     public function openCreateForm(): void
     {
-        $this->reset(['newName', 'newDescription', 'newShape', 'newColor', 'newIsShared', 'newSpecialties']);
+        $this->reset(['newName', 'newDescription', 'newShape', 'newColor', 'newIsShared', 'newSpecialties', 'editingProfileId']);
+        $this->showCreateForm = true;
+    }
+
+    /**
+     * Opens the same create-form panel, pre-filled from an existing owned
+     * profile - createProfile()/updateProfile() below branch on
+     * $editingProfileId to decide whether to insert or update, so the UI
+     * (ai-assistants-hub.blade.php) stays a single modal rather than a
+     * second near-duplicate one.
+     */
+    public function openEditForm(int $profileId): void
+    {
+        $profile = AiAssistantProfile::query()->where('created_by', Auth::id())->find($profileId);
+
+        if (! $profile) {
+            return;
+        }
+
+        $this->editingProfileId = $profile->id;
+        $this->newName = $profile->name ?? '';
+        $this->newDescription = $profile->description ?? '';
+        $this->newShape = $profile->avatar_shape;
+        $this->newColor = $profile->avatar_color;
+        $this->newIsShared = $profile->is_shared;
+        $this->newSpecialties = implode('، ', $profile->specialties ?? []);
         $this->showCreateForm = true;
     }
 
     public function closeCreateForm(): void
     {
         $this->showCreateForm = false;
+        $this->editingProfileId = null;
     }
 
     public function applyStarterTemplate(string $name, string $description, string $shape, string $color): void
     {
         $this->showCreateForm = true;
+        $this->editingProfileId = null;
         $this->newName = $name;
         $this->newDescription = $description;
         $this->newShape = $shape;
         $this->newColor = $color;
     }
 
-    public function createProfile(): void
+    /**
+     * @return array{name: ?string, description: string, avatar_shape: string, avatar_color: string, is_shared: bool, specialties: list<string>}
+     */
+    private function validatedProfileFormData(): array
     {
         $data = $this->validate([
             'newName' => ['nullable', 'string', 'max:60'],
@@ -165,20 +197,77 @@ class AiAssistantsHub extends Page
             ->values()
             ->all();
 
-        $profile = AiAssistantProfile::create([
-            'created_by' => Auth::id(),
+        return [
             'name' => $data['newName'] !== '' ? $data['newName'] : null,
             'description' => $data['newDescription'],
             'avatar_shape' => $data['newShape'],
             'avatar_color' => $data['newColor'],
             'is_shared' => $data['newIsShared'],
             'specialties' => $specialties,
-        ]);
+        ];
+    }
+
+    public function createProfile(): void
+    {
+        $data = $this->validatedProfileFormData();
+
+        $profile = AiAssistantProfile::create(['created_by' => Auth::id(), ...$data]);
 
         $this->showCreateForm = false;
         $this->openProfile($profile->id);
 
         Notification::make()->title('دستیار «'.$profile->displayName().'» ساخته شد.')->success()->send();
+    }
+
+    public function updateProfile(): void
+    {
+        $profile = AiAssistantProfile::query()->where('created_by', Auth::id())->find($this->editingProfileId);
+
+        if (! $profile) {
+            $this->closeCreateForm();
+
+            return;
+        }
+
+        $profile->update($this->validatedProfileFormData());
+
+        $this->closeCreateForm();
+
+        Notification::make()->title('دستیار «'.$profile->displayName().'» به‌روزرسانی شد.')->success()->send();
+    }
+
+    /**
+     * Starts a fresh profile from an existing one's configuration (name,
+     * prompt, avatar, specialties) - the user's own, or someone else's
+     * shared one as a starting point. Deliberately never copies the
+     * source's knowledge base, watched sources, or consultable/shared
+     * state: those are specific to the life this profile has already
+     * lived (and, when cloning a stranger's shared profile, copying their
+     * accumulated knowledge into a new private copy would leak it), so the
+     * clone starts clean the same way a brand-new profile would.
+     */
+    public function duplicateProfile(int $profileId): void
+    {
+        $source = AiAssistantProfile::query()->visibleTo(Auth::user())->find($profileId);
+
+        if (! $source) {
+            return;
+        }
+
+        $profile = AiAssistantProfile::create([
+            'created_by' => Auth::id(),
+            'name' => trim(($source->name ?? $source->displayName()).' (کپی)'),
+            'description' => $source->description,
+            'avatar_shape' => $source->avatar_shape,
+            'avatar_color' => $source->avatar_color,
+            'is_shared' => false,
+            'specialties' => $source->specialties,
+            'model' => $source->model,
+        ]);
+
+        $this->openProfile($profile->id);
+
+        Notification::make()->title('کپی «'.$profile->displayName().'» ساخته شد.')->success()->send();
     }
 
     public function deleteProfile(int $profileId): void
