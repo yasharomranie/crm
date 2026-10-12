@@ -7,9 +7,11 @@ use App\Enums\SeoSearchType;
 use App\Filament\Resources\SeoProjects\Pages\CreateSeoProject;
 use App\Filament\Resources\SeoProjects\Pages\EditSeoProject;
 use App\Filament\Resources\SeoProjects\Pages\ListSeoProjects;
+use App\Jobs\AnalyzeCompetitorContentGapsJob;
 use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Jobs\SyncSitemapDataJob;
 use App\Models\SeoProject;
+use App\Models\SeoProjectCompetitor;
 use App\Models\SeoSearchTypeMetric;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -50,7 +52,7 @@ class SeoProjectResourceTest extends TestCase
                 'market' => 'ایران',
                 'competitors' => [
                     ['domain' => 'competitor-one.example.com'],
-                    ['domain' => 'competitor-two.example.com'],
+                    ['domain' => 'competitor-two.example.com', 'sitemap_url' => 'https://competitor-two.example.com/sitemap_index.xml'],
                 ],
             ])
             ->call('create')
@@ -60,6 +62,7 @@ class SeoProjectResourceTest extends TestCase
 
         $this->assertSame(SeoProjectGoal::Booking, $project->goal);
         $this->assertCount(2, $project->competitors);
+        $this->assertSame('https://competitor-two.example.com/sitemap_index.xml', $project->competitors()->where('domain', 'competitor-two.example.com')->first()->sitemap_url);
     }
 
     public function test_excluded_query_terms_are_saved_and_parsed_into_a_list(): void
@@ -158,5 +161,33 @@ class SeoProjectResourceTest extends TestCase
             ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
             ->callAction('discoverKeywords', data: ['count' => 10])
             ->assertNotNotified('فیلد «خدمات و محصولات واقعی» این پروژه خالی است.');
+    }
+
+    public function test_the_analyze_competitor_gaps_action_is_only_visible_when_a_competitor_is_registered(): void
+    {
+        $withCompetitor = SeoProject::factory()->create();
+        SeoProjectCompetitor::factory()->for($withCompetitor, 'project')->create();
+        $withoutCompetitor = SeoProject::factory()->create();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $withCompetitor->getRouteKey()])
+            ->assertActionVisible('analyzeCompetitorGaps');
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $withoutCompetitor->getRouteKey()])
+            ->assertActionHidden('analyzeCompetitorGaps');
+    }
+
+    public function test_the_analyze_competitor_gaps_action_dispatches_the_job(): void
+    {
+        Queue::fake();
+        $project = SeoProject::factory()->create();
+        SeoProjectCompetitor::factory()->for($project, 'project')->create();
+
+        Livewire::actingAs($this->admin())
+            ->test(EditSeoProject::class, ['record' => $project->getRouteKey()])
+            ->callAction('analyzeCompetitorGaps');
+
+        Queue::assertPushed(AnalyzeCompetitorContentGapsJob::class, fn ($job) => $job->seoProjectId === $project->id);
     }
 }

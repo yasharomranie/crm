@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Seo\CompetitorContentGapService;
 use App\Domain\Seo\PillarClusterMapBuilder;
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
@@ -9,6 +10,7 @@ use App\Models\SeoContentItem;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\SeoTrackedKeyword;
 use App\Models\User;
 use BackedEnum;
 use Filament\Actions\Action;
@@ -101,6 +103,22 @@ class SeoPillarClusterMap extends Page implements HasActions
     }
 
     /**
+     * How many distinct competitors cover each topic cluster and with
+     * how many pages (App\Domain\Seo\CompetitorContentGapService) - the
+     * same signal that service uses to create a gap suggestion, surfaced
+     * here too so an operator can see competitive pressure per cluster
+     * at a glance, not only after a gap has already been flagged.
+     *
+     * @return Collection<int, array{competitor_count: int, page_count: int}>
+     */
+    public function competitorCoverageByCluster(): Collection
+    {
+        $project = $this->selectedProject();
+
+        return $project ? app(CompetitorContentGapService::class)->coverageByCluster($project) : collect();
+    }
+
+    /**
      * A d3.hierarchy()-shaped tree for the radial view: project name at
      * the root, one branch per topic cluster, one leaf per keyword. A
      * leaf's `hasWarning` flag drives its dot color on the client - true
@@ -124,9 +142,11 @@ class SeoPillarClusterMap extends Page implements HasActions
             return null;
         }
 
+        $competitorCoverage = $this->competitorCoverageByCluster();
+
         return [
             'name' => $project->name,
-            'children' => $map->map(function (array $group): array {
+            'children' => $map->map(function (array $group, int|string $clusterId) use ($competitorCoverage): array {
                 $keywordsWithWarnings = collect($group['warnings'])
                     ->flatMap(fn (array $warning) => [$warning['a'], $warning['b']])
                     ->unique();
@@ -142,6 +162,7 @@ class SeoPillarClusterMap extends Page implements HasActions
 
                 return [
                     'name' => $group['name'],
+                    'competitorCoverage' => $competitorCoverage->get($clusterId),
                     'children' => $keywords->map(fn (string $keyword) => [
                         'name' => $keyword,
                         'hasWarning' => $keywordsWithWarnings->contains($keyword),
@@ -195,6 +216,14 @@ class SeoPillarClusterMap extends Page implements HasActions
                     'assigned_to' => $data['assigned_to'] ?? null,
                     'due_date' => $data['due_date'] ?? null,
                 ]);
+
+                // So the moment this content goes live, its rank is already
+                // being watched - no separate trip to the rank tracker to
+                // remember to add it.
+                SeoTrackedKeyword::firstOrCreate(
+                    ['seo_project_id' => $suggestion->seo_project_id, 'keyword' => $suggestion->keyword],
+                    ['is_active' => true],
+                );
 
                 Notification::make()->title('آیتم محتوا در تقویم محتوا ایجاد شد.')->success()->send();
             });

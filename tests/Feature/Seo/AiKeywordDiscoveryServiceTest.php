@@ -7,9 +7,12 @@ use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoSearchIntent;
 use App\Exceptions\AiProviderException;
 use App\Models\AiProvider;
+use App\Models\SeoCompetitorSitemapEntry;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\SeoProjectCompetitor;
+use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -191,6 +194,45 @@ class AiKeywordDiscoveryServiceTest extends TestCase
             $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
 
             return str_contains($systemPrompt, 'داریم: تله‌کابین - نداریم: پیست اسکی');
+        });
+    }
+
+    public function test_the_prompt_includes_competitor_coverage_per_cluster(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'تور طبیعت‌گردی']);
+        $competitor = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        SeoCompetitorSitemapEntry::factory()->create([
+            'seo_project_competitor_id' => $competitor->id,
+            'topic_cluster_id' => $cluster->id,
+            'classified_at' => now(),
+        ]);
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(function (Request $request) {
+            $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
+
+            return str_contains($systemPrompt, 'تور طبیعت‌گردی: 1 رقیب با 1 صفحه');
+        });
+    }
+
+    public function test_the_prompt_omits_the_competitor_section_when_there_are_no_competitors(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(function (Request $request) {
+            $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
+
+            return ! str_contains($systemPrompt, 'What competitors are already publishing');
         });
     }
 }

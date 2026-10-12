@@ -10,9 +10,11 @@ use App\Enums\SeoOpportunityType;
 use App\Models\SeoAlertSetting;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
+use App\Models\SeoProjectCompetitor;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoTrackedKeyword;
 use App\Models\User;
+use App\Notifications\SeoCompetitorActivityNotification;
 use App\Notifications\SeoOpportunityDetectedNotification;
 use App\Notifications\SeoRankDropNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -199,5 +201,28 @@ class SeoAlertServiceTest extends TestCase
         app(OpportunityEngine::class)->scan($project);
 
         Notification::assertSentTimes(SeoOpportunityDetectedNotification::class, 1);
+    }
+
+    public function test_it_alerts_for_new_competitor_pages(): void
+    {
+        Notification::fake();
+        $user = $this->enableAlerts();
+        $competitor = SeoProjectCompetitor::factory()->create();
+
+        app(SeoAlertService::class)->notifyCompetitorActivity($competitor, 3);
+
+        Notification::assertSentTo($user, SeoCompetitorActivityNotification::class);
+    }
+
+    public function test_it_sends_no_competitor_activity_alert_when_the_feature_is_disabled(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+        SeoAlertSetting::current()->update(['is_enabled' => false, 'recipient_user_ids' => [$user->id]]);
+        $competitor = SeoProjectCompetitor::factory()->create();
+
+        app(SeoAlertService::class)->notifyCompetitorActivity($competitor, 3);
+
+        Notification::assertNothingSent();
     }
 }

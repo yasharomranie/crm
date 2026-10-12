@@ -5,6 +5,7 @@ namespace App\Domain\Seo;
 use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Enums\SeoTechnicalAuditStatus;
 use App\Enums\SeoTechnicalIssueSeverity;
+use App\Models\SeoCompetitorSitemapEntry;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
@@ -83,6 +84,7 @@ class PeriodicReportService
             'deviceBreakdown' => $this->deviceBreakdown($project, $periodStart, $effectiveEnd),
             'topQueries' => $this->topMovers(SeoQueryMetric::class, 'query', $project, $periodStart, $effectiveEnd, $previousStart, $previousEnd),
             'topPages' => $this->topMovers(SeoPageMetric::class, 'page_url', $project, $periodStart, $effectiveEnd, $previousStart, $previousEnd),
+            'competitorActivity' => $this->competitorActivity($project, $periodStart, $periodEnd),
         ];
 
         $html = view('seo.periodic-report', $data)->render();
@@ -253,6 +255,39 @@ class PeriodicReportService
             })
             ->filter()
             ->sortByDesc(fn ($row) => $row['delta'] ?? -100)
+            ->values();
+    }
+
+    /**
+     * How many new pages each competitor published *within this period*
+     * (App\Domain\Seo\CompetitorSitemapCrawler, first_seen_at), plus how
+     * many competitor-driven gap suggestions (App\Domain\Seo\
+     * CompetitorContentGapService) were created in the same window - so
+     * a reader sees competitive activity as something that happened this
+     * period, the same framing every other section in this report uses,
+     * not an all-time total that never changes between reports.
+     *
+     * @return Collection<int, array{domain: string, new_page_count: int}>
+     */
+    private function competitorActivity(SeoProject $project, Carbon $start, Carbon $end): Collection
+    {
+        $competitors = $project->competitors;
+
+        if ($competitors->isEmpty()) {
+            return collect();
+        }
+
+        $range = [$start->clone()->startOfDay(), $end->clone()->endOfDay()];
+
+        return SeoCompetitorSitemapEntry::whereIn('seo_project_competitor_id', $competitors->pluck('id'))
+            ->whereBetween('first_seen_at', $range)
+            ->get()
+            ->groupBy('seo_project_competitor_id')
+            ->map(fn (Collection $entries, int $competitorId) => [
+                'domain' => $competitors->firstWhere('id', $competitorId)?->domain ?? (string) $competitorId,
+                'new_page_count' => $entries->count(),
+            ])
+            ->sortByDesc('new_page_count')
             ->values();
     }
 

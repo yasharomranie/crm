@@ -5,7 +5,9 @@ namespace App\Domain\Seo;
 use App\Enums\SeoOpportunityPriority;
 use App\Models\SeoAlertSetting;
 use App\Models\SeoOpportunity;
+use App\Models\SeoProjectCompetitor;
 use App\Models\SeoTrackedKeyword;
+use App\Notifications\SeoCompetitorActivityNotification;
 use App\Notifications\SeoOpportunityDetectedNotification;
 use App\Notifications\SeoRankDropNotification;
 use Illuminate\Support\Facades\Notification;
@@ -59,5 +61,30 @@ class SeoAlertService
         }
 
         Notification::send($recipients, new SeoOpportunityDetectedNotification($opportunity));
+    }
+
+    /**
+     * Unlike the two alerts above, this one has no "is this worth paging
+     * someone about" judgment call to make beyond is_enabled - a
+     * competitor publishing brand-new pages is inherently a count worth
+     * knowing per sync (App\Domain\Seo\CompetitorSitemapCrawler already
+     * only calls this when $newPageCount > 0), not something to further
+     * filter by severity the way a rank drop or opportunity priority is.
+     */
+    public function notifyCompetitorActivity(SeoProjectCompetitor $competitor, int $newPageCount): void
+    {
+        $settings = SeoAlertSetting::current();
+
+        if (! $settings->is_enabled) {
+            return;
+        }
+
+        $recipients = $settings->recipients();
+
+        if ($recipients->isEmpty()) {
+            return;
+        }
+
+        Notification::send($recipients, new SeoCompetitorActivityNotification($competitor, $newPageCount));
     }
 }

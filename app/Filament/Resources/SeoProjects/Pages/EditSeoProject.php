@@ -6,6 +6,7 @@ use App\Domain\Seo\SearchConsoleClient;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Filament\Resources\SeoProjects\SeoProjectResource;
+use App\Jobs\AnalyzeCompetitorContentGapsJob;
 use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\ClassifySeoKeywordsJob;
 use App\Jobs\DiscoverSeoKeywordsJob;
@@ -166,6 +167,21 @@ class EditSeoProject extends EditRecord
 
                     Notification::make()
                         ->title('کشف کلمات کلیدی جدید در صف اجرا قرار گرفت.')
+                        ->body('نتایج در بخش «پیشنهادهای کلمات کلیدی» قابل بررسی و تأیید خواهند بود.')
+                        ->success()
+                        ->send();
+                }),
+
+            Action::make('analyzeCompetitorGaps')
+                ->label('تحلیل شکاف رقبا')
+                ->icon(Heroicon::OutlinedUserGroup)
+                ->tooltip('sitemap هر رقیب را می‌خزد و موضوعاتی را که چند رقیب پوشش داده‌اند ولی شما محتوایی برایشان ندارید، به‌عنوان پیشنهاد کلمه کلیدی اضافه می‌کند.')
+                ->visible(fn (SeoProject $record) => $record->competitors()->exists())
+                ->action(function (SeoProject $record) {
+                    AnalyzeCompetitorContentGapsJob::dispatch($record->id);
+
+                    Notification::make()
+                        ->title('تحلیل شکاف رقبا در صف اجرا قرار گرفت.')
                         ->body('نتایج در بخش «پیشنهادهای کلمات کلیدی» قابل بررسی و تأیید خواهند بود.')
                         ->success()
                         ->send();

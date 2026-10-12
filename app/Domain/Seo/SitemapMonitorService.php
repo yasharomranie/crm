@@ -5,7 +5,6 @@ namespace App\Domain\Seo;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
 use Carbon\Carbon;
-use Illuminate\Support\Facades\Http;
 
 /**
  * Syncs one project's sitemap.xml into App\Models\SeoSitemapEntry,
@@ -17,9 +16,10 @@ use Illuminate\Support\Facades\Http;
  */
 class SitemapMonitorService
 {
-    private const TITLE_FETCH_TIMEOUT_SECONDS = 8;
-
-    public function __construct(private readonly SitemapClient $client) {}
+    public function __construct(
+        private readonly SitemapClient $client,
+        private readonly HtmlPageTitleFetcher $titleFetcher,
+    ) {}
 
     public function sync(SeoProject $project): void
     {
@@ -99,27 +99,6 @@ class SitemapMonitorService
      */
     private function fetchTitle(string $url): ?string
     {
-        try {
-            $response = Http::timeout(self::TITLE_FETCH_TIMEOUT_SECONDS)
-                ->withUserAgent('GanjnamehSitemapMonitor/1.0')
-                ->get($url);
-
-            if ($response->failed() || ! str_contains((string) $response->header('Content-Type'), 'html')) {
-                return null;
-            }
-
-            $previousState = libxml_use_internal_errors(true);
-            $document = new \DOMDocument;
-            $document->loadHTML('<?xml encoding="utf-8" ?>'.$response->body());
-            libxml_clear_errors();
-            libxml_use_internal_errors($previousState);
-
-            $titleNodes = $document->getElementsByTagName('title');
-            $title = $titleNodes->length > 0 ? trim($titleNodes->item(0)->textContent) : '';
-
-            return $title !== '' ? $title : null;
-        } catch (\Throwable) {
-            return null;
-        }
+        return $this->titleFetcher->fetch($url);
     }
 }

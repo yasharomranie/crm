@@ -4,11 +4,14 @@ namespace Tests\Feature\Seo;
 
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Filament\Pages\SeoPillarClusterMap;
+use App\Models\SeoCompetitorSitemapEntry;
 use App\Models\SeoContentItem;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\SeoProjectCompetitor;
 use App\Models\SeoTopicCluster;
+use App\Models\SeoTrackedKeyword;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -263,6 +266,60 @@ class SeoPillarClusterMapPageTest extends TestCase
         $this->assertSame('صفحه فرود', $item->content_type);
 
         $this->assertSame(SeoKeywordSuggestionStatus::Approved, $suggestion->refresh()->status);
+
+        $trackedKeyword = SeoTrackedKeyword::where('seo_project_id', $project->id)->firstOrFail();
+        $this->assertSame('اجاره ویلا نزدیک غار علیصدر', $trackedKeyword->keyword);
+    }
+
+    public function test_tree_data_includes_competitor_coverage_for_a_cluster_competitors_cover(): void
+    {
+        $project = SeoProject::factory()->create(['name' => 'گنج‌نامه']);
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'غار علیصدر']);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id, 'query' => 'قیمت بلیط غار علیصدر']);
+
+        $competitorA = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        $competitorB = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitorA->id, 'topic_cluster_id' => $cluster->id, 'classified_at' => now()]);
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitorB->id, 'topic_cluster_id' => $cluster->id, 'classified_at' => now()]);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id]);
+
+        $tree = $component->instance()->treeData();
+
+        $this->assertSame(2, $tree['children'][0]['competitorCoverage']['competitor_count']);
+        $this->assertSame(2, $tree['children'][0]['competitorCoverage']['page_count']);
+    }
+
+    public function test_tree_data_has_no_competitor_coverage_for_a_cluster_no_competitor_covers(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id]);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        $component = Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id]);
+
+        $tree = $component->instance()->treeData();
+
+        $this->assertNull($tree['children'][0]['competitorCoverage']);
+    }
+
+    public function test_the_list_tab_shows_a_competitor_coverage_badge(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'غار علیصدر']);
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        $competitorA = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        $competitorB = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitorA->id, 'topic_cluster_id' => $cluster->id, 'classified_at' => now()]);
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitorB->id, 'topic_cluster_id' => $cluster->id, 'classified_at' => now()]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoPillarClusterMap::class, ['projectId' => $project->id])
+            ->assertSee('2 رقیب')
+            ->assertSeeHtml('bg-sky-50');
     }
 
     public function test_a_user_without_permission_is_forbidden(): void

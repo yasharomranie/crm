@@ -729,6 +729,26 @@
             </table>
         @endif
 
+        @if ($competitorActivity->isNotEmpty())
+            <h2 class="section-title">فعالیت رقبا در این دوره</h2>
+            <table class="report">
+                <thead>
+                    <tr>
+                        <th>رقیب</th>
+                        <th>صفحه‌ی جدید منتشرشده در این دوره</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach ($competitorActivity as $row)
+                        <tr>
+                            <td>{{ $row['domain'] }}</td>
+                            <td>{{ \Illuminate\Support\Number::toPersian($row['new_page_count']) }}</td>
+                        </tr>
+                    @endforeach
+                </tbody>
+            </table>
+        @endif
+
         <footer class="doc-footer">این گزارش به‌صورت خودکار توسط {{ config('app.name') }} تولید شده است — {{ now()->toJalali('Y/m/d H:i') }}</footer>
     </div>
 </body>
