@@ -617,7 +617,7 @@
                                         </div>
 
                                         <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5">
-                                            <label for="knowledgeUploadFile" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">افزودن از فایل (txt، docx یا pdf - حداکثر ۵ مگابایت)</label>
+                                            <label for="knowledgeUploadFile" class="mb-1 block text-xs font-medium text-gray-600 dark:text-gray-300">افزودن از فایل (txt، docx یا pdf - حداکثر ۱۰ مگابایت)</label>
                                             <div class="flex gap-2">
                                                 <input
                                                     id="knowledgeUploadFile"
