@@ -7,6 +7,7 @@ use App\Enums\SeoOpportunityOutcomeVerdict;
 use App\Enums\SeoTechnicalIssueSeverity;
 use App\Enums\SeoTechnicalIssueType;
 use App\Models\AiProvider;
+use App\Models\SeoCompetitorSitemapEntry;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
@@ -16,6 +17,7 @@ use App\Models\SeoOpportunity;
 use App\Models\SeoOpportunityOutcome;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
+use App\Models\SeoProjectCompetitor;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTechnicalAuditIssue;
@@ -273,5 +275,36 @@ class PeriodicReportServiceTest extends TestCase
 
         $this->assertStringContainsString('مشکلات فنی شناسایی‌شده', $report->html);
         $this->assertStringContainsString('بدون عنوان (title)', $report->html);
+    }
+
+    public function test_it_lists_competitor_pages_published_within_the_period(): void
+    {
+        $project = SeoProject::factory()->create();
+        $competitor = SeoProjectCompetitor::factory()->for($project, 'project')->create(['domain' => 'competitor.example.com']);
+
+        Carbon::setTestNow('2026-09-15');
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitor->id]);
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitor->id]);
+        Carbon::setTestNow();
+
+        // Outside the report's period - must not be counted.
+        Carbon::setTestNow('2026-08-01');
+        SeoCompetitorSitemapEntry::factory()->create(['seo_project_competitor_id' => $competitor->id]);
+        Carbon::setTestNow();
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringContainsString('فعالیت رقبا در این دوره', $report->html);
+        $this->assertStringContainsString('competitor.example.com', $report->html);
+        $this->assertStringContainsString('۲', $report->html);
+    }
+
+    public function test_it_omits_the_competitor_section_when_there_is_no_activity(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        $report = app(PeriodicReportService::class)->generate($project, Carbon::parse('2026-09-01'), Carbon::parse('2026-09-30'));
+
+        $this->assertStringNotContainsString('فعالیت رقبا در این دوره', $report->html);
     }
 }

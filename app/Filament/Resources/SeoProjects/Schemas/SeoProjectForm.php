@@ -111,6 +111,7 @@ class SeoProjectForm
                     ]),
 
                 Section::make('رقبا')
+                    ->description('آدرس sitemap هر رقیب برای تحلیل «شکاف رقابتی» استفاده می‌شود - اگر خالی بماند، سیستم خودش مسیرهای رایج (sitemap.xml و...) و در نهایت robots.txt را امتحان می‌کند.')
                     ->schema([
                         Repeater::make('competitors')
                             ->relationship()
@@ -120,11 +121,16 @@ class SeoProjectForm
                                     ->label('دامنه')
                                     ->required()
                                     ->maxLength(255),
+                                TextInput::make('sitemap_url')
+                                    ->label('آدرس Sitemap (اختیاری)')
+                                    ->helperText('اگر مسیر sitemap این رقیب غیرمعمول است، اینجا دستی وارد کن.')
+                                    ->url()
+                                    ->maxLength(255),
                                 TextInput::make('notes')
                                     ->label('یادداشت')
                                     ->maxLength(255),
                             ])
-                            ->columns(2)
+                            ->columns(3)
                             ->addActionLabel('افزودن رقیب')
                             ->defaultItems(0),
                     ])

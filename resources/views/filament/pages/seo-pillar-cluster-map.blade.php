@@ -130,7 +130,12 @@
                                 });
 
                             node.append('circle')
-                                .attr('r', function (d) { return d.depth === 0 ? 6 : (d.children ? 5 : 4); })
+                                .attr('r', function (d) {
+                                    if (d.depth === 0) { return 6; }
+                                    if (! d.children) { return 4; }
+                                    var coverage = d.data.competitorCoverage;
+                                    return 5 + (coverage ? Math.min(coverage.competitor_count, 5) : 0);
+                                })
                                 .attr('fill', function (d) {
                                     if (d.depth === 0) {
                                         return '#57534e';
@@ -142,12 +147,28 @@
 
                                     return d.data.hasWarning ? '#dc2626' : '#fecaca';
                                 })
-                                // A purple ring next to (around) the node marks a
-                                // CTR growth opportunity - independent of the
-                                // warning fill color above, since a keyword can
-                                // have either signal, both, or neither.
-                                .attr('stroke', function (d) { return d.data.hasOpportunity ? '#9333ea' : 'none'; })
-                                .attr('stroke-width', function (d) { return d.data.hasOpportunity ? 2 : 0; });
+                                // A purple ring next to (around) a keyword marks
+                                // a CTR growth opportunity; a sky-blue ring
+                                // around a cluster marks competitive pressure
+                                // (App\Domain\Seo\CompetitorContentGapService) -
+                                // each only ever applies to its own node depth,
+                                // so the two never collide on the same node.
+                                .attr('stroke', function (d) {
+                                    if (d.data.hasOpportunity) { return '#9333ea'; }
+                                    if (d.children && d.data.competitorCoverage) { return '#0ea5e9'; }
+                                    return 'none';
+                                })
+                                .attr('stroke-width', function (d) {
+                                    if (d.data.hasOpportunity) { return 2; }
+                                    if (d.children && d.data.competitorCoverage) { return 2; }
+                                    return 0;
+                                });
+
+                            node.filter(function (d) { return d.children && d.data.competitorCoverage; })
+                                .append('title')
+                                .text(function (d) {
+                                    return d.data.competitorCoverage.competitor_count + ' رقیب، ' + d.data.competitorCoverage.page_count + ' صفحه برای این موضوع';
+                                });
 
                             node.append('text')
                                 .attr('dy', '0.31em')
@@ -204,13 +225,15 @@
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#dc2626"></span> کلمه با هشدار هم‌خواری</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca"></span> کلمه بدون هشدار</span>
                     <span class="flex items-center gap-1.5"><span class="inline-block h-2.5 w-2.5 rounded-full" style="background:#fecaca; box-shadow: 0 0 0 2px #9333ea;"></span> کلمه با فرصت رشد و کلیک بیشتر (حلقه‌ی بنفش)</span>
+                    <span class="flex items-center gap-1.5"><span class="inline-block h-3 w-3 rounded-full" style="background:#f97316; box-shadow: 0 0 0 2px #0ea5e9;"></span> خوشه با فشار رقابتی (هرچه بزرگ‌تر، رقبای بیشتر - حلقه‌ی آبی)</span>
                 </div>
             </div>
 
             {{-- لیست خوشه‌ها: همان نمای آکاردئونی قبلی، بدون تغییر. --}}
             <div x-show="tab === 'list'" x-cloak>
                 <div class="space-y-3">
-                    @foreach ($this->map() as $group)
+                    @php $competitorCoverageByCluster = $this->competitorCoverageByCluster(); @endphp
+                    @foreach ($this->map() as $clusterId => $group)
                         <details class="group rounded-lg border border-gray-200 dark:border-white/10">
                             <summary class="flex cursor-pointer list-none items-center justify-between gap-3 p-4 [&::-webkit-details-marker]:hidden">
                                 <div class="flex items-center gap-2">
@@ -225,7 +248,13 @@
                                     @endif
                                     @php
                                         $groupOpportunityCount = $group['profiles']->filter(fn ($profile) => $profile->opportunity_score !== null && (float) $profile->opportunity_score > 0)->count();
+                                        $competitorCoverage = $competitorCoverageByCluster->get($clusterId);
                                     @endphp
+                                    @if ($competitorCoverage)
+                                        <span class="inline-flex items-center gap-1 rounded-full bg-sky-50 px-2 py-0.5 text-xs text-sky-700 dark:bg-sky-500/10 dark:text-sky-400" title="تعداد رقبایی که برای این موضوع صفحه‌ی اختصاصی دارند">
+                                            🏁 {{ $competitorCoverage['competitor_count'] }} رقیب · {{ $competitorCoverage['page_count'] }} صفحه
+                                        </span>
+                                    @endif
                                     @if ($groupOpportunityCount > 0)
                                         <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700 dark:bg-purple-500/10 dark:text-purple-400">
                                             ↑ {{ $groupOpportunityCount }} فرصت رشد

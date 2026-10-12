@@ -40,7 +40,10 @@ class AiKeywordDiscoveryService
 {
     use ParsesAiJsonArray;
 
-    public function __construct(private readonly PillarClusterMapBuilder $mapBuilder) {}
+    public function __construct(
+        private readonly PillarClusterMapBuilder $mapBuilder,
+        private readonly CompetitorContentGapService $competitorGapService,
+    ) {}
 
     public function discover(SeoProject $project, int $count = 20): int
     {
@@ -163,6 +166,50 @@ class AiKeywordDiscoveryService
 
             Current pillar/cluster map of this business's content and tracked keywords (shows what's already covered per topic, and where gaps are):
             {$this->formatPillarMap($project)}
+
+            {$this->formatCompetitorCoverage($project)}
+            TXT;
+    }
+
+    /**
+     * What competitors (App\Models\SeoProjectCompetitor) are already
+     * publishing, per topic cluster (App\Domain\Seo\
+     * CompetitorContentGapService), next to how much of that same topic
+     * this business itself already has - grounds a new suggestion in
+     * real, observed market activity instead of only the model's own
+     * general knowledge, and steers it toward topics competitors are
+     * clearly active in but this business is not.
+     */
+    private function formatCompetitorCoverage(SeoProject $project): string
+    {
+        $coverage = $this->competitorGapService->coverageByCluster($project);
+
+        if ($coverage->isEmpty()) {
+            return '';
+        }
+
+        $myMap = $this->mapBuilder->build($project);
+
+        $lines = $coverage->map(function (array $stats, int|string $clusterId) use ($myMap) {
+            $cluster = SeoTopicCluster::find($clusterId);
+
+            if (! $cluster) {
+                return null;
+            }
+
+            $myGroup = $myMap->get($clusterId);
+            $myContentCount = $myGroup ? $myGroup['contentItems']->count() : 0;
+
+            return "- {$cluster->name}: {$stats['competitor_count']} رقیب با {$stats['page_count']} صفحه در مجموع، من: {$myContentCount} محتوای برنامه‌ریزی‌شده";
+        })->filter()->implode("\n");
+
+        if ($lines === '') {
+            return '';
+        }
+
+        return <<<TXT
+            What competitors are already publishing, per topic (from their public sitemaps - a real, observed signal, not a guess) - weigh this alongside the pillar map above, and favor topics competitors are active in but this business has little or no content for yet:
+            {$lines}
             TXT;
     }
 

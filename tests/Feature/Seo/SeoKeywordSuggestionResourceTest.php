@@ -8,6 +8,7 @@ use App\Jobs\DiscoverSeoKeywordsJob;
 use App\Models\SeoContentItem;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\SeoTrackedKeyword;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Queue;
@@ -78,6 +79,33 @@ class SeoKeywordSuggestionResourceTest extends TestCase
         $this->assertSame($suggestion->seo_project_id, $item->seo_project_id);
         $this->assertSame('اجاره ویلا نزدیک گنجنامه', $item->target_keyword);
         $this->assertSame('صفحه فرود', $item->content_type);
+
+        $trackedKeyword = SeoTrackedKeyword::where('seo_project_id', $suggestion->seo_project_id)->firstOrFail();
+        $this->assertSame('اجاره ویلا نزدیک گنجنامه', $trackedKeyword->keyword);
+        $this->assertTrue($trackedKeyword->is_active);
+    }
+
+    public function test_creating_a_content_item_does_not_duplicate_an_already_tracked_keyword(): void
+    {
+        $suggestion = SeoKeywordSuggestion::factory()->create([
+            'status' => SeoKeywordSuggestionStatus::Approved,
+            'keyword' => 'اجاره ویلا نزدیک گنجنامه',
+        ]);
+        SeoTrackedKeyword::create([
+            'seo_project_id' => $suggestion->seo_project_id,
+            'keyword' => 'اجاره ویلا نزدیک گنجنامه',
+            'is_active' => false,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(ManageSeoKeywordSuggestions::class)
+            ->filterTable('status', SeoKeywordSuggestionStatus::Approved->value)
+            ->callTableAction('createContentItem', $suggestion, data: [
+                'title' => 'صفحه فرود اجاره ویلا',
+            ]);
+
+        $this->assertSame(1, SeoTrackedKeyword::where('seo_project_id', $suggestion->seo_project_id)->count());
+        $this->assertFalse(SeoTrackedKeyword::sole()->is_active);
     }
 
     public function test_the_create_content_item_action_is_not_available_for_a_new_suggestion(): void

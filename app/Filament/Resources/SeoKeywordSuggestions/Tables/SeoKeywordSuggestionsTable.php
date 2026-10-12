@@ -7,6 +7,7 @@ use App\Enums\SeoSearchIntent;
 use App\Models\SeoContentItem;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
+use App\Models\SeoTrackedKeyword;
 use App\Models\User;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -110,6 +111,14 @@ class SeoKeywordSuggestionsTable
                             'assigned_to' => $data['assigned_to'] ?? null,
                             'due_date' => $data['due_date'] ?? null,
                         ]);
+
+                        // So the moment this content goes live, its rank is
+                        // already being watched - no separate trip to the
+                        // rank tracker to remember to add it.
+                        SeoTrackedKeyword::firstOrCreate(
+                            ['seo_project_id' => $record->seo_project_id, 'keyword' => $record->keyword],
+                            ['is_active' => true],
+                        );
 
                         Notification::make()->title('آیتم محتوا در تقویم محتوا ایجاد شد.')->success()->send();
                     }),
