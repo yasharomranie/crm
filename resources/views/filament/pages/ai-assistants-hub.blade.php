@@ -641,6 +641,30 @@
                                             @enderror
                                         </div>
 
+                                        @php
+                                            $ocrUploads = $this->getOcrUploadsForActiveProfile();
+                                            $hasActiveOcrUpload = $ocrUploads->whereIn('status', [\App\Enums\AiAssistantOcrUploadStatus::Pending, \App\Enums\AiAssistantOcrUploadStatus::Processing])->isNotEmpty();
+                                        @endphp
+                                        @if ($ocrUploads->isNotEmpty())
+                                            <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5" @if ($hasActiveOcrUpload) wire:poll.5s @endif>
+                                                <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">وضعیت فایل‌های اسکن‌شده (OCR)</p>
+                                                <div class="space-y-1.5">
+                                                    @foreach ($ocrUploads as $upload)
+                                                        <div wire:key="ocr-upload-{{ $upload->id }}" class="flex items-center justify-between gap-2 text-xs">
+                                                            <span class="truncate text-gray-700 dark:text-gray-300">{{ $upload->original_filename }}</span>
+                                                            @if ($upload->status === \App\Enums\AiAssistantOcrUploadStatus::Completed)
+                                                                <span class="shrink-0 rounded-full bg-success-50 px-2 py-0.5 font-medium text-success-700 dark:bg-success-500/10 dark:text-success-400">✅ {{ $upload->note_count }} نکته</span>
+                                                            @elseif ($upload->status === \App\Enums\AiAssistantOcrUploadStatus::Failed)
+                                                                <span class="shrink-0 rounded-full bg-danger-50 px-2 py-0.5 font-medium text-danger-700 dark:bg-danger-500/10 dark:text-danger-400" title="{{ $upload->error_message }}">❌ خطا</span>
+                                                            @else
+                                                                <span class="shrink-0 rounded-full bg-warning-50 px-2 py-0.5 font-medium text-warning-700 dark:bg-warning-500/10 dark:text-warning-400">⏳ در حال OCR...</span>
+                                                            @endif
+                                                        </div>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endif
+
                                         <div class="mt-4 border-t border-gray-100 pt-4 dark:border-white/5">
                                             <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">منابع تحت نظر (هر روز بررسی می‌شود؛ در صورت تغییر، نکته‌ای پیشنهاد می‌شود)</p>
                                             @php $watchedSources = $this->getWatchedSources(); @endphp

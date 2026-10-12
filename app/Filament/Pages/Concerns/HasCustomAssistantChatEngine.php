@@ -7,6 +7,7 @@ use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\KnowledgeNoteExtractor;
 use App\Domain\Ai\SafeUrlFetcher;
+use App\Enums\AiAssistantOcrUploadStatus;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
@@ -14,6 +15,7 @@ use App\Exceptions\AiProviderException;
 use App\Jobs\OcrKnowledgeUploadJob;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
+use App\Models\AiAssistantOcrUpload;
 use App\Models\AiAssistantProfile;
 use App\Models\AiAssistantScheduledPrompt;
 use App\Models\AiAssistantWatchedSource;
@@ -1010,21 +1012,37 @@ trait HasCustomAssistantChatEngine
      * copy is gone once this request ends, but OcrKnowledgeUploadJob runs
      * minutes later on a queue worker) and hands it off to the job -
      * OCR'ing even a handful of pages takes seconds each, so it has no
-     * place blocking this web request.
+     * place blocking this web request. The AiAssistantOcrUpload row
+     * created here is what getActiveOcrUploadsForActiveProfile() reads
+     * to show the owner this is still running, rather than leaving the
+     * upload section looking idle for several minutes.
      */
     private function dispatchOcrKnowledgeUpload(AiAssistantProfile $profile, AiProvider $provider): void
     {
         $path = $this->knowledgeUploadFile->store('knowledge-ocr-uploads');
 
-        OcrKnowledgeUploadJob::dispatch($profile->id, $provider->id, $path, Auth::id());
+        $ocrUpload = $profile->ocrUploads()->create([
+            'original_filename' => $this->knowledgeUploadFile->getClientOriginalName(),
+            'status' => AiAssistantOcrUploadStatus::Pending,
+        ]);
+
+        OcrKnowledgeUploadJob::dispatch($ocrUpload->id, $provider->id, $path, Auth::id());
 
         $this->reset('knowledgeUploadFile');
 
         Notification::make()
             ->title('این فایل احتمالاً یک اسکن است (بدون لایهٔ متنی) - در پس‌زمینه با OCR خوانده می‌شود، چند دقیقه طول می‌کشد.')
-            ->body('نکات استخراج‌شده بعداً در همین صف بررسی ظاهر می‌شوند.')
+            ->body('وضعیت را همین پایین، زیر فرم آپلود، می‌توانید ببینید.')
             ->success()
             ->send();
+    }
+
+    /**
+     * @return Collection<int, AiAssistantOcrUpload>
+     */
+    public function getOcrUploadsForActiveProfile(): Collection
+    {
+        return $this->activeProfile()?->ocrUploads()->take(5)->get() ?? new Collection;
     }
 
     /**
