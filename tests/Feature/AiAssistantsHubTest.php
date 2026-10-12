@@ -7,6 +7,7 @@ use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
+use App\Jobs\OcrKnowledgeUploadJob;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
@@ -18,14 +19,17 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
+use Illuminate\Support\Facades\Storage;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
+use Tests\Concerns\BuildsScannedPdfFixtures;
 use Tests\TestCase;
 
 class AiAssistantsHubTest extends TestCase
 {
-    use RefreshDatabase;
+    use BuildsScannedPdfFixtures, RefreshDatabase;
 
     private function actingAsHubUser(): User
     {
@@ -682,6 +686,37 @@ class AiAssistantsHubTest extends TestCase
         Http::assertSentCount(3);
         // Every chunk returned the same two notes - deduplicated across chunks, not one row per chunk.
         $this->assertCount(2, AiAssistantKnowledgeEntry::all());
+    }
+
+    public function test_uploading_a_scanned_pdf_with_no_text_layer_dispatches_the_ocr_job_instead_of_an_error(): void
+    {
+        Queue::fake();
+        Storage::fake();
+
+        $user = $this->actingAsHubUser();
+        $provider = AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $localPath = sys_get_temp_dir().'/scanned-upload-test-'.uniqid().'.pdf';
+        $this->buildScannedPdf($localPath, ['Scanned contract page.']);
+        $file = UploadedFile::fake()->createWithContent('scanned-contract.pdf', file_get_contents($localPath));
+        unlink($localPath);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('knowledgeUploadFile', $file)
+            ->call('processKnowledgeUpload');
+
+        Http::assertNothingSent();
+        $this->assertSame(0, AiAssistantKnowledgeEntry::count());
+
+        Queue::assertPushed(OcrKnowledgeUploadJob::class, function (OcrKnowledgeUploadJob $job) use ($profile, $provider, $user) {
+            Storage::assertExists($job->storedPath);
+
+            return $job->aiAssistantProfileId === $profile->id
+                && $job->aiProviderId === $provider->id
+                && $job->userId === $user->id;
+        });
     }
 
     public function test_an_unsupported_file_type_is_rejected_before_any_ai_call(): void

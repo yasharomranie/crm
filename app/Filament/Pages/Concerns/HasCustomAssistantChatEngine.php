@@ -5,11 +5,13 @@ namespace App\Filament\Pages\Concerns;
 use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
+use App\Domain\Ai\KnowledgeNoteExtractor;
 use App\Domain\Ai\SafeUrlFetcher;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
 use App\Exceptions\AiProviderException;
+use App\Jobs\OcrKnowledgeUploadJob;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
 use App\Models\AiAssistantProfile;
@@ -53,21 +55,6 @@ trait HasCustomAssistantChatEngine
      * multiply the cost of a single user message.
      */
     private const MAX_CONSULTATIONS_PER_SEND = 3;
-
-    /**
-     * Characters per chat-completion call when extracting notes from an
-     * uploaded document - small enough to stay well inside any provider's
-     * context window, large enough that a 120-page PDF only needs a
-     * handful of calls (see DocumentTextExtractor::MAX_CONTENT_LENGTH for
-     * the overall cap on how much of the document is considered at all).
-     */
-    private const NOTE_EXTRACTION_CHUNK_SIZE = 40000;
-
-    /**
-     * Across all chunks of one upload, so a very long document still
-     * yields a reviewable number of notes instead of flooding the queue.
-     */
-    private const MAX_EXTRACTED_KNOWLEDGE_NOTES = 30;
 
     public ?int $activeProfileId = null;
 
@@ -950,12 +937,18 @@ trait HasCustomAssistantChatEngine
      * chat and the fetch_url tool: the owner uploads a file they already
      * have (a price list, a law's text, a catalogue), its text is pulled
      * out locally (DocumentTextExtractor - no AI call, no cost), and then
-     * a bounded handful of chat-completion calls - one per text chunk,
-     * see extractKnowledgeNotesFromDocument() - turn that raw text into a
-     * handful of short, stand-alone notes - a bounded, owner-triggered
-     * cost, unlike WatchedSourceChecker's unattended daily runs, which
-     * never call the AI at all. Notes land in the same review queue as
-     * everything else.
+     * KnowledgeNoteExtractor turns that raw text into a handful of short,
+     * stand-alone notes via a bounded, owner-triggered handful of
+     * chat-completion calls - unlike WatchedSourceChecker's unattended
+     * daily runs, which never call the AI at all. Notes land in the same
+     * review queue as everything else.
+     *
+     * A PDF DocumentTextExtractor finds no text in at all is usually a
+     * scan (a photographed/scanned document with no text layer, as
+     * opposed to a digitally-generated PDF) rather than an empty file -
+     * that case is handed off to OcrKnowledgeUploadJob instead of simply
+     * reported as an error, since OCR takes minutes, not seconds, and has
+     * no place inline in this request.
      */
     public function processKnowledgeUpload(): void
     {
@@ -975,105 +968,63 @@ trait HasCustomAssistantChatEngine
             return;
         }
 
+        $extension = $this->knowledgeUploadFile->getClientOriginalExtension();
+
         $extraction = app(DocumentTextExtractor::class)->extract(
             $this->knowledgeUploadFile->getRealPath(),
-            $this->knowledgeUploadFile->getClientOriginalExtension(),
+            $extension,
         );
 
         if (isset($extraction['error'])) {
+            if (strtolower($extension) === 'pdf') {
+                $this->dispatchOcrKnowledgeUpload($profile, $provider);
+
+                return;
+            }
+
             Notification::make()->title($extraction['error'])->danger()->send();
             $this->reset('knowledgeUploadFile');
 
             return;
         }
 
-        $notes = $this->extractKnowledgeNotesFromDocument($profile, $provider, $extraction['content']);
+        $result = app(KnowledgeNoteExtractor::class)->extract($profile, $provider, $extraction['content']);
 
-        foreach ($notes as $note) {
+        foreach ($result['notes'] as $note) {
             $profile->recordAiSuggestedKnowledge($note);
         }
 
         $this->reset('knowledgeUploadFile');
 
-        Notification::make()->title($notes === [] ? 'هیچ نکتهٔ قابل‌استفاده‌ای در فایل پیدا نشد.' : count($notes).' نکته از فایل استخراج شد و در صف بررسی قرار گرفت.')->success()->send();
+        if ($result['error'] !== null) {
+            Notification::make()->title($result['error'])->danger()->send();
+
+            return;
+        }
+
+        Notification::make()->title($result['notes'] === [] ? 'هیچ نکتهٔ قابل‌استفاده‌ای در فایل پیدا نشد.' : count($result['notes']).' نکته از فایل استخراج شد و در صف بررسی قرار گرفت.')->success()->send();
     }
 
     /**
-     * A single chat-completion call only ever sees the start of $text, so
-     * walking a long document (a 120-page PDF, say) in fixed-size chunks
-     * and calling the AI once per chunk is what lets notes get pulled
-     * from the whole thing instead of just its first few pages - still a
-     * bounded, owner-triggered cost (see the class docblock above), since
-     * DocumentTextExtractor itself caps the total extracted text.
-     *
-     * @return list<string>
+     * Stores the upload to a durable, private path (the Livewire temp
+     * copy is gone once this request ends, but OcrKnowledgeUploadJob runs
+     * minutes later on a queue worker) and hands it off to the job -
+     * OCR'ing even a handful of pages takes seconds each, so it has no
+     * place blocking this web request.
      */
-    private function extractKnowledgeNotesFromDocument(AiAssistantProfile $profile, AiProvider $provider, string $text): array
+    private function dispatchOcrKnowledgeUpload(AiAssistantProfile $profile, AiProvider $provider): void
     {
-        $notes = collect();
+        $path = $this->knowledgeUploadFile->store('knowledge-ocr-uploads');
 
-        foreach (mb_str_split($text, self::NOTE_EXTRACTION_CHUNK_SIZE) as $chunk) {
-            $chunkNotes = $this->requestKnowledgeNotesForChunk($profile, $provider, $chunk);
+        OcrKnowledgeUploadJob::dispatch($profile->id, $provider->id, $path, Auth::id());
 
-            if ($chunkNotes === null) {
-                break;
-            }
+        $this->reset('knowledgeUploadFile');
 
-            $notes = $notes->merge($chunkNotes);
-        }
-
-        return $notes->unique()->take(self::MAX_EXTRACTED_KNOWLEDGE_NOTES)->values()->all();
-    }
-
-    /**
-     * @return list<string>|null null means the provider call itself
-     *                           failed (already notified to the user), signalling the caller to
-     *                           stop sending further chunks rather than retry a provider that's
-     *                           already down.
-     */
-    private function requestKnowledgeNotesForChunk(AiAssistantProfile $profile, AiProvider $provider, string $text): ?array
-    {
-        $messages = [
-            [
-                'role' => 'system',
-                'content' => 'تو یک دستیار استخراج اطلاعاتی. از متن کاربر، مهم‌ترین نکات مستقل و قابل‌استفاده را استخراج کن (حداکثر ۱۵ نکته، هر نکته کوتاه و به فارسی). پاسخ تو باید فقط و فقط یک آرایهٔ JSON از رشته‌ها باشد، بدون هیچ توضیح یا متن اضافه.',
-            ],
-            ['role' => 'user', 'content' => $text],
-        ];
-
-        try {
-            $response = $provider->chatCompletion($messages, [], $profile->model);
-        } catch (AiProviderException $exception) {
-            Notification::make()->title($exception->getMessage())->danger()->send();
-
-            return null;
-        }
-
-        $notes = json_decode($this->stripJsonFences((string) ($response['content'] ?? '')), true);
-
-        if (! is_array($notes)) {
-            return [];
-        }
-
-        return collect($notes)
-            ->map(fn ($note) => trim((string) $note))
-            ->filter(fn (string $note) => $note !== '')
-            ->take(15)
-            ->values()
-            ->all();
-    }
-
-    /**
-     * Some providers wrap a JSON response in a ```json ... ``` fence even
-     * when told not to - strip it before decoding.
-     */
-    private function stripJsonFences(string $content): string
-    {
-        $content = trim($content);
-        $content = preg_replace('/^```(?:json)?/i', '', $content) ?? $content;
-        $content = preg_replace('/```$/', '', $content) ?? $content;
-
-        return trim($content);
+        Notification::make()
+            ->title('این فایل احتمالاً یک اسکن است (بدون لایهٔ متنی) - در پس‌زمینه با OCR خوانده می‌شود، چند دقیقه طول می‌کشد.')
+            ->body('نکات استخراج‌شده بعداً در همین صف بررسی ظاهر می‌شوند.')
+            ->success()
+            ->send();
     }
 
     /**
