@@ -14,7 +14,14 @@ use Smalot\PdfParser\Parser as PdfParser;
  */
 class DocumentTextExtractor
 {
-    private const MAX_CONTENT_LENGTH = 20000;
+    /**
+     * A hard ceiling on how much of a document is ever considered, not a
+     * per-call size - HasCustomAssistantChatEngine sends this in chunks
+     * across several AI calls, so this only needs to be generous enough
+     * to cover a genuinely long upload (a few hundred pages of dense
+     * text) rather than sized to fit one request.
+     */
+    private const MAX_CONTENT_LENGTH = 200000;
 
     /**
      * @return array{content: string}|array{error: string}

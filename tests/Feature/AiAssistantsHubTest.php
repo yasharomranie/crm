@@ -653,6 +653,37 @@ class AiAssistantsHubTest extends TestCase
         $this->assertTrue($entries->every(fn (AiAssistantKnowledgeEntry $entry) => $entry->source === AiKnowledgeEntrySource::AiSuggested));
     }
 
+    public function test_a_long_document_is_sent_to_the_ai_in_multiple_chunks(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake([
+            '*/chat/completions' => Http::response([
+                'choices' => [[
+                    'message' => [
+                        'role' => 'assistant',
+                        'content' => json_encode(['نرخ کمیسیون فروش ۵ درصد است.', 'ساعت کاری دفتر ۹ تا ۱۷ است.']),
+                    ],
+                ]],
+            ]),
+        ]);
+
+        // Long enough to span several extraction chunks - a single call
+        // would only ever see the opening of the document.
+        $file = UploadedFile::fake()->createWithContent('long-manual.txt', str_repeat('قیمت متفاوت است. ', 5000));
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('knowledgeUploadFile', $file)
+            ->call('processKnowledgeUpload');
+
+        Http::assertSentCount(3);
+        // Every chunk returned the same two notes - deduplicated across chunks, not one row per chunk.
+        $this->assertCount(2, AiAssistantKnowledgeEntry::all());
+    }
+
     public function test_an_unsupported_file_type_is_rejected_before_any_ai_call(): void
     {
         $user = $this->actingAsHubUser();

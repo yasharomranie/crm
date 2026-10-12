@@ -54,6 +54,21 @@ trait HasCustomAssistantChatEngine
      */
     private const MAX_CONSULTATIONS_PER_SEND = 3;
 
+    /**
+     * Characters per chat-completion call when extracting notes from an
+     * uploaded document - small enough to stay well inside any provider's
+     * context window, large enough that a 120-page PDF only needs a
+     * handful of calls (see DocumentTextExtractor::MAX_CONTENT_LENGTH for
+     * the overall cap on how much of the document is considered at all).
+     */
+    private const NOTE_EXTRACTION_CHUNK_SIZE = 40000;
+
+    /**
+     * Across all chunks of one upload, so a very long document still
+     * yields a reviewable number of notes instead of flooding the queue.
+     */
+    private const MAX_EXTRACTED_KNOWLEDGE_NOTES = 30;
+
     public ?int $activeProfileId = null;
 
     public ?int $conversationId = null;
@@ -935,10 +950,12 @@ trait HasCustomAssistantChatEngine
      * chat and the fetch_url tool: the owner uploads a file they already
      * have (a price list, a law's text, a catalogue), its text is pulled
      * out locally (DocumentTextExtractor - no AI call, no cost), and then
-     * ONE chat-completion call turns that raw text into a handful of
-     * short, stand-alone notes - a bounded, owner-triggered cost, unlike
-     * WatchedSourceChecker's unattended daily runs, which never call the
-     * AI at all. Notes land in the same review queue as everything else.
+     * a bounded handful of chat-completion calls - one per text chunk,
+     * see extractKnowledgeNotesFromDocument() - turn that raw text into a
+     * handful of short, stand-alone notes - a bounded, owner-triggered
+     * cost, unlike WatchedSourceChecker's unattended daily runs, which
+     * never call the AI at all. Notes land in the same review queue as
+     * everything else.
      */
     public function processKnowledgeUpload(): void
     {
@@ -948,7 +965,7 @@ trait HasCustomAssistantChatEngine
             return;
         }
 
-        $this->validate(['knowledgeUploadFile' => ['required', 'file', 'mimes:txt,docx,pdf', 'max:5120']]);
+        $this->validate(['knowledgeUploadFile' => ['required', 'file', 'mimes:txt,docx,pdf', 'max:10240']]);
 
         $provider = AiProvider::active();
 
@@ -982,9 +999,39 @@ trait HasCustomAssistantChatEngine
     }
 
     /**
+     * A single chat-completion call only ever sees the start of $text, so
+     * walking a long document (a 120-page PDF, say) in fixed-size chunks
+     * and calling the AI once per chunk is what lets notes get pulled
+     * from the whole thing instead of just its first few pages - still a
+     * bounded, owner-triggered cost (see the class docblock above), since
+     * DocumentTextExtractor itself caps the total extracted text.
+     *
      * @return list<string>
      */
     private function extractKnowledgeNotesFromDocument(AiAssistantProfile $profile, AiProvider $provider, string $text): array
+    {
+        $notes = collect();
+
+        foreach (mb_str_split($text, self::NOTE_EXTRACTION_CHUNK_SIZE) as $chunk) {
+            $chunkNotes = $this->requestKnowledgeNotesForChunk($profile, $provider, $chunk);
+
+            if ($chunkNotes === null) {
+                break;
+            }
+
+            $notes = $notes->merge($chunkNotes);
+        }
+
+        return $notes->unique()->take(self::MAX_EXTRACTED_KNOWLEDGE_NOTES)->values()->all();
+    }
+
+    /**
+     * @return list<string>|null null means the provider call itself
+     *                           failed (already notified to the user), signalling the caller to
+     *                           stop sending further chunks rather than retry a provider that's
+     *                           already down.
+     */
+    private function requestKnowledgeNotesForChunk(AiAssistantProfile $profile, AiProvider $provider, string $text): ?array
     {
         $messages = [
             [
@@ -999,7 +1046,7 @@ trait HasCustomAssistantChatEngine
         } catch (AiProviderException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
 
-            return [];
+            return null;
         }
 
         $notes = json_decode($this->stripJsonFences((string) ($response['content'] ?? '')), true);

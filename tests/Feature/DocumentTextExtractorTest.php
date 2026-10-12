@@ -81,11 +81,11 @@ class DocumentTextExtractorTest extends TestCase
     public function test_it_truncates_very_long_content(): void
     {
         $path = $this->scratchDir.'/long.txt';
-        file_put_contents($path, str_repeat('الف ', 10000));
+        file_put_contents($path, str_repeat('الف ', 100000));
 
         $result = app(DocumentTextExtractor::class)->extract($path, 'txt');
 
-        $this->assertLessThanOrEqual(20000, mb_strlen($result['content']));
+        $this->assertSame(200000, mb_strlen($result['content']));
     }
 
     public function test_it_reports_an_error_for_a_corrupt_docx_file(): void
