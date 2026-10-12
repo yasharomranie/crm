@@ -4,8 +4,10 @@ namespace Tests\Feature;
 
 use App\Domain\Ai\KnowledgeNoteExtractor;
 use App\Domain\Ai\ScannedPdfOcrExtractor;
+use App\Enums\AiAssistantOcrUploadStatus;
 use App\Jobs\OcrKnowledgeUploadJob;
 use App\Models\AiAssistantKnowledgeEntry;
+use App\Models\AiAssistantOcrUpload;
 use App\Models\AiAssistantProfile;
 use App\Models\AiProvider;
 use App\Models\User;
@@ -36,6 +38,7 @@ class OcrKnowledgeUploadJobTest extends TestCase
         $provider = AiProvider::factory()->active()->create();
         $owner = User::factory()->create();
         $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id]);
+        $ocrUpload = AiAssistantOcrUpload::factory()->for($profile, 'profile')->create();
 
         $localPath = sys_get_temp_dir().'/ocr-job-test-'.uniqid().'.pdf';
         $this->buildScannedPdf($localPath, ['Commission rate is five percent.']);
@@ -54,7 +57,7 @@ class OcrKnowledgeUploadJobTest extends TestCase
             ]),
         ]);
 
-        (new OcrKnowledgeUploadJob($profile->id, $provider->id, $storedPath, $owner->id))->handle(
+        (new OcrKnowledgeUploadJob($ocrUpload->id, $provider->id, $storedPath, $owner->id))->handle(
             app(ScannedPdfOcrExtractor::class),
             app(KnowledgeNoteExtractor::class),
         );
@@ -62,6 +65,11 @@ class OcrKnowledgeUploadJobTest extends TestCase
         $entry = AiAssistantKnowledgeEntry::sole();
         $this->assertSame('نرخ کمیسیون پنج درصد است.', $entry->content);
         $this->assertSame($profile->id, $entry->ai_assistant_profile_id);
+
+        $ocrUpload->refresh();
+        $this->assertSame(AiAssistantOcrUploadStatus::Completed, $ocrUpload->status);
+        $this->assertSame(1, $ocrUpload->note_count);
+        $this->assertNull($ocrUpload->error_message);
 
         Storage::assertMissing($storedPath);
 
@@ -76,6 +84,7 @@ class OcrKnowledgeUploadJobTest extends TestCase
         $provider = AiProvider::factory()->active()->create();
         $owner = User::factory()->create();
         $profile = AiAssistantProfile::factory()->create(['created_by' => $owner->id]);
+        $ocrUpload = AiAssistantOcrUpload::factory()->for($profile, 'profile')->create();
 
         $localPath = sys_get_temp_dir().'/ocr-job-test-blank-'.uniqid().'.pdf';
         file_put_contents($localPath, 'not a real pdf');
@@ -85,7 +94,7 @@ class OcrKnowledgeUploadJobTest extends TestCase
 
         Http::fake();
 
-        (new OcrKnowledgeUploadJob($profile->id, $provider->id, $storedPath, $owner->id))->handle(
+        (new OcrKnowledgeUploadJob($ocrUpload->id, $provider->id, $storedPath, $owner->id))->handle(
             app(ScannedPdfOcrExtractor::class),
             app(KnowledgeNoteExtractor::class),
         );
@@ -93,6 +102,11 @@ class OcrKnowledgeUploadJobTest extends TestCase
         $this->assertSame(0, AiAssistantKnowledgeEntry::count());
         Http::assertNothingSent();
         Storage::assertMissing($storedPath);
+
+        $ocrUpload->refresh();
+        $this->assertSame(AiAssistantOcrUploadStatus::Failed, $ocrUpload->status);
+        $this->assertNotNull($ocrUpload->error_message);
+
         Notification::assertSentTo($owner, KnowledgeDocumentOcrCompletedNotification::class);
     }
 }

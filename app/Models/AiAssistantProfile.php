@@ -58,6 +58,11 @@ class AiAssistantProfile extends Model
         return $this->hasMany(AiAssistantKnowledgeEntry::class)->latest();
     }
 
+    public function ocrUploads(): HasMany
+    {
+        return $this->hasMany(AiAssistantOcrUpload::class)->latest();
+    }
+
     public function watchedSources(): HasMany
     {
         return $this->hasMany(AiAssistantWatchedSource::class)->latest();

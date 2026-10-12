@@ -2,6 +2,7 @@
 
 namespace Tests\Feature;
 
+use App\Enums\AiAssistantOcrUploadStatus;
 use App\Enums\AiKnowledgeEntrySource;
 use App\Enums\AiKnowledgeEntryStatus;
 use App\Enums\AiMessageRole;
@@ -10,6 +11,7 @@ use App\Filament\Pages\AiAssistantsHub;
 use App\Jobs\OcrKnowledgeUploadJob;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantKnowledgeEntry;
+use App\Models\AiAssistantOcrUpload;
 use App\Models\AiAssistantProfile;
 use App\Models\AiAssistantWatchedSource;
 use App\Models\AiConversation;
@@ -710,13 +712,47 @@ class AiAssistantsHubTest extends TestCase
         Http::assertNothingSent();
         $this->assertSame(0, AiAssistantKnowledgeEntry::count());
 
-        Queue::assertPushed(OcrKnowledgeUploadJob::class, function (OcrKnowledgeUploadJob $job) use ($profile, $provider, $user) {
+        $ocrUpload = AiAssistantOcrUpload::sole();
+        $this->assertSame($profile->id, $ocrUpload->ai_assistant_profile_id);
+        $this->assertSame('scanned-contract.pdf', $ocrUpload->original_filename);
+        $this->assertSame(AiAssistantOcrUploadStatus::Pending, $ocrUpload->status);
+
+        Queue::assertPushed(OcrKnowledgeUploadJob::class, function (OcrKnowledgeUploadJob $job) use ($ocrUpload, $provider, $user) {
             Storage::assertExists($job->storedPath);
 
-            return $job->aiAssistantProfileId === $profile->id
+            return $job->ocrUploadId === $ocrUpload->id
                 && $job->aiProviderId === $provider->id
                 && $job->userId === $user->id;
         });
+    }
+
+    public function test_the_knowledge_panel_shows_ocr_upload_status_badges(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        AiAssistantOcrUpload::factory()->for($profile, 'profile')->create(['original_filename' => 'in-progress.pdf']);
+        AiAssistantOcrUpload::factory()->for($profile, 'profile')->completed(4)->create(['original_filename' => 'done.pdf']);
+        AiAssistantOcrUpload::factory()->for($profile, 'profile')->failed('مشکل در خواندن فایل.')->create(['original_filename' => 'broken.pdf']);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->assertSee('in-progress.pdf')
+            ->assertSee('در حال OCR')
+            ->assertSee('done.pdf')
+            ->assertSee('4 نکته')
+            ->assertSee('broken.pdf')
+            ->assertSee('خطا');
+    }
+
+    public function test_the_knowledge_panel_shows_no_ocr_section_without_any_upload(): void
+    {
+        $user = $this->actingAsHubUser();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->assertDontSee('وضعیت فایل‌های اسکن‌شده');
     }
 
     public function test_an_unsupported_file_type_is_rejected_before_any_ai_call(): void
