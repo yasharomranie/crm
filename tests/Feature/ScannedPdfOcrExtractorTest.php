@@ -11,7 +11,13 @@ class ScannedPdfOcrExtractorTest extends TestCase
 {
     use BuildsScannedPdfFixtures;
 
-    private string $scratchDir;
+    /**
+     * Defaults to '' rather than being left uninitialized: PHPUnit still
+     * runs tearDown() for a test that skipUnlessOcrToolsAvailable() just
+     * skipped, and reading an uninitialized typed property there would be
+     * a fatal error, not just a skip.
+     */
+    private string $scratchDir = '';
 
     protected function setUp(): void
     {
@@ -25,10 +31,12 @@ class ScannedPdfOcrExtractorTest extends TestCase
 
     protected function tearDown(): void
     {
-        foreach (glob($this->scratchDir.'/*') as $file) {
-            unlink($file);
+        if ($this->scratchDir !== '') {
+            foreach (glob($this->scratchDir.'/*') as $file) {
+                unlink($file);
+            }
+            rmdir($this->scratchDir);
         }
-        rmdir($this->scratchDir);
 
         parent::tearDown();
     }

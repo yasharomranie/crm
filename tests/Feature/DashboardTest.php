@@ -3,6 +3,7 @@
 namespace Tests\Feature;
 
 use App\Enums\DealStage;
+use App\Filament\Pages\Dashboard;
 use App\Filament\Widgets\BookingStatusChart;
 use App\Filament\Widgets\GanjnamehStatsOverview;
 use App\Filament\Widgets\RevenueTrendChart;
@@ -74,5 +75,15 @@ class DashboardTest extends TestCase
 
         Livewire::test(RevenueTrendChart::class)->assertOk();
         Livewire::test(BookingStatusChart::class)->assertOk();
+    }
+
+    public function test_the_process_queued_jobs_action_is_visible_and_confirms_on_click(): void
+    {
+        $this->actingAs(User::factory()->create(['is_active' => true]));
+
+        Livewire::test(Dashboard::class)
+            ->assertActionVisible('processQueuedJobs')
+            ->callAction('processQueuedJobs')
+            ->assertNotified();
     }
 }
