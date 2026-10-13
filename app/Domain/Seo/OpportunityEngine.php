@@ -8,14 +8,18 @@ use App\Enums\SeoContentItemStatus;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Enums\SeoTechnicalAuditStatus;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoInternalLink;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoOpportunity;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
+use App\Models\SeoSitemapEntry;
+use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTopicCluster;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
@@ -88,6 +92,9 @@ class OpportunityEngine
     /** A published page earning less than this fraction of its own topic cluster's average clicks is underperforming its peers, not just naturally quieter. */
     private const UNDERPERFORMING_CONTENT_RATIO = 0.3;
 
+    /** A cluster of just one page has no peer to link from or to - needs at least this many sitemap entries in the same cluster before "missing a link from a cluster peer" means anything. */
+    private const MIN_CLUSTER_SIZE_FOR_LINK_SUGGESTION = 2;
+
     public function __construct(
         private readonly SeoAlertService $alerts,
         private readonly ContentPerformanceService $contentPerformance,
@@ -105,6 +112,7 @@ class OpportunityEngine
         $this->detectCannibalization($project);
         $this->detectClusterCannibalization($project);
         $this->detectUnderperformingContent($project);
+        $this->detectMissingInternalLinksByCluster($project);
     }
 
     /**
@@ -781,6 +789,89 @@ class OpportunityEngine
                     ],
                     actions: ['improve_content', 'review_internal_links', 'review_search_intent'],
                     priority: SeoOpportunityPriority::Medium,
+                    confidence: SeoConfidenceLevel::Low,
+                );
+            }
+        }
+    }
+
+    /**
+     * Two or more sitemap pages already grouped into the same topic
+     * cluster (by OwnSitemapTopicMatcher) are natural candidates to link
+     * to each other - search engines read the internal link graph itself
+     * as a relevance signal, so a page with zero incoming links from any
+     * of its own cluster peers is missing an easy, free win. Reads the
+     * most recent *completed* technical audit's crawled link graph, the
+     * only source of internal links مرکز سئو has (same "latest completed
+     * audit" pattern SeoActionQueueService uses for technical issues) -
+     * a project that has never run a technical audit simply has nothing
+     * to check yet.
+     */
+    private function detectMissingInternalLinksByCluster(SeoProject $project): void
+    {
+        $latestAudit = SeoTechnicalAudit::where('seo_project_id', $project->id)
+            ->where('status', SeoTechnicalAuditStatus::Completed)
+            ->orderByDesc('completed_at')
+            ->first();
+
+        if (! $latestAudit) {
+            return;
+        }
+
+        $incomingLinksByNormalizedUrl = $latestAudit->internalLinks()
+            ->get()
+            ->groupBy(fn (SeoInternalLink $link) => SitemapUrlNormalizer::normalize($link->to_url))
+            ->map(fn (Collection $links) => $links->map(fn (SeoInternalLink $link) => SitemapUrlNormalizer::normalize($link->from_url))->unique());
+
+        $byCluster = SeoSitemapEntry::where('seo_project_id', $project->id)
+            ->whereNotNull('topic_cluster_id')
+            ->get()
+            ->groupBy('topic_cluster_id');
+
+        foreach ($byCluster as $clusterId => $entries) {
+            if ($entries->count() < self::MIN_CLUSTER_SIZE_FOR_LINK_SUGGESTION) {
+                continue;
+            }
+
+            $cluster = SeoTopicCluster::find($clusterId);
+
+            if (! $cluster) {
+                continue;
+            }
+
+            $normalizedUrlsInCluster = $entries->map(fn (SeoSitemapEntry $entry) => SitemapUrlNormalizer::normalize($entry->url));
+
+            foreach ($entries as $entry) {
+                $normalizedUrl = SitemapUrlNormalizer::normalize($entry->url);
+                $incomingFromAnySource = $incomingLinksByNormalizedUrl->get($normalizedUrl, collect());
+                $incomingFromClusterPeers = $incomingFromAnySource->intersect(
+                    $normalizedUrlsInCluster->reject(fn (string $url) => $url === $normalizedUrl)
+                );
+
+                if ($incomingFromClusterPeers->isNotEmpty()) {
+                    continue;
+                }
+
+                $suggestedLinkingPages = $entries
+                    ->reject(fn (SeoSitemapEntry $other) => $other->id === $entry->id)
+                    ->pluck('url')
+                    ->values()
+                    ->all();
+
+                $this->recordOrRefreshOpportunity(
+                    project: $project,
+                    type: SeoOpportunityType::MissingInternalLinks,
+                    subjectQuery: null,
+                    subjectPageUrl: $entry->url,
+                    title: sprintf('«%s» هیچ لینک داخلی از صفحات هم‌موضوع خود (خوشه‌ی «%s») ندارد', $entry->title ?? $entry->url, $cluster->name),
+                    evidence: [
+                        'page_url' => $entry->url,
+                        'topic' => $cluster->name,
+                        'incoming_internal_links' => $incomingFromAnySource->count(),
+                        'suggested_linking_pages' => $suggestedLinkingPages,
+                    ],
+                    actions: ['add_internal_links_from_cluster_pages'],
+                    priority: SeoOpportunityPriority::Low,
                     confidence: SeoConfidenceLevel::Low,
                 );
             }

@@ -28,6 +28,8 @@ enum SeoOpportunityType: string implements HasLabel
     case PageOneRegression = 'page_one_regression';
     case ClusterCannibalization = 'cluster_cannibalization';
     case UnderperformingContent = 'underperforming_content';
+    case MissingInternalLinks = 'missing_internal_links';
+    case UnderLinkedPage = 'under_linked_page';
 
     public function getLabel(): string
     {
@@ -54,6 +56,8 @@ enum SeoOpportunityType: string implements HasLabel
             self::PageOneRegression => 'بازگشت از صفحه‌ی اول گوگل',
             self::ClusterCannibalization => 'کانیبالیزیشن در سطح خوشه‌ی موضوعی',
             self::UnderperformingContent => 'محتوای ضعیف‌تر از میانگین هم‌خوشه‌اش',
+            self::MissingInternalLinks => 'بدون لینک داخلی از صفحات هم‌موضوع',
+            self::UnderLinkedPage => 'صفحه‌ی پرترافیک با لینک داخلی کم',
         };
     }
 }

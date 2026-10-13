@@ -10,11 +10,14 @@ use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
 use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoInternalLink;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
+use App\Models\SeoSitemapEntry;
+use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
@@ -567,5 +570,70 @@ class OpportunityEngineTest extends TestCase
             1,
             $project->opportunities()->where('status', SeoOpportunityStatus::Detected->value)->count(),
         );
+    }
+
+    public function test_it_flags_cluster_pages_with_no_incoming_internal_links_from_each_other(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create(['name' => 'ویلا']);
+        $pageA = 'https://ganjnameh.example.com/villa-a';
+        $pageB = 'https://ganjnameh.example.com/villa-b';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageA, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageB, 'topic_cluster_id' => $cluster->id]);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunities = $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->get();
+        $this->assertCount(2, $opportunities);
+
+        $opportunityForA = $opportunities->firstWhere('subject_page_url', $pageA);
+        $this->assertSame('ویلا', $opportunityForA->evidence['topic']);
+        $this->assertSame([$pageB], $opportunityForA->evidence['suggested_linking_pages']);
+    }
+
+    public function test_it_does_not_flag_a_page_already_linked_from_a_cluster_peer(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $pageA = 'https://ganjnameh.example.com/villa-a';
+        $pageB = 'https://ganjnameh.example.com/villa-b';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageA, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageB, 'topic_cluster_id' => $cluster->id]);
+        $audit = SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+        SeoInternalLink::factory()->create(['seo_technical_audit_id' => $audit->id, 'from_url' => $pageB, 'to_url' => $pageA]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertNull(
+            $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->where('subject_page_url', $pageA)->first()
+        );
+        $this->assertNotNull(
+            $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->where('subject_page_url', $pageB)->first()
+        );
+    }
+
+    public function test_it_does_not_flag_missing_internal_links_without_a_completed_technical_audit(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->count());
+    }
+
+    public function test_it_does_not_flag_missing_internal_links_for_a_single_page_cluster(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->count());
     }
 }

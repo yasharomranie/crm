@@ -47,6 +47,7 @@ class OpportunityEvidenceFormatter
         'consider_merging_or_redirecting' => 'بررسی ادغام یا ریدایرکت صفحه',
         'check_indexing_status' => 'بررسی وضعیت ایندکس‌شدن در گوگل',
         'check_internal_links' => 'بررسی لینک‌های داخلی به این صفحه',
+        'add_internal_links_from_cluster_pages' => 'افزودن لینک داخلی از صفحات هم‌موضوع',
     ];
 
     /**
@@ -78,6 +79,8 @@ class OpportunityEvidenceFormatter
         'cluster_average_clicks' => 'میانگین کلیک این خوشه',
         'clicks_same_week_last_year' => 'کلیک همین بازه در سال قبل',
         'percent_change_vs_last_year' => 'درصد تغییر نسبت به سال قبل',
+        'suggested_linking_pages' => 'صفحات پیشنهادی برای لینک‌دهی',
+        'incoming_internal_links' => 'تعداد لینک‌های داخلی ورودی',
     ];
 
     public static function actionLabel(string $code): string

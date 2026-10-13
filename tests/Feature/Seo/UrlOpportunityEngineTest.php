@@ -6,9 +6,11 @@ use App\Domain\Seo\UrlOpportunityEngine;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Models\SeoInternalLink;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
+use App\Models\SeoTechnicalAudit;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -200,5 +202,61 @@ class UrlOpportunityEngineTest extends TestCase
         app(UrlOpportunityEngine::class)->scan($project);
 
         $this->assertNotNull($project->opportunities()->where('type', SeoOpportunityType::UrlCtrOpportunity->value)->first());
+    }
+
+    public function test_it_flags_a_high_traffic_page_with_barely_any_incoming_internal_links(): void
+    {
+        $project = SeoProject::factory()->create();
+        $url = 'https://ganjnameh.example.com/popular-page';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $url]);
+        $this->fillPageMetrics($project, $url, 10, dailyClicks: 2, dailyImpressions: 20, position: 4.0);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        app(UrlOpportunityEngine::class)->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::UnderLinkedPage->value)->first();
+        $this->assertNotNull($opportunity);
+        $this->assertSame($url, $opportunity->subject_page_url);
+        $this->assertSame(0, $opportunity->evidence['incoming_internal_links']);
+    }
+
+    public function test_it_does_not_flag_a_high_traffic_page_that_already_has_more_than_one_internal_link(): void
+    {
+        $project = SeoProject::factory()->create();
+        $url = 'https://ganjnameh.example.com/well-linked-page';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $url]);
+        $this->fillPageMetrics($project, $url, 10, dailyClicks: 2, dailyImpressions: 20, position: 4.0);
+        $audit = SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+        SeoInternalLink::factory()->create(['seo_technical_audit_id' => $audit->id, 'from_url' => 'https://ganjnameh.example.com/home', 'to_url' => $url]);
+        SeoInternalLink::factory()->create(['seo_technical_audit_id' => $audit->id, 'from_url' => 'https://ganjnameh.example.com/menu', 'to_url' => $url]);
+
+        app(UrlOpportunityEngine::class)->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::UnderLinkedPage->value)->count());
+    }
+
+    public function test_it_does_not_flag_a_low_traffic_page_even_with_no_internal_links(): void
+    {
+        $project = SeoProject::factory()->create();
+        $url = 'https://ganjnameh.example.com/quiet-page';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $url]);
+        $this->fillPageMetrics($project, $url, 10, dailyClicks: 0, dailyImpressions: 5, position: 15.0);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        app(UrlOpportunityEngine::class)->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::UnderLinkedPage->value)->count());
+    }
+
+    public function test_it_does_not_flag_under_linked_pages_without_a_completed_technical_audit(): void
+    {
+        $project = SeoProject::factory()->create();
+        $url = 'https://ganjnameh.example.com/popular-page-no-audit';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $url]);
+        $this->fillPageMetrics($project, $url, 10, dailyClicks: 2, dailyImpressions: 20, position: 4.0);
+
+        app(UrlOpportunityEngine::class)->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::UnderLinkedPage->value)->count());
     }
 }
