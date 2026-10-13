@@ -84,4 +84,34 @@ class SearchConsoleClientTest extends TestCase
             ['date'],
         );
     }
+
+    public function test_it_reads_a_sitemaps_status(): void
+    {
+        Http::fake([
+            'www.googleapis.com/webmasters/v3/sites/*/sitemaps/*' => Http::response([
+                'path' => 'https://ganjnameh.example.com/sitemap.xml',
+                'lastDownloaded' => '2026-10-12T03:00:00.000Z',
+                'isPending' => false,
+                'warnings' => '0',
+                'errors' => '2',
+            ]),
+        ]);
+
+        $status = (new SearchConsoleClient('token-123'))->getSitemap('https://ganjnameh.example.com/', 'https://ganjnameh.example.com/sitemap.xml');
+
+        $this->assertSame('2', $status['errors']);
+        Http::assertSent(fn ($request) => $request->hasHeader('Authorization', 'Bearer token-123'));
+    }
+
+    public function test_get_sitemap_throws_with_googles_error_message_on_failure(): void
+    {
+        Http::fake([
+            'www.googleapis.com/webmasters/v3/sites/*/sitemaps/*' => Http::response(['error' => ['message' => 'sitemap پیدا نشد.']], 404),
+        ]);
+
+        $this->expectException(SeoGoogleException::class);
+        $this->expectExceptionMessage('sitemap پیدا نشد.');
+
+        (new SearchConsoleClient('token-123'))->getSitemap('https://ganjnameh.example.com/', 'https://ganjnameh.example.com/sitemap.xml');
+    }
 }

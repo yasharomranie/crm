@@ -2,6 +2,7 @@
 
 namespace App\Domain\Seo;
 
+use App\Exceptions\SeoGoogleException;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
 use Carbon\Carbon;
@@ -14,6 +15,11 @@ use Illuminate\Support\Collection;
  * across runs - a plain upsert-to-latest-state table (like
  * SeoUrlInspection) couldn't answer either question, since it would
  * have no memory of the previous sync.
+ *
+ * checkGoogleStatus() is a separate, Google-connection-only concern (how
+ * Google itself sees the submitted sitemap, via the free Sitemaps API) -
+ * best-effort from App\Jobs\SyncSitemapDataJob, since plenty of projects
+ * sync their own sitemap without a Google connection at all.
  *
  * coverageByCluster() reads what App\Domain\Seo\OwnSitemapTopicMatcher
  * classifies those same entries into, after this service's own sync -
@@ -29,6 +35,7 @@ class SitemapMonitorService
     public function __construct(
         private readonly SitemapClient $client,
         private readonly HtmlPageTitleFetcher $titleFetcher,
+        private readonly GoogleOAuthService $oauth,
     ) {}
 
     public function sync(SeoProject $project): void
@@ -65,6 +72,39 @@ class SitemapMonitorService
             ->get()
             ->groupBy('topic_cluster_id')
             ->map(fn (Collection $entries) => $entries->count());
+    }
+
+    /**
+     * Google's own free Sitemaps API view of this project's submitted
+     * sitemap - errors/warnings Google itself found reading the file,
+     * never visible anywhere in this app before (SitemapClient only
+     * ever reads the raw XML directly, which can't see what Google made
+     * of it). Stored on the project rather than refetched on every page
+     * view, since it's a live Google API call.
+     *
+     * @return array{path?: string, lastSubmitted?: string, isPending?: bool, isSitemapsIndex?: bool, lastDownloaded?: string, warnings?: string, errors?: string}
+     */
+    public function checkGoogleStatus(SeoProject $project): array
+    {
+        if (blank($project->sitemap_url)) {
+            throw new \RuntimeException('آدرس sitemap برای این پروژه ثبت نشده است.');
+        }
+
+        $connection = $project->googleConnection;
+
+        if (! $connection || blank($connection->gsc_site_url)) {
+            throw SeoGoogleException::notConnected();
+        }
+
+        $accessToken = $this->oauth->freshAccessTokenFor($connection);
+        $status = (new SearchConsoleClient($accessToken))->getSitemap($connection->gsc_site_url, $project->sitemap_url);
+
+        $project->update([
+            'google_sitemap_status' => $status,
+            'google_sitemap_checked_at' => now(),
+        ]);
+
+        return $status;
     }
 
     private function upsertEntry(SeoProject $project, string $url, ?string $lastmodRaw, Carbon $now): void

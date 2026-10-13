@@ -3,6 +3,9 @@
 namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\SitemapMonitorService;
+use App\Enums\SeoConnectionStatus;
+use App\Exceptions\SeoGoogleException;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
 use App\Models\SeoTopicCluster;
@@ -184,5 +187,56 @@ class SitemapMonitorServiceTest extends TestCase
         $this->assertSame(2, $coverage->get($clusterA->id));
         $this->assertSame(1, $coverage->get($clusterB->id));
         $this->assertCount(2, $coverage);
+    }
+
+    public function test_check_google_status_stores_the_result_on_the_project(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'access_token' => 'valid-token',
+            'token_expires_at' => now()->addHour(),
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+            'status' => SeoConnectionStatus::Connected,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/webmasters/v3/sites/*/sitemaps/*' => Http::response([
+                'path' => 'https://ganjnameh.example.com/sitemap.xml',
+                'warnings' => '1',
+                'errors' => '0',
+                'isPending' => false,
+            ]),
+        ]);
+
+        $status = app(SitemapMonitorService::class)->checkGoogleStatus($project);
+
+        $this->assertSame('1', $status['warnings']);
+        $project->refresh();
+        $this->assertSame('1', $project->google_sitemap_status['warnings']);
+        $this->assertNotNull($project->google_sitemap_checked_at);
+    }
+
+    public function test_check_google_status_throws_when_the_project_has_no_google_connection(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+
+        $this->expectException(SeoGoogleException::class);
+
+        app(SitemapMonitorService::class)->checkGoogleStatus($project);
+    }
+
+    public function test_check_google_status_throws_when_the_project_has_no_sitemap_url(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => null]);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+            'status' => SeoConnectionStatus::Connected,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+
+        app(SitemapMonitorService::class)->checkGoogleStatus($project);
     }
 }

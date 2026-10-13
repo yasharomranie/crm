@@ -47,6 +47,36 @@
                     </div>
                 </div>
 
+                @php($googleStatus = $this->googleStatus())
+                @if ($googleStatus)
+                    <div class="rounded-lg border border-gray-200 p-3 dark:border-white/10">
+                        <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">
+                            وضعیت Sitemap نزد گوگل
+                            @if ($this->googleStatusCheckedAt())
+                                <span class="text-gray-400">(آخرین بررسی: {{ $this->googleStatusCheckedAt()->translatedFormat('Y/m/d H:i') }})</span>
+                            @endif
+                        </p>
+                        <div class="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">خطا</p>
+                                <p class="mt-1 text-lg font-bold {{ ($googleStatus['errors'] ?? '0') !== '0' ? 'text-danger-600' : 'text-gray-950 dark:text-white' }}">{{ $googleStatus['errors'] ?? '۰' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">هشدار</p>
+                                <p class="mt-1 text-lg font-bold {{ ($googleStatus['warnings'] ?? '0') !== '0' ? 'text-warning-600' : 'text-gray-950 dark:text-white' }}">{{ $googleStatus['warnings'] ?? '۰' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">آخرین دریافت گوگل</p>
+                                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ $googleStatus['lastDownloaded'] ?? '—' }}</p>
+                            </div>
+                            <div>
+                                <p class="text-xs text-gray-500 dark:text-gray-400">در انتظار بررسی</p>
+                                <p class="mt-1 text-sm text-gray-700 dark:text-gray-300">{{ ($googleStatus['isPending'] ?? false) ? 'بله' : 'خیر' }}</p>
+                            </div>
+                        </div>
+                    </div>
+                @endif
+
                 {{-- نمودارها --}}
                 <div class="grid gap-4 lg:grid-cols-3">
                     <div wire:key="sitemap-chart-growth-{{ $projectId }}" class="rounded-lg border border-gray-200 p-3 dark:border-white/10 lg:col-span-1">
