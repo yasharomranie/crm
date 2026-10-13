@@ -35,21 +35,9 @@
                         <tbody class="divide-y divide-gray-100 dark:divide-white/5">
                             @foreach ($items as $item)
                                 <tr>
-                                    @php
-                                        $sourceLabel = match ($item->source) {
-                                            'technical_issue' => 'مشکل تکنیکال',
-                                            'keyword_suggestion' => 'پیشنهاد کلمه کلیدی',
-                                            default => 'فرصت سئو',
-                                        };
-                                        $sourceColor = match ($item->source) {
-                                            'technical_issue' => 'danger',
-                                            'keyword_suggestion' => 'info',
-                                            default => 'warning',
-                                        };
-                                    @endphp
                                     <td class="px-3 py-2">
-                                        <x-filament::badge :color="$sourceColor">
-                                            {{ $sourceLabel }}
+                                        <x-filament::badge :color="$item->sourceColor()">
+                                            {{ $item->sourceLabel() }}
                                         </x-filament::badge>
                                     </td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ $item->title }}</td>
