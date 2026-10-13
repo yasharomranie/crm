@@ -370,7 +370,11 @@ class OpportunityEngineTest extends TestCase
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::StrikingDistance->value)->firstOrFail();
         $this->assertSame($profile->query, $opportunity->subject_query);
-        $this->assertSame(14.0, $opportunity->evidence['position']);
+        // assertEquals, not assertSame: a whole-number float loses its
+        // ".0" on the evidence array's JSON round-trip (PHP's json_encode
+        // drops it without JSON_PRESERVE_ZERO_FRACTION), so this decodes
+        // back as int 14, not float 14.0.
+        $this->assertEquals(14.0, $opportunity->evidence['position']);
     }
 
     public function test_it_does_not_flag_striking_distance_for_a_top_ten_keyword(): void
@@ -397,7 +401,9 @@ class OpportunityEngineTest extends TestCase
 
         $opportunity = $project->opportunities()->where('type', SeoOpportunityType::PageOneRegression->value)->firstOrFail();
         $this->assertSame($profile->query, $opportunity->subject_query);
-        $this->assertSame(4.0, $opportunity->evidence['best_position']);
+        // assertEquals, not assertSame - see the same note in the
+        // striking-distance test above.
+        $this->assertEquals(4.0, $opportunity->evidence['best_position']);
     }
 
     public function test_it_does_not_flag_a_regression_for_a_keyword_that_never_reached_page_one(): void
