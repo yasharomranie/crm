@@ -24,6 +24,10 @@ enum SeoOpportunityType: string implements HasLabel
     case PageAnomalyNegative = 'page_anomaly_negative';
     case QueryAnomalyPositive = 'query_anomaly_positive';
     case QueryAnomalyNegative = 'query_anomaly_negative';
+    case StrikingDistance = 'striking_distance';
+    case PageOneRegression = 'page_one_regression';
+    case ClusterCannibalization = 'cluster_cannibalization';
+    case UnderperformingContent = 'underperforming_content';
 
     public function getLabel(): string
     {
@@ -46,6 +50,10 @@ enum SeoOpportunityType: string implements HasLabel
             self::PageAnomalyNegative => 'افت غیرعادی کلیک یک صفحه',
             self::QueryAnomalyPositive => 'رشد غیرعادی کلیک یک کلمه‌کلیدی',
             self::QueryAnomalyNegative => 'افت غیرعادی کلیک یک کلمه‌کلیدی',
+            self::StrikingDistance => 'در آستانه‌ی صفحه‌ی اول (Striking Distance)',
+            self::PageOneRegression => 'بازگشت از صفحه‌ی اول گوگل',
+            self::ClusterCannibalization => 'کانیبالیزیشن در سطح خوشه‌ی موضوعی',
+            self::UnderperformingContent => 'محتوای ضعیف‌تر از میانگین هم‌خوشه‌اش',
         };
     }
 }

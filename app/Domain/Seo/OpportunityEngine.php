@@ -4,9 +4,11 @@ namespace App\Domain\Seo;
 
 use App\Enums\SeoCannibalizationRisk;
 use App\Enums\SeoConfidenceLevel;
+use App\Enums\SeoContentItemStatus;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoOpportunity;
@@ -14,6 +16,7 @@ use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
+use App\Models\SeoTopicCluster;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
@@ -67,16 +70,41 @@ class OpportunityEngine
 
     private const CANNIBALIZATION_MIN_IMPRESSIONS = 20;
 
-    public function __construct(private readonly SeoAlertService $alerts) {}
+    /** "Page two" by the usual SEO-practitioner definition - close enough to page one to be worth a deliberate push, not a long-shot. */
+    private const STRIKING_DISTANCE_MIN_POSITION = 11;
+
+    private const STRIKING_DISTANCE_MAX_POSITION = 20;
+
+    private const STRIKING_DISTANCE_MIN_IMPRESSIONS = 20;
+
+    /** A keyword's best-ever position at or above this is "has been on page one" - losing that is a genuine regression, not just normal rank noise. */
+    private const PAGE_ONE_THRESHOLD = 10;
+
+    private const CLUSTER_CANNIBALIZATION_MIN_IMPRESSIONS = 20;
+
+    /** 52 weeks back, not a flat 365 - keeps the same day-of-week alignment the current/previous-week comparison above already relies on. */
+    private const YEAR_OVER_YEAR_DAYS = 364;
+
+    /** A published page earning less than this fraction of its own topic cluster's average clicks is underperforming its peers, not just naturally quieter. */
+    private const UNDERPERFORMING_CONTENT_RATIO = 0.3;
+
+    public function __construct(
+        private readonly SeoAlertService $alerts,
+        private readonly ContentPerformanceService $contentPerformance,
+    ) {}
 
     public function scan(SeoProject $project): void
     {
         $this->detectCtrOpportunities($project);
+        $this->detectStrikingDistanceKeywords($project);
+        $this->detectPageOneRegressions($project);
         $this->detectTrafficDrop($project);
         $this->detectAnomalies($project);
         $this->detectPageAnomalies($project);
         $this->detectQueryAnomalies($project);
         $this->detectCannibalization($project);
+        $this->detectClusterCannibalization($project);
+        $this->detectUnderperformingContent($project);
     }
 
     /**
@@ -138,6 +166,84 @@ class OpportunityEngine
     }
 
     /**
+     * "Page two" keywords - ranking just outside the top 10 with real
+     * impressions already, the classic low-effort "push it onto page
+     * one" opportunity. Deliberately overlaps the CTR detector's own
+     * 1-15 range in positions 11-15: the two recommend different fixes
+     * (CTR: fix the title/meta; this: more content/internal links/
+     * backlinks), so a keyword legitimately flagged by both is useful,
+     * not noisy.
+     */
+    private function detectStrikingDistanceKeywords(SeoProject $project): void
+    {
+        $profiles = SeoKeywordProfile::where('seo_project_id', $project->id)
+            ->where('impressions_28d', '>=', self::STRIKING_DISTANCE_MIN_IMPRESSIONS)
+            ->whereNotNull('current_position')
+            ->whereBetween('current_position', [self::STRIKING_DISTANCE_MIN_POSITION, self::STRIKING_DISTANCE_MAX_POSITION])
+            ->get();
+
+        foreach ($profiles as $profile) {
+            $this->recordOrRefreshOpportunity(
+                project: $project,
+                type: SeoOpportunityType::StrikingDistance,
+                subjectQuery: $profile->query,
+                subjectPageUrl: $profile->landing_page,
+                title: "«{$profile->query}» در آستانه‌ی صفحه‌ی اول است (رتبه‌ی فعلی {$profile->current_position})",
+                evidence: [
+                    'keyword' => $profile->query,
+                    'position' => (float) $profile->current_position,
+                    'impressions_28d' => $profile->impressions_28d,
+                    'clicks_28d' => $profile->clicks_28d,
+                    'landing_page' => $profile->landing_page,
+                ],
+                actions: ['improve_content', 'review_internal_links', 'check_backlinks'],
+                priority: $profile->impressions_28d >= 500 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
+                confidence: SeoConfidenceLevel::Medium,
+            );
+        }
+    }
+
+    /**
+     * A keyword that has genuinely been on page one before
+     * (best_position, which KeywordIntelligenceService tracks
+     * separately from the current rolling window) and has now fallen
+     * past it is a real regression worth more attention than a keyword
+     * that simply never reached page one - the two are easy to conflate
+     * from current_position alone.
+     */
+    private function detectPageOneRegressions(SeoProject $project): void
+    {
+        $profiles = SeoKeywordProfile::where('seo_project_id', $project->id)
+            ->where('impressions_28d', '>=', self::STRIKING_DISTANCE_MIN_IMPRESSIONS)
+            ->whereNotNull('current_position')
+            ->whereNotNull('best_position')
+            ->where('best_position', '<=', self::PAGE_ONE_THRESHOLD)
+            ->where('current_position', '>', self::PAGE_ONE_THRESHOLD)
+            ->get();
+
+        foreach ($profiles as $profile) {
+            $this->recordOrRefreshOpportunity(
+                project: $project,
+                type: SeoOpportunityType::PageOneRegression,
+                subjectQuery: $profile->query,
+                subjectPageUrl: $profile->landing_page,
+                title: "«{$profile->query}» از صفحه‌ی اول گوگل خارج شده (بهترین رتبه {$profile->best_position}، اکنون {$profile->current_position})",
+                evidence: [
+                    'keyword' => $profile->query,
+                    'best_position' => (float) $profile->best_position,
+                    'position' => (float) $profile->current_position,
+                    'impressions_28d' => $profile->impressions_28d,
+                    'clicks_28d' => $profile->clicks_28d,
+                    'landing_page' => $profile->landing_page,
+                ],
+                actions: ['check_technical_issues', 'check_serp_competition', 'check_backlinks', 'review_content_relevance'],
+                priority: $profile->impressions_28d >= 500 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
+                confidence: SeoConfidenceLevel::Medium,
+            );
+        }
+    }
+
+    /**
      * Project-wide, not per-keyword: last 7 days of clicks vs the 7 days
      * before, then a causal chain down through query/page to name *which*
      * queries/pages actually drove the drop rather than just reporting the
@@ -182,6 +288,16 @@ class OpportunityEngine
             ? SeoConfidenceLevel::High
             : SeoConfidenceLevel::Medium;
 
+        // Context only, never a confidence/priority input on its own - a
+        // business this seasonal (Hamedan tourism) can show the exact
+        // same week-over-week drop every single year around the same
+        // date, and a reader needs to see that to tell a real problem
+        // apart from the normal seasonal rhythm.
+        $lastYearClicks = (int) SeoDailyMetric::where('seo_project_id', $project->id)
+            ->whereDate('date', '>=', $currentStart->clone()->subDays(self::YEAR_OVER_YEAR_DAYS))
+            ->whereDate('date', '<=', $referenceDate->clone()->subDays(self::YEAR_OVER_YEAR_DAYS))
+            ->sum('clicks');
+
         $this->recordOrRefreshOpportunity(
             project: $project,
             type: SeoOpportunityType::TrafficDrop,
@@ -194,6 +310,8 @@ class OpportunityEngine
                 'percent_change' => round($percentChange * 100, 1),
                 'top_declining_queries' => $topQueries->values()->all(),
                 'top_declining_pages' => $topPages->values()->all(),
+                'clicks_same_week_last_year' => $lastYearClicks,
+                'percent_change_vs_last_year' => $lastYearClicks > 0 ? round((($currentClicks - $lastYearClicks) / $lastYearClicks) * 100, 1) : null,
             ],
             actions: ['check_technical_issues', 'check_serp_competition', 'check_seasonality', 'review_top_declining_pages'],
             priority: $percentChange <= -0.30 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
@@ -541,6 +659,132 @@ class OpportunityEngine
         SeoKeywordProfile::where('seo_project_id', $project->id)
             ->where('query_hash', $queryHash)
             ->update(['cannibalization_risk' => $risk->value]);
+    }
+
+    /**
+     * detectCannibalization() above only ever catches two pages ranking
+     * for the *exact same* query text - "اجاره ویلا همدان" and "اجاره
+     * ویلا در همدان" are two different query_hash values and never
+     * compared, even though AiKeywordClassifier already grouped both
+     * into the same topic_cluster_id. This is the cluster-level
+     * counterpart: several distinct keywords in the same topic, each
+     * landing on a different page, is the same underlying problem
+     * (several pages competing for one topic) just not caught by an
+     * exact-text match - hence the lower, Low confidence, since it's a
+     * cluster-level inference rather than a measured click split.
+     */
+    private function detectClusterCannibalization(SeoProject $project): void
+    {
+        $byCluster = SeoKeywordProfile::where('seo_project_id', $project->id)
+            ->whereNotNull('topic_cluster_id')
+            ->whereNotNull('landing_page')
+            ->where('impressions_28d', '>=', self::CLUSTER_CANNIBALIZATION_MIN_IMPRESSIONS)
+            ->get()
+            ->groupBy('topic_cluster_id');
+
+        foreach ($byCluster as $clusterId => $profiles) {
+            $distinctPages = $profiles->pluck('landing_page')->unique();
+
+            if ($distinctPages->count() < 2) {
+                continue;
+            }
+
+            $cluster = SeoTopicCluster::find($clusterId);
+
+            if (! $cluster) {
+                continue;
+            }
+
+            $pages = $profiles->groupBy('landing_page')->map(fn (Collection $group, string $pageUrl) => [
+                'page_url' => $pageUrl,
+                'queries' => $group->pluck('query')->all(),
+                'clicks' => (int) $group->sum('clicks_28d'),
+                'impressions' => (int) $group->sum('impressions_28d'),
+            ])->values();
+
+            $this->recordOrRefreshOpportunity(
+                project: $project,
+                type: SeoOpportunityType::ClusterCannibalization,
+                subjectQuery: $cluster->name,
+                subjectPageUrl: null,
+                title: "چند صفحه برای موضوع «{$cluster->name}» با هم رقابت می‌کنند",
+                evidence: ['topic' => $cluster->name, 'pages' => $pages->all()],
+                actions: ['choose_primary_page', 'differentiate_or_merge_content', 'update_internal_links_to_primary'],
+                priority: $distinctPages->count() >= 3 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
+                confidence: SeoConfidenceLevel::Low,
+            );
+        }
+    }
+
+    /**
+     * ContentPerformanceService already knows each published
+     * SeoContentItem's real clicks; this is the first place that
+     * compares one item's performance against its own topic-cluster
+     * peers rather than in isolation - a page doing fine in absolute
+     * terms can still be the clear laggard next to every other piece
+     * written on the same topic, which is exactly the signal a content
+     * refresh decision needs. Needs at least two published items in the
+     * same cluster to have a peer average worth comparing against.
+     */
+    private function detectUnderperformingContent(SeoProject $project): void
+    {
+        $items = SeoContentItem::where('seo_project_id', $project->id)
+            ->where('status', SeoContentItemStatus::Published)
+            ->whereNotNull('published_url')
+            ->with(['keywordProfile', 'keywordSuggestion'])
+            ->get();
+
+        $byCluster = $items
+            ->map(fn (SeoContentItem $item) => [
+                'item' => $item,
+                'cluster_id' => $item->keywordProfile?->topic_cluster_id ?? $item->keywordSuggestion?->topic_cluster_id,
+                'clicks' => $this->contentPerformance->summarize($item)['clicks'],
+            ])
+            ->filter(fn (array $row) => $row['cluster_id'] !== null)
+            ->groupBy('cluster_id');
+
+        foreach ($byCluster as $clusterId => $rows) {
+            if ($rows->count() < 2) {
+                continue;
+            }
+
+            $averageClicks = $rows->avg('clicks');
+
+            if ($averageClicks <= 0) {
+                continue;
+            }
+
+            $cluster = SeoTopicCluster::find($clusterId);
+
+            if (! $cluster) {
+                continue;
+            }
+
+            foreach ($rows as $row) {
+                if ($row['clicks'] >= $averageClicks * self::UNDERPERFORMING_CONTENT_RATIO) {
+                    continue;
+                }
+
+                $item = $row['item'];
+
+                $this->recordOrRefreshOpportunity(
+                    project: $project,
+                    type: SeoOpportunityType::UnderperformingContent,
+                    subjectQuery: null,
+                    subjectPageUrl: $item->published_url,
+                    title: "«{$item->title}» خیلی ضعیف‌تر از محتوای مشابه در موضوع «{$cluster->name}» عمل می‌کند",
+                    evidence: [
+                        'page_url' => $item->published_url,
+                        'clicks_28d' => $row['clicks'],
+                        'cluster_average_clicks' => round($averageClicks, 1),
+                        'topic' => $cluster->name,
+                    ],
+                    actions: ['improve_content', 'review_internal_links', 'review_search_intent'],
+                    priority: SeoOpportunityPriority::Medium,
+                    confidence: SeoConfidenceLevel::Low,
+                );
+            }
+        }
     }
 
     /**

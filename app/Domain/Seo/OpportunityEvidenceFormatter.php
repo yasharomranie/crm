@@ -73,6 +73,11 @@ class OpportunityEvidenceFormatter
         'pages' => 'صفحات رقیب برای این کلمه',
         'page_url' => 'آدرس صفحه',
         'published_days_ago' => 'روز از انتشار',
+        'best_position' => 'بهترین رتبه‌ی ثبت‌شده',
+        'topic' => 'موضوع',
+        'cluster_average_clicks' => 'میانگین کلیک این خوشه',
+        'clicks_same_week_last_year' => 'کلیک همین بازه در سال قبل',
+        'percent_change_vs_last_year' => 'درصد تغییر نسبت به سال قبل',
     ];
 
     public static function actionLabel(string $code): string
