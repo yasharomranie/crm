@@ -13,7 +13,7 @@
         <dl class="mt-2 divide-y divide-gray-100 dark:divide-white/10 text-sm">
             @foreach ($opportunity->evidence as $key => $value)
                 <div class="flex justify-between gap-4 py-1.5">
-                    <dt class="text-gray-500 dark:text-gray-400">{{ $key }}</dt>
+                    <dt class="text-gray-500 dark:text-gray-400">{{ \App\Domain\Seo\OpportunityEvidenceFormatter::evidenceKeyLabel($key) }}</dt>
                     <dd class="text-gray-950 dark:text-white font-medium text-left" dir="ltr">
                         @if (is_array($value))
                             <pre class="whitespace-pre-wrap text-xs">{{ json_encode($value, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT) }}</pre>
@@ -30,7 +30,7 @@
         <h3 class="text-sm font-semibold text-gray-950 dark:text-white">اقدامات پیشنهادی</h3>
         <ul class="mt-2 list-disc pr-5 text-sm text-gray-700 dark:text-gray-300 space-y-1">
             @foreach ($opportunity->recommended_actions as $action)
-                <li>{{ $action }}</li>
+                <li>{{ \App\Domain\Seo\OpportunityEvidenceFormatter::actionLabel($action) }}</li>
             @endforeach
         </ul>
     </div>
