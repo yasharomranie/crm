@@ -4,9 +4,11 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\SeoActionQueueService;
 use App\Enums\SeoConfidenceLevel;
+use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoTechnicalIssueSeverity;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
 use App\Models\SeoTechnicalAudit;
@@ -89,6 +91,50 @@ class SeoActionQueueServiceTest extends TestCase
     public function test_a_project_with_nothing_detected_returns_an_empty_queue(): void
     {
         $project = SeoProject::factory()->create();
+
+        $items = app(SeoActionQueueService::class)->items($project);
+
+        $this->assertCount(0, $items);
+    }
+
+    public function test_a_pending_keyword_suggestion_appears_in_the_queue(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        SeoKeywordSuggestion::factory()->create([
+            'seo_project_id' => $project->id,
+            'keyword' => 'اجاره ویلا نزدیک گنجنامه',
+            'reason' => 'شکاف رقابتی: ۲ از رقبای شما محتوا دارند.',
+            'status' => SeoKeywordSuggestionStatus::New,
+        ]);
+
+        $items = app(SeoActionQueueService::class)->items($project);
+
+        $this->assertCount(1, $items);
+        $this->assertSame('keyword_suggestion', $items[0]->source);
+        $this->assertSame('اجاره ویلا نزدیک گنجنامه', $items[0]->title);
+        $this->assertSame('شکاف رقابتی: ۲ از رقبای شما محتوا دارند.', $items[0]->detail);
+    }
+
+    public function test_approved_and_rejected_keyword_suggestions_are_excluded(): void
+    {
+        $project = SeoProject::factory()->create();
+
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'status' => SeoKeywordSuggestionStatus::Approved]);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'status' => SeoKeywordSuggestionStatus::Rejected]);
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $project->id, 'status' => SeoKeywordSuggestionStatus::New]);
+
+        $items = app(SeoActionQueueService::class)->items($project);
+
+        $this->assertCount(1, $items);
+    }
+
+    public function test_a_keyword_suggestion_from_another_project_is_excluded(): void
+    {
+        $project = SeoProject::factory()->create();
+        $otherProject = SeoProject::factory()->create();
+
+        SeoKeywordSuggestion::factory()->create(['seo_project_id' => $otherProject->id, 'status' => SeoKeywordSuggestionStatus::New]);
 
         $items = app(SeoActionQueueService::class)->items($project);
 

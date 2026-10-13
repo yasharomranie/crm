@@ -2,8 +2,10 @@
 
 namespace App\Domain\Seo;
 
+use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoTechnicalAuditStatus;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
 use App\Models\SeoTechnicalAudit;
@@ -12,15 +14,18 @@ use Illuminate\Support\Collection;
 
 /**
  * Merges every open finding across مرکز سئو's otherwise-separate modules
- * (keyword/URL opportunities today, technical audit issues, and future
- * sources like content gaps - see the project roadmap's "فاز ۰") into one
- * priority-ordered list, so a project owner sees "do these N things" in
- * one place instead of hunting through N different resource tables.
+ * (keyword/URL opportunities, technical audit issues, and pending keyword
+ * suggestions - whether AI-discovered or gap-detected, see
+ * App\Domain\Seo\AiKeywordDiscoveryService and
+ * App\Domain\Seo\CompetitorContentGapService) into one priority-ordered
+ * list, so a project owner sees "do these N things" in one place instead
+ * of hunting through N different resource tables.
  *
  * Deliberately a read-time aggregation, not a new persisted table: each
  * source already owns its own lifecycle (an opportunity's own status, an
- * issue's presence in the latest technical audit), and duplicating that
- * into a second table would only risk the two drifting out of sync.
+ * issue's presence in the latest technical audit, a suggestion's own
+ * status), and duplicating that into a second table would only risk the
+ * two drifting out of sync.
  */
 class SeoActionQueueService
 {
@@ -52,12 +57,21 @@ class SeoActionQueueService
     ];
 
     /**
+     * A pending suggestion has no priority/confidence of its own (unlike
+     * SeoOpportunity) - it's weighted like a medium-priority opportunity,
+     * since it's already a concrete idea مرکز سئو thinks worth acting on,
+     * not just a detected anomaly still needing a human to judge it.
+     */
+    private const KEYWORD_SUGGESTION_WEIGHT = 2.0;
+
+    /**
      * @return Collection<int, SeoActionItem>
      */
     public function items(SeoProject $project): Collection
     {
         return $this->opportunityItems($project)
             ->merge($this->technicalIssueItems($project))
+            ->merge($this->keywordSuggestionItems($project))
             ->sortByDesc(fn (SeoActionItem $item) => $item->score)
             ->values();
     }
@@ -114,5 +128,23 @@ class SeoActionQueueService
             score: self::ISSUE_SEVERITY_WEIGHT[$issue->severity->value] ?? 1.0,
             detectedAt: $latestAudit->completed_at,
         ));
+    }
+
+    /**
+     * @return Collection<int, SeoActionItem>
+     */
+    private function keywordSuggestionItems(SeoProject $project): Collection
+    {
+        return collect(SeoKeywordSuggestion::where('seo_project_id', $project->id)
+            ->where('status', SeoKeywordSuggestionStatus::New)
+            ->get())
+            ->map(fn (SeoKeywordSuggestion $suggestion) => new SeoActionItem(
+                source: 'keyword_suggestion',
+                title: $suggestion->keyword,
+                detail: $suggestion->reason,
+                url: null,
+                score: self::KEYWORD_SUGGESTION_WEIGHT,
+                detectedAt: $suggestion->created_at,
+            ));
     }
 }
