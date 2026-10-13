@@ -100,11 +100,22 @@ class TechnicalSeoAuditorTest extends TestCase
 
     public function test_a_clean_site_scores_a_perfect_one_hundred(): void
     {
+        // Enough real body text to clear the thin-content check - the
+        // other fixtures in this file stay short on purpose (they're
+        // only testing one specific issue each), but a page claiming to
+        // be clean under every check needs genuine content too.
+        $longText = str_repeat('این متن نمونه برای آزمایش محتوای کافی صفحه است و هیچ مشکلی ندارد. ', 15);
+
         Http::fake([
             'clean-site.test/robots.txt' => Http::response('User-agent: *', 200),
             'clean-site.test/sitemap.xml' => Http::response('<xml></xml>', 200),
             'clean-site.test*' => Http::response(
-                '<html><head><title>خانه</title><meta name="description" content="x"><script type="application/ld+json">{"@type":"LocalBusiness","telephone":"+988112345678"}</script></head><body><img src="a.jpg" alt="توضیح"><a href="tel:+988112345678">تماس</a></body></html>',
+                '<html><head><title>خانه</title><meta name="description" content="x">'
+                .'<meta name="viewport" content="width=device-width, initial-scale=1">'
+                .'<link rel="canonical" href="https://clean-site.test">'
+                .'<meta property="og:title" content="خانه"><meta property="og:image" content="https://clean-site.test/og.jpg">'
+                .'<script type="application/ld+json">{"@type":"LocalBusiness","telephone":"+988112345678"}</script></head>'
+                .'<body><h1>خانه</h1><img src="a.jpg" alt="توضیح" width="100" height="100"><a href="tel:+988112345678">تماس</a><p>'.$longText.'</p></body></html>',
                 200,
                 ['Content-Type' => 'text/html'],
             ),
@@ -325,8 +336,8 @@ class TechnicalSeoAuditorTest extends TestCase
 
     public function test_it_never_flags_an_orphan_when_the_page_cap_cut_the_crawl_short(): void
     {
-        // A 42-node chain (home -> page1 -> page2 -> ... -> page41) forces
-        // the crawler's 40-page cap to cut the crawl off mid-chain, with
+        // An 82-node chain (home -> page1 -> page2 -> ... -> page81) forces
+        // the crawler's 80-page cap to cut the crawl off mid-chain, with
         // unvisited pages still left in the queue - proving the crawl did
         // NOT exhaust the site, so nothing should be reported as orphaned.
         $fakes = [
@@ -339,7 +350,7 @@ class TechnicalSeoAuditorTest extends TestCase
             ),
         ];
 
-        for ($i = 1; $i <= 41; $i++) {
+        for ($i = 1; $i <= 81; $i++) {
             $fakes["chain-site.test/page{$i}"] = Http::response(
                 '<html><head><title>صفحه '.$i.'</title><meta name="description" content="x"></head><body><a href="/page'.($i + 1).'">بعدی</a></body></html>',
                 200,
@@ -352,12 +363,12 @@ class TechnicalSeoAuditorTest extends TestCase
         $project = SeoProject::factory()->create(['website_url' => 'https://chain-site.test']);
         SeoSitemapEntry::factory()->create([
             'seo_project_id' => $project->id,
-            'url' => 'https://chain-site.test/page41',
+            'url' => 'https://chain-site.test/page81',
         ]);
 
         $audit = app(TechnicalSeoAuditor::class)->audit($project);
 
-        $this->assertSame(40, $audit->pages_scanned);
+        $this->assertSame(80, $audit->pages_scanned);
         $this->assertSame(0, $audit->issues()->where('type', SeoTechnicalIssueType::OrphanPage->value)->count());
     }
 
@@ -476,6 +487,341 @@ class TechnicalSeoAuditorTest extends TestCase
         // the exact same missing data would just be noise.
         $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::MissingStructuredData->value)->exists());
         $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingLocalBusinessSchema->value)->exists());
+    }
+
+    public function test_it_flags_a_missing_and_a_multiple_h1(): void
+    {
+        Http::fake([
+            'h1-site.test/robots.txt' => Http::response('', 200),
+            'h1-site.test/sitemap.xml' => Http::response('', 200),
+            'h1-site.test/no-h1' => Http::response(
+                '<html><head><title>بدون H1</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'h1-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><h1>یک</h1><h1>دو</h1><a href="/no-h1">لینک</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://h1-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $multiple = $audit->issues()->where('type', SeoTechnicalIssueType::MultipleH1->value)->first();
+        $this->assertNotNull($multiple);
+        $this->assertSame('https://h1-site.test', $multiple->url);
+
+        $missing = $audit->issues()->where('type', SeoTechnicalIssueType::MissingH1->value)->first();
+        $this->assertNotNull($missing);
+        $this->assertSame('https://h1-site.test/no-h1', $missing->url);
+    }
+
+    public function test_it_flags_a_duplicate_h1_reused_across_pages(): void
+    {
+        Http::fake([
+            'dup-h1-site.test/robots.txt' => Http::response('', 200),
+            'dup-h1-site.test/sitemap.xml' => Http::response('', 200),
+            'dup-h1-site.test/about' => Http::response(
+                '<html><head><title>دربارهٔ ما</title><meta name="description" content="x"></head><body><h1>خانه</h1></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'dup-h1-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><h1>خانه</h1><a href="/about">دربارهٔ ما</a></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://dup-h1-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::DuplicateH1->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertSame('https://dup-h1-site.test/about', $issue->url);
+    }
+
+    public function test_it_flags_a_page_missing_a_canonical_tag(): void
+    {
+        Http::fake([
+            'no-canonical-site.test/robots.txt' => Http::response('', 200),
+            'no-canonical-site.test/sitemap.xml' => Http::response('', 200),
+            'no-canonical-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-canonical-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::MissingCanonical->value)->exists());
+    }
+
+    public function test_it_does_not_flag_a_page_that_has_a_canonical_tag(): void
+    {
+        Http::fake([
+            'canonical-site.test/robots.txt' => Http::response('', 200),
+            'canonical-site.test/sitemap.xml' => Http::response('', 200),
+            'canonical-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><link rel="canonical" href="https://canonical-site.test"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://canonical-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingCanonical->value)->exists());
+    }
+
+    public function test_it_flags_a_page_missing_a_viewport_meta_tag(): void
+    {
+        Http::fake([
+            'no-viewport-site.test/robots.txt' => Http::response('', 200),
+            'no-viewport-site.test/sitemap.xml' => Http::response('', 200),
+            'no-viewport-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-viewport-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::MissingViewport->value)->exists());
+    }
+
+    public function test_it_does_not_flag_a_page_that_has_a_viewport_meta_tag(): void
+    {
+        Http::fake([
+            'viewport-site.test/robots.txt' => Http::response('', 200),
+            'viewport-site.test/sitemap.xml' => Http::response('', 200),
+            'viewport-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><meta name="viewport" content="width=device-width, initial-scale=1"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://viewport-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingViewport->value)->exists());
+    }
+
+    public function test_it_flags_a_page_missing_open_graph_tags(): void
+    {
+        Http::fake([
+            'no-og-site.test/robots.txt' => Http::response('', 200),
+            'no-og-site.test/sitemap.xml' => Http::response('', 200),
+            'no-og-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-og-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::MissingOpenGraph->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertStringContainsString('og:title', $issue->details);
+        $this->assertStringContainsString('og:image', $issue->details);
+    }
+
+    /**
+     * This is exactly why the check exists for this specific business:
+     * customers share villa/attraction links in WhatsApp, where a missing
+     * og:image produces an empty or ugly link preview.
+     */
+    public function test_it_does_not_flag_a_page_that_has_both_og_title_and_og_image(): void
+    {
+        Http::fake([
+            'has-og-site.test/robots.txt' => Http::response('', 200),
+            'has-og-site.test/sitemap.xml' => Http::response('', 200),
+            'has-og-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"><meta property="og:title" content="خانه"><meta property="og:image" content="https://has-og-site.test/og.jpg"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://has-og-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::MissingOpenGraph->value)->exists());
+    }
+
+    public function test_it_flags_a_long_redirect_chain(): void
+    {
+        Http::fake([
+            'redirect-site.test/robots.txt' => Http::response('', 200),
+            'redirect-site.test/sitemap.xml' => Http::response('', 200),
+            'redirect-site.test' => Http::response('', 301, ['Location' => 'https://redirect-site.test/step1']),
+            'redirect-site.test/step1' => Http::response('', 301, ['Location' => 'https://redirect-site.test/step2']),
+            'redirect-site.test/step2' => Http::response('', 301, ['Location' => 'https://redirect-site.test/step3']),
+            'redirect-site.test/step3' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://redirect-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::RedirectChain->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertSame('https://redirect-site.test', $issue->url);
+        $this->assertStringContainsString('step3', $issue->details);
+    }
+
+    public function test_a_single_redirect_hop_is_not_flagged_as_a_chain(): void
+    {
+        Http::fake([
+            'short-redirect-site.test/robots.txt' => Http::response('', 200),
+            'short-redirect-site.test/sitemap.xml' => Http::response('', 200),
+            'short-redirect-site.test' => Http::response('', 301, ['Location' => 'https://short-redirect-site.test/final']),
+            'short-redirect-site.test/final' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body>ok</body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://short-redirect-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertSame(0, $audit->issues()->where('type', SeoTechnicalIssueType::RedirectChain->value)->count());
+    }
+
+    public function test_it_flags_an_image_with_no_explicit_dimensions(): void
+    {
+        Http::fake([
+            'no-dims-site.test/robots.txt' => Http::response('', 200),
+            'no-dims-site.test/sitemap.xml' => Http::response('', 200),
+            'no-dims-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><img src="a.jpg" alt="توضیح"></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://no-dims-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::ImageMissingDimensions->value)->exists());
+    }
+
+    public function test_it_does_not_flag_an_image_that_has_explicit_dimensions(): void
+    {
+        Http::fake([
+            'has-dims-site.test/robots.txt' => Http::response('', 200),
+            'has-dims-site.test/sitemap.xml' => Http::response('', 200),
+            'has-dims-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><img src="a.jpg" alt="توضیح" width="200" height="100"></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://has-dims-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::ImageMissingDimensions->value)->exists());
+    }
+
+    public function test_it_flags_a_page_with_too_little_body_text(): void
+    {
+        Http::fake([
+            'thin-site.test/robots.txt' => Http::response('', 200),
+            'thin-site.test/sitemap.xml' => Http::response('', 200),
+            'thin-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><p>چند کلمه کوتاه.</p></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://thin-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertTrue($audit->issues()->where('type', SeoTechnicalIssueType::ThinContent->value)->exists());
+    }
+
+    public function test_it_does_not_flag_a_page_with_enough_body_text(): void
+    {
+        $longText = str_repeat('این متن نمونه برای آزمایش محتوای کافی صفحه است و هیچ مشکلی ندارد. ', 15);
+
+        Http::fake([
+            'thick-site.test/robots.txt' => Http::response('', 200),
+            'thick-site.test/sitemap.xml' => Http::response('', 200),
+            'thick-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head><body><p>'.$longText.'</p></body></html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://thick-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $this->assertFalse($audit->issues()->where('type', SeoTechnicalIssueType::ThinContent->value)->exists());
+    }
+
+    public function test_it_flags_two_pages_with_identical_body_content(): void
+    {
+        // The same visible link text on both pages (even though one
+        // title differs from the other) - the duplicate-content check
+        // compares the <body>'s own visible text, not the <title>, and
+        // it needs to be byte-identical on both pages to prove the
+        // check works off real content, not a coincidence.
+        $longText = str_repeat('این متن کاملاً یکسان روی دو صفحهٔ مختلف تکرار شده است. ', 15);
+        $body = '<body><p>'.$longText.'</p><a href="/twin">دوقلو</a></body>';
+
+        Http::fake([
+            'dup-content-site.test/robots.txt' => Http::response('', 200),
+            'dup-content-site.test/sitemap.xml' => Http::response('', 200),
+            'dup-content-site.test/twin' => Http::response(
+                '<html><head><title>دوقلو</title><meta name="description" content="x"></head>'.$body.'</html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+            'dup-content-site.test*' => Http::response(
+                '<html><head><title>خانه</title><meta name="description" content="x"></head>'.$body.'</html>',
+                200,
+                ['Content-Type' => 'text/html'],
+            ),
+        ]);
+
+        $project = SeoProject::factory()->create(['website_url' => 'https://dup-content-site.test']);
+
+        $audit = app(TechnicalSeoAuditor::class)->audit($project);
+
+        $issue = $audit->issues()->where('type', SeoTechnicalIssueType::DuplicateContent->value)->first();
+        $this->assertNotNull($issue);
+        $this->assertSame('https://dup-content-site.test/twin', $issue->url);
     }
 
     public function test_it_only_checks_local_business_schema_on_the_homepage_not_every_page(): void
