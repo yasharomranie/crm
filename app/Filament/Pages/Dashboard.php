@@ -90,12 +90,34 @@ class Dashboard extends BaseDashboard
                 ->color('gray')
                 ->tooltip('کارهای پس‌زمینه (مثل OCR فایل اسکن‌شده) معمولاً هر دقیقه خودکار پردازش می‌شوند. اگر یکی گیر کرده یا می‌خواهید الان اجرا شود، این دکمه را بزنید.')
                 ->action(function () {
-                    $phpBinary = (new PhpExecutableFinder)->find() ?: 'php';
+                    if (! function_exists('proc_open')) {
+                        Notification::make()
+                            ->title('این سرور اجازهٔ اجرای فرآیند جداگانه (proc_open) را نمی‌دهد.')
+                            ->body('این یعنی نه این دکمه کار می‌کند، نه OCR فایل‌های اسکن‌شده - هر دو به یک قابلیت نیاز دارند. باید هاست/میزبان خود را برای فعال‌کردن proc_open، یا تنظیم یک کرون سرور-سطح برای queue:work، هماهنگ کنید.')
+                            ->danger()
+                            ->persistent()
+                            ->send();
 
-                    $process = new Process([$phpBinary, 'artisan', 'queue:work', '--stop-when-empty', '--max-time=50'], base_path());
-                    $process->setTimeout(null);
-                    $process->disableOutput();
-                    $process->start();
+                        return;
+                    }
+
+                    try {
+                        $phpBinary = (new PhpExecutableFinder)->find() ?: 'php';
+
+                        $process = new Process([$phpBinary, 'artisan', 'queue:work', '--stop-when-empty', '--max-time=50'], base_path());
+                        $process->setTimeout(null);
+                        $process->disableOutput();
+                        $process->start();
+                    } catch (\Throwable $exception) {
+                        Notification::make()
+                            ->title('اجرای پردازش صف با خطا مواجه شد.')
+                            ->body($exception->getMessage())
+                            ->danger()
+                            ->persistent()
+                            ->send();
+
+                        return;
+                    }
 
                     Notification::make()
                         ->title('پردازش صف کارها شروع شد.')
