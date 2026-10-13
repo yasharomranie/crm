@@ -11,7 +11,12 @@ use App\Filament\Widgets\SeoOverviewStatsWidget;
 use App\Filament\Widgets\SeoUpcomingContentWidget;
 use App\Filament\Widgets\StaleDealsWidget;
 use App\Filament\Widgets\TopSalesRepsWidget;
+use Filament\Actions\Action;
+use Filament\Notifications\Notification;
 use Filament\Pages\Dashboard as BaseDashboard;
+use Filament\Support\Icons\Heroicon;
+use Symfony\Component\Process\PhpExecutableFinder;
+use Symfony\Component\Process\Process;
 
 /**
  * Filament\Pages\Dashboard::getWidgets() renders literally every widget
@@ -53,5 +58,51 @@ class Dashboard extends BaseDashboard
             self::SALES_PIPELINE_ONLY_WIDGETS,
             self::SEO_PAGE_ONLY_WIDGETS,
         ));
+    }
+
+    /**
+     * This host has no persistent queue worker (routes/console.php
+     * explains why: no Supervisor/terminal access to run `queue:work` as
+     * a daemon), so every background job - OCR on a scanned PDF, a
+     * WebPush notification, a scheduled report - normally waits for the
+     * schedule:run cron to drain it, roughly once a minute. If that cron
+     * itself isn't actually configured (which nobody without terminal
+     * access can check or fix on their own), jobs sit in the queue
+     * forever with no visible error. This button is the web-only escape
+     * hatch: the same `queue:work --stop-when-empty` command the cron
+     * already runs, triggered on demand and detached from this request
+     * (Process::start(), not ->run()) so a slow job in the queue - OCR
+     * on a long document can take minutes - doesn't hang the button
+     * click or risk a PHP execution-time timeout.
+     *
+     * PHP_BINARY is the wrong source for the CLI path here - under
+     * php-fpm (how this action actually runs) it resolves to the fpm
+     * binary, not something `artisan` can be run through.
+     * PhpExecutableFinder exists specifically to find the real CLI
+     * executable regardless of which SAPI is currently running.
+     */
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('processQueuedJobs')
+                ->label('پردازش دستی کارهای در صف')
+                ->icon(Heroicon::OutlinedArrowPath)
+                ->color('gray')
+                ->tooltip('کارهای پس‌زمینه (مثل OCR فایل اسکن‌شده) معمولاً هر دقیقه خودکار پردازش می‌شوند. اگر یکی گیر کرده یا می‌خواهید الان اجرا شود، این دکمه را بزنید.')
+                ->action(function () {
+                    $phpBinary = (new PhpExecutableFinder)->find() ?: 'php';
+
+                    $process = new Process([$phpBinary, 'artisan', 'queue:work', '--stop-when-empty', '--max-time=50'], base_path());
+                    $process->setTimeout(null);
+                    $process->disableOutput();
+                    $process->start();
+
+                    Notification::make()
+                        ->title('پردازش صف کارها شروع شد.')
+                        ->body('اگر فایلی در حال OCR بود، تا چند دقیقهٔ دیگر تمام می‌شود - صفحه را بعداً دوباره باز کنید تا وضعیت را ببینید.')
+                        ->success()
+                        ->send();
+                }),
+        ];
     }
 }
