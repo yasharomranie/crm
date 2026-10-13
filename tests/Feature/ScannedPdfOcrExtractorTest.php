@@ -84,4 +84,43 @@ class ScannedPdfOcrExtractorTest extends TestCase
         }
         $this->assertDirectoryDoesNotExist($directory);
     }
+
+    /**
+     * Exercises the Imagick path directly (public specifically so tests
+     * can do this) rather than only through rasterize()'s automatic
+     * fallback - proc_open can't be disabled mid-test to force that
+     * fallback to trigger for real, so this is what actually proves the
+     * path a host without proc_open depends on still works.
+     */
+    public function test_it_rasterizes_a_pdf_with_imagick_directly(): void
+    {
+        $this->skipUnlessImagickAvailable();
+
+        $path = $this->scratchDir.'/scan.pdf';
+        $this->buildScannedPdf($path, ['Imagick rendered this page.']);
+
+        $images = app(PdfPageRasterizer::class)->rasterizeWithImagick($path, maxPages: 5);
+
+        $this->assertCount(1, $images);
+        $this->assertFileExists($images[0]);
+    }
+
+    public function test_the_imagick_path_reports_an_error_for_an_invalid_pdf(): void
+    {
+        $this->skipUnlessImagickAvailable();
+
+        $path = $this->scratchDir.'/not-a-pdf.pdf';
+        file_put_contents($path, 'this is not a valid pdf at all');
+
+        $this->expectException(\RuntimeException::class);
+
+        app(PdfPageRasterizer::class)->rasterizeWithImagick($path, maxPages: 5);
+    }
+
+    private function skipUnlessImagickAvailable(): void
+    {
+        if (! class_exists(\Imagick::class)) {
+            $this->markTestSkipped('The imagick extension is not installed in this environment.');
+        }
+    }
 }
