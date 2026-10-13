@@ -43,6 +43,7 @@ class AiKeywordDiscoveryService
     public function __construct(
         private readonly PillarClusterMapBuilder $mapBuilder,
         private readonly CompetitorContentGapService $competitorGapService,
+        private readonly SitemapMonitorService $sitemapMonitor,
     ) {}
 
     public function discover(SeoProject $project, int $count = 20): int
@@ -167,7 +168,42 @@ class AiKeywordDiscoveryService
             Current pillar/cluster map of this business's content and tracked keywords (shows what's already covered per topic, and where gaps are):
             {$this->formatPillarMap($project)}
 
+            {$this->formatOwnSitemapCoverage($project)}
+
             {$this->formatCompetitorCoverage($project)}
+            TXT;
+    }
+
+    /**
+     * How many of this project's OWN real, published pages
+     * (App\Domain\Seo\SitemapMonitorService::coverageByCluster(), read
+     * from the live sitemap.xml) already exist per topic cluster - next
+     * to the content-calendar count the pillar map above already shows,
+     * so the model can tell "already has a real published page" apart
+     * from "only planned, never actually written," the same gap this
+     * app's own content-calendar-only tracking could otherwise miss.
+     */
+    private function formatOwnSitemapCoverage(SeoProject $project): string
+    {
+        $coverage = $this->sitemapMonitor->coverageByCluster($project);
+
+        if ($coverage->isEmpty()) {
+            return '';
+        }
+
+        $lines = $coverage->map(function (int $pageCount, int|string $clusterId) {
+            $cluster = SeoTopicCluster::find($clusterId);
+
+            return $cluster ? "- {$cluster->name}: {$pageCount} صفحهٔ واقعی منتشرشده" : null;
+        })->filter()->implode("\n");
+
+        if ($lines === '') {
+            return '';
+        }
+
+        return <<<TXT
+            Topics this business already has real, published pages for (from its own live sitemap.xml, not just the content calendar above - a page could be published without ever being logged there):
+            {$lines}
             TXT;
     }
 

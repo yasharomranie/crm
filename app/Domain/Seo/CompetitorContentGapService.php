@@ -25,6 +25,14 @@ use Illuminate\Support\Collection;
  * Every gap found is stored as an ordinary App\Models\SeoKeywordSuggestion
  * (status New), the exact same human-approval pipeline every other
  * keyword idea in this app already goes through.
+ *
+ * "Already covered" is checked against two independent signals, not
+ * just the content calendar: App\Domain\Seo\PillarClusterMapBuilder's
+ * content-item count (what's been manually logged) and
+ * App\Domain\Seo\SitemapMonitorService::coverageByCluster() (what the
+ * project's own live sitemap.xml actually shows published) - either one
+ * alone is enough to call a topic covered, since a page an operator
+ * forgot to log in the calendar is still a real, published page.
  */
 class CompetitorContentGapService
 {
@@ -34,7 +42,10 @@ class CompetitorContentGapService
      */
     private const MIN_COMPETITORS_COVERING = 2;
 
-    public function __construct(private readonly PillarClusterMapBuilder $mapBuilder) {}
+    public function __construct(
+        private readonly PillarClusterMapBuilder $mapBuilder,
+        private readonly SitemapMonitorService $sitemapMonitor,
+    ) {}
 
     /**
      * Per-cluster competitor coverage: how many distinct competitors have
@@ -71,6 +82,7 @@ class CompetitorContentGapService
         }
 
         $myMap = $this->mapBuilder->build($project);
+        $myOwnSitemapCoverage = $this->sitemapMonitor->coverageByCluster($project);
         $created = 0;
 
         foreach ($coverageByCluster as $clusterId => $stats) {
@@ -80,8 +92,9 @@ class CompetitorContentGapService
 
             $myGroup = $myMap->get($clusterId);
             $myContentCount = $myGroup ? $myGroup['contentItems']->count() : 0;
+            $myPublishedPageCount = $myOwnSitemapCoverage->get($clusterId, 0);
 
-            if ($myContentCount > 0) {
+            if ($myContentCount > 0 || $myPublishedPageCount > 0) {
                 continue;
             }
 

@@ -2,15 +2,17 @@
 
 namespace App\Jobs;
 
+use App\Domain\Seo\OwnSitemapTopicMatcher;
 use App\Domain\Seo\SitemapMonitorService;
 use App\Models\SeoProject;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /**
- * One project's sitemap sync - kept as its own job (mirrors
- * RunTechnicalSeoAuditJob's one-job-per-subject shape) so a slow or
- * broken sitemap on one project never blocks another's.
+ * One project's sitemap sync, then classification of whatever's newly
+ * unclassified - kept as two sequential steps in one job (mirrors
+ * AnalyzeCompetitorContentGapsJob's sync-then-match sequencing) so a
+ * slow or broken sitemap on one project never blocks another's.
  */
 class SyncSitemapDataJob implements ShouldQueue
 {
@@ -22,8 +24,11 @@ class SyncSitemapDataJob implements ShouldQueue
 
     public function __construct(public int $seoProjectId) {}
 
-    public function handle(SitemapMonitorService $service): void
+    public function handle(SitemapMonitorService $service, OwnSitemapTopicMatcher $matcher): void
     {
-        $service->sync(SeoProject::findOrFail($this->seoProjectId));
+        $project = SeoProject::findOrFail($this->seoProjectId);
+
+        $service->sync($project);
+        $matcher->match($project);
     }
 }
