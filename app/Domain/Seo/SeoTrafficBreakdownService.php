@@ -52,7 +52,7 @@ class SeoTrafficBreakdownService
             ->orderByDesc('clicks')
             ->get()
             ->map(fn (SeoSearchTypeMetric $row) => [
-                'search_type' => $row->search_type,
+                'search_type' => $row->search_type->value,
                 'clicks' => (int) $row->clicks,
                 'impressions' => (int) $row->impressions,
             ]);
