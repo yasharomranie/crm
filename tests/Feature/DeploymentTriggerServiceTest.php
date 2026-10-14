@@ -29,4 +29,15 @@ class DeploymentTriggerServiceTest extends TestCase
 
         $this->assertSame('done', app(DeploymentTriggerService::class)->lastLog());
     }
+
+    public function test_it_reports_the_log_files_modification_time_as_the_last_deploy_time(): void
+    {
+        Storage::fake('local');
+
+        $this->assertNull(app(DeploymentTriggerService::class)->lastDeployAt());
+
+        Storage::disk('local')->put('deploy_log.txt', 'done');
+
+        $this->assertTrue(app(DeploymentTriggerService::class)->lastDeployAt()->isToday());
+    }
 }

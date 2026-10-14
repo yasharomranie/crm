@@ -8,6 +8,7 @@ use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Morilog\Jalali\Jalalian;
 
 /**
  * Lets an admin request a production deploy (git pull + migrate + cache
@@ -44,6 +45,13 @@ class ProductionDeploy extends Page
     public function lastDeployLog(): ?string
     {
         return app(DeploymentTriggerService::class)->lastLog();
+    }
+
+    public function lastDeployAt(): ?string
+    {
+        $deployedAt = app(DeploymentTriggerService::class)->lastDeployAt();
+
+        return $deployedAt ? Jalalian::fromCarbon($deployedAt)->format('%d %B %Y ساعت %H:%M') : null;
     }
 
     public function requestDeploy(): void
