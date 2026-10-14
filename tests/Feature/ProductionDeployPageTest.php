@@ -51,7 +51,8 @@ class ProductionDeployPageTest extends TestCase
 
         Livewire::actingAs($this->admin())
             ->test(ProductionDeploy::class)
-            ->assertSee('Already up to date.');
+            ->assertSee('Already up to date.')
+            ->assertSee('ساعت');
     }
 
     public function test_a_user_without_permission_is_forbidden(): void

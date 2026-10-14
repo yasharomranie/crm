@@ -2,6 +2,7 @@
 
 namespace App\Domain\Deployment;
 
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 
 /**
@@ -33,6 +34,19 @@ class DeploymentTriggerService
     {
         return Storage::disk('local')->exists(self::LOG_FILE)
             ? Storage::disk('local')->get(self::LOG_FILE)
+            : null;
+    }
+
+    /**
+     * The log file's last-modified time, i.e. when the Cron Job last
+     * finished writing to it - the closest available signal for when the
+     * last deploy actually completed (nothing in the log content itself
+     * carries a timestamp, since it's each artisan command's raw output).
+     */
+    public function lastDeployAt(): ?Carbon
+    {
+        return Storage::disk('local')->exists(self::LOG_FILE)
+            ? Carbon::createFromTimestamp(Storage::disk('local')->lastModified(self::LOG_FILE))
             : null;
     }
 }
