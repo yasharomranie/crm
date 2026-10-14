@@ -19,7 +19,7 @@
             @php($items = $this->items())
 
             @if ($items->isEmpty())
-                <p class="text-sm text-gray-500 dark:text-gray-400">در حال حاضر هیچ فرصت یا مشکل بازی برای این پروژه شناسایی نشده است.</p>
+                <p class="text-sm text-gray-500 dark:text-gray-400">در حال حاضر هیچ فرصت، مشکل باز یا پیشنهاد در انتظار تصمیم برای این پروژه نیست.</p>
             @else
                 <div class="overflow-x-auto rounded-lg border border-gray-200 dark:border-white/10">
                     <table class="w-full text-sm">
@@ -36,8 +36,8 @@
                             @foreach ($items as $item)
                                 <tr>
                                     <td class="px-3 py-2">
-                                        <x-filament::badge :color="$item->source === 'technical_issue' ? 'danger' : 'warning'">
-                                            {{ $item->source === 'technical_issue' ? 'مشکل تکنیکال' : 'فرصت سئو' }}
+                                        <x-filament::badge :color="$item->sourceColor()">
+                                            {{ $item->sourceLabel() }}
                                         </x-filament::badge>
                                     </td>
                                     <td class="px-3 py-2 text-gray-700 dark:text-gray-300">{{ $item->title }}</td>

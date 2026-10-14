@@ -5,13 +5,20 @@ namespace Tests\Feature\Seo;
 use App\Domain\Seo\KeywordIntelligenceService;
 use App\Domain\Seo\OpportunityEngine;
 use App\Enums\SeoCannibalizationRisk;
+use App\Enums\SeoContentItemStatus;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Models\SeoContentItem;
 use App\Models\SeoDailyMetric;
+use App\Models\SeoInternalLink;
+use App\Models\SeoKeywordProfile;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
+use App\Models\SeoSitemapEntry;
+use App\Models\SeoTechnicalAudit;
+use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Tests\TestCase;
@@ -353,6 +360,192 @@ class OpportunityEngineTest extends TestCase
      * alert that still re-fires while the condition persists. The
      * dismissed record itself is never touched.
      */
+    public function test_it_flags_a_striking_distance_keyword_just_outside_the_top_ten(): void
+    {
+        $project = SeoProject::factory()->create();
+        $profile = SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'current_position' => 14,
+            'impressions_28d' => 200,
+        ]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::StrikingDistance->value)->firstOrFail();
+        $this->assertSame($profile->query, $opportunity->subject_query);
+        // assertEquals, not assertSame: a whole-number float loses its
+        // ".0" on the evidence array's JSON round-trip (PHP's json_encode
+        // drops it without JSON_PRESERVE_ZERO_FRACTION), so this decodes
+        // back as int 14, not float 14.0.
+        $this->assertEquals(14.0, $opportunity->evidence['position']);
+    }
+
+    public function test_it_does_not_flag_striking_distance_for_a_top_ten_keyword(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'current_position' => 5, 'impressions_28d' => 200]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::StrikingDistance->value)->count());
+    }
+
+    public function test_it_flags_a_page_one_regression_when_a_keyword_falls_past_the_top_ten(): void
+    {
+        $project = SeoProject::factory()->create();
+        $profile = SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'best_position' => 4,
+            'current_position' => 22,
+            'impressions_28d' => 200,
+        ]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::PageOneRegression->value)->firstOrFail();
+        $this->assertSame($profile->query, $opportunity->subject_query);
+        // assertEquals, not assertSame - see the same note in the
+        // striking-distance test above.
+        $this->assertEquals(4.0, $opportunity->evidence['best_position']);
+    }
+
+    public function test_it_does_not_flag_a_regression_for_a_keyword_that_never_reached_page_one(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'best_position' => 18,
+            'current_position' => 22,
+            'impressions_28d' => 200,
+        ]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::PageOneRegression->value)->count());
+    }
+
+    public function test_traffic_drop_evidence_includes_the_same_week_last_year_for_context(): void
+    {
+        $project = SeoProject::factory()->create();
+        $referenceDate = Carbon::parse('2026-09-28');
+
+        for ($i = 27; $i >= 0; $i--) {
+            $date = $referenceDate->clone()->subDays($i);
+            $clicks = $i <= 6 ? 25 : 50;
+            SeoDailyMetric::create(['seo_project_id' => $project->id, 'date' => $date->toDateString(), 'clicks' => $clicks, 'impressions' => $clicks * 20, 'ctr' => 0.05, 'position' => 10]);
+        }
+
+        // The exact same seasonal week, one year (364 days) earlier.
+        $lastYearWeekStart = $referenceDate->clone()->subDays(6)->subDays(364);
+        for ($i = 0; $i <= 6; $i++) {
+            SeoDailyMetric::create(['seo_project_id' => $project->id, 'date' => $lastYearWeekStart->clone()->addDays($i)->toDateString(), 'clicks' => 30, 'impressions' => 600, 'ctr' => 0.05, 'position' => 10]);
+        }
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::TrafficDrop->value)->firstOrFail();
+        $this->assertSame(210, $opportunity->evidence['clicks_same_week_last_year']);
+    }
+
+    public function test_it_flags_cluster_cannibalization_across_distinct_keywords_and_pages(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create(['name' => 'تور طبیعت‌گردی']);
+
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'query' => 'تور طبیعت گردی همدان',
+            'topic_cluster_id' => $cluster->id,
+            'landing_page' => 'https://ganjnameh.example.com/nature-tour',
+            'impressions_28d' => 100,
+        ]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'query' => 'تور طبیعت گردی در همدان',
+            'topic_cluster_id' => $cluster->id,
+            'landing_page' => 'https://ganjnameh.example.com/eco-tour',
+            'impressions_28d' => 90,
+        ]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::ClusterCannibalization->value)->firstOrFail();
+        $this->assertSame('تور طبیعت‌گردی', $opportunity->subject_query);
+        $this->assertCount(2, $opportunity->evidence['pages']);
+    }
+
+    public function test_it_does_not_flag_cluster_cannibalization_when_only_one_page_covers_the_cluster(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'query' => 'کلمه اول',
+            'topic_cluster_id' => $cluster->id,
+            'landing_page' => 'https://ganjnameh.example.com/only-page',
+            'impressions_28d' => 100,
+        ]);
+        SeoKeywordProfile::factory()->create([
+            'seo_project_id' => $project->id,
+            'query' => 'کلمه دوم',
+            'topic_cluster_id' => $cluster->id,
+            'landing_page' => 'https://ganjnameh.example.com/only-page',
+            'impressions_28d' => 90,
+        ]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::ClusterCannibalization->value)->count());
+    }
+
+    public function test_it_flags_content_performing_far_below_its_topic_clusters_average(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create(['name' => 'اقامت']);
+        $profileA = SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+        $profileB = SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        $strongPage = 'https://ganjnameh.example.com/villa-a';
+        $weakPage = 'https://ganjnameh.example.com/villa-b';
+
+        $itemA = SeoContentItem::factory()->create([
+            'seo_project_id' => $project->id, 'status' => SeoContentItemStatus::Published,
+            'published_url' => $strongPage, 'published_at' => now()->subDays(60), 'keyword_profile_id' => $profileA->id,
+        ]);
+        $itemB = SeoContentItem::factory()->create([
+            'seo_project_id' => $project->id, 'status' => SeoContentItemStatus::Published,
+            'published_url' => $weakPage, 'published_at' => now()->subDays(60), 'keyword_profile_id' => $profileB->id,
+        ]);
+
+        SeoPageMetric::create(['seo_project_id' => $project->id, 'date' => now()->subDays(5)->toDateString(), 'page_url' => $strongPage, 'page_url_hash' => sha1($strongPage), 'clicks' => 100, 'impressions' => 1000, 'ctr' => 0.1, 'position' => 4]);
+        SeoPageMetric::create(['seo_project_id' => $project->id, 'date' => now()->subDays(5)->toDateString(), 'page_url' => $weakPage, 'page_url_hash' => sha1($weakPage), 'clicks' => 5, 'impressions' => 200, 'ctr' => 0.025, 'position' => 15]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunity = $project->opportunities()->where('type', SeoOpportunityType::UnderperformingContent->value)->firstOrFail();
+        $this->assertSame($weakPage, $opportunity->subject_page_url);
+        $this->assertSame(5, $opportunity->evidence['clicks_28d']);
+    }
+
+    public function test_it_does_not_flag_underperforming_content_with_no_cluster_peers(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $profile = SeoKeywordProfile::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        $page = 'https://ganjnameh.example.com/only-item';
+        SeoContentItem::factory()->create([
+            'seo_project_id' => $project->id, 'status' => SeoContentItemStatus::Published,
+            'published_url' => $page, 'published_at' => now()->subDays(60), 'keyword_profile_id' => $profile->id,
+        ]);
+        SeoPageMetric::create(['seo_project_id' => $project->id, 'date' => now()->subDays(5)->toDateString(), 'page_url' => $page, 'page_url_hash' => sha1($page), 'clicks' => 1, 'impressions' => 50, 'ctr' => 0.02, 'position' => 20]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::UnderperformingContent->value)->count());
+    }
+
     public function test_a_dismissed_opportunity_is_re_raised_as_a_new_one_if_the_condition_still_holds(): void
     {
         $project = SeoProject::factory()->create();
@@ -377,5 +570,70 @@ class OpportunityEngineTest extends TestCase
             1,
             $project->opportunities()->where('status', SeoOpportunityStatus::Detected->value)->count(),
         );
+    }
+
+    public function test_it_flags_cluster_pages_with_no_incoming_internal_links_from_each_other(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create(['name' => 'ویلا']);
+        $pageA = 'https://ganjnameh.example.com/villa-a';
+        $pageB = 'https://ganjnameh.example.com/villa-b';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageA, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageB, 'topic_cluster_id' => $cluster->id]);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $opportunities = $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->get();
+        $this->assertCount(2, $opportunities);
+
+        $opportunityForA = $opportunities->firstWhere('subject_page_url', $pageA);
+        $this->assertSame('ویلا', $opportunityForA->evidence['topic']);
+        $this->assertSame([$pageB], $opportunityForA->evidence['suggested_linking_pages']);
+    }
+
+    public function test_it_does_not_flag_a_page_already_linked_from_a_cluster_peer(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $pageA = 'https://ganjnameh.example.com/villa-a';
+        $pageB = 'https://ganjnameh.example.com/villa-b';
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageA, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'url' => $pageB, 'topic_cluster_id' => $cluster->id]);
+        $audit = SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+        SeoInternalLink::factory()->create(['seo_technical_audit_id' => $audit->id, 'from_url' => $pageB, 'to_url' => $pageA]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertNull(
+            $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->where('subject_page_url', $pageA)->first()
+        );
+        $this->assertNotNull(
+            $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->where('subject_page_url', $pageB)->first()
+        );
+    }
+
+    public function test_it_does_not_flag_missing_internal_links_without_a_completed_technical_audit(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->count());
+    }
+
+    public function test_it_does_not_flag_missing_internal_links_for_a_single_page_cluster(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $cluster->id]);
+        SeoTechnicalAudit::factory()->create(['seo_project_id' => $project->id]);
+
+        (app(OpportunityEngine::class))->scan($project);
+
+        $this->assertSame(0, $project->opportunities()->where('type', SeoOpportunityType::MissingInternalLinks->value)->count());
     }
 }

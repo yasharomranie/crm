@@ -6,10 +6,13 @@ use App\Enums\SeoConfidenceLevel;
 use App\Enums\SeoOpportunityPriority;
 use App\Enums\SeoOpportunityStatus;
 use App\Enums\SeoOpportunityType;
+use App\Enums\SeoTechnicalAuditStatus;
+use App\Models\SeoInternalLink;
 use App\Models\SeoOpportunity;
 use App\Models\SeoPageMetric;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
+use App\Models\SeoTechnicalAudit;
 use Illuminate\Support\Collection;
 
 /**
@@ -56,6 +59,12 @@ class UrlOpportunityEngine
     /** Past this age, "still invisible" becomes the stale-page detector's concern instead - likely dead/abandoned content, not a crawling delay. */
     private const INVISIBLE_PAGE_MAX_AGE_DAYS = 90;
 
+    /** Real, not token, search demand - the same bar UrlOpportunityEngine's own CTR check uses for "enough impressions to mean something". */
+    private const UNDER_LINKED_MIN_IMPRESSIONS = 100;
+
+    /** A single incoming link (often just a sitemap/footer listing) isn't real internal linking - only a page with none or one gets flagged. */
+    private const UNDER_LINKED_MAX_INCOMING_LINKS = 1;
+
     public function __construct(private readonly SeoAlertService $alerts) {}
 
     public function scan(SeoProject $project): void
@@ -71,6 +80,7 @@ class UrlOpportunityEngine
         $this->detectCtrOpportunities($project, $entries, $metricsByNormalizedUrl);
         $this->detectStalePages($project, $entries, $metricsByNormalizedUrl);
         $this->detectInvisibleNewPages($project, $entries, $metricsByNormalizedUrl);
+        $this->detectUnderLinkedPages($project, $entries, $metricsByNormalizedUrl);
     }
 
     /**
@@ -221,6 +231,69 @@ class UrlOpportunityEngine
                 actions: ['check_indexing_status', 'check_internal_links', 'check_robots_and_sitemap'],
                 priority: SeoOpportunityPriority::Medium,
                 confidence: SeoConfidenceLevel::Low,
+            );
+        }
+    }
+
+    /**
+     * The traffic-first counterpart to OpportunityEngine's cluster-based
+     * detectMissingInternalLinksByCluster(): that one flags a page
+     * isolated from its topic peers regardless of traffic; this flags a
+     * page Google already shows people in search results that the site
+     * itself barely links to internally, whatever topic cluster it's in
+     * (or whether it's classified into one at all) - a thin internal
+     * link graph signals low importance to search engines even when
+     * Search Console's own numbers say otherwise. Reads the latest
+     * *completed* technical audit's crawled link graph, same source and
+     * "latest completed" convention as the cluster detector; a project
+     * that has never run one simply has nothing to check yet.
+     *
+     * @param  Collection<int, SeoSitemapEntry>  $entries
+     * @param  Collection<string, array{clicks: int, impressions: int, position: float}>  $metricsByNormalizedUrl
+     */
+    private function detectUnderLinkedPages(SeoProject $project, Collection $entries, Collection $metricsByNormalizedUrl): void
+    {
+        $latestAudit = SeoTechnicalAudit::where('seo_project_id', $project->id)
+            ->where('status', SeoTechnicalAuditStatus::Completed)
+            ->orderByDesc('completed_at')
+            ->first();
+
+        if (! $latestAudit) {
+            return;
+        }
+
+        $incomingLinkCountsByNormalizedUrl = $latestAudit->internalLinks()
+            ->get()
+            ->groupBy(fn (SeoInternalLink $link) => SitemapUrlNormalizer::normalize($link->to_url))
+            ->map(fn (Collection $links) => $links->map(fn (SeoInternalLink $link) => SitemapUrlNormalizer::normalize($link->from_url))->unique()->count());
+
+        foreach ($entries as $entry) {
+            $metrics = $metricsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url));
+
+            if (($metrics['impressions'] ?? 0) < self::UNDER_LINKED_MIN_IMPRESSIONS) {
+                continue;
+            }
+
+            $incomingLinks = $incomingLinkCountsByNormalizedUrl->get(SitemapUrlNormalizer::normalize($entry->url), 0);
+
+            if ($incomingLinks > self::UNDER_LINKED_MAX_INCOMING_LINKS) {
+                continue;
+            }
+
+            $this->recordOrRefreshOpportunity(
+                project: $project,
+                type: SeoOpportunityType::UnderLinkedPage,
+                subjectPageUrl: $entry->url,
+                title: 'این صفحه در جستجوها دیده می‌شود اما لینک داخلی کافی از سایر صفحات سایت ندارد',
+                evidence: [
+                    'page_url' => $entry->url,
+                    'impressions_28d' => $metrics['impressions'],
+                    'clicks_28d' => $metrics['clicks'] ?? 0,
+                    'incoming_internal_links' => $incomingLinks,
+                ],
+                actions: ['review_internal_links'],
+                priority: $metrics['impressions'] >= 1000 ? SeoOpportunityPriority::High : SeoOpportunityPriority::Medium,
+                confidence: SeoConfidenceLevel::Medium,
             );
         }
     }

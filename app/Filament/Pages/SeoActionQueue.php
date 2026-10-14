@@ -14,11 +14,10 @@ use Livewire\Attributes\Url;
 
 /**
  * One priority-ordered list of everything مرکز سئو thinks is worth doing
- * for a project right now - merging keyword/URL opportunities and
- * technical audit issues (and, per the project roadmap, future sources
- * like content gaps) via SeoActionQueueService, instead of making the
- * project owner check N separate resource tables to find out what to
- * work on next.
+ * for a project right now - merging keyword/URL opportunities, technical
+ * audit issues, and pending keyword suggestions via SeoActionQueueService,
+ * instead of making the project owner check N separate resource tables to
+ * find out what to work on next.
  */
 class SeoActionQueue extends Page
 {

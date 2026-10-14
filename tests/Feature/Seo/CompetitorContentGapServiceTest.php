@@ -9,6 +9,7 @@ use App\Models\SeoContentItem;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
 use App\Models\SeoProjectCompetitor;
+use App\Models\SeoSitemapEntry;
 use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
@@ -74,6 +75,28 @@ class CompetitorContentGapServiceTest extends TestCase
             'status' => SeoKeywordSuggestionStatus::Approved,
         ]);
         SeoContentItem::factory()->for($project, 'project')->create(['keyword_suggestion_id' => $mySuggestion->id]);
+
+        $created = app(CompetitorContentGapService::class)->detect($project);
+
+        $this->assertSame(0, $created);
+    }
+
+    public function test_no_gap_is_recorded_when_my_own_sitemap_already_has_a_published_page_for_that_topic(): void
+    {
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $competitorA = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        $competitorB = SeoProjectCompetitor::factory()->for($project, 'project')->create();
+        $this->matchedEntry($competitorA, $cluster);
+        $this->matchedEntry($competitorB, $cluster);
+
+        // No SeoContentItem was ever logged for this cluster - only a
+        // real page in my own sitemap, classified into it.
+        SeoSitemapEntry::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'classified_at' => now(),
+        ]);
 
         $created = app(CompetitorContentGapService::class)->detect($project);
 

@@ -55,6 +55,21 @@ class SeoSitemapAnalyzerPageTest extends TestCase
             ->assertSee('تله‌کابین گنجنامه');
     }
 
+    public function test_it_shows_the_google_sitemaps_api_status_when_present(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id]);
+        $project->update([
+            'google_sitemap_status' => ['warnings' => '1', 'errors' => '2', 'isPending' => false],
+            'google_sitemap_checked_at' => now(),
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoSitemapAnalyzer::class, ['projectId' => $project->id])
+            ->assertSee('وضعیت Sitemap نزد گوگل')
+            ->assertSee('2');
+    }
+
     public function test_a_user_without_permission_is_forbidden(): void
     {
         $user = User::factory()->create();

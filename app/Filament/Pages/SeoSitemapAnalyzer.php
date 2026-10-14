@@ -9,6 +9,7 @@ use App\Models\SeoProject;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Livewire\Attributes\Url;
 
@@ -60,6 +61,25 @@ class SeoSitemapAnalyzer extends Page
         $project = $this->selectedProject();
 
         return $project ? SeoProjectResource::getUrl('edit', ['record' => $project]) : null;
+    }
+
+    /**
+     * Google's own free Sitemaps API view of this project's submitted
+     * sitemap (App\Domain\Seo\SitemapMonitorService::checkGoogleStatus(),
+     * best-effort from App\Jobs\SyncSitemapDataJob) - null when the
+     * project has no Google connection, or hasn't synced since this was
+     * added.
+     *
+     * @return array{path?: string, lastSubmitted?: string, isPending?: bool, isSitemapsIndex?: bool, lastDownloaded?: string, warnings?: string, errors?: string}|null
+     */
+    public function googleStatus(): ?array
+    {
+        return $this->selectedProject()?->google_sitemap_status;
+    }
+
+    public function googleStatusCheckedAt(): ?Carbon
+    {
+        return $this->selectedProject()?->google_sitemap_checked_at;
     }
 
     public function overview(): ?array

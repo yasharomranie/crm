@@ -23,6 +23,7 @@ use App\Filament\Pages\SeoGoogleSettings;
 use App\Filament\Pages\SeoPillarClusterMap;
 use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
+use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WebAppDomainSettings;
@@ -183,6 +184,7 @@ return [
         'seo-pillar-cluster-map' => ['page' => SeoPillarClusterMap::class, 'label' => 'نقشه موضوعی (پیلار-کلاستر)', 'group' => 'مرکز سئو'],
         'seo-action-queue' => ['page' => SeoActionQueue::class, 'label' => 'صف اقدام', 'group' => 'مرکز سئو'],
         'seo-sitemap-analyzer' => ['page' => SeoSitemapAnalyzer::class, 'label' => 'تحلیل‌گر Sitemap', 'group' => 'مرکز سئو'],
+        'seo-traffic-breakdown' => ['page' => SeoTrafficBreakdown::class, 'label' => 'ترکیب ترافیک', 'group' => 'مرکز سئو'],
         'seo-alert-settings' => ['page' => SeoAlertSettings::class, 'label' => 'تنظیمات هشدار سئو', 'group' => 'مرکز سئو'],
         'cashier' => [
             'page' => Cashier::class,

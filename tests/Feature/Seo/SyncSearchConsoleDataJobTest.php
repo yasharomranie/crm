@@ -4,10 +4,12 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\GoogleOAuthService;
 use App\Domain\Seo\SearchConsoleClient;
+use App\Domain\Seo\SeoAlertService;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\SyncSearchConsoleDataJob;
+use App\Models\SeoAlertSetting;
 use App\Models\SeoCountryMetric;
 use App\Models\SeoDailyMetric;
 use App\Models\SeoDeviceMetric;
@@ -19,8 +21,11 @@ use App\Models\SeoQueryMetric;
 use App\Models\SeoQueryPageMetric;
 use App\Models\SeoSearchAppearanceMetric;
 use App\Models\SeoSearchTypeMetric;
+use App\Models\User;
+use App\Notifications\SeoGoogleConnectionErrorNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Notification;
 use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
@@ -70,7 +75,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $project = $this->connectedProject();
         $this->fakeSearchAnalytics();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         $this->assertDatabaseHas(SeoDailyMetric::class, ['seo_project_id' => $project->id, 'clicks' => 40]);
         $this->assertDatabaseHas(SeoQueryMetric::class, ['seo_project_id' => $project->id, 'query' => 'تله کابین گنجنامه']);
@@ -91,8 +96,8 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $project = $this->connectedProject();
         $this->fakeSearchAnalytics();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         $this->assertSame(1, SeoDailyMetric::where('seo_project_id', $project->id)->count());
         $this->assertSame(1, SeoQueryMetric::where('seo_project_id', $project->id)->count());
@@ -120,7 +125,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
             '*searchAnalytics/query' => Http::response(['rows' => []]),
         ]);
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         $this->assertSame('fresh-token', $project->googleConnection->fresh()->access_token);
 
@@ -135,7 +140,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $project = $this->connectedProject();
         $this->fakeSearchAnalytics();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         Queue::assertPushed(AnalyzeSeoProjectJob::class, fn ($job) => $job->seoProjectId === $project->id);
     }
@@ -146,7 +151,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $project->update(['excluded_query_terms' => "گنجنامه\nهمدان"]);
         $this->fakeSearchAnalytics();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query']
             && ($request['dimensionFilterGroups'][0]['filters'] ?? null) === [
@@ -167,7 +172,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $project = $this->connectedProject();
         $this->fakeSearchAnalytics();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         Http::assertSent(fn ($request) => $request['dimensions'] === ['date', 'query']
             && ! array_key_exists('dimensionFilterGroups', $request->data()));
@@ -193,7 +198,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
             },
         ]);
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         $this->assertSame(SearchConsoleClient::MAX_ROW_LIMIT + 1, SeoQueryMetric::where('seo_project_id', $project->id)->count());
         $this->assertDatabaseHas(SeoQueryMetric::class, ['seo_project_id' => $project->id, 'query' => 'آخرین کلمه']);
@@ -209,7 +214,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
         $expectedEndDate = now()->subDays(3)->toDateString();
         $expectedStartDate = now()->subDays(3)->subDays(365)->toDateString();
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         Http::assertSent(fn ($request) => $request['startDate'] === $expectedStartDate && $request['endDate'] === $expectedEndDate);
     }
@@ -233,7 +238,7 @@ class SyncSearchConsoleDataJobTest extends TestCase
             },
         ]);
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
 
         $this->assertSame(4, SeoSearchTypeMetric::where('seo_project_id', $project->id)->count());
         $this->assertDatabaseHas(SeoSearchTypeMetric::class, ['seo_project_id' => $project->id, 'search_type' => 'image', 'clicks' => 5]);
@@ -253,7 +258,44 @@ class SyncSearchConsoleDataJobTest extends TestCase
 
         $this->expectException(SeoGoogleException::class);
 
-        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class));
+        (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
+    }
+
+    public function test_it_alerts_on_the_first_failure_that_moves_the_connection_into_error(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+        SeoAlertSetting::current()->update(['is_enabled' => true, 'recipient_user_ids' => [$user->id]]);
+
+        $project = $this->connectedProject();
+        Http::fake(['*searchAnalytics/query' => Http::response(['error' => ['message' => 'Quota exceeded']], 429)]);
+
+        try {
+            (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
+        } catch (SeoGoogleException) {
+            // expected - rethrown after recording the failure
+        }
+
+        Notification::assertSentTo($user, SeoGoogleConnectionErrorNotification::class);
+    }
+
+    public function test_it_does_not_re_alert_while_the_connection_is_already_in_error(): void
+    {
+        Notification::fake();
+        $user = User::factory()->create();
+        SeoAlertSetting::current()->update(['is_enabled' => true, 'recipient_user_ids' => [$user->id]]);
+
+        $project = $this->connectedProject();
+        $project->googleConnection->update(['status' => SeoConnectionStatus::Error, 'last_sync_error' => 'خطای قبلی']);
+        Http::fake(['*searchAnalytics/query' => Http::response(['error' => ['message' => 'Quota exceeded']], 429)]);
+
+        try {
+            (new SyncSearchConsoleDataJob($project->id))->handle(app(GoogleOAuthService::class), app(SeoAlertService::class));
+        } catch (SeoGoogleException) {
+            // expected - rethrown after recording the failure
+        }
+
+        Notification::assertNothingSent();
     }
 
     /**

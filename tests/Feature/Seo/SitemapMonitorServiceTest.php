@@ -3,8 +3,12 @@
 namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\SitemapMonitorService;
+use App\Enums\SeoConnectionStatus;
+use App\Exceptions\SeoGoogleException;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
+use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
@@ -138,5 +142,101 @@ class SitemapMonitorServiceTest extends TestCase
         $this->expectException(\RuntimeException::class);
 
         app(SitemapMonitorService::class)->sync($project);
+    }
+
+    public function test_a_changed_lastmod_resets_the_page_s_classification(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+        $cluster = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $entry = SeoSitemapEntry::factory()->create([
+            'seo_project_id' => $project->id,
+            'url' => 'https://ganjnameh.example.com/telecabin',
+            'url_hash' => sha1('https://ganjnameh.example.com/telecabin'),
+            'lastmod' => Carbon::parse('2026-09-20T10:00:00+00:00'),
+            'topic_cluster_id' => $cluster->id,
+            'classified_at' => now(),
+        ]);
+
+        Http::fake([
+            'ganjnameh.example.com/sitemap.xml' => Http::response(<<<'XML'
+                <?xml version="1.0" encoding="UTF-8"?>
+                <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+                    <url><loc>https://ganjnameh.example.com/telecabin</loc><lastmod>2026-09-26T09:00:00+00:00</lastmod></url>
+                </urlset>
+                XML, 200),
+        ]);
+
+        app(SitemapMonitorService::class)->sync($project);
+
+        $entry->refresh();
+        $this->assertNull($entry->topic_cluster_id);
+        $this->assertNull($entry->classified_at);
+    }
+
+    public function test_coverage_by_cluster_counts_classified_pages_per_cluster(): void
+    {
+        $project = SeoProject::factory()->create();
+        $clusterA = SeoTopicCluster::factory()->for($project, 'project')->create();
+        $clusterB = SeoTopicCluster::factory()->for($project, 'project')->create();
+        SeoSitemapEntry::factory()->count(2)->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $clusterA->id, 'classified_at' => now()]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => $clusterB->id, 'classified_at' => now()]);
+        SeoSitemapEntry::factory()->create(['seo_project_id' => $project->id, 'topic_cluster_id' => null, 'classified_at' => now()]);
+
+        $coverage = app(SitemapMonitorService::class)->coverageByCluster($project);
+
+        $this->assertSame(2, $coverage->get($clusterA->id));
+        $this->assertSame(1, $coverage->get($clusterB->id));
+        $this->assertCount(2, $coverage);
+    }
+
+    public function test_check_google_status_stores_the_result_on_the_project(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'access_token' => 'valid-token',
+            'token_expires_at' => now()->addHour(),
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+            'status' => SeoConnectionStatus::Connected,
+        ]);
+
+        Http::fake([
+            'www.googleapis.com/webmasters/v3/sites/*/sitemaps/*' => Http::response([
+                'path' => 'https://ganjnameh.example.com/sitemap.xml',
+                'warnings' => '1',
+                'errors' => '0',
+                'isPending' => false,
+            ]),
+        ]);
+
+        $status = app(SitemapMonitorService::class)->checkGoogleStatus($project);
+
+        $this->assertSame('1', $status['warnings']);
+        $project->refresh();
+        $this->assertSame('1', $project->google_sitemap_status['warnings']);
+        $this->assertNotNull($project->google_sitemap_checked_at);
+    }
+
+    public function test_check_google_status_throws_when_the_project_has_no_google_connection(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => 'https://ganjnameh.example.com/sitemap.xml']);
+
+        $this->expectException(SeoGoogleException::class);
+
+        app(SitemapMonitorService::class)->checkGoogleStatus($project);
+    }
+
+    public function test_check_google_status_throws_when_the_project_has_no_sitemap_url(): void
+    {
+        $project = SeoProject::factory()->create(['sitemap_url' => null]);
+        SeoGoogleConnection::factory()->create([
+            'seo_project_id' => $project->id,
+            'gsc_site_url' => 'https://ganjnameh.example.com/',
+            'status' => SeoConnectionStatus::Connected,
+        ]);
+
+        $this->expectException(\RuntimeException::class);
+
+        app(SitemapMonitorService::class)->checkGoogleStatus($project);
     }
 }

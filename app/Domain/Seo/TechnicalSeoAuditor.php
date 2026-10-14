@@ -9,6 +9,7 @@ use App\Models\SeoInternalLink;
 use App\Models\SeoProject;
 use App\Models\SeoSitemapEntry;
 use App\Models\SeoTechnicalAudit;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -20,8 +21,10 @@ use Illuminate\Support\Facades\Log;
  * see GoogleCustomSearchClient's own doc comment). Crawls up to
  * MAX_PAGES same-host pages breadth-first starting from the project's
  * website_url and flags the checks a real technical SEO review starts
- * with: broken links, missing/duplicate titles, missing meta
- * descriptions, images without alt text, slow responses, a missing
+ * with: broken links, missing/duplicate titles and H1s, missing meta
+ * descriptions, a missing canonical/viewport/Open Graph tag, images
+ * without alt text or explicit dimensions, slow responses or long
+ * redirect chains, thin or duplicate page content, a missing
  * robots.txt/sitemap.xml, phone numbers that disagree across pages, and
  * (on the homepage only) a missing LocalBusiness-family schema - the
  * local-SEO "hygiene" layer: see SeoTechnicalIssueType's Inconsistent
@@ -29,11 +32,27 @@ use Illuminate\Support\Facades\Log;
  */
 class TechnicalSeoAuditor
 {
-    private const MAX_PAGES = 40;
+    /**
+     * Raised cautiously from 40, not left unbounded - this directly
+     * extends the weekly cron's own run time, and a site with many
+     * near-identical listing pages (exactly where duplicate-title/
+     * duplicate-content risk is highest) is exactly the case a higher
+     * cap matters most for.
+     */
+    private const MAX_PAGES = 80;
 
     private const SLOW_PAGE_THRESHOLD_MS = 3000;
 
     private const REQUEST_TIMEOUT_SECONDS = 10;
+
+    /** 3 or more hops is worth a human looking at, not just "it eventually got there". */
+    private const REDIRECT_CHAIN_THRESHOLD = 3;
+
+    /** A hard safety cap against a genuine redirect loop - never meant to be reached on a real chain worth flagging. */
+    private const MAX_REDIRECT_HOPS = 10;
+
+    /** Below this many words, a page's own content is too thin to say anything meaningful about it to Google. */
+    private const THIN_CONTENT_MIN_WORDS = 100;
 
     /**
      * schema.org @type values (lowercase) that count as a local-business
@@ -106,6 +125,11 @@ class TechnicalSeoAuditor
         $queue = [$startUrl];
         $visited = [];
         $seenTitles = [];
+        $seenH1s = [];
+        // Keyed by a hash of the page's own visible text, so two pages
+        // with genuinely identical content are caught regardless of url -
+        // same reasoning as $seenTitles, one level deeper.
+        $seenBodyHashes = [];
         // Keyed by "from|to" so the same edge (e.g. a nav link repeated on
         // every page) is only ever recorded once per audit - see
         // App\Models\SeoInternalLink's own doc comment.
@@ -130,21 +154,24 @@ class TechnicalSeoAuditor
             $start = microtime(true);
 
             try {
-                $response = Http::timeout(self::REQUEST_TIMEOUT_SECONDS)
-                    ->withUserAgent('GanjnamehTechnicalSeoAuditor/1.0')
-                    ->get($url);
+                $fetch = $this->fetchFollowingRedirects($url);
             } catch (\Throwable) {
                 $this->recordIssue($audit, SeoTechnicalIssueType::BrokenLink, SeoTechnicalIssueSeverity::Critical, $url, 'درخواست ناموفق بود (اتصال برقرار نشد یا timeout).');
 
                 continue;
             }
 
+            $response = $fetch['response'];
             $elapsedMs = (int) round((microtime(true) - $start) * 1000);
 
             if ($response->failed()) {
                 $this->recordIssue($audit, SeoTechnicalIssueType::BrokenLink, SeoTechnicalIssueSeverity::Critical, $url, "کد پاسخ: {$response->status()}");
 
                 continue;
+            }
+
+            if ($fetch['hops'] >= self::REDIRECT_CHAIN_THRESHOLD) {
+                $this->recordIssue($audit, SeoTechnicalIssueType::RedirectChain, SeoTechnicalIssueSeverity::Warning, $url, "{$fetch['hops']} ریدایرکت پشت‌سرهم تا رسیدن به {$fetch['finalUrl']}");
             }
 
             if ($elapsedMs > self::SLOW_PAGE_THRESHOLD_MS) {
@@ -155,7 +182,7 @@ class TechnicalSeoAuditor
                 continue;
             }
 
-            $this->inspectHtml($response->body(), $url, $audit, $seenTitles, $normalized === $normalizedStart);
+            $this->inspectHtml($response->body(), $url, $audit, $seenTitles, $seenH1s, $seenBodyHashes, $normalized === $normalizedStart);
 
             foreach ($this->extractPhoneNumbers($response->body()) as $phoneNumber) {
                 $phoneNumbers[$phoneNumber] ??= $url;
@@ -209,9 +236,49 @@ class TechnicalSeoAuditor
     }
 
     /**
-     * @param  array<string, true>  $seenTitles  passed by reference - shared across the whole crawl so a title reused on a second page is flagged as a duplicate
+     * Follows redirects manually (auto-following disabled) rather than
+     * letting the HTTP client do it transparently, purely to count the
+     * hops - a long chain is itself a real performance/crawl-budget
+     * issue even when it eventually lands somewhere valid. Everything
+     * else about how a redirecting URL is treated (which response body
+     * gets inspected, what's recorded as "the page") is unchanged from
+     * before this existed.
+     *
+     * @return array{response: Response, hops: int, finalUrl: string}
      */
-    private function inspectHtml(string $html, string $url, SeoTechnicalAudit $audit, array &$seenTitles, bool $isHomepage = false): void
+    private function fetchFollowingRedirects(string $url): array
+    {
+        $currentUrl = $url;
+        $hops = 0;
+
+        while (true) {
+            $response = Http::timeout(self::REQUEST_TIMEOUT_SECONDS)
+                ->withUserAgent('GanjnamehTechnicalSeoAuditor/1.0')
+                ->withOptions(['allow_redirects' => false])
+                ->get($currentUrl);
+
+            if (! in_array($response->status(), [301, 302, 303, 307, 308], true) || $hops >= self::MAX_REDIRECT_HOPS) {
+                return ['response' => $response, 'hops' => $hops, 'finalUrl' => $currentUrl];
+            }
+
+            $location = $response->header('Location');
+            $resolved = blank($location) ? null : $this->resolveUrl($currentUrl, $location);
+
+            if (! $resolved) {
+                return ['response' => $response, 'hops' => $hops, 'finalUrl' => $currentUrl];
+            }
+
+            $currentUrl = $resolved;
+            $hops++;
+        }
+    }
+
+    /**
+     * @param  array<string, true>  $seenTitles  passed by reference - shared across the whole crawl so a title reused on a second page is flagged as a duplicate
+     * @param  array<string, true>  $seenH1s  same idea as $seenTitles, for each page's H1
+     * @param  array<string, string>  $seenBodyHashes  hash of a page's own visible text => the first url it was seen on
+     */
+    private function inspectHtml(string $html, string $url, SeoTechnicalAudit $audit, array &$seenTitles, array &$seenH1s, array &$seenBodyHashes, bool $isHomepage = false): void
     {
         $previousState = libxml_use_internal_errors(true);
         $document = new \DOMDocument;
@@ -230,6 +297,64 @@ class TechnicalSeoAuditor
             $seenTitles[$title] = true;
         }
 
+        $h1Nodes = $document->getElementsByTagName('h1');
+
+        if ($h1Nodes->length === 0) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::MissingH1, SeoTechnicalIssueSeverity::Warning, $url, null);
+        } elseif ($h1Nodes->length > 1) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::MultipleH1, SeoTechnicalIssueSeverity::Warning, $url, "{$h1Nodes->length} سرتیتر (H1) روی یک صفحه.");
+        } else {
+            $h1 = trim($h1Nodes->item(0)->textContent);
+
+            if ($h1 !== '') {
+                if (isset($seenH1s[$h1])) {
+                    $this->recordIssue($audit, SeoTechnicalIssueType::DuplicateH1, SeoTechnicalIssueSeverity::Warning, $url, "سرتیتر «{$h1}» قبلاً در صفحهٔ دیگری هم استفاده شده.");
+                } else {
+                    $seenH1s[$h1] = true;
+                }
+            }
+        }
+
+        $hasCanonical = false;
+
+        foreach ($document->getElementsByTagName('link') as $link) {
+            if (strtolower($link->getAttribute('rel')) === 'canonical' && trim($link->getAttribute('href')) !== '') {
+                $hasCanonical = true;
+
+                break;
+            }
+        }
+
+        if (! $hasCanonical) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::MissingCanonical, SeoTechnicalIssueSeverity::Info, $url, null);
+        }
+
+        $hasViewport = false;
+        $hasOgTitle = false;
+        $hasOgImage = false;
+
+        foreach ($document->getElementsByTagName('meta') as $meta) {
+            $name = strtolower($meta->getAttribute('name'));
+            $property = strtolower($meta->getAttribute('property'));
+
+            if ($name === 'viewport' && trim($meta->getAttribute('content')) !== '') {
+                $hasViewport = true;
+            } elseif ($property === 'og:title' && trim($meta->getAttribute('content')) !== '') {
+                $hasOgTitle = true;
+            } elseif ($property === 'og:image' && trim($meta->getAttribute('content')) !== '') {
+                $hasOgImage = true;
+            }
+        }
+
+        if (! $hasViewport) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::MissingViewport, SeoTechnicalIssueSeverity::Warning, $url, null);
+        }
+
+        if (! $hasOgTitle || ! $hasOgImage) {
+            $missing = array_filter(['og:title' => ! $hasOgTitle, 'og:image' => ! $hasOgImage]);
+            $this->recordIssue($audit, SeoTechnicalIssueType::MissingOpenGraph, SeoTechnicalIssueSeverity::Warning, $url, 'موارد ناقص: '.implode('، ', array_keys($missing)));
+        }
+
         $hasMetaDescription = false;
 
         foreach ($document->getElementsByTagName('meta') as $meta) {
@@ -245,15 +370,27 @@ class TechnicalSeoAuditor
         }
 
         $imagesWithoutAlt = 0;
+        $imagesWithoutDimensions = 0;
 
         foreach ($document->getElementsByTagName('img') as $img) {
             if (trim($img->getAttribute('alt')) === '') {
                 $imagesWithoutAlt++;
             }
+
+            if (trim($img->getAttribute('width')) === '' || trim($img->getAttribute('height')) === '') {
+                $imagesWithoutDimensions++;
+            }
         }
 
         if ($imagesWithoutAlt > 0) {
             $this->recordIssue($audit, SeoTechnicalIssueType::MissingAlt, SeoTechnicalIssueSeverity::Info, $url, "{$imagesWithoutAlt} تصویر بدون متن جایگزین (alt).");
+        }
+
+        if ($imagesWithoutDimensions > 0) {
+            // No width/height lets the browser's layout shift once the
+            // image actually loads - exactly what PageSpeedInsightsClient's
+            // own CLS metric measures, just traced back to its cause here.
+            $this->recordIssue($audit, SeoTechnicalIssueType::ImageMissingDimensions, SeoTechnicalIssueSeverity::Info, $url, "{$imagesWithoutDimensions} تصویر بدون ابعاد مشخص (width/height).");
         }
 
         $hasStructuredData = false;
@@ -280,6 +417,52 @@ class TechnicalSeoAuditor
                 $this->recordIssue($audit, SeoTechnicalIssueType::MissingLocalBusinessSchema, SeoTechnicalIssueSeverity::Warning, $url, null);
             }
         }
+
+        $bodyText = $this->extractVisibleBodyText($document);
+        $wordCount = $bodyText === '' ? 0 : count(preg_split('/\s+/u', $bodyText, -1, PREG_SPLIT_NO_EMPTY));
+
+        if ($wordCount < self::THIN_CONTENT_MIN_WORDS) {
+            $this->recordIssue($audit, SeoTechnicalIssueType::ThinContent, SeoTechnicalIssueSeverity::Info, $url, "تعداد کلمات محتوای صفحه: {$wordCount}");
+        }
+
+        if ($bodyText !== '') {
+            $bodyHash = sha1(mb_strtolower($bodyText));
+
+            if (isset($seenBodyHashes[$bodyHash])) {
+                $this->recordIssue($audit, SeoTechnicalIssueType::DuplicateContent, SeoTechnicalIssueSeverity::Warning, $url, "محتوای این صفحه با {$seenBodyHashes[$bodyHash]} یکسان است.");
+            } else {
+                $seenBodyHashes[$bodyHash] = $url;
+            }
+        }
+    }
+
+    /**
+     * The page's own visible text, with <script>/<style> contents
+     * excluded (DOMElement::textContent otherwise includes their raw
+     * JS/CSS source, which would pollute both the word count and the
+     * duplicate-content hash) - computed from a detached clone so this
+     * never mutates the document the rest of inspectHtml() still reads.
+     */
+    private function extractVisibleBodyText(\DOMDocument $document): string
+    {
+        $body = $document->getElementsByTagName('body')->item(0);
+
+        if (! $body) {
+            return '';
+        }
+
+        $clone = $body->cloneNode(true);
+
+        foreach (['script', 'style'] as $tagName) {
+            $nodes = $clone->getElementsByTagName($tagName);
+
+            for ($i = $nodes->length - 1; $i >= 0; $i--) {
+                $node = $nodes->item($i);
+                $node->parentNode?->removeChild($node);
+            }
+        }
+
+        return trim(preg_replace('/\s+/u', ' ', $clone->textContent) ?? '');
     }
 
     /**

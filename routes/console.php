@@ -39,6 +39,16 @@ Schedule::command('events:send-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 
+// همگام‌سازی گوگل سرچ کنسول - تا امروز تنها راهش دکمه‌ی دستی "همگام‌سازی
+// الان" روی هر پروژه بود، در حالی که همهٔ تحلیل‌های زیرش (AnalyzeSeoProjectJob،
+// موتور فرصت‌ها، context کشف کلمه کلیدی) به تازگی همین داده وابسته‌اند. زود،
+// پیش از بقیهٔ کارهای زمان‌بندی‌شدهٔ سئو، تا آن‌ها هم داده‌ی تازه ببینند.
+// SyncSearchConsoleDataJob خودش idempotent است، پس اجرای روزانه ریسکی ندارد.
+Schedule::command('seo:sync-search-console')
+    ->dailyAt('01:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 // مرکز سئو "learning" step: re-measures every resolved opportunity whose
 // baseline is old enough (OpportunityOutcomeService::FOLLOWUP_WINDOW_DAYS)
 // and records whether it actually helped. Daily is plenty - the

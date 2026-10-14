@@ -13,13 +13,18 @@ class SeoProject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'website_url', 'sitemap_url', 'goal', 'audience', 'real_services', 'excluded_query_terms', 'market', 'brand', 'notes', 'is_active'];
+    protected $fillable = [
+        'name', 'website_url', 'sitemap_url', 'goal', 'audience', 'real_services', 'excluded_query_terms',
+        'market', 'brand', 'notes', 'is_active', 'google_sitemap_status', 'google_sitemap_checked_at',
+    ];
 
     protected function casts(): array
     {
         return [
             'goal' => SeoProjectGoal::class,
             'is_active' => 'boolean',
+            'google_sitemap_status' => 'array',
+            'google_sitemap_checked_at' => 'datetime',
         ];
     }
 

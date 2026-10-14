@@ -41,6 +41,27 @@ class SearchConsoleClient
     }
 
     /**
+     * Google's own view of one submitted sitemap - errors/warnings it
+     * found parsing the file, whether it's still pending, and when it
+     * last actually downloaded it. A free, direct answer to "how did
+     * Google see this sitemap", unlike SitemapClient which only ever
+     * reads the raw XML itself and can't see what Google made of it.
+     *
+     * @return array{path?: string, lastSubmitted?: string, isPending?: bool, isSitemapsIndex?: bool, lastDownloaded?: string, warnings?: string, errors?: string}
+     */
+    public function getSitemap(string $siteUrl, string $feedpath): array
+    {
+        $response = Http::withToken($this->accessToken)
+            ->get(self::BASE_URL.'/sites/'.rawurlencode($siteUrl).'/sitemaps/'.rawurlencode($feedpath));
+
+        if ($response->failed()) {
+            throw SeoGoogleException::requestFailed($response->json('error.message') ?? "HTTP {$response->status()}");
+        }
+
+        return $response->json() ?? [];
+    }
+
+    /**
      * @param  array<int, string>  $dimensions  e.g. ['date'], ['query'], ['page'], ['query', 'page'], ['country'], ['device'], ['searchAppearance']
      * @param  array<int, array{dimension: string, operator: string, expression: string}>  $filters  ANDed together (one dimensionFilterGroup) - e.g. [['dimension' => 'query', 'operator' => 'notContains', 'expression' => 'برند']]
      * @param  string  $searchType  web|image|video|news|discover|googleNews - GSC calls this "type" in the request, not a "dimension"

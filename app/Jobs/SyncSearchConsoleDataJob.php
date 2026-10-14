@@ -4,6 +4,7 @@ namespace App\Jobs;
 
 use App\Domain\Seo\GoogleOAuthService;
 use App\Domain\Seo\SearchConsoleClient;
+use App\Domain\Seo\SeoAlertService;
 use App\Enums\SeoConnectionStatus;
 use App\Enums\SeoSearchType;
 use App\Exceptions\SeoGoogleException;
@@ -77,7 +78,7 @@ class SyncSearchConsoleDataJob implements ShouldQueue
 
     public function __construct(public int $seoProjectId) {}
 
-    public function handle(GoogleOAuthService $oauth): void
+    public function handle(GoogleOAuthService $oauth, SeoAlertService $alerts): void
     {
         $project = SeoProject::findOrFail($this->seoProjectId);
         $connection = $project->googleConnection;
@@ -85,6 +86,8 @@ class SyncSearchConsoleDataJob implements ShouldQueue
         if (! $connection || blank($connection->gsc_site_url)) {
             throw SeoGoogleException::notConnected();
         }
+
+        $wasAlreadyError = $connection->status === SeoConnectionStatus::Error;
 
         try {
             $accessToken = $oauth->freshAccessTokenFor($connection);
@@ -114,6 +117,10 @@ class SyncSearchConsoleDataJob implements ShouldQueue
                 'status' => SeoConnectionStatus::Error,
                 'last_sync_error' => $exception->getMessage(),
             ]);
+
+            if (! $wasAlreadyError) {
+                $alerts->notifyGoogleConnectionError($project, $exception->getMessage());
+            }
 
             throw $exception;
         }

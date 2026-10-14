@@ -2,8 +2,10 @@
 
 namespace Tests\Feature\Seo;
 
+use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoOpportunityPriority;
 use App\Filament\Pages\SeoActionQueue;
+use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoOpportunity;
 use App\Models\SeoProject;
 use App\Models\User;
@@ -37,7 +39,7 @@ class SeoActionQueuePageTest extends TestCase
 
         Livewire::actingAs($this->admin())
             ->test(SeoActionQueue::class, ['projectId' => $project->id])
-            ->assertSee('در حال حاضر هیچ فرصت یا مشکل بازی برای این پروژه شناسایی نشده است.');
+            ->assertSee('در حال حاضر هیچ فرصت، مشکل باز یا پیشنهاد در انتظار تصمیم برای این پروژه نیست.');
     }
 
     public function test_it_lists_an_opportunity_for_the_selected_project(): void
@@ -53,6 +55,21 @@ class SeoActionQueuePageTest extends TestCase
             ->test(SeoActionQueue::class, ['projectId' => $project->id])
             ->assertSee('بهبود عنوان صفحه‌ی تله‌کابین')
             ->assertSee('فرصت سئو');
+    }
+
+    public function test_it_lists_a_pending_keyword_suggestion_for_the_selected_project(): void
+    {
+        $project = SeoProject::factory()->create();
+        SeoKeywordSuggestion::factory()->create([
+            'seo_project_id' => $project->id,
+            'keyword' => 'اجاره ویلا نزدیک گنجنامه',
+            'status' => SeoKeywordSuggestionStatus::New,
+        ]);
+
+        Livewire::actingAs($this->admin())
+            ->test(SeoActionQueue::class, ['projectId' => $project->id])
+            ->assertSee('اجاره ویلا نزدیک گنجنامه')
+            ->assertSee('پیشنهاد کلمه کلیدی');
     }
 
     public function test_a_user_without_permission_is_forbidden(): void

@@ -12,6 +12,7 @@ use App\Models\SeoKeywordProfile;
 use App\Models\SeoKeywordSuggestion;
 use App\Models\SeoProject;
 use App\Models\SeoProjectCompetitor;
+use App\Models\SeoSitemapEntry;
 use App\Models\SeoTopicCluster;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
@@ -233,6 +234,44 @@ class AiKeywordDiscoveryServiceTest extends TestCase
             $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
 
             return ! str_contains($systemPrompt, 'What competitors are already publishing');
+        });
+    }
+
+    public function test_the_prompt_includes_own_sitemap_coverage_per_cluster(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+        $cluster = SeoTopicCluster::factory()->create(['seo_project_id' => $project->id, 'name' => 'تور طبیعت‌گردی']);
+        SeoSitemapEntry::factory()->create([
+            'seo_project_id' => $project->id,
+            'topic_cluster_id' => $cluster->id,
+            'classified_at' => now(),
+        ]);
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(function (Request $request) {
+            $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
+
+            return str_contains($systemPrompt, 'تور طبیعت‌گردی: 1 صفحهٔ واقعی منتشرشده');
+        });
+    }
+
+    public function test_the_prompt_omits_the_own_sitemap_section_when_nothing_is_classified_yet(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(function (Request $request) {
+            $systemPrompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
+
+            return ! str_contains($systemPrompt, 'Topics this business already has real, published pages for');
         });
     }
 }
