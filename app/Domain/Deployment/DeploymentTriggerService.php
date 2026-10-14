@@ -42,11 +42,13 @@ class DeploymentTriggerService
      * finished writing to it - the closest available signal for when the
      * last deploy actually completed (nothing in the log content itself
      * carries a timestamp, since it's each artisan command's raw output).
+     * Carbon::createFromTimestamp() defaults to UTC unless told otherwise,
+     * so the app's own timezone is passed explicitly here.
      */
     public function lastDeployAt(): ?Carbon
     {
         return Storage::disk('local')->exists(self::LOG_FILE)
-            ? Carbon::createFromTimestamp(Storage::disk('local')->lastModified(self::LOG_FILE))
+            ? Carbon::createFromTimestamp(Storage::disk('local')->lastModified(self::LOG_FILE), config('app.timezone'))
             : null;
     }
 }
