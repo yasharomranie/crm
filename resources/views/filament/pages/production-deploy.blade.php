@@ -23,7 +23,7 @@
         <div class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
             <p class="mb-2 text-xs font-medium text-gray-500 dark:text-gray-400">آخرین خروجی دیپلوی</p>
             @if ($this->lastDeployLog())
-                <pre class="max-h-96 overflow-auto rounded bg-gray-950 p-3 text-xs text-gray-200" dir="ltr">{{ $this->lastDeployLog() }}</pre>
+                <pre class="max-h-96 overflow-x-auto overflow-y-auto rounded bg-gray-950 p-3 text-xs text-gray-200" dir="ltr">{{ $this->lastDeployLog() }}</pre>
             @else
                 <p class="text-sm text-gray-400">هنوز هیچ دیپلویی از این صفحه ثبت نشده است.</p>
             @endif

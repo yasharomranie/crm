@@ -1,14 +1,14 @@
 {
-  "_fonts-DC4Gu8La.css": {
-    "file": "assets/fonts-DC4Gu8La.css",
-    "src": "_fonts-DC4Gu8La.css"
+  "_fonts-DAh3JXxV.css": {
+    "file": "assets/fonts-DAh3JXxV.css",
+    "src": "_fonts-DAh3JXxV.css"
   },
   "_vazirmatn-variable-normal-Cafbb7Zc.woff2": {
     "file": "assets/vazirmatn-variable-normal-Cafbb7Zc.woff2",
     "src": "_vazirmatn-variable-normal-Cafbb7Zc.woff2"
   },
   "resources/css/app.css": {
-    "file": "assets/app-azd8mKA1.css",
+    "file": "assets/app-Bj0oVLGD.css",
     "name": "app",
     "names": [
       "app.css"
@@ -17,7 +17,7 @@
     "isEntry": true
   },
   "resources/css/filament/admin/theme.css": {
-    "file": "assets/theme-CBbdT9Ae.css",
+    "file": "assets/theme-DB3b-V0Q.css",
     "name": "theme",
     "names": [
       "theme.css"
