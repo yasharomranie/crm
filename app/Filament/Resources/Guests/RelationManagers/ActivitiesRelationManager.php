@@ -37,6 +37,7 @@ class ActivitiesRelationManager extends RelationManager
                     ->formatStateUsing(fn (?string $state) => CrmActivityType::tryFrom($state ?? '')?->getLabel() ?? match ($state) {
                         'created' => 'ایجاد پرونده',
                         'updated' => 'ویرایش اطلاعات',
+                        'lead_captured' => 'ثبت از فرم سرنخ',
                         default => $state ?? '—',
                     })
                     ->color(fn (?string $state) => CrmActivityType::tryFrom($state ?? '')?->getColor() ?? 'gray'),

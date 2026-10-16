@@ -14,6 +14,7 @@ use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
 use App\Http\Controllers\GateOfflineSyncController;
+use App\Http\Controllers\LeadCaptureController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
@@ -87,6 +88,13 @@ Route::get('/system-guide', function () {
 // into system-guide's own "REST API برای سامانه‌های بیرونی" chapter, so
 // any bookmarked/shared link still lands somewhere useful instead of 404ing.
 Route::redirect('/api-docs', '/system-guide#ch-13');
+
+// Public lead-capture forms (admin-managed via the "فرم‌های جذب سرنخ"
+// Filament resource) - no login; each submission becomes a Guest + a
+// NewLead Deal, see App\Domain\Crm\LeadCaptureService.
+Route::get('/lead/{leadCaptureForm:slug}', [LeadCaptureController::class, 'show'])->name('lead-capture.show');
+Route::post('/lead/{leadCaptureForm:slug}', [LeadCaptureController::class, 'store'])
+    ->middleware('throttle:lead-capture')->name('lead-capture.store');
 
 // The public, installable گنجنامه customer app - its own PWA identity
 // (separate manifest/service worker from the staff admin one; see
