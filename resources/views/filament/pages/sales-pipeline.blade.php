@@ -9,14 +9,14 @@
     {{-- dir="ltr" on the scroll container itself, not just its contents -
     otherwise, being inside an RTL page, its scrollLeft:0 starts at the
     *last* pipeline stage instead of "سرنخ جدید". --}}
-    <div dir="ltr" class="mt-3 overflow-x-auto">
+    <div dir="ltr" class="mt-3 overflow-x-auto" x-data="salesPipelineKanban">
         <div class="flex gap-4 pb-4" style="min-width: max-content;">
             @foreach ($this->getColumns() as $stageValue => $deals)
                 @php
                     $stage = \App\Enums\DealStage::from($stageValue);
                     $stageValueSum = $deals->sum('value');
                 @endphp
-                <div dir="rtl" class="flex w-80 shrink-0 flex-col rounded-xl border border-gray-200 bg-gray-50/70 dark:border-white/10 dark:bg-white/[0.02]">
+                <div dir="rtl" wire:key="stage-column-{{ $stageValue }}" class="flex w-80 shrink-0 flex-col rounded-xl border border-gray-200 bg-gray-50/70 dark:border-white/10 dark:bg-white/[0.02]">
                     <div class="flex items-center justify-between gap-2 border-b border-gray-200 p-3 dark:border-white/10">
                         <div class="flex items-center gap-2">
                             <span class="h-2 w-2 shrink-0 rounded-full" style="background-color: {{ ['gray' => '#9ca3af', 'info' => '#3b82f6', 'warning' => '#f59e0b', 'success' => '#16a34a', 'danger' => '#dc2626'][$stage->getColor()] }}"></span>
@@ -31,11 +31,13 @@
                         </div>
                     @endif
 
-                    <div class="flex-1 space-y-2 p-2">
+                    <div class="kanban-column flex-1 space-y-2 p-2" data-stage="{{ $stageValue }}">
                         @forelse ($deals as $deal)
                             @php $daysInStage = (int) $deal->updated_at->diffInDays(now()); @endphp
                             <div
-                                class="rounded-lg border border-gray-200 border-r-4 bg-white p-3 text-sm shadow-sm transition hover:shadow-md dark:border-white/10 dark:bg-gray-800"
+                                wire:key="deal-card-{{ $deal->id }}"
+                                data-deal-id="{{ $deal->id }}"
+                                class="cursor-grab rounded-lg border border-gray-200 border-r-4 bg-white p-3 text-sm shadow-sm transition hover:shadow-md active:cursor-grabbing dark:border-white/10 dark:bg-gray-800"
                                 style="border-right-color: {{ ['gray' => '#9ca3af', 'info' => '#3b82f6', 'warning' => '#f59e0b', 'success' => '#16a34a', 'danger' => '#dc2626'][$stage->getColor()] }};"
                             >
                                 <div class="flex items-start justify-between gap-2">
@@ -107,4 +109,37 @@
             @endforeach
         </div>
     </div>
+
+    @script
+    <script>
+        Alpine.data('salesPipelineKanban', () => ({
+            init() {
+                // Filament's own panel JS already bundles and exposes
+                // SortableJS globally (vendor/filament/support/resources/js/sortable.js)
+                // for its reorderable tables - reused here directly instead
+                // of shipping a second copy of the same library.
+                this.$el.querySelectorAll('.kanban-column').forEach((column) => {
+                    Sortable.create(column, {
+                        group: 'sales-pipeline',
+                        animation: 150,
+                        ghostClass: 'opacity-40',
+                        filter: 'button',
+                        preventOnFilter: false,
+                        onEnd: (event) => {
+                            const dealId = event.item.dataset.dealId;
+                            const newStage = event.to.dataset.stage;
+                            const oldStage = event.from.dataset.stage;
+
+                            if (! dealId || newStage === oldStage) {
+                                return;
+                            }
+
+                            this.$wire.moveDealToStage(parseInt(dealId), newStage);
+                        },
+                    });
+                });
+            },
+        }));
+    </script>
+    @endscript
 </x-filament-panels::page>

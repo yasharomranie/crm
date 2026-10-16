@@ -84,10 +84,31 @@ class SalesPipeline extends Page
             return;
         }
 
-        $deal->update(['stage' => $order[$newIndex]]);
+        $this->moveDealToStage($dealId, $order[$newIndex]->value);
+    }
+
+    /**
+     * Called by the kanban board's drag-and-drop (see sales-pipeline.blade.php's
+     * Sortable.js wiring) when a card is dropped on a different column.
+     */
+    public function moveDealToStage(int $dealId, string $stageValue): void
+    {
+        $stage = DealStage::tryFrom($stageValue);
+
+        if (! $stage) {
+            return;
+        }
+
+        $deal = Deal::findOrFail($dealId);
+
+        if ($deal->stage === $stage) {
+            return;
+        }
+
+        $deal->update(['stage' => $stage]);
 
         Notification::make()
-            ->title("معامله به مرحله «{$order[$newIndex]->getLabel()}» منتقل شد")
+            ->title("معامله به مرحله «{$stage->getLabel()}» منتقل شد")
             ->success()
             ->send();
     }
