@@ -126,6 +126,7 @@ class GuestResource extends Resource
     {
         return [
             RelationManagers\ActivitiesRelationManager::class,
+            RelationManagers\CustomerMessagesRelationManager::class,
             FollowUpTasksRelationManager::class,
             RelationManagers\DealsRelationManager::class,
             RelationManagers\TicketsRelationManager::class,

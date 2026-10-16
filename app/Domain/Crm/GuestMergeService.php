@@ -19,7 +19,7 @@ class GuestMergeService
     /** Tables with a plain guest_id foreign key. */
     private const GUEST_ID_TABLES = [
         'bookings', 'wallet_transactions', 'deals', 'guest_feedbacks',
-        'guest_tickets', 'guest_ticket_replies', 'trip_plans',
+        'guest_tickets', 'guest_ticket_replies', 'trip_plans', 'customer_messages',
     ];
 
     /** Contact fields copied over only when the kept record has none. */
