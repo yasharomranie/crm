@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Domain\Crm\DealAutomationService;
 use App\Enums\DealSource;
 use App\Enums\DealStage;
 use App\Models\Concerns\HasFollowUpTasks;
@@ -25,7 +26,17 @@ class Deal extends Model
             'source' => DealSource::class,
             'value' => 'decimal:0',
             'expected_close_date' => 'date',
+            'stale_notified_at' => 'datetime',
         ];
+    }
+
+    protected static function booted(): void
+    {
+        static::saved(function (self $deal) {
+            if ($deal->wasRecentlyCreated || $deal->wasChanged('stage')) {
+                app(DealAutomationService::class)->handleStageEntered($deal);
+            }
+        });
     }
 
     public function guest(): BelongsTo
