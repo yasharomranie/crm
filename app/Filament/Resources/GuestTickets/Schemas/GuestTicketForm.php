@@ -45,6 +45,12 @@ class GuestTicketForm
                     ->required()
                     ->helperText('مهلت پاسخ‌گویی (SLA) بر اساس فوریت به‌صورت خودکار تنظیم می‌شود.')
                     ->hintAction(FieldHelp::make('guest-tickets.priority')),
+                Select::make('assigned_to')
+                    ->label('مسئول پاسخ‌گویی')
+                    ->relationship('assignee', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->helperText('اگر خالی بماند، هشدار نقض مهلت پاسخ برای مدیران ارسال می‌شود.'),
                 Select::make('status')
                     ->label('وضعیت')
                     ->options(TicketStatus::class)
