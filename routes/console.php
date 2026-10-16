@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Crm\FollowUpReminderService;
+use App\Domain\Crm\TicketSlaBreachService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -58,6 +59,13 @@ Schedule::call($artisan('events:send-reminders'))
 Schedule::call(fn () => app(FollowUpReminderService::class)->sendDueReminders())
     ->name('crm-follow-up-reminders')
     ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+// Alerts the assignee (or the admins, if unassigned) the first time an open
+// support ticket passes its SLA deadline.
+Schedule::call(fn () => app(TicketSlaBreachService::class)->notifyBreachedTickets())
+    ->name('crm-ticket-sla-breaches')
+    ->everyTenMinutes()
     ->withoutOverlapping();
 
 // همگام‌سازی گوگل سرچ کنسول - تا امروز تنها راهش دکمه‌ی دستی "همگام‌سازی

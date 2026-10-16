@@ -12,7 +12,7 @@ class GuestTicket extends Model
 {
     protected $fillable = [
         'guest_id', 'subject', 'description', 'status', 'priority',
-        'sla_due_at', 'resolved_at', 'created_by',
+        'sla_due_at', 'resolved_at', 'created_by', 'assigned_to', 'sla_breach_notified_at',
     ];
 
     protected function casts(): array
@@ -22,6 +22,7 @@ class GuestTicket extends Model
             'priority' => TicketPriority::class,
             'sla_due_at' => 'datetime',
             'resolved_at' => 'datetime',
+            'sla_breach_notified_at' => 'datetime',
         ];
     }
 
@@ -40,6 +41,11 @@ class GuestTicket extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    public function assignee(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'assigned_to');
     }
 
     public function replies(): HasMany
