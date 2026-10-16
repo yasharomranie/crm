@@ -21,7 +21,7 @@ class Task extends Model
     protected $fillable = [
         'title', 'description', 'task_type', 'source_id', 'source_type',
         'parent_task_id', 'assigned_to', 'assigned_by', 'department_id',
-        'priority', 'status', 'due_at', 'completed_at',
+        'priority', 'status', 'due_at', 'completed_at', 'reminder_sent_at',
     ];
 
     protected function casts(): array
@@ -32,6 +32,7 @@ class Task extends Model
             'status' => TaskStatus::class,
             'due_at' => 'datetime',
             'completed_at' => 'datetime',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 

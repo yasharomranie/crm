@@ -4,13 +4,14 @@ namespace App\Models;
 
 use App\Enums\DealSource;
 use App\Enums\DealStage;
+use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class Deal extends Model
 {
-    use HasTags;
+    use HasFollowUpTasks, HasTags;
 
     protected $fillable = [
         'guest_id', 'title', 'stage', 'value', 'assigned_to',

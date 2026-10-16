@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Crm\FollowUpReminderService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -36,6 +37,16 @@ Schedule::command('queue:work --stop-when-empty --max-time=50')
 // reminder's alarm time can be any minute of the day, not just a fixed
 // daily slot like the two schedules above.
 Schedule::command('events:send-reminders')
+    ->everyFiveMinutes()
+    ->withoutOverlapping();
+
+// Pushes a reminder to the assignee of every CRM follow-up whose due time
+// has arrived. A closure (Schedule::call), not Schedule::command() like the
+// entries above: this host has proc_open disabled, so command events - which
+// spawn a separate artisan process - fail there, while a callback event runs
+// inside the schedule:run process itself and needs no subprocess.
+Schedule::call(fn () => app(FollowUpReminderService::class)->sendDueReminders())
+    ->name('crm-follow-up-reminders')
     ->everyFiveMinutes()
     ->withoutOverlapping();
 

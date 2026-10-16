@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\BookingStatus;
 use App\Enums\LoyaltyTier;
 use App\Enums\WalletTransactionType;
+use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
@@ -21,7 +22,7 @@ use Spatie\Activitylog\Support\LogOptions;
  */
 class Guest extends Authenticatable
 {
-    use HasFactory, HasTags, LogsActivity;
+    use HasFactory, HasFollowUpTasks, HasTags, LogsActivity;
 
     protected $fillable = ['name', 'national_code', 'mobile', 'email', 'password', 'google_id', 'mobile_verified_at', 'notes', 'wallet_balance'];
 
