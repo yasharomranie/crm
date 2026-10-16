@@ -50,6 +50,7 @@ use App\Models\Gate;
 use App\Models\Guest;
 use App\Models\GuestFeedback;
 use App\Models\GuestTicket;
+use App\Models\LeadCaptureForm;
 use App\Models\PriceRule;
 use App\Models\Product;
 use App\Models\Project;
@@ -120,6 +121,7 @@ return [
         'deals' => ['model' => Deal::class, 'label' => 'معاملات فروش', 'group' => 'CRM و مشتریان'],
         'guest-feedback' => ['model' => GuestFeedback::class, 'label' => 'بازخوردها و NPS', 'group' => 'CRM و مشتریان'],
         'guest-tickets' => ['model' => GuestTicket::class, 'label' => 'تیکت‌های پشتیبانی', 'group' => 'CRM و مشتریان'],
+        'lead-capture-forms' => ['model' => LeadCaptureForm::class, 'label' => 'فرم‌های جذب سرنخ', 'group' => 'CRM و مشتریان'],
 
         'ai-providers' => ['model' => AiProvider::class, 'label' => 'ارائه‌دهندگان هوش مصنوعی', 'group' => 'دستیار هوشمند مدیریتی'],
 

@@ -14,7 +14,7 @@ class Deal extends Model
 
     protected $fillable = [
         'guest_id', 'title', 'stage', 'value', 'assigned_to',
-        'source', 'external_api_client_id', 'expected_close_date', 'notes', 'created_by',
+        'source', 'external_api_client_id', 'lead_capture_form_id', 'expected_close_date', 'notes', 'created_by',
     ];
 
     protected function casts(): array
@@ -35,6 +35,11 @@ class Deal extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    public function leadCaptureForm(): BelongsTo
+    {
+        return $this->belongsTo(LeadCaptureForm::class);
     }
 
     public function creator(): BelongsTo

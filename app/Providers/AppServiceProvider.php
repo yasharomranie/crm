@@ -146,6 +146,16 @@ class AppServiceProvider extends ServiceProvider
                 Limit::perMinute(10)->by('otp-ip:'.$request->ip()),
             ];
         });
+
+        // Public lead forms have no login to gate them, so one IP is capped
+        // per minute and per hour to keep a script from flooding the
+        // pipeline with junk deals.
+        RateLimiter::for('lead-capture', function ($request) {
+            return [
+                Limit::perMinute(5)->by('lead-ip-minute:'.$request->ip()),
+                Limit::perHour(30)->by('lead-ip-hour:'.$request->ip()),
+            ];
+        });
     }
 
     /**
