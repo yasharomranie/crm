@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Guests\Pages;
 
+use App\Filament\Actions\LogCrmActivityAction;
 use App\Filament\Resources\Guests\GuestResource;
 use Filament\Actions\EditAction;
 use Filament\Resources\Pages\ViewRecord;
@@ -13,6 +14,7 @@ class ViewGuest extends ViewRecord
     protected function getHeaderActions(): array
     {
         return [
+            LogCrmActivityAction::make(),
             EditAction::make(),
         ];
     }

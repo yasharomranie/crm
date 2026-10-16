@@ -124,6 +124,7 @@ class GuestResource extends Resource
     public static function getRelations(): array
     {
         return [
+            RelationManagers\ActivitiesRelationManager::class,
             RelationManagers\DealsRelationManager::class,
             RelationManagers\TicketsRelationManager::class,
             RelationManagers\FeedbacksRelationManager::class,

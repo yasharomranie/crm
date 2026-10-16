@@ -9,6 +9,8 @@ use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 /**
  * Doubles as the customer-app's authenticatable identity (see config/auth.php's
@@ -19,7 +21,7 @@ use Illuminate\Foundation\Auth\User as Authenticatable;
  */
 class Guest extends Authenticatable
 {
-    use HasFactory, HasTags;
+    use HasFactory, HasTags, LogsActivity;
 
     protected $fillable = ['name', 'national_code', 'mobile', 'email', 'password', 'google_id', 'mobile_verified_at', 'notes', 'wallet_balance'];
 
@@ -32,6 +34,19 @@ class Guest extends Authenticatable
             'password' => 'hashed',
             'mobile_verified_at' => 'datetime',
         ];
+    }
+
+    /**
+     * Excludes wallet_balance (already has its own ledger in walletTransactions)
+     * and system-managed fields (password, google_id, mobile_verified_at) that
+     * would just add noise to the guest's activity timeline.
+     */
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()
+            ->logOnly(['name', 'national_code', 'mobile', 'email', 'notes'])
+            ->logOnlyDirty()
+            ->useLogName('guest');
     }
 
     public function bookings(): HasMany
