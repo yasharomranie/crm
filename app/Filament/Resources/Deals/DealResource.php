@@ -7,6 +7,7 @@ use App\Filament\Resources\Deals\Pages\EditDeal;
 use App\Filament\Resources\Deals\Pages\ListDeals;
 use App\Filament\Resources\Deals\Schemas\DealForm;
 use App\Filament\Resources\Deals\Tables\DealsTable;
+use App\Filament\Resources\Tasks\RelationManagers\FollowUpTasksRelationManager;
 use App\Models\Deal;
 use BackedEnum;
 use Filament\Resources\Resource;
@@ -41,7 +42,7 @@ class DealResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            FollowUpTasksRelationManager::class,
         ];
     }
 

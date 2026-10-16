@@ -10,10 +10,12 @@ enum TaskType: string implements HasLabel
     case FromForm = 'from_form';
     case ChecklistGenerated = 'checklist_generated';
     case FromBooking = 'from_booking';
+    case CrmFollowUp = 'crm_follow_up';
 
     public function getLabel(): string
     {
         return match ($this) {
+            self::CrmFollowUp => 'پیگیری مشتری/معامله',
             self::Manual => 'دستی',
             self::FromForm => 'زاده‌شده از فرم',
             self::ChecklistGenerated => 'تولیدشده از چک‌لیست تکرارشونده',

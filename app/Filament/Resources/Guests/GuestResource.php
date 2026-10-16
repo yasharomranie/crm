@@ -7,6 +7,7 @@ use App\Filament\Resources\Guests\Pages\EditGuest;
 use App\Filament\Resources\Guests\Pages\ListGuests;
 use App\Filament\Resources\Guests\Pages\ViewGuest;
 use App\Filament\Resources\Guests\Schemas\GuestInfolist;
+use App\Filament\Resources\Tasks\RelationManagers\FollowUpTasksRelationManager;
 use App\Filament\Support\FieldHelp;
 use App\Filament\Support\TableExports;
 use App\Models\Guest;
@@ -125,6 +126,7 @@ class GuestResource extends Resource
     {
         return [
             RelationManagers\ActivitiesRelationManager::class,
+            FollowUpTasksRelationManager::class,
             RelationManagers\DealsRelationManager::class,
             RelationManagers\TicketsRelationManager::class,
             RelationManagers\FeedbacksRelationManager::class,
