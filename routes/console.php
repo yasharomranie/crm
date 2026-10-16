@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Crm\FollowUpReminderService;
+use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -66,6 +67,14 @@ Schedule::call(fn () => app(FollowUpReminderService::class)->sendDueReminders())
 Schedule::call(fn () => app(TicketSlaBreachService::class)->notifyBreachedTickets())
     ->name('crm-ticket-sla-breaches')
     ->everyTenMinutes()
+    ->withoutOverlapping();
+
+// One morning digest per deal owner (admins for unassigned deals) of open
+// deals that have gone quiet for two weeks.
+Schedule::call(fn () => app(StaleDealAlertService::class)->notifyStaleDeals())
+    ->name('crm-stale-deal-digest')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
 // همگام‌سازی گوگل سرچ کنسول - تا امروز تنها راهش دکمه‌ی دستی "همگام‌سازی

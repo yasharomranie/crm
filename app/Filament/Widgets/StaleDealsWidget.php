@@ -2,6 +2,7 @@
 
 namespace App\Filament\Widgets;
 
+use App\Domain\Crm\StaleDealAlertService;
 use App\Enums\DealStage;
 use App\Filament\Support\TableExports;
 use App\Models\Deal;
@@ -28,7 +29,7 @@ class StaleDealsWidget extends TableWidget
             ->query(
                 Deal::query()
                     ->whereNotIn('stage', [DealStage::Won, DealStage::Lost])
-                    ->where('updated_at', '<=', now()->subDays(14))
+                    ->where('updated_at', '<=', now()->subDays(StaleDealAlertService::STALE_AFTER_DAYS))
                     ->with(['guest', 'assignee'])
             )
             ->defaultSort('updated_at')

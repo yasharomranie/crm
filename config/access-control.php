@@ -38,6 +38,7 @@ use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
 use App\Models\Deal;
+use App\Models\DealAutomationRule;
 use App\Models\Department;
 use App\Models\DiscountCode;
 use App\Models\Document;
@@ -121,6 +122,7 @@ return [
         'deals' => ['model' => Deal::class, 'label' => 'معاملات فروش', 'group' => 'CRM و مشتریان'],
         'guest-feedback' => ['model' => GuestFeedback::class, 'label' => 'بازخوردها و NPS', 'group' => 'CRM و مشتریان'],
         'guest-tickets' => ['model' => GuestTicket::class, 'label' => 'تیکت‌های پشتیبانی', 'group' => 'CRM و مشتریان'],
+        'deal-automation-rules' => ['model' => DealAutomationRule::class, 'label' => 'اتوماسیون پایپ‌لاین', 'group' => 'CRM و مشتریان'],
         'lead-capture-forms' => ['model' => LeadCaptureForm::class, 'label' => 'فرم‌های جذب سرنخ', 'group' => 'CRM و مشتریان'],
 
         'ai-providers' => ['model' => AiProvider::class, 'label' => 'ارائه‌دهندگان هوش مصنوعی', 'group' => 'دستیار هوشمند مدیریتی'],
