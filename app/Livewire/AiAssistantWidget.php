@@ -2,9 +2,12 @@
 
 namespace App\Livewire;
 
+use App\Domain\Ai\AiPageContextResolver;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\AiAssistant;
+use App\Filament\Pages\AiAssistantsHub;
 use App\Filament\Pages\Concerns\HasAiAssistantEngine;
+use App\Filament\Pages\ContractAssistant;
 use Illuminate\Contracts\View\View;
 use Illuminate\Support\Facades\Auth;
 use Livewire\Component;
@@ -50,11 +53,34 @@ class AiAssistantWidget extends Component
             return view('livewire.ai-assistant-widget-hidden');
         }
 
+        $this->rememberModulePage();
+
         return view('livewire.ai-assistant-widget', [
             'conversations' => $this->getConversations(),
             'selected' => $this->getSelectedConversation(),
             'visibleMessages' => $this->getMessages()->filter(fn ($message) => $message->role === AiMessageRole::User
                 || ($message->role === AiMessageRole::Assistant && filled($message->content))),
         ]);
+    }
+
+    /**
+     * Remembers the module page this render belongs to, so the assistants
+     * that have their own page (full chat, hub) can tell where the user came
+     * from. Only a real page load counts: not Livewire's own update
+     * requests, and not the assistant pages themselves.
+     */
+    private function rememberModulePage(): void
+    {
+        if (! request()->isMethod('GET') || request()->hasHeader('X-Livewire')) {
+            return;
+        }
+
+        foreach ([AiAssistant::class, AiAssistantsHub::class, ContractAssistant::class] as $assistantPage) {
+            if (request()->routeIs($assistantPage::getRouteName())) {
+                return;
+            }
+        }
+
+        app(AiPageContextResolver::class)->rememberVisit(request()->getRequestUri());
     }
 }

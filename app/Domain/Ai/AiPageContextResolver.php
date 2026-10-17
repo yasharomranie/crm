@@ -18,6 +18,24 @@ use Illuminate\Support\Facades\Route;
  */
 class AiPageContextResolver
 {
+    public const LAST_MODULE_URL_SESSION_KEY = 'ai_assistant.last_module_url';
+
+    /**
+     * The module page the user last had open (see rememberVisit()), for
+     * assistants that live on a page of their own.
+     *
+     * @return array{module: string, page: string, page_label: string, record: ?Model, record_title: ?string, resource: ?class-string}|null
+     */
+    public function previousContext(): ?array
+    {
+        return $this->resolve(session(self::LAST_MODULE_URL_SESSION_KEY));
+    }
+
+    public function rememberVisit(string $path): void
+    {
+        session([self::LAST_MODULE_URL_SESSION_KEY => $path]);
+    }
+
     /**
      * @return array{module: string, page: string, page_label: string, record: ?Model, record_title: ?string, resource: ?class-string}|null
      */
@@ -43,7 +61,7 @@ class AiPageContextResolver
         }
 
         foreach ($panel->getResources() as $resourceClass) {
-            /** @var class-string<resource> $resourceClass */
+            /** @var class-string<\Filament\Resources\Resource> $resourceClass */
             $prefix = $resourceClass::getRouteBaseName($panel).'.';
 
             if (! str_starts_with($routeName, $prefix)) {
@@ -71,7 +89,7 @@ class AiPageContextResolver
     }
 
     /**
-     * @param  class-string<resource>  $resourceClass
+     * @param  class-string<\Filament\Resources\Resource>  $resourceClass
      * @return array{module: string, page: string, page_label: string, record: ?Model, record_title: ?string, resource: ?class-string}
      */
     private function resolveResourcePage(string $resourceClass, string $page, mixed $recordKey): array
@@ -100,7 +118,7 @@ class AiPageContextResolver
     }
 
     /**
-     * @param  class-string<resource>  $resourceClass
+     * @param  class-string<\Filament\Resources\Resource>  $resourceClass
      */
     private function authorizedRecord(string $resourceClass, string $page, mixed $recordKey): ?Model
     {
