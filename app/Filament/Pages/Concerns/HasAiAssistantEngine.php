@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages\Concerns;
 
-use App\Domain\Ai\AiPageContextResolver;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
@@ -95,6 +94,8 @@ use Spatie\Permission\Models\Role;
  */
 trait HasAiAssistantEngine
 {
+    use ResolvesAiPageContext;
+
     /**
      * Common Persian filler words with no search signal of their own -
      * stripped from a search_everything query before word-count capping,
@@ -115,16 +116,6 @@ trait HasAiAssistantEngine
     public ?int $conversationId = null;
 
     public string $body = '';
-
-    /**
-     * The page/module/record the user was on when the current message was
-     * sent (see AiPageContextResolver). Deliberately not public: it is
-     * recomputed server-side on every send() and must never be settable
-     * from the client.
-     *
-     * @var array{module: string, page: string, page_label: string, record: ?Model, record_title: ?string, resource: ?class-string}|null
-     */
-    protected ?array $pageContext = null;
 
     public bool $isThinking = false;
 
@@ -250,7 +241,7 @@ trait HasAiAssistantEngine
             return;
         }
 
-        $this->pageContext = app(AiPageContextResolver::class)->resolve($pageUrl);
+        $this->capturePageContext($pageUrl);
 
         $conversation = $this->getSelectedConversation() ?? AiConversation::create(['user_id' => Auth::id()]);
         $this->conversationId = $conversation->id;
@@ -469,37 +460,6 @@ trait HasAiAssistantEngine
             : null;
 
         return collect([$base, $dateNote, $departmentNote, $userNote, $roleNote, $this->pageContextNote()])->filter()->implode("\n\n");
-    }
-
-    private function pageContextNote(): ?string
-    {
-        if (! $this->pageContext) {
-            return null;
-        }
-
-        $context = $this->pageContext;
-        $note = sprintf('موقعیت فعلی کاربر در پنل: ماژول «%s» (%s).', $context['module'], $context['page_label']);
-
-        if ($context['record_title'] !== null) {
-            $note .= sprintf(' رکوردی که کاربر الان باز کرده: «%s».', $context['record_title']);
-        }
-
-        $note .= ' سؤال‌های کاربر را به‌طور پیش‌فرض دربارهٔ همین ماژول و رکورد فرض کن و تمرکز پاسخ و ابزارهایت را روی همین بگذار، مگر اینکه کاربر آشکارا سؤال عمومی یا دربارهٔ بخش دیگری بپرسد (مثلاً «وضعیت کل کسب‌وکار» یا نام ماژول دیگر) - آن‌وقت بدون محدودیت از همهٔ ابزارها استفاده کن. اگر مطمئن نیستی منظورش همین ماژول است یا کلی، یک سؤال کوتاه بپرس.';
-
-        $currentForm = $this->currentFormTemplate();
-
-        if ($currentForm) {
-            $note .= sprintf(' کاربر در حال کار روی فرم «%s» است: وقتی بدون اسم‌بردن از فرم می‌گوید «این فرم»، «همین فرم»، یا فیلد/متن سند اضافه یا عوض کن، ابزارهای add_field_to_form_template، set_form_document_template و get_form_template_fields را با form_template_name دقیقاً برابر «%s» صدا بزن، و برای ساخت فرم جدید ابزار design_form_template_draft را فقط وقتی صریحاً «فرم جدید» خواست.', $currentForm->title, $currentForm->title);
-        }
-
-        return $note;
-    }
-
-    private function currentFormTemplate(): ?FormTemplate
-    {
-        $record = $this->pageContext['record'] ?? null;
-
-        return $record instanceof FormTemplate ? $record : null;
     }
 
     /**

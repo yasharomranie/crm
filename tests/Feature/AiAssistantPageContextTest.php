@@ -2,8 +2,12 @@
 
 namespace Tests\Feature;
 
+use App\Domain\Ai\AiPageContextResolver;
 use App\Enums\FormFieldType;
+use App\Filament\Pages\AiAssistant;
+use App\Filament\Pages\AiAssistantsHub;
 use App\Livewire\AiAssistantWidget;
+use App\Models\AiAssistantProfile;
 use App\Models\AiProvider;
 use App\Models\FormField;
 use App\Models\FormTemplate;
@@ -169,5 +173,59 @@ class AiAssistantPageContextTest extends TestCase
 
         $this->assertTrue(FormField::where('form_template_id', $other->id)->where('field_key', 'reason')->exists());
         $this->assertFalse(FormField::where('form_template_id', $onScreen->id)->where('field_key', 'reason')->exists());
+    }
+
+    public function test_full_page_assistant_uses_the_last_visited_module_page_as_a_soft_hint(): void
+    {
+        AiProvider::factory()->active()->create();
+        $this->actingAsFormEditor();
+        $template = FormTemplate::factory()->create(['title' => 'فرم پذیرش']);
+        session([AiPageContextResolver::LAST_MODULE_URL_SESSION_KEY => "/admin/form-templates/{$template->id}/edit"]);
+        $this->fakeSimpleAnswer();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'سلام')
+            ->call('send');
+
+        $prompt = $this->systemPromptOfFirstRequest();
+
+        $this->assertStringContainsString('پیش از باز کردن این گفتگو', $prompt);
+        $this->assertStringContainsString('فرم پذیرش', $prompt);
+        $this->assertStringNotContainsString('form_template_name دقیقاً برابر', $prompt);
+    }
+
+    public function test_previous_page_never_becomes_a_default_form_for_editing_tools(): void
+    {
+        AiProvider::factory()->active()->create();
+        $this->actingAsFormEditor();
+        $template = FormTemplate::factory()->create(['title' => 'فرم پذیرش']);
+        session([AiPageContextResolver::LAST_MODULE_URL_SESSION_KEY => "/admin/form-templates/{$template->id}/edit"]);
+        $this->fakeToolCallThenAnswer('add_field_to_form_template', [
+            'form_template_name' => '',
+            'field' => ['label' => 'شماره موبایل', 'field_key' => 'mobile_number', 'field_type' => FormFieldType::Text->value],
+        ]);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'یه فیلد اضافه کن')
+            ->call('send');
+
+        $this->assertFalse(FormField::where('form_template_id', $template->id)->exists());
+    }
+
+    public function test_hub_assistant_prompt_mentions_the_last_visited_module_page(): void
+    {
+        AiProvider::factory()->active()->create();
+        $user = $this->actingAsFormEditor(['ai-assistants-hub.access']);
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $template = FormTemplate::factory()->create(['title' => 'فرم پذیرش']);
+        session([AiPageContextResolver::LAST_MODULE_URL_SESSION_KEY => "/admin/form-templates/{$template->id}/edit"]);
+        $this->fakeSimpleAnswer();
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        $this->assertStringContainsString('فرم پذیرش', $this->systemPromptOfFirstRequest());
     }
 }

@@ -49,7 +49,7 @@ use Livewire\WithFileUploads;
  */
 trait HasCustomAssistantChatEngine
 {
-    use WithFileUploads;
+    use ResolvesAiPageContext, WithFileUploads;
 
     /**
      * Per sendToProfile() call, not per tool call - a profile could
@@ -262,7 +262,7 @@ trait HasCustomAssistantChatEngine
             ->update(['title' => $title]);
     }
 
-    public function sendToProfile(): void
+    public function sendToProfile(?string $pageUrl = null): void
     {
         $profile = $this->activeProfile();
         $body = trim($this->body);
@@ -278,6 +278,8 @@ trait HasCustomAssistantChatEngine
 
             return;
         }
+
+        $this->capturePageContext($pageUrl);
 
         $conversation = $this->getSelectedProfileConversation() ?? AiConversation::create([
             'user_id' => Auth::id(),
@@ -327,6 +329,7 @@ trait HasCustomAssistantChatEngine
         }
 
         $lastMessage->delete();
+        $this->capturePageContext(null);
 
         $this->runLoopAndNotify($conversation, $provider, $profile);
     }
@@ -460,6 +463,10 @@ trait HasCustomAssistantChatEngine
                 ->implode("\n");
 
             $prompt .= "\n\nدستیارهای دیگری که در دسترس‌اند و در صورت نیاز می‌توانی با ابزار consult_assistant یک سؤال مشخص از آن‌ها بپرسی:\n{$directory}\nفقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن، نه برای هر سؤال، و سؤال را کوتاه و مستقل بپرس چون آن دستیار تاریخچهٔ این گفتگو را نمی‌بیند.";
+        }
+
+        if ($contextNote = $this->pageContextNote()) {
+            $prompt .= "\n\n".$contextNote;
         }
 
         return $prompt;
