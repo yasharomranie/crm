@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AiPageContextResolver;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
@@ -74,6 +75,7 @@ use App\Models\WorkflowStep;
 use Filament\Notifications\Notification;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -113,6 +115,16 @@ trait HasAiAssistantEngine
     public ?int $conversationId = null;
 
     public string $body = '';
+
+    /**
+     * The page/module/record the user was on when the current message was
+     * sent (see AiPageContextResolver). Deliberately not public: it is
+     * recomputed server-side on every send() and must never be settable
+     * from the client.
+     *
+     * @var array{module: string, page: string, page_label: string, record: ?Model, record_title: ?string, resource: ?class-string}|null
+     */
+    protected ?array $pageContext = null;
 
     public bool $isThinking = false;
 
@@ -222,7 +234,7 @@ trait HasAiAssistantEngine
      * Sends the user's message, then drives the tool-calling loop until the
      * model returns a final answer (or gives up after a few rounds).
      */
-    public function send(): void
+    public function send(?string $pageUrl = null): void
     {
         $body = trim($this->body);
 
@@ -237,6 +249,8 @@ trait HasAiAssistantEngine
 
             return;
         }
+
+        $this->pageContext = app(AiPageContextResolver::class)->resolve($pageUrl);
 
         $conversation = $this->getSelectedConversation() ?? AiConversation::create(['user_id' => Auth::id()]);
         $this->conversationId = $conversation->id;
@@ -454,7 +468,38 @@ trait HasAiAssistantEngine
             ? 'نقش‌های سازمانی موجود در سیستم (برای approver_role_name دقیقاً از یکی از همین نام‌ها استفاده کن): '.$roles->implode('، ').'.'
             : null;
 
-        return collect([$base, $dateNote, $departmentNote, $userNote, $roleNote])->filter()->implode("\n\n");
+        return collect([$base, $dateNote, $departmentNote, $userNote, $roleNote, $this->pageContextNote()])->filter()->implode("\n\n");
+    }
+
+    private function pageContextNote(): ?string
+    {
+        if (! $this->pageContext) {
+            return null;
+        }
+
+        $context = $this->pageContext;
+        $note = sprintf('موقعیت فعلی کاربر در پنل: ماژول «%s» (%s).', $context['module'], $context['page_label']);
+
+        if ($context['record_title'] !== null) {
+            $note .= sprintf(' رکوردی که کاربر الان باز کرده: «%s».', $context['record_title']);
+        }
+
+        $note .= ' سؤال‌های کاربر را به‌طور پیش‌فرض دربارهٔ همین ماژول و رکورد فرض کن و تمرکز پاسخ و ابزارهایت را روی همین بگذار، مگر اینکه کاربر آشکارا سؤال عمومی یا دربارهٔ بخش دیگری بپرسد (مثلاً «وضعیت کل کسب‌وکار» یا نام ماژول دیگر) - آن‌وقت بدون محدودیت از همهٔ ابزارها استفاده کن. اگر مطمئن نیستی منظورش همین ماژول است یا کلی، یک سؤال کوتاه بپرس.';
+
+        $currentForm = $this->currentFormTemplate();
+
+        if ($currentForm) {
+            $note .= sprintf(' کاربر در حال کار روی فرم «%s» است: وقتی بدون اسم‌بردن از فرم می‌گوید «این فرم»، «همین فرم»، یا فیلد/متن سند اضافه یا عوض کن، ابزارهای add_field_to_form_template، set_form_document_template و get_form_template_fields را با form_template_name دقیقاً برابر «%s» صدا بزن، و برای ساخت فرم جدید ابزار design_form_template_draft را فقط وقتی صریحاً «فرم جدید» خواست.', $currentForm->title, $currentForm->title);
+        }
+
+        return $note;
+    }
+
+    private function currentFormTemplate(): ?FormTemplate
+    {
+        $record = $this->pageContext['record'] ?? null;
+
+        return $record instanceof FormTemplate ? $record : null;
     }
 
     /**
@@ -499,6 +544,16 @@ trait HasAiAssistantEngine
 
         if ($requiredResourcePermission && ! Auth::user()?->can($requiredResourcePermission)) {
             return ['error' => 'شما اجازهٔ ایجاد این نوع رکورد را در سیستم ندارید.'];
+        }
+
+        // The model sometimes leaves the name out when the user is already on
+        // that form's own page ("add a mobile field"); fill it from the page
+        // context instead of failing. Only the form-editing tools, and only
+        // when the name is genuinely blank - an explicit name always wins.
+        if (in_array($name, ['add_field_to_form_template', 'set_form_document_template', 'get_form_template_fields'], true)
+            && blank($arguments['form_template_name'] ?? null)
+            && ($currentForm = $this->currentFormTemplate())) {
+            $arguments['form_template_name'] = $currentForm->title;
         }
 
         return match ($name) {

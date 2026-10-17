@@ -376,14 +376,14 @@
             first-class pattern and was already verified live.
         --}}
         <form
-            x-on:submit.prevent="$wire.send()"
+            x-on:submit.prevent="$wire.send(window.location.href)"
             class="flex items-end gap-2 p-2.5 pb-[max(0.625rem,env(safe-area-inset-bottom))]"
             :class="(listening || speechError) ? '' : 'border-t border-gray-200 dark:border-white/10'"
         >
             <textarea
                 wire:model="body"
                 x-on:input="autoGrow($event.target)"
-                x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.send(); }"
+                x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.send(window.location.href); }"
                 rows="2"
                 placeholder="پیام خود را بنویسید..."
                 wire:loading.attr="disabled"
