@@ -359,6 +359,10 @@ trait HasAiAssistantEngine
             - هر گردش‌کار و فرمی که با این ابزارها ساخته می‌شود، همیشه و بدون استثنا به‌صورت «غیرفعال» (پیش‌نویس) ذخیره می‌شود و تا وقتی یک انسان آن را از پنل بررسی و فعال نکند، در هیچ ثبت واقعی‌ای استفاده نخواهد شد - این محدودیت را همیشه صریح به کاربر یادآوری کن تا غافلگیر نشود.
             - اگر design_form_template_draft بگوید فرم مشابهی از قبل وجود دارد (needs_confirmation)، فرم جدیدی نساز؛ اول به کاربر بگو فرم مشابه چیست و بپرس آیا با وجود این فرم جدید می‌خواهد، و فقط با تأیید صریح او دوباره با confirm_similar_duplicate=true تماس بگیر.
             - برای افزودن فیلد به فرم موجود از add_field_to_form_template استفاده کن (هرگز فیلد قبلی را حذف یا نوعش را عوض نمی‌کند)، و برای تغییر نام/مهلت پاسخ‌گویی یک مرحلهٔ موجود از update_workflow_step - این ابزار هرگز تأییدکنندهٔ یک مرحله را عوض نمی‌کند چون ممکن است تأییدهای در جریان را به فرد اشتباهی منتقل کند.
+            - وقتی کاربر متن یک قرارداد، نامه یا سند را می‌دهد و فرم می‌خواهد، فقط فیلدها را نساز: همان متن را به‌عنوان document_template به design_form_template_draft بده تا هر فرمِ پرشده، خودش یک سند کامل شود. در این متن هر بخش متغیر (نام، کد ملی، مبلغ، تاریخ، نشانی، شماره‌ها و هر جای خالی مثل «........») را با {{field_key}} همان فیلدی که در همین فراخوانی ساخته‌ای جایگزین کن.
+            - قواعد document_template: (۱) متن ثابت را کلمه‌به‌کلمه و بدون هیچ تغییری کپی کن؛ بند را بازنویسی، خلاصه، جابه‌جا یا حذف نکن. (۲) فقط متن ساده بفرست (بین پاراگراف‌ها یک خط خالی)، بدون HTML. (۳) اگر یک مقدار چند بار در متن آمده (مثلاً نام طرف قرارداد)، همان یک جاگذار را در هر جا تکرار کن، نه فیلد تازه. (۴) هر {{کلید}} باید دقیقاً یکی از field_keyهای همین فراخوانی باشد؛ اگر ابزار خطای جاگذار نامعتبر داد، متن را اصلاح و دوباره بفرست. (۵) هرجا مطمئن نیستی بخشی متغیر است یا ثابت، آن را ثابت بگذار و در پاسخ به کاربر بگو.
+            - بعد از ساخت، اگر fields_not_used_in_document خالی نبود، به کاربر بگو کدام فیلدها در متن سند جاگذار نشدند، و همیشه از او بخواه متن سند را در ویرایشگر فرم (بخش «متن سند») یک‌بار بازبینی کند، چون تشخیص بخش‌های متغیر ممکن است خطا داشته باشد.
+            - برای فرمی که از قبل ساخته شده و کاربر متن سندش را می‌دهد از set_form_document_template استفاده کن (اول get_form_template_fields را برای کلیدها صدا بزن). اگر فرم از قبل متن سند دارد، بدون موافقت صریح کاربر آن را جایگزین نکن.
             - get_rejection_reasons فقط متن خام نظرات رد را برمی‌گرداند؛ دسته‌بندی و خلاصه‌سازی دلایل رد کار خودت است، نه ابزار.
 
             دربارهٔ آنالیز محتوای فرم‌های پرشده (مثلاً جدول‌های کارها/پیشرفت داخل یک صورتجلسه):
@@ -468,7 +472,7 @@ trait HasAiAssistantEngine
     {
         $actionTools = [
             'create_task', 'design_workflow_draft', 'design_form_template_draft',
-            'add_field_to_form_template', 'update_workflow_step',
+            'add_field_to_form_template', 'set_form_document_template', 'update_workflow_step',
         ];
 
         if (in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.act')) {
@@ -488,7 +492,7 @@ trait HasAiAssistantEngine
         $requiredResourcePermission = match ($name) {
             'design_workflow_draft' => 'workflow-definitions.create',
             'design_form_template_draft' => 'form-templates.create',
-            'add_field_to_form_template' => 'form-templates.update',
+            'add_field_to_form_template', 'set_form_document_template' => 'form-templates.update',
             'update_workflow_step' => 'workflow-definitions.update',
             default => null,
         };
@@ -565,6 +569,7 @@ trait HasAiAssistantEngine
             'get_breached_sla_submissions' => $this->breachedSlaSubmissionsTool($arguments),
             'get_workflow_health_check' => $this->workflowHealthCheckTool(),
             'add_field_to_form_template' => $this->addFieldToFormTemplateTool($arguments),
+            'set_form_document_template' => $this->setFormDocumentTemplateTool($arguments),
             'update_workflow_step' => $this->updateWorkflowStepTool($arguments),
             default => ['error' => "ابزار ناشناخته: {$name}"],
         };
@@ -1043,6 +1048,7 @@ trait HasAiAssistantEngine
                         'description' => ['type' => 'string', 'description' => 'Optional short description of what this form is for'],
                         'department_name' => ['type' => 'string', 'description' => 'Optional - exact name of an existing department this form belongs to, from the system prompt'],
                         'workflow_definition_id' => ['type' => 'integer', 'description' => 'Optional - the id returned by a design_workflow_draft call made earlier in this same conversation'],
+                        'document_template' => ['type' => 'string', 'description' => 'Optional - when the user gave you the text of a contract/letter/document this form is for: that full text with each variable part (a name, national id, amount, date, address, ...) replaced by {{field_key}} using the field_key of the matching field in this same call. PLAIN TEXT only (blank line between paragraphs, no HTML); copy the fixed wording EXACTLY as given - never rewrite, summarize or reorder clauses. Every {{key}} must be one of this call\'s own field_keys. The merged text becomes the printable document of each submission.'],
                         'confirm_similar_duplicate' => ['type' => 'boolean', 'description' => 'If a form with a very similar title already exists, the tool refuses and lists it instead of creating a duplicate. Only pass true here, after telling the user about the similar form and getting their explicit confirmation that they still want a new one.'],
                         'fields' => [
                             'type' => 'array',
@@ -1083,6 +1089,16 @@ trait HasAiAssistantEngine
                         ],
                     ],
                     'required' => ['form_template_name', 'field'],
+                ]);
+
+                $tools[] = $this->toolSchema('set_form_document_template', 'Set the printable document text ("متن سند") of an EXISTING form template: the full text of a contract/letter with each variable part replaced by {{field_key}} of one of THAT form\'s own existing fields (call get_form_template_fields first if you do not know the keys). Never changes the form\'s fields. Refuses to overwrite an existing document text unless replace_existing is true, which you may only pass after the user explicitly agreed to replace it.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'form_template_name' => ['type' => 'string', 'description' => 'Exact or partial name of the existing form'],
+                        'document_template' => ['type' => 'string', 'description' => 'The full document text with {{field_key}} placeholders. PLAIN TEXT only (blank line between paragraphs, no HTML); copy the fixed wording EXACTLY as the user gave it - never rewrite, summarize or reorder clauses.'],
+                        'replace_existing' => ['type' => 'boolean', 'description' => 'Only pass true after the user explicitly confirmed replacing the form\'s current document text.'],
+                    ],
+                    'required' => ['form_template_name', 'document_template'],
                 ]);
             }
 
@@ -3853,10 +3869,20 @@ trait HasAiAssistantEngine
             ];
         }
 
-        $template = DB::transaction(function () use ($title, $arguments, $workflow, $department, $resolvedFields) {
+        $document = $this->prepareDocumentTemplate(
+            $arguments['document_template'] ?? null,
+            array_column($resolvedFields, 'field_key'),
+        );
+
+        if (isset($document['error'])) {
+            return $document + ['hint' => 'هیچ فرمی ساخته نشد.'];
+        }
+
+        $template = DB::transaction(function () use ($title, $arguments, $workflow, $department, $resolvedFields, $document) {
             $template = FormTemplate::create([
                 'title' => $title,
                 'description' => filled($arguments['description'] ?? null) ? $arguments['description'] : null,
+                'document_template' => $document['html'],
                 'department_id' => $department?->id,
                 'workflow_definition_id' => $workflow?->id,
                 // Always a draft - see designWorkflowDraftTool()'s note.
@@ -3878,7 +3904,101 @@ trait HasAiAssistantEngine
             'fields_count' => count($resolvedFields),
             'department' => $department?->name,
             'workflow' => $workflow?->name,
+            'document_template_saved' => $document['html'] !== null,
+            'fields_not_used_in_document' => $document['html'] !== null ? $document['unused_keys'] : [],
             'message' => "قالب فرم «{$template->title}» با ".count($resolvedFields).' فیلد به‌صورت پیش‌نویس (غیرفعال) ساخته شد. تا وقتی یک مدیر آن را از بخش «فرم‌ساز و گردش‌کار ← قالب‌های فرم» بررسی، در صورت نیاز ویرایش و فعال نکند، هیچ کارمندی نمی‌تواند آن را ثبت کند.',
+        ];
+    }
+
+    /**
+     * Validates and sanitizes the AI-written document text before it is
+     * stored as a form's "متن سند": every {{key}} must be one of the form's
+     * real field keys (so a typo can't leave a dead placeholder printed on a
+     * contract), and since the column holds HTML that is later rendered and
+     * printed, the model's text is escaped and turned into plain paragraphs
+     * rather than trusted as markup.
+     *
+     * @param  list<string>  $knownKeys
+     * @return array{html: ?string, unused_keys: list<string>}|array{error: string, available_field_keys: list<string>}
+     */
+    private function prepareDocumentTemplate(mixed $text, array $knownKeys): array
+    {
+        $text = is_string($text) ? trim($text) : '';
+
+        if ($text === '') {
+            return ['html' => null, 'unused_keys' => []];
+        }
+
+        if (mb_strlen($text) > 60000) {
+            return ['error' => 'متن سند بیش از حد طولانی است (حداکثر ۶۰ هزار نویسه).', 'available_field_keys' => $knownKeys];
+        }
+
+        preg_match_all('/\{\{\s*([^{}]*?)\s*\}\}/u', $text, $matches);
+        $usedKeys = array_values(array_unique($matches[1]));
+        $unknown = array_values(array_diff($usedKeys, $knownKeys));
+
+        if ($unknown !== []) {
+            return [
+                'error' => 'جاگذارهای زیر در متن سند هیچ فیلدی با همین کلید ندارند: '.implode('، ', $unknown).'. هر {{کلید}} باید دقیقاً کلید یکی از فیلدهای فرم باشد؛ متن را اصلاح و دوباره ارسال کن.',
+                'available_field_keys' => $knownKeys,
+            ];
+        }
+
+        $escaped = e(str_replace(["\r\n", "\r"], "\n", $text));
+        $escaped = preg_replace('/\{\{\s*([^{}]*?)\s*\}\}/u', '{{$1}}', $escaped);
+
+        $html = collect(preg_split('/\n\s*\n/', $escaped))
+            ->map(fn (string $paragraph) => trim($paragraph))
+            ->filter()
+            ->map(fn (string $paragraph) => '<p>'.nl2br($paragraph, false).'</p>')
+            ->implode('');
+
+        return ['html' => $html, 'unused_keys' => array_values(array_diff($knownKeys, $usedKeys))];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function setFormDocumentTemplateTool(array $arguments): array
+    {
+        $formName = trim((string) ($arguments['form_template_name'] ?? ''));
+        $template = $this->findFormTemplateByName($formName);
+
+        if (! $template) {
+            return [
+                'error' => "قالب فرمی با نام «{$formName}» پیدا نشد. متن سند تغییر نکرد.",
+                'available_forms' => FormTemplate::query()->orderBy('title')->pluck('title')->all(),
+            ];
+        }
+
+        if (! ($arguments['replace_existing'] ?? false) && filled($template->document_template)) {
+            return [
+                'needs_confirmation' => true,
+                'message' => "فرم «{$template->title}» از قبل متن سند دارد. به کاربر بگو و فقط اگر صریحاً با جایگزینی موافقت کرد، دوباره با replace_existing=true صدا بزن.",
+            ];
+        }
+
+        $document = $this->prepareDocumentTemplate(
+            $arguments['document_template'] ?? null,
+            $template->fields()->pluck('field_key')->all(),
+        );
+
+        if (isset($document['error'])) {
+            return $document + ['hint' => 'متن سند تغییر نکرد.'];
+        }
+
+        if ($document['html'] === null) {
+            return ['error' => 'متن سند خالی است. متن سند تغییر نکرد.'];
+        }
+
+        $template->update(['document_template' => $document['html']]);
+
+        return [
+            'success' => true,
+            'form_template_id' => $template->id,
+            'title' => $template->title,
+            'fields_not_used_in_document' => $document['unused_keys'],
+            'message' => "متن سند فرم «{$template->title}» ذخیره شد. به کاربر بگو متن و جاگذارها را در ویرایشگر فرم (بخش «متن سند») یک‌بار بازبینی کند.",
         ];
     }
 

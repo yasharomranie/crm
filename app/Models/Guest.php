@@ -75,6 +75,11 @@ class Guest extends Authenticatable
         return $this->hasMany(GuestTicket::class);
     }
 
+    public function customerMessages(): HasMany
+    {
+        return $this->hasMany(CustomerMessage::class);
+    }
+
     public function tripPlans(): HasMany
     {
         return $this->hasMany(TripPlan::class);

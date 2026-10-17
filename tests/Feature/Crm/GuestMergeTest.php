@@ -10,6 +10,7 @@ use App\Enums\TicketPriority;
 use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Resources\Guests\Pages\ViewGuest;
 use App\Models\Booking;
+use App\Models\CustomerMessage;
 use App\Models\Deal;
 use App\Models\Guest;
 use App\Models\GuestFeedback;
@@ -51,6 +52,7 @@ class GuestMergeTest extends TestCase
             'source_type' => Guest::class,
             'source_id' => $duplicate->id,
         ]);
+        $message = CustomerMessage::factory()->create(['guest_id' => $duplicate->id]);
         $duplicate->creditWallet(50_000, 'شارژ');
         activity('crm_interactions')->performedOn($duplicate)->event('note')->log('یادداشت قدیمی');
 
@@ -62,6 +64,7 @@ class GuestMergeTest extends TestCase
         $this->assertSame($keep->id, $ticket->fresh()->guest_id);
         $this->assertSame($keep->id, $feedback->fresh()->guest_id);
         $this->assertSame($keep->id, $trip->fresh()->guest_id);
+        $this->assertSame($keep->id, $message->fresh()->guest_id);
         $this->assertSame($keep->id, $followUp->fresh()->source_id);
         $this->assertSame(1, $keep->walletTransactions()->count());
         $this->assertSame(50_000, (int) $keep->fresh()->wallet_balance);

@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Domain\Crm\GuestMessenger;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -19,6 +20,13 @@ class WhatsAppMessage extends Model
     use HasFactory;
 
     protected $fillable = ['whats_app_conversation_id', 'direction', 'content'];
+
+    protected static function booted(): void
+    {
+        // Mirrors the message into the matching guest's communication log.
+        // rescue() so a hiccup there can never break the WhatsApp flow itself.
+        static::created(fn (self $message) => rescue(fn () => app(GuestMessenger::class)->recordWhatsAppMessage($message)));
+    }
 
     public function conversation(): BelongsTo
     {

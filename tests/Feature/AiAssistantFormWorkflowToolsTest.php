@@ -12,6 +12,7 @@ use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\FormField;
 use App\Models\FormSubmission;
+use App\Models\FormSubmissionValue;
 use App\Models\FormTemplate;
 use App\Models\User;
 use App\Models\WorkflowAction;
@@ -608,5 +609,209 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
             ->call('send');
 
         $this->assertSame(0, $template->fields()->count());
+    }
+
+    public function test_design_form_template_draft_stores_the_contract_text_with_placeholders_and_it_merges_into_a_submission(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        $this->fakeToolCallThenAnswer('design_form_template_draft', [
+            'title' => 'قرارداد پیمانکاری',
+            'fields' => [
+                ['field_key' => 'contractor_name', 'label' => 'نام پیمانکار', 'field_type' => 'text'],
+                ['field_key' => 'national_id', 'label' => 'کد ملی', 'field_type' => 'text'],
+                ['field_key' => 'unused_note', 'label' => 'توضیح', 'field_type' => 'textarea'],
+            ],
+            'document_template' => "این قرارداد با آقای {{contractor_name}} به کد ملی {{ national_id }} منعقد می‌شود.\n\nپیمانکار متعهد است کار را به‌موقع تحویل دهد.",
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'این قرارداد رو تبدیل به فرم کن')
+            ->call('send');
+
+        $template = FormTemplate::firstOrFail();
+
+        $this->assertFalse($template->is_active);
+        $this->assertSame(
+            '<p>این قرارداد با آقای {{contractor_name}} به کد ملی {{national_id}} منعقد می‌شود.</p><p>پیمانکار متعهد است کار را به‌موقع تحویل دهد.</p>',
+            $template->document_template,
+        );
+
+        $payload = $this->toolResultPayload();
+
+        $this->assertTrue($payload['document_template_saved']);
+        $this->assertSame(['unused_note'], $payload['fields_not_used_in_document']);
+
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        $nameField = $template->fields()->where('field_key', 'contractor_name')->firstOrFail();
+        FormSubmissionValue::factory()->create(['form_submission_id' => $submission->id, 'form_field_id' => $nameField->id, 'value_text' => 'یاشار عمرانی']);
+
+        $this->assertStringContainsString('با آقای یاشار عمرانی به کد ملی', $submission->fresh()->mergedDocumentBody());
+    }
+
+    public function test_design_form_template_draft_refuses_a_placeholder_that_matches_no_field_and_creates_nothing(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        $this->fakeToolCallThenAnswer('design_form_template_draft', [
+            'title' => 'قرارداد',
+            'fields' => [['field_key' => 'contractor_name', 'label' => 'نام', 'field_type' => 'text']],
+            'document_template' => 'نام {{contractor_name}} و مبلغ {{amount}}',
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'فرم بساز')
+            ->call('send');
+
+        $this->assertSame(0, FormTemplate::count());
+        $this->assertStringContainsString('amount', $this->toolResultPayload()['error']);
+    }
+
+    public function test_the_document_text_is_escaped_so_the_model_cannot_smuggle_markup_into_a_printed_contract(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        $this->fakeToolCallThenAnswer('design_form_template_draft', [
+            'title' => 'قرارداد',
+            'fields' => [['field_key' => 'contractor_name', 'label' => 'نام', 'field_type' => 'text']],
+            'document_template' => '<script>alert(1)</script> نام {{contractor_name}}',
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'فرم بساز')
+            ->call('send');
+
+        $stored = FormTemplate::firstOrFail()->document_template;
+
+        $this->assertStringNotContainsString('<script>', $stored);
+        $this->assertStringContainsString('&lt;script&gt;', $stored);
+        $this->assertStringContainsString('{{contractor_name}}', $stored);
+    }
+
+    public function test_a_form_created_without_document_text_still_works_as_before(): void
+    {
+        AiProvider::factory()->active()->create();
+
+        $this->fakeToolCallThenAnswer('design_form_template_draft', [
+            'title' => 'فرم ساده',
+            'fields' => [['field_key' => 'subject', 'label' => 'موضوع', 'field_type' => 'text']],
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'فرم ساده بساز')
+            ->call('send');
+
+        $this->assertNull(FormTemplate::firstOrFail()->document_template);
+        $this->assertFalse($this->toolResultPayload()['document_template_saved']);
+    }
+
+    public function test_set_form_document_template_fills_an_existing_form_without_touching_its_fields(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'قرارداد اجاره', 'document_template' => null]);
+        $field = FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'tenant_name']);
+
+        $this->fakeToolCallThenAnswer('set_form_document_template', [
+            'form_template_name' => 'قرارداد اجاره',
+            'document_template' => 'مستأجر: {{tenant_name}}',
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'متن قرارداد اجاره رو روی فرمش بذار')
+            ->call('send');
+
+        $this->assertSame('<p>مستأجر: {{tenant_name}}</p>', $template->fresh()->document_template);
+        $this->assertSame(1, $template->fields()->count());
+        $this->assertModelExists($field->fresh());
+    }
+
+    public function test_set_form_document_template_will_not_overwrite_an_existing_document_without_confirmation(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'قرارداد اجاره', 'document_template' => '<p>متن قدیمی</p>']);
+        FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'tenant_name']);
+
+        $this->fakeToolCallThenAnswer('set_form_document_template', [
+            'form_template_name' => 'قرارداد اجاره',
+            'document_template' => 'مستأجر: {{tenant_name}}',
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'متن جدید بذار')
+            ->call('send');
+
+        $this->assertSame('<p>متن قدیمی</p>', $template->fresh()->document_template);
+        $this->assertTrue($this->toolResultPayload()['needs_confirmation']);
+    }
+
+    public function test_set_form_document_template_replaces_when_the_user_confirmed(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'قرارداد اجاره', 'document_template' => '<p>متن قدیمی</p>']);
+        FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'tenant_name']);
+
+        $this->fakeToolCallThenAnswer('set_form_document_template', [
+            'form_template_name' => 'قرارداد اجاره',
+            'document_template' => 'مستأجر: {{tenant_name}}',
+            'replace_existing' => true,
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'بله جایگزین کن')
+            ->call('send');
+
+        $this->assertSame('<p>مستأجر: {{tenant_name}}</p>', $template->fresh()->document_template);
+    }
+
+    public function test_set_form_document_template_refuses_a_placeholder_that_is_not_one_of_the_forms_fields(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'قرارداد اجاره', 'document_template' => null]);
+        FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'tenant_name']);
+
+        $this->fakeToolCallThenAnswer('set_form_document_template', [
+            'form_template_name' => 'قرارداد اجاره',
+            'document_template' => 'مستأجر: {{landlord_name}}',
+        ]);
+        $this->actingAsFullyPermittedUser();
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'متن بذار')
+            ->call('send');
+
+        $this->assertNull($template->fresh()->document_template);
+        $this->assertStringContainsString('landlord_name', $this->toolResultPayload()['error']);
+    }
+
+    public function test_set_form_document_template_needs_the_form_templates_update_permission(): void
+    {
+        AiProvider::factory()->active()->create();
+        $template = FormTemplate::factory()->create(['title' => 'قرارداد اجاره', 'document_template' => null]);
+        FormField::factory()->create(['form_template_id' => $template->id, 'field_key' => 'tenant_name']);
+
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'بدون ویرایش قالب فرم']);
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'])->get());
+        $user = User::factory()->create();
+        $user->assignRole($role);
+        $this->actingAs($user);
+
+        $this->fakeToolCallThenAnswer('set_form_document_template', [
+            'form_template_name' => 'قرارداد اجاره',
+            'document_template' => 'مستأجر: {{tenant_name}}',
+        ]);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'متن بذار')
+            ->call('send');
+
+        $this->assertNull($template->fresh()->document_template);
     }
 }

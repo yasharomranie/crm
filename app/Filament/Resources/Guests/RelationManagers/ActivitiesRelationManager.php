@@ -38,6 +38,9 @@ class ActivitiesRelationManager extends RelationManager
                         'created' => 'ایجاد پرونده',
                         'updated' => 'ویرایش اطلاعات',
                         'lead_captured' => 'ثبت از فرم سرنخ',
+                        'merged' => 'ادغام پرونده',
+                        'email_sent' => 'ایمیل',
+                        'sms_sent' => 'پیامک',
                         default => $state ?? '—',
                     })
                     ->color(fn (?string $state) => CrmActivityType::tryFrom($state ?? '')?->getColor() ?? 'gray'),

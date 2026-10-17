@@ -5,6 +5,7 @@ use App\Filament\Pages\AiAssistantsHub;
 use App\Filament\Pages\AiAssistantUsageDashboard;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
+use App\Filament\Pages\CommunicationInbox;
 use App\Filament\Pages\ContractAssistant;
 use App\Filament\Pages\CustomerAppAuthSettings;
 use App\Filament\Pages\CustomerAppGoogleSettings;
@@ -179,6 +180,7 @@ return [
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
+        'communication-inbox' => ['page' => CommunicationInbox::class, 'label' => 'صندوق پیام', 'group' => 'CRM و مشتریان'],
         'duplicate-guests' => ['page' => DuplicateGuests::class, 'label' => 'مشتریان تکراری', 'group' => 'CRM و مشتریان'],
         'sales-pipeline' => ['page' => SalesPipeline::class, 'label' => 'پایپ‌لاین فروش (کانبان)', 'group' => 'CRM و مشتریان'],
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
