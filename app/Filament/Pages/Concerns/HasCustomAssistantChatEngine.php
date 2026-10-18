@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
@@ -503,7 +504,7 @@ trait HasCustomAssistantChatEngine
         $catalog = app(CrmToolCatalog::class)->definitions();
 
         return collect($profile->allowed_tools ?? [])
-            ->filter(fn (string $toolName) => isset($catalog[$toolName]))
+            ->filter(fn (string $toolName) => isset($catalog[$toolName]) && AiToolAccess::allowsTool(Auth::user(), $toolName))
             ->mapWithKeys(fn (string $toolName) => [$toolName => $catalog[$toolName]])
             ->all();
     }

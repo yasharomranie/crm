@@ -37,6 +37,39 @@
             @endif
         </div>
 
+        @php $recentCalls = $this->getRecentToolCalls(); @endphp
+        @if ($recentCalls->isNotEmpty())
+            <div class="fi-section rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900 sm:p-6">
+                <h3 class="text-base font-semibold text-gray-950 dark:text-white">آخرین فراخوانی ابزارها</h3>
+                <div class="mt-3 overflow-x-auto">
+                    <table class="w-full text-start text-sm">
+                        <thead class="text-xs text-gray-500 dark:text-gray-400">
+                            <tr>
+                                <th class="py-1 pe-3 text-start font-medium">زمان</th>
+                                <th class="py-1 pe-3 text-start font-medium">کاربر</th>
+                                <th class="py-1 pe-3 text-start font-medium">ابزار</th>
+                                <th class="py-1 text-start font-medium">وضعیت</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach ($recentCalls as $call)
+                                <tr class="border-t border-gray-100 dark:border-white/5">
+                                    <td class="py-1.5 pe-3">{{ $call['when'] }}</td>
+                                    <td class="py-1.5 pe-3">{{ $call['user'] }}</td>
+                                    <td class="py-1.5 pe-3" dir="ltr">{{ $call['tool'] }}</td>
+                                    <td class="py-1.5">
+                                        <span @class(['rounded-full px-2 py-0.5 text-xs', 'bg-danger-50 text-danger-700 dark:bg-danger-500/10 dark:text-danger-300' => $call['denied'], 'bg-success-50 text-success-700 dark:bg-success-500/10 dark:text-success-300' => ! $call['denied']])>
+                                            {{ $call['denied'] ? 'رد شد (بدون دسترسی)' : 'انجام شد' }}
+                                        </span>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
         @forelse ($this->getProfileUsageStats() as $row)
             @php $profile = $row['profile']; @endphp
             <div class="fi-section rounded-xl border border-gray-200 bg-white p-4 shadow-sm dark:border-white/10 dark:bg-gray-900 sm:p-6">

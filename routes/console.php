@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Ai\AssistantAlertDigestService;
+use App\Domain\Ai\AssistantRetention;
 use App\Domain\Crm\FollowUpReminderService;
 use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
@@ -90,6 +91,14 @@ Schedule::call(function () {
 Schedule::call(fn () => app(LeadScorer::class)->refreshOpenDeals())
     ->name('crm-lead-scores')
     ->dailyAt('02:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Blanks the stored raw output of old assistant tool calls (personal and
+// financial data) once it is past the retention period.
+Schedule::call(fn () => app(AssistantRetention::class)->pruneToolOutput())
+    ->name('assistant-tool-output-retention')
+    ->dailyAt('03:15')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 

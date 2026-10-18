@@ -1242,7 +1242,7 @@ class AiAssistantsHubTest extends TestCase
 
     private function grantAiAssistantReportPermission(User $user): void
     {
-        $user->givePermissionTo(Permission::where('name', 'ai-assistant.report')->sole());
+        $user->givePermissionTo(Permission::where('name', 'ai-assistant.report')->orWhere('name', 'like', '%.view_any')->get());
     }
 
     public function test_the_owner_can_grant_and_revoke_a_crm_tool(): void

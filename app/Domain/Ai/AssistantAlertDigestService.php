@@ -20,26 +20,30 @@ class AssistantAlertDigestService
      */
     public function notifyDailyDigest(): int
     {
-        $messages = collect(AiAssistant::computeAlerts())
-            ->where('severity', 'danger')
-            ->pluck('message')
-            ->values()
-            ->all();
-
-        if ($messages === []) {
-            return 0;
-        }
-
         $recipients = User::query()->role('admin')->get();
 
         if (Permission::where('name', 'ai-assistant.report')->exists()) {
             $recipients = $recipients->merge(User::query()->permission('ai-assistant.report')->get())->unique('id');
         }
 
+        $notified = 0;
+
         foreach ($recipients as $recipient) {
+            // Each person only hears about modules they may see themselves.
+            $messages = collect(AiAssistant::visibleAlerts($recipient))
+                ->where('severity', 'danger')
+                ->pluck('message')
+                ->values()
+                ->all();
+
+            if ($messages === []) {
+                continue;
+            }
+
             $recipient->notify(new AssistantAlertsDigestNotification($messages));
+            $notified++;
         }
 
-        return $recipients->count();
+        return $notified;
     }
 }

@@ -577,12 +577,18 @@ trait HasAiAssistantEngine
         // resolve approver_user_name/approver_role_name - same guessing
         // problem as departments above, just for workflow steps instead of
         // tasks.
-        $users = User::query()->orderBy('name')->pluck('name');
+        // People and role names are only handed to the model when the acting
+        // user could list them in the panel anyway, and never more than 100.
+        $users = Auth::user()?->can('users.view_any')
+            ? User::query()->orderBy('name')->limit(100)->pluck('name')
+            : collect();
         $userNote = $users->isNotEmpty()
             ? 'کاربران موجود در سیستم (برای approver_user_name دقیقاً از یکی از همین نام‌ها استفاده کن): '.$users->implode('، ').'.'
-            : null;
+            : 'فهرست کاربران در دسترس نیست؛ هیچ نام کاربری را حدس نزن و اگر برای تأییدکننده لازم بود، از کاربر بخواه نام دقیق را بگوید.';
 
-        $roles = Role::query()->orderBy('name')->pluck('name');
+        $roles = Auth::user()?->can('roles.view_any')
+            ? Role::query()->orderBy('name')->pluck('name')
+            : collect();
         $roleNote = $roles->isNotEmpty()
             ? 'نقش‌های سازمانی موجود در سیستم (برای approver_role_name دقیقاً از یکی از همین نام‌ها استفاده کن): '.$roles->implode('، ').'.'
             : null;
@@ -609,10 +615,14 @@ trait HasAiAssistantEngine
         ];
 
         if (in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.act')) {
+            $this->recordToolCall($name, $arguments, 'tool_denied');
+
             return ['error' => 'شما اجازهٔ استفاده از این ابزار (اقدام) را ندارید.'];
         }
 
         if (! in_array($name, $actionTools, true) && ! Auth::user()?->can('ai-assistant.report')) {
+            $this->recordToolCall($name, $arguments, 'tool_denied');
+
             return ['error' => 'شما اجازهٔ استفاده از این ابزار (گزارش‌گیری) را ندارید.'];
         }
 
@@ -631,6 +641,8 @@ trait HasAiAssistantEngine
         };
 
         if ($requiredResourcePermission && ! Auth::user()?->can($requiredResourcePermission)) {
+            $this->recordToolCall($name, $arguments, 'tool_denied');
+
             return ['error' => 'شما اجازهٔ ایجاد این نوع رکورد را در سیستم ندارید.'];
         }
 
@@ -638,6 +650,8 @@ trait HasAiAssistantEngine
         // assistant; this one says they may read (or create in) the module
         // the tool touches - the same permission the panel itself would ask.
         if (! AiToolAccess::allowsTool(Auth::user(), $name)) {
+            $this->recordToolCall($name, $arguments, 'tool_denied');
+
             return ['error' => 'شما به بخشی از سیستم که این ابزار به آن مربوط است دسترسی ندارید.'];
         }
 
@@ -714,7 +728,7 @@ trait HasAiAssistantEngine
             'get_tasks_by_assignee' => $this->tasksByAssigneeTool($arguments),
             'get_task_priority_breakdown' => $this->taskPriorityBreakdownTool(),
             'get_channel_manager_summary' => ['channels' => $this->channelManagerSummary()],
-            'list_alerts' => ['alerts' => static::computeAlerts()],
+            'list_alerts' => ['alerts' => static::visibleAlerts(Auth::user())],
             'get_form_submissions_summary' => $this->formSubmissionsSummary(),
             'get_daily_checklist_compliance' => $this->dailyChecklistCompliance($arguments),
             'create_task' => $this->createTaskTool($arguments),
@@ -1484,7 +1498,7 @@ trait HasAiAssistantEngine
      *
      * @param  array<string, mixed>  $arguments
      */
-    private function recordToolCall(string $name, array $arguments): void
+    private function recordToolCall(string $name, array $arguments, string $event = 'tool_called'): void
     {
         $loggable = collect($arguments)
             ->except(['document_template'])
@@ -1494,8 +1508,8 @@ trait HasAiAssistantEngine
         activity('ai_assistant')
             ->causedBy(Auth::user())
             ->withProperties(['tool' => $name, 'arguments' => $loggable])
-            ->event('tool_called')
-            ->log("ابزار دستیار هوشمند: {$name}");
+            ->event($event)
+            ->log($event === 'tool_denied' ? "ابزار دستیار هوشمند رد شد: {$name}" : "ابزار دستیار هوشمند: {$name}");
     }
 
     /**
@@ -5160,6 +5174,23 @@ trait HasAiAssistantEngine
      *
      * @return array<int, array{severity: string, message: string}>
      */
+    /**
+     * The alerts this person may see: each belongs to a module and is shown
+     * only to someone who can list that module in the panel.
+     *
+     * @return array<int, array{severity: string, module: string, message: string}>
+     */
+    public static function visibleAlerts(?User $user): array
+    {
+        return array_values(array_filter(
+            static::computeAlerts(),
+            fn (array $alert) => (bool) $user?->can("{$alert['module']}.view_any"),
+        ));
+    }
+
+    /**
+     * @return array<int, array{severity: string, module: string, message: string}>
+     */
     public static function computeAlerts(): array
     {
         $alerts = [];
@@ -5170,14 +5201,14 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($overdueTasks > 0) {
-            $alerts[] = ['severity' => 'warning', 'message' => Number::toPersian("{$overdueTasks} وظیفه از مهلت انجام خود گذشته است.")];
+            $alerts[] = ['severity' => 'warning', 'module' => 'tasks', 'message' => Number::toPersian("{$overdueTasks} وظیفه از مهلت انجام خود گذشته است.")];
         }
 
         Project::whereIn('status', [ProjectStatus::Planning, ProjectStatus::InProgress])
             ->get()
             ->each(function (Project $project) use (&$alerts) {
                 if ($project->costVariance() < 0) {
-                    $alerts[] = ['severity' => 'danger', 'message' => "پروژهٔ «{$project->title}» بیش از بودجهٔ برنامه‌ریزی‌شده هزینه کرده است."];
+                    $alerts[] = ['severity' => 'danger', 'module' => 'projects', 'message' => "پروژهٔ «{$project->title}» بیش از بودجهٔ برنامه‌ریزی‌شده هزینه کرده است."];
                 }
             });
 
@@ -5186,7 +5217,7 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($breachedTickets > 0) {
-            $alerts[] = ['severity' => 'danger', 'message' => Number::toPersian("{$breachedTickets} تیکت پشتیبانی از مهلت SLA عبور کرده است.")];
+            $alerts[] = ['severity' => 'danger', 'module' => 'guest-tickets', 'message' => Number::toPersian("{$breachedTickets} تیکت پشتیبانی از مهلت SLA عبور کرده است.")];
         }
 
         $chronicallyLateCount = AttendanceRecord::where('status', AttendanceStatus::Late)
@@ -5199,7 +5230,7 @@ trait HasAiAssistantEngine
             ->count();
 
         if ($chronicallyLateCount > 0) {
-            $alerts[] = ['severity' => 'warning', 'message' => Number::toPersian("{$chronicallyLateCount} نفر بیش از ۳ بار در این ماه با تأخیر حضور یافته‌اند.")];
+            $alerts[] = ['severity' => 'warning', 'module' => 'attendance-records', 'message' => Number::toPersian("{$chronicallyLateCount} نفر بیش از ۳ بار در این ماه با تأخیر حضور یافته‌اند.")];
         }
 
         $totalRooms = Room::where('is_active', true)->count();
@@ -5208,7 +5239,7 @@ trait HasAiAssistantEngine
             $occupied = Room::where('is_active', true)->where('status', RoomStatus::Occupied)->count();
 
             if (($occupied / $totalRooms) < 0.3) {
-                $alerts[] = ['severity' => 'info', 'message' => 'نرخ اشغال اقامتگاه‌ها زیر ۳۰٪ است.'];
+                $alerts[] = ['severity' => 'info', 'module' => 'bookings', 'message' => 'نرخ اشغال اقامتگاه‌ها زیر ۳۰٪ است.'];
             }
         }
 
