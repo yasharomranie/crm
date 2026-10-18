@@ -2,11 +2,13 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Seo\WpConnector\WpContentBrief;
 use App\Domain\Seo\WpConnector\WpCoverageGaps;
 use App\Enums\SeoContentItemStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\SeoContentItem;
 use App\Models\SeoProject;
+use App\Models\SeoWpPost;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -77,15 +79,19 @@ class SeoContentGaps extends Page
         $improve = $kind === 'improve';
         $post = $improve && $postId ? $this->gaps()['improve']->firstWhere('post_id', $postId) : null;
 
+        $project = SeoProject::find($this->projectId);
+        $target = $improve && $post ? SeoWpPost::find($postId) : null;
+        $reason = $improve && $post
+            ? "این عبارت در رتبه‌ی {$post['position']} است."
+            : 'گوگل این عبارت را به سایت نشان می‌دهد ولی هیچ صفحه‌ای هدفش نیست.';
+
         SeoContentItem::create([
             'seo_project_id' => $this->projectId,
             'title' => $improve && $post ? 'بازنویسی: '.$post['post_title'] : 'مقاله‌ی تازه: '.$query,
             'target_keyword' => $query,
             'content_type' => $improve ? 'به‌روزرسانی مقاله' : 'مقاله وبلاگ',
             'status' => $improve ? SeoContentItemStatus::NeedsUpdate : SeoContentItemStatus::Idea,
-            'notes' => $improve && $post
-                ? "این عبارت در رتبه‌ی {$post['position']} است؛ صفحه‌ی فعلی: {$post['post_url']}"
-                : 'گوگل این عبارت را به سایت نشان می‌دهد ولی هیچ صفحه‌ای هدفش نیست.',
+            'notes' => $reason."\n".app(WpContentBrief::class)->build($project, $query, $target),
         ]);
 
         Notification::make()->title('به تقویم محتوا اضافه شد.')->success()->send();

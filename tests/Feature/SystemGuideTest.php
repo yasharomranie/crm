@@ -57,4 +57,15 @@ class SystemGuideTest extends TestCase
             ->assertSee('مشتریان تکراری')
             ->assertSee('گزارش بدهی کیف پول');
     }
+
+    public function test_the_guide_covers_the_wordpress_connector(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('system-guide'))
+            ->assertOk()
+            ->assertSee('اتصال وردپرس و محتوای سایت')
+            ->assertSee('وضعیت سایت‌های وردپرسی')
+            ->assertSee('خلأ پوشش محتوا')
+            ->assertSee('بریف محتوا');
+    }
 }
