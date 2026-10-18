@@ -30,6 +30,7 @@ use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TicketingReportsPage;
 use App\Filament\Pages\TripPlannerReportPage;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WalletLiabilityReport;
@@ -218,6 +219,7 @@ return [
                 'issue_complimentary' => 'صدور بلیت رایگان/اهدایی',
             ],
         ],
+        'ticketing-reports' => ['page' => TicketingReportsPage::class, 'label' => 'گزارش‌های گیشه', 'group' => 'گیشه بلیط'],
         'gate-scanner' => ['page' => GateScanner::class, 'label' => 'اسکن بلیط (گیت)', 'group' => 'گیشه بلیط'],
         'web-app-domain-settings' => ['page' => WebAppDomainSettings::class, 'label' => 'دامنه اختصاصی', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
