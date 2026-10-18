@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\AdmissionTicketPrintController;
+use App\Http\Controllers\AssistantRunController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
@@ -54,6 +55,10 @@ Route::middleware('auth')->group(function () {
         ->name('messages.attachment');
     Route::post('/messages/voice-note', [VoiceMessageController::class, 'store'])
         ->name('messages.voice-note.store');
+    Route::get('/ai-assistant/run-status', [AssistantRunController::class, 'status'])
+        ->name('ai-assistant.run-status');
+    Route::post('/ai-assistant/stop', [AssistantRunController::class, 'stop'])
+        ->name('ai-assistant.stop');
     Route::get('/admission-orders/{order}/print', [AdmissionTicketPrintController::class, 'order'])
         ->name('admission-orders.print');
     Route::get('/admission-tickets/{ticket}/print', [AdmissionTicketPrintController::class, 'show'])

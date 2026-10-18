@@ -20,7 +20,7 @@ class AiProvider extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'base_url', 'api_key', 'default_model', 'is_active'];
+    protected $fillable = ['name', 'base_url', 'api_key', 'default_model', 'is_active', 'is_fallback'];
 
     /**
      * The token usage the provider reported for the most recent
@@ -35,6 +35,7 @@ class AiProvider extends Model
         return [
             'api_key' => 'encrypted',
             'is_active' => 'boolean',
+            'is_fallback' => 'boolean',
         ];
     }
 
@@ -43,6 +44,11 @@ class AiProvider extends Model
         static::saved(function (self $provider) {
             if ($provider->is_active) {
                 static::query()->whereKeyNot($provider->id)->update(['is_active' => false]);
+                static::query()->whereKey($provider->id)->toBase()->update(['is_fallback' => false]);
+            }
+
+            if ($provider->is_fallback && ! $provider->is_active) {
+                static::query()->whereKeyNot($provider->id)->update(['is_fallback' => false]);
             }
         });
     }
@@ -50,6 +56,46 @@ class AiProvider extends Model
     public static function active(): ?self
     {
         return static::query()->where('is_active', true)->first();
+    }
+
+    /**
+     * The standby provider used when the active one fails (at most one).
+     */
+    public static function fallback(): ?self
+    {
+        return static::query()->where('is_fallback', true)->where('is_active', false)->first();
+    }
+
+    /**
+     * Like chatCompletion(), but if this provider is down it tries the
+     * standby provider once, with that provider's own default model (the
+     * model name chosen for this one means nothing to another service).
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<string, mixed>
+     */
+    public function chatCompletionWithFallback(array $messages, array $tools = [], ?string $model = null): array
+    {
+        try {
+            return $this->chatCompletion($messages, $tools, $model);
+        } catch (AiProviderException $exception) {
+            $standby = static::fallback();
+
+            if (! $standby) {
+                throw $exception;
+            }
+
+            try {
+                $message = $standby->chatCompletion($messages, $tools);
+            } catch (AiProviderException) {
+                throw $exception;
+            }
+
+            $this->lastUsage = $standby->lastUsage;
+
+            return $message;
+        }
     }
 
     /**

@@ -109,6 +109,45 @@ class AiToolAccess
         'ردیف جدول در یک فرم ثبت‌شده' => 'form-submissions',
     ];
 
+    /**
+     * @var array<string, string> module => what the manager sees while a tool of it runs
+     */
+    private const MODULE_LABELS = [
+        'bookings' => 'رزروها و اقامتگاه',
+        'sales-channels' => 'کانال‌های فروش',
+        'guests' => 'مشتریان',
+        'guest-tickets' => 'تیکت‌های پشتیبانی',
+        'deals' => 'معاملات',
+        'guest-feedback' => 'رضایت مشتریان',
+        'attractions' => 'تریپ‌پلنر',
+        'seo-projects' => 'سئو',
+        'projects' => 'پروژه‌ها',
+        'attendance-records' => 'حضور و غیاب',
+        'tasks' => 'وظایف',
+        'form-submissions' => 'فرم‌ها و درخواست‌ها',
+        'workflow-definitions' => 'گردش‌کارها',
+        'form-templates' => 'قالب فرم‌ها',
+        'orders' => 'گیشه و بلیت',
+    ];
+
+    /**
+     * The module a tool belongs to, or null for cross-cutting tools.
+     */
+    public static function moduleOf(string $tool): ?string
+    {
+        return self::TOOL_MODULES[$tool] ?? null;
+    }
+
+    /**
+     * A short Persian status such as «در حال گرفتن اطلاعات از حضور و غیاب…».
+     */
+    public static function progressLabel(string $tool): string
+    {
+        $label = self::MODULE_LABELS[self::TOOL_MODULES[$tool] ?? ''] ?? null;
+
+        return $label ? "در حال گرفتن اطلاعات از «{$label}»…" : 'در حال بررسی…';
+    }
+
     public static function allowsTool(?User $user, string $tool): bool
     {
         if (! $user) {
