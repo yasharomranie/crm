@@ -214,6 +214,13 @@ Schedule::call($artisan('ai-assistants:check-watched-sources'))
 // دستور را خودِ مالک آزادانه انتخاب می‌کند (نه یک ساعت ثابت سراسری)، این
 // دستور هر ۱۵ دقیقه بررسی می‌کند که آیا زمان کدام دستور فرارسیده و امروز
 // هنوز اجرا نشده است.
+// Management-assistant reports a manager asked to receive every day.
+Schedule::call($artisan('ai-assistant:run-scheduled-reports'))
+    ->name('ai-assistant:run-scheduled-reports')
+    ->everyFifteenMinutes()
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 Schedule::call($artisan('ai-assistants:run-scheduled-prompts'))
     ->name('ai-assistants:run-scheduled-prompts')
     ->everyFifteenMinutes()

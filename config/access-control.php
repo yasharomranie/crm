@@ -38,6 +38,7 @@ use App\Filament\Pages\WalletSettings;
 use App\Filament\Pages\WebAppDomainSettings;
 use App\Filament\Pages\WhatsAppSettings;
 use App\Models\AiProvider;
+use App\Models\AiScheduledReport;
 use App\Models\AttendanceRecord;
 use App\Models\Attraction;
 use App\Models\Booking;
@@ -137,6 +138,7 @@ return [
         'lead-capture-forms' => ['model' => LeadCaptureForm::class, 'label' => 'فرم‌های جذب سرنخ', 'group' => 'CRM و مشتریان'],
 
         'ai-providers' => ['model' => AiProvider::class, 'label' => 'ارائه‌دهندگان هوش مصنوعی', 'group' => 'دستیار هوشمند مدیریتی'],
+        'ai-scheduled-reports' => ['model' => AiScheduledReport::class, 'label' => 'گزارش‌های زمان‌بندی‌شدهٔ دستیار', 'group' => 'دستیار هوشمند مدیریتی'],
 
         'contracts' => ['model' => Contract::class, 'label' => 'آرشیو قراردادها', 'group' => 'حقوقی و قرارداد'],
         'contract-categories' => ['model' => ContractCategory::class, 'label' => 'دسته‌های قرارداد', 'group' => 'حقوقی و قرارداد'],

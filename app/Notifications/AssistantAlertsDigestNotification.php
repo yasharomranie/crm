@@ -28,7 +28,22 @@ class AssistantAlertsDigestNotification extends Notification implements ShouldQu
      */
     public function via(object $notifiable): array
     {
-        return [WebPushChannel::class];
+        return ['database', WebPushChannel::class];
+    }
+
+    /**
+     * Also kept in the notifications table, so the alerts can be read later
+     * even if the push was missed.
+     *
+     * @return array<string, mixed>
+     */
+    public function toDatabase(object $notifiable): array
+    {
+        return [
+            'type' => 'assistant_alerts_digest',
+            'messages' => $this->messages,
+            'message' => implode(' | ', array_slice($this->messages, 0, 3)),
+        ];
     }
 
     public function toWebPush(object $notifiable, self $notification): WebPushMessage

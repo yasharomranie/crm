@@ -33,6 +33,7 @@ use App\Enums\SeoTechnicalIssueSeverity;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Enums\TicketSourceType;
 use App\Enums\TicketStatus;
 use App\Enums\WalletTransactionType;
 use App\Enums\WorkflowActionType;
@@ -42,6 +43,7 @@ use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\FormSubmissions\FormSubmissionResource;
 use App\Filament\Resources\Guests\GuestResource;
 use App\Filament\Resources\GuestTickets\GuestTicketResource;
+use App\Filament\Resources\Orders\OrderResource;
 use App\Filament\Resources\Tasks\TaskResource;
 use App\Models\AiAssistantModelSetting;
 use App\Models\AiConversation;
@@ -50,6 +52,7 @@ use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
 use App\Models\BookingCharge;
+use App\Models\CashierShift;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\Deal;
@@ -62,6 +65,7 @@ use App\Models\FormTemplate;
 use App\Models\Guest;
 use App\Models\GuestFeedback;
 use App\Models\GuestTicket;
+use App\Models\Order;
 use App\Models\Project;
 use App\Models\ProjectExpense;
 use App\Models\ProjectPhase;
@@ -79,6 +83,7 @@ use App\Models\SeoTechnicalAuditIssue;
 use App\Models\SeoTrackedKeyword;
 use App\Models\Task;
 use App\Models\User;
+use App\Models\WalletTopup;
 use App\Models\WalletTransaction;
 use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
@@ -770,6 +775,9 @@ trait HasAiAssistantEngine
             'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
             'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
             'get_ticketing_sales_summary' => $this->ticketingSalesSummaryTool($arguments),
+            'search_orders' => $this->searchOrdersTool($arguments),
+            'get_cashier_shifts' => $this->cashierShiftsTool($arguments),
+            'get_wallet_liability' => $this->walletLiabilityTool(),
             'get_crm_summary' => $this->crmSummary(),
             'get_guest_detail' => $this->guestDetailTool($arguments),
             'search_guests' => $this->searchGuestsTool($arguments),
@@ -912,6 +920,25 @@ trait HasAiAssistantEngine
                 ],
                 'required' => [],
             ]);
+            $tools[] = $this->toolSchema('search_orders', 'Look up box-office (ticket) orders by order number, customer phone, sales source or recent days - order number, customer, amount, source and time, with a link to each. Use for "سفارش شمارهٔ ... رو پیدا کن" or "بلیت‌هایی که فلانی خریده".', [
+                'type' => 'object',
+                'properties' => [
+                    'order_number' => ['type' => 'string', 'description' => 'Partial or full order number'],
+                    'customer_phone' => ['type' => 'string', 'description' => 'Partial or full customer phone'],
+                    'source' => ['type' => 'string', 'enum' => ['cashier', 'external_pos', 'online', 'complimentary']],
+                    'days' => ['type' => 'integer', 'description' => 'Only orders from the last N days - defaults to 30, max 365'],
+                    'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_cashier_shifts', 'Get the most recent box-office cashier shifts: who worked, when, expected vs counted cash and the difference (a shortage or surplus), plus any shift still open. Use for "صندوق دیشب مغایرت داشت؟".', [
+                'type' => 'object',
+                'properties' => [
+                    'limit' => ['type' => 'integer', 'description' => 'How many recent shifts - defaults to 10, max 30'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_wallet_liability', 'Get how much customer wallet balance the business currently owes (the liability): total, how many customers hold a balance, the largest balances and pending online top-ups. Use for "کل بدهی کیف پول مشتری‌ها چقدره".', $noParams);
             $tools[] = $this->toolSchema('get_cancellation_summary', 'Get how many bookings made this or last Jalali month ended up cancelled, and the cancellation rate - use for "نرخ کنسلی رزروها چقدره".', [
                 'type' => 'object',
                 'properties' => [
@@ -936,6 +963,10 @@ trait HasAiAssistantEngine
                     'mobile' => ['type' => 'string', 'description' => 'Partial or full mobile number'],
                     'loyalty_tier' => ['type' => 'string', 'enum' => ['bronze', 'silver', 'gold', 'vip']],
                     'min_completed_stays' => ['type' => 'integer', 'description' => 'Only customers with at least this many completed stays'],
+                    'has_cancelled_booking' => ['type' => 'boolean', 'description' => 'Only customers who have at least one cancelled booking'],
+                    'min_wallet_balance' => ['type' => 'integer', 'description' => 'Only customers whose wallet holds at least this many toman'],
+                    'has_open_ticket' => ['type' => 'boolean', 'description' => 'Only customers with an unresolved support ticket'],
+                    'no_booking_since_days' => ['type' => 'integer', 'description' => 'Only customers who made no booking in the last N days (including those who never booked)'],
                     'limit' => ['type' => 'integer', 'description' => 'Max results - defaults to 20, max 50'],
                 ],
                 'required' => [],
@@ -2455,6 +2486,92 @@ trait HasAiAssistantEngine
      * @param  array<string, mixed>  $arguments
      * @return array<string, mixed>
      */
+    private function searchOrdersTool(array $arguments): array
+    {
+        $orderNumber = trim((string) ($arguments['order_number'] ?? ''));
+        $phone = trim((string) ($arguments['customer_phone'] ?? ''));
+        $source = TicketSourceType::tryFrom((string) ($arguments['source'] ?? ''));
+        $days = max(1, min(365, (int) ($arguments['days'] ?? 30)));
+        $limit = max(1, min(50, (int) ($arguments['limit'] ?? 20)));
+
+        $orders = Order::query()
+            ->when($orderNumber !== '', fn (Builder $q) => $q->where('order_number', 'like', "%{$orderNumber}%"))
+            ->when($phone !== '', fn (Builder $q) => $q->where('customer_phone', 'like', "%{$phone}%"))
+            ->when($source, fn (Builder $q) => $q->where('source_type', $source))
+            ->where('created_at', '>=', now()->subDays($days)->startOfDay())
+            ->latest('id')
+            ->limit($limit)
+            ->get();
+
+        if ($orders->isEmpty()) {
+            return ['message' => 'هیچ سفارشی با این مشخصات پیدا نشد.'];
+        }
+
+        return [
+            'count' => $orders->count(),
+            'orders' => $orders->map(fn (Order $order) => [
+                'link' => $this->panelLink(OrderResource::class, 'view', $order),
+                'order_number' => $order->order_number,
+                'customer' => $order->customer_name,
+                'phone' => $order->customer_phone,
+                'source' => $order->source_type?->getLabel(),
+                'final_amount_toman' => (int) $order->final_amount,
+                'created_at' => $order->created_at->toJalali('Y/m/d H:i'),
+            ])->all(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function cashierShiftsTool(array $arguments): array
+    {
+        $limit = max(1, min(30, (int) ($arguments['limit'] ?? 10)));
+
+        $shifts = CashierShift::query()->with('user')->latest('id')->limit($limit)->get();
+
+        if ($shifts->isEmpty()) {
+            return ['message' => 'هنوز هیچ شیفت صندوقی ثبت نشده است.'];
+        }
+
+        return [
+            'shifts' => $shifts->map(fn (CashierShift $shift) => [
+                'cashier' => $shift->user?->name,
+                'opened_at' => $shift->opened_at->toJalali('Y/m/d H:i'),
+                'closed_at' => $shift->closed_at?->toJalali('Y/m/d H:i'),
+                'is_open' => $shift->isOpen(),
+                'expected_cash_toman' => $shift->expected_cash === null ? null : (int) $shift->expected_cash,
+                'counted_cash_toman' => $shift->counted_cash === null ? null : (int) $shift->counted_cash,
+                'difference_toman' => $shift->difference === null ? null : (int) $shift->difference,
+            ])->all(),
+            'shifts_with_difference' => $shifts->filter(fn (CashierShift $shift) => $shift->difference !== null && (int) $shift->difference !== 0)->count(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function walletLiabilityTool(): array
+    {
+        $holders = Guest::query()->where('wallet_balance', '>', 0);
+
+        return [
+            'total_liability_toman' => (int) (clone $holders)->sum('wallet_balance'),
+            'customers_with_balance' => (clone $holders)->count(),
+            'largest_balances' => (clone $holders)->orderByDesc('wallet_balance')->limit(5)->get()->map(fn (Guest $guest) => [
+                'link' => $this->panelLink(GuestResource::class, 'view', $guest),
+                'name' => $guest->name,
+                'balance_toman' => (int) $guest->wallet_balance,
+            ])->all(),
+            'pending_online_topups' => WalletTopup::query()->where('status', WalletTopup::STATUS_PENDING)->count(),
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
     private function ticketingSalesSummaryTool(array $arguments): array
     {
         $days = max(1, min(90, (int) ($arguments['days'] ?? 1)));
@@ -2591,6 +2708,24 @@ trait HasAiAssistantEngine
 
         if ($mobile !== '') {
             $query->where('mobile', 'like', "%{$mobile}%");
+        }
+
+        // Combine freely: "customers with a cancelled booking who still hold
+        // wallet credit" is one call instead of a manual cross-check.
+        if (filter_var($arguments['has_cancelled_booking'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $query->whereHas('bookings', fn (Builder $bookings) => $bookings->where('status', BookingStatus::Cancelled));
+        }
+
+        if (($minWallet = (int) ($arguments['min_wallet_balance'] ?? 0)) > 0) {
+            $query->where('wallet_balance', '>=', $minWallet);
+        }
+
+        if (filter_var($arguments['has_open_ticket'] ?? false, FILTER_VALIDATE_BOOLEAN)) {
+            $query->whereHas('tickets', fn (Builder $tickets) => $tickets->whereNotIn('status', [TicketStatus::Resolved, TicketStatus::Closed]));
+        }
+
+        if (($idleDays = (int) ($arguments['no_booking_since_days'] ?? 0)) > 0) {
+            $query->whereDoesntHave('bookings', fn (Builder $bookings) => $bookings->where('created_at', '>=', now()->subDays($idleDays)));
         }
 
         $guests = $query->get()
