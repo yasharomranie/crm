@@ -25,6 +25,11 @@ class WalletTransactionsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'تراکنش‌ها';
 
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     /**
      * Most rows here are system-generated (cashback on checkout). Manual
      * entries (e.g. a goodwill credit for a resolved complaint) are still

@@ -103,7 +103,9 @@ class LeadScorer
     {
         $score = $this->score($deal)['score'];
 
-        Deal::query()->whereKey($deal->id)->update(['lead_score' => $score]);
+        // toBase(): an Eloquent update() would also touch updated_at, which
+        // would make every rescored deal look freshly worked on.
+        Deal::query()->whereKey($deal->id)->toBase()->update(['lead_score' => $score]);
         $deal->setAttribute('lead_score', $score);
         $deal->syncOriginalAttribute('lead_score');
 
