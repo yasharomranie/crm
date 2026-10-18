@@ -149,7 +149,7 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::get('/support/{ticket}', [CustomerAppSupportTicketController::class, 'show'])->name('support.show');
     Route::post('/support/{ticket}/replies', [CustomerAppSupportTicketController::class, 'reply'])->name('support.reply');
     Route::get('/trip-planner', [CustomerAppTripPlannerController::class, 'index'])->name('trip-planner');
-    Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->name('trip-planner.store');
+    Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->middleware('throttle:trip-planner')->name('trip-planner.store');
     Route::get('/trip-planner/{plan}', [CustomerAppTripPlannerController::class, 'show'])->name('trip-planner.show');
     Route::post('/trip-planner/{plan}/items', [CustomerAppTripPlannerController::class, 'storeItem'])->name('trip-planner.items.store');
     Route::delete('/trip-planner/{plan}/items/{item}', [CustomerAppTripPlannerController::class, 'destroyItem'])->name('trip-planner.items.destroy');

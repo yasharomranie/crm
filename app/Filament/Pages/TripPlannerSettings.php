@@ -6,6 +6,7 @@ use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\TripPlannerSetting;
 use BackedEnum;
 use Filament\Forms\Components\Textarea;
+use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Forms\Concerns\InteractsWithForms;
 use Filament\Forms\Contracts\HasForms;
@@ -55,6 +56,9 @@ class TripPlannerSettings extends Page implements HasForms
         $this->form->fill([
             'is_enabled' => $setting->is_enabled,
             'assistant_note' => $setting->assistant_note,
+            'plans_per_day_limit' => $setting->plans_per_day_limit,
+            'create_followup_tasks' => $setting->create_followup_tasks,
+            'send_reminders' => $setting->send_reminders,
         ]);
     }
 
@@ -66,6 +70,19 @@ class TripPlannerSettings extends Page implements HasForms
                 Toggle::make('is_enabled')
                     ->label('تریپ‌پلنر فعال باشد')
                     ->helperText('در صورت خاموش بودن، مهمانان نمی‌توانند برنامه جدید بسازند.'),
+                TextInput::make('plans_per_day_limit')
+                    ->label('حداکثر برنامه‌ی جدید برای هر مهمان در شبانه‌روز')
+                    ->helperText('هر ساخت برنامه یک درخواست هوش مصنوعی (و هزینه) است؛ این سقف جلوی سوءاستفاده و هزینه‌ی بی‌مورد را می‌گیرد.')
+                    ->numeric()
+                    ->minValue(1)
+                    ->maxValue(100)
+                    ->required(),
+                Toggle::make('create_followup_tasks')
+                    ->label('برای مهمانی که برنامه ساخته ولی رزرو ندارد، وظیفه‌ی پیگیری بساز')
+                    ->helperText('وظیفه برای ادمین‌ها در پرونده‌ی مهمان ساخته می‌شود، حداکثر یک بار برای هر مهمان در هفته.'),
+                Toggle::make('send_reminders')
+                    ->label('یک روز قبل از شروع سفر پیامک یادآوری بفرست')
+                    ->helperText('نیاز به فعال بودن سرویس پیامک دارد و هزینه‌ی پیامک دارد.'),
                 Textarea::make('assistant_note')
                     ->label('یادداشت عمومی برای دستیار هوشمند')
                     ->rows(4)

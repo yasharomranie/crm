@@ -149,6 +149,7 @@ class ListAttractions extends ListRecords
                             'opens_at' => $row['opens_at'] ?: null,
                             'closes_at' => $row['closes_at'] ?: null,
                             'is_active' => false,
+                            'source' => 'ai_suggested',
                         ]);
 
                         $created++;
