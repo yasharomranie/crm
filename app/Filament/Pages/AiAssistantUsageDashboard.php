@@ -61,7 +61,7 @@ class AiAssistantUsageDashboard extends Page
             ->where('log_name', 'ai_assistant')
             ->where('created_at', '>=', $since)
             ->get()
-            ->countBy(fn (Activity $activity) => (string) $activity->getExtraProperty('tool'))
+            ->countBy(fn (Activity $activity) => (string) ($activity->properties['tool'] ?? ''))
             ->sortDesc()
             ->take(5)
             ->map(fn (int $calls, string $tool) => ['tool' => $tool, 'calls' => $calls])
