@@ -34,12 +34,13 @@ class TripPlannerReport
         $days = max(1, min(365, $days));
         $since = now()->subDays($days);
 
-        $plans = TripPlan::query()->where('created_at', '>=', $since)->get();
+        $plans = TripPlan::query()->ready()->where('created_at', '>=', $since)->get();
         $rated = $plans->whereNotNull('rating');
 
         $topAttractions = TripPlanItem::query()
             ->join('trip_plans', 'trip_plans.id', '=', 'trip_plan_items.trip_plan_id')
             ->join('attractions', 'attractions.id', '=', 'trip_plan_items.attraction_id')
+            ->where('trip_plans.status', TripPlan::STATUS_READY)
             ->where('trip_plans.created_at', '>=', $since)
             ->groupBy('attractions.id', 'attractions.name')
             ->select('attractions.name', DB::raw('count(*) as stop_count'))

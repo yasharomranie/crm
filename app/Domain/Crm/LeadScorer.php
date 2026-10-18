@@ -153,7 +153,7 @@ class LeadScorer
             $points[] = [8, 'مشتری سطح '.$guest->loyaltyTier()->getLabel()];
         }
 
-        if ($guest->tripPlans()->exists()) {
+        if ($guest->tripPlans()->ready()->exists()) {
             $points[] = [5, 'برنامه‌ی سفر ساخته است'];
         }
 

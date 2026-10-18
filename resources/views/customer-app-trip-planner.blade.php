@@ -383,7 +383,12 @@
                         <a href="{{ route('customer-app.trip-planner.show', $plan) }}" class="plan-row">
                             <div class="meta">
                                 <span class="title">برنامه {{ $plan->days }} روزه</span>
-                                <span class="date">{{ $plan->created_at->toJalali('Y/m/d') }}</span>
+                                <span class="date">
+                                    {{ $plan->created_at->toJalali('Y/m/d') }}
+                                    @if ($plan->isBeingBuilt()) — در حال ساخت…
+                                    @elseif ($plan->hasFailed()) — ساخته نشد
+                                    @endif
+                                </span>
                             </div>
                             <span class="arrow">←</span>
                         </a>
@@ -401,7 +406,7 @@
             form.addEventListener('submit', function () {
                 var button = document.getElementById('plan-submit');
                 button.disabled = true;
-                button.textContent = 'در حال ساخت برنامه... (تا یک دقیقه ممکن است طول بکشد)';
+                button.textContent = 'در حال ثبت درخواست...';
             });
         })();
     </script>

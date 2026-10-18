@@ -15,7 +15,7 @@ class PublicTripPlanController extends Controller
 {
     public function show(string $token, TripPlannerController $planController): View
     {
-        $plan = TripPlan::query()->where('share_token', $token)->firstOrFail();
+        $plan = TripPlan::query()->ready()->where('share_token', $token)->firstOrFail();
 
         return view('customer-app-trip-plan-show', $planController->planViewData($plan) + [
             'guest' => null,

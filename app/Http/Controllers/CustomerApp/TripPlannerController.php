@@ -7,8 +7,8 @@ use App\Domain\TripPlanner\TripPlanEditor;
 use App\Domain\TripPlanner\TripPlannerException;
 use App\Domain\TripPlanner\TripPlannerService;
 use App\Enums\AttractionCategory;
-use App\Exceptions\AiProviderException;
 use App\Http\Controllers\Controller;
+use App\Jobs\BuildTripPlanJob;
 use App\Models\Attraction;
 use App\Models\Guest;
 use App\Models\TripPlan;
@@ -59,7 +59,7 @@ class TripPlannerController extends Controller
         ]);
 
         try {
-            $plan = $this->planner->generate($guest, [
+            $plan = $this->planner->request($guest, [
                 'days' => $data['days'],
                 'starts_on' => $data['starts_on'] ?? null,
                 'interests' => $data['interests'] ?? [],
@@ -68,18 +68,26 @@ class TripPlannerController extends Controller
                 'has_car' => (bool) ($data['has_car'] ?? false),
                 'budget_level' => $data['budget_level'] ?? null,
             ]);
-        } catch (TripPlannerException|AiProviderException $exception) {
+        } catch (TripPlannerException $exception) {
             return back()->withErrors(['days' => $exception->getMessage()])->withInput();
         }
 
+        if ($plan->wasRecentlyCreated) {
+            BuildTripPlanJob::dispatch($plan->id);
+        }
+
         return redirect()->route('customer-app.trip-planner.show', $plan)
-            ->with('success', 'برنامه سفر شما آماده شد.');
+            ->with('success', $plan->isReady() ? 'برنامه سفر شما آماده شد.' : 'درخواست شما ثبت شد؛ برنامه در حال ساخت است.');
     }
 
     public function show(TripPlan $plan): View
     {
         $guest = $this->guest();
         $this->authorizePlan($plan, $guest);
+
+        if (! $plan->isReady()) {
+            return view('customer-app-trip-plan-pending', ['plan' => $plan, 'guest' => $guest]);
+        }
 
         return view('customer-app-trip-plan-show', $this->planViewData($plan) + [
             'guest' => $guest,
@@ -90,7 +98,7 @@ class TripPlannerController extends Controller
 
     public function storeItem(Request $request, TripPlan $plan, TripPlanEditor $editor): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         $data = $request->validate([
             'attraction_id' => ['required', 'integer'],
@@ -102,7 +110,7 @@ class TripPlannerController extends Controller
 
     public function destroyItem(TripPlan $plan, TripPlanItem $item, TripPlanEditor $editor): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
         abort_unless($item->trip_plan_id === $plan->id, 404);
 
         return $this->edit($plan, $item->day_number, fn () => $editor->removeItem($plan, $item));
@@ -110,7 +118,7 @@ class TripPlannerController extends Controller
 
     public function moveItem(Request $request, TripPlan $plan, TripPlanItem $item, TripPlanEditor $editor): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
         abort_unless($item->trip_plan_id === $plan->id, 404);
 
         $direction = $request->validate(['direction' => ['required', 'in:up,down']])['direction'];
@@ -120,14 +128,14 @@ class TripPlannerController extends Controller
 
     public function regenerateDay(TripPlan $plan, int $day): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         return $this->edit($plan, $day, fn () => $this->planner->regenerateDay($plan, $day));
     }
 
     public function rate(Request $request, TripPlan $plan): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         $data = $request->validate([
             'rating' => ['required', 'integer', 'between:1,5'],
@@ -141,7 +149,7 @@ class TripPlannerController extends Controller
 
     public function share(TripPlan $plan): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         $plan->update(['share_token' => $plan->share_token ?? Str::random(32)]);
 
@@ -150,7 +158,7 @@ class TripPlannerController extends Controller
 
     public function unshare(TripPlan $plan): RedirectResponse
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         $plan->update(['share_token' => null]);
 
@@ -159,7 +167,7 @@ class TripPlannerController extends Controller
 
     public function calendar(TripPlan $plan, TripPlanCalendar $calendar): Response
     {
-        $this->authorizePlan($plan, $this->guest());
+        $this->authorizeReadyPlan($plan, $this->guest());
 
         return response($calendar->render($plan), 200, [
             'Content-Type' => 'text/calendar; charset=utf-8',
@@ -201,6 +209,12 @@ class TripPlannerController extends Controller
     private function authorizePlan(TripPlan $plan, Guest $guest): void
     {
         abort_unless($plan->guest_id === $guest->id, 404);
+    }
+
+    private function authorizeReadyPlan(TripPlan $plan, Guest $guest): void
+    {
+        $this->authorizePlan($plan, $guest);
+        abort_unless($plan->isReady(), 404);
     }
 
     private function edit(TripPlan $plan, int $dayNumber, \Closure $change): RedirectResponse

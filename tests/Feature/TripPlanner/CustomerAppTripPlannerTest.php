@@ -2,12 +2,16 @@
 
 namespace Tests\Feature\TripPlanner;
 
+use App\Domain\TripPlanner\TripPlannerService;
 use App\Enums\AttractionCategory;
+use App\Jobs\BuildTripPlanJob;
 use App\Models\AiProvider;
 use App\Models\Attraction;
 use App\Models\Guest;
+use App\Models\TripPlannerSetting;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Tests\TestCase;
 
 class CustomerAppTripPlannerTest extends TestCase
@@ -127,6 +131,89 @@ class CustomerAppTripPlannerTest extends TestCase
 
         $this->actingAs($guest, 'customer')
             ->get(route('customer-app.trip-planner.show', $plan))
+            ->assertNotFound();
+    }
+
+    public function test_store_queues_the_build_and_shows_a_waiting_page_until_it_is_ready(): void
+    {
+        Queue::fake();
+        Attraction::factory()->create(['category' => AttractionCategory::Nature]);
+        $guest = Guest::factory()->create();
+
+        $response = $this->actingAs($guest, 'customer')->post(route('customer-app.trip-planner.store'), [
+            'days' => 1,
+            'pace' => 'balanced',
+        ]);
+
+        $plan = $guest->tripPlans()->sole();
+        $this->assertSame('pending', $plan->status);
+        Queue::assertPushed(BuildTripPlanJob::class, fn (BuildTripPlanJob $job) => $job->planId === $plan->id);
+        $response->assertRedirect(route('customer-app.trip-planner.show', $plan));
+
+        $this->actingAs($guest, 'customer')
+            ->get(route('customer-app.trip-planner.show', $plan))
+            ->assertOk()
+            ->assertSee('در حال ساخت است');
+    }
+
+    public function test_repeating_a_request_while_it_is_building_does_not_queue_a_second_build(): void
+    {
+        Queue::fake();
+        Attraction::factory()->create();
+        $guest = Guest::factory()->create();
+        $payload = ['days' => 1, 'pace' => 'balanced'];
+
+        $this->actingAs($guest, 'customer')->post(route('customer-app.trip-planner.store'), $payload);
+        $this->actingAs($guest, 'customer')->post(route('customer-app.trip-planner.store'), $payload);
+
+        $this->assertSame(1, $guest->tripPlans()->count());
+        Queue::assertPushed(BuildTripPlanJob::class, 1);
+    }
+
+    public function test_the_job_builds_the_pending_plan(): void
+    {
+        $attraction = Attraction::factory()->create(['category' => AttractionCategory::Nature]);
+        $guest = Guest::factory()->create();
+        $plan = app(TripPlannerService::class)->request($guest, ['days' => 1, 'pace' => 'balanced']);
+
+        (new BuildTripPlanJob($plan->id))->handle(app(TripPlannerService::class));
+
+        $plan->refresh();
+        $this->assertTrue($plan->isReady());
+        $this->assertSame($attraction->id, $plan->items()->first()->attraction_id);
+    }
+
+    public function test_a_build_that_fails_is_recorded_and_does_not_count_against_the_daily_limit(): void
+    {
+        $guest = Guest::factory()->create();
+        $attraction = Attraction::factory()->create();
+        $service = app(TripPlannerService::class);
+        $plan = $service->request($guest, ['days' => 1, 'pace' => 'balanced']);
+        $attraction->update(['is_active' => false]);
+
+        (new BuildTripPlanJob($plan->id))->handle($service);
+
+        $plan->refresh();
+        $this->assertSame('failed', $plan->status);
+        $this->assertNotEmpty($plan->error_message);
+
+        $this->actingAs($guest, 'customer')
+            ->get(route('customer-app.trip-planner.show', $plan))
+            ->assertOk()
+            ->assertSee('ساخت برنامه کامل نشد');
+
+        TripPlannerSetting::current()->update(['plans_per_day_limit' => 1]);
+        $attraction->update(['is_active' => true]);
+        $this->assertTrue($service->request($guest, ['days' => 1, 'pace' => 'balanced'])->isInProgress());
+    }
+
+    public function test_a_plan_that_is_not_ready_cannot_be_edited_or_shared(): void
+    {
+        $guest = Guest::factory()->create();
+        $plan = $guest->tripPlans()->create(['days' => 1, 'pace' => 'balanced', 'status' => 'pending']);
+
+        $this->actingAs($guest, 'customer')
+            ->post(route('customer-app.trip-planner.share', $plan))
             ->assertNotFound();
     }
 }
