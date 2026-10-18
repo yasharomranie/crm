@@ -60,6 +60,7 @@ use App\Models\GuestFeedback;
 use App\Models\GuestSegment;
 use App\Models\GuestTicket;
 use App\Models\LeadCaptureForm;
+use App\Models\Order;
 use App\Models\PriceRule;
 use App\Models\Product;
 use App\Models\Project;
@@ -143,6 +144,7 @@ return [
 
         'ticketing-products' => ['model' => Product::class, 'label' => 'محصولات (جاذبه‌ها)', 'group' => 'گیشه بلیط'],
         'ticketing-variants' => ['model' => TicketVariant::class, 'label' => 'انواع بلیت', 'group' => 'گیشه بلیط'],
+        'orders' => ['model' => Order::class, 'label' => 'سفارش‌ها و بلیت‌ها', 'group' => 'گیشه بلیط'],
         'ticketing-gates' => ['model' => Gate::class, 'label' => 'گیت‌ها', 'group' => 'گیشه بلیط'],
         'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
 
