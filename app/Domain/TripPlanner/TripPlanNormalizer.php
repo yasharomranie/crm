@@ -96,6 +96,11 @@ class TripPlanNormalizer
 
                 /** @var Attraction $attraction */
                 $attraction = $candidate['attraction'];
+
+                if (isset($used[$attraction->id])) {
+                    continue;
+                }
+
                 $opensAt = self::toMinutes($attraction->opens_at);
                 $closesAt = self::toMinutes($attraction->closes_at);
 

@@ -79,10 +79,8 @@ class TicketVariant extends Model
             ->where(fn ($q) => $q->whereNull('effective_until')->orWhere('effective_until', '>', $at))
             ->get()
             ->filter(fn (TicketVariantPrice $price) => in_array($price->applies_to ?? 'all', ['all', $dayType], true))
-            ->sortBy([
-                [fn (TicketVariantPrice $price) => ($price->applies_to ?? 'all') === 'all' ? 0 : 1, 'desc'],
-                ['effective_from', 'desc'],
-            ])
+            ->sortByDesc('effective_from')
+            ->sortByDesc(fn (TicketVariantPrice $price) => ($price->applies_to ?? 'all') === 'all' ? 0 : 1)
             ->first();
     }
 

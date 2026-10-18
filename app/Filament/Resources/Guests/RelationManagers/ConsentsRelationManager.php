@@ -73,7 +73,7 @@ class ConsentsRelationManager extends RelationManager
 
                         $recorded = $guest->recordConsent(
                             MessageChannel::from($data['channel']),
-                            $data['granted'] === '1',
+                            (string) $data['granted'] === '1',
                             'staff',
                             $data['note'] ?? null,
                             auth()->id(),

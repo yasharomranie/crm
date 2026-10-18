@@ -7,7 +7,6 @@ use App\Models\PaymentGatewaySetting;
 use App\Models\WalletTopup;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\ConnectionException;
-use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
@@ -51,7 +50,9 @@ class CustomerAppWalletTopupTest extends TestCase
         $response = $this->actingAs($guest, 'customer')->post(route('customer-app.wallet.topup'), ['amount' => 150_000]);
 
         $response->assertRedirect('https://www.zarinpal.com/pg/StartPay/A0000000000000000000000000000000AB');
-        Http::assertSent(fn (Request $request) => $request['amount'] === 1_500_000 && $request['merchant_id'] === 'test-merchant');
+        $sent = Http::recorded()->map(fn (array $pair) => $pair[0]->data())->first();
+        $this->assertSame(1_500_000, $sent['amount'] ?? null);
+        $this->assertSame('test-merchant', $sent['merchant_id'] ?? null);
         $this->assertSame(WalletTopup::STATUS_PENDING, WalletTopup::sole()->status);
         $this->assertSame(0, (int) $guest->fresh()->wallet_balance);
     }

@@ -27,18 +27,22 @@ class LeadScorer
      */
     public function score(Deal $deal): array
     {
-        if (in_array($deal->stage, [DealStage::Won, DealStage::Lost], true)) {
+        // A deal just created without a stage still holds the column's DB
+        // default only in the database, not on the in-memory model.
+        $stage = $deal->stage ?? DealStage::NewLead;
+
+        if (in_array($stage, [DealStage::Won, DealStage::Lost], true)) {
             return ['score' => null, 'label' => null, 'reasons' => []];
         }
 
         $points = [];
 
-        $points[] = [match ($deal->stage) {
+        $points[] = [match ($stage) {
             DealStage::NewLead => 10,
             DealStage::NeedsAssessment => 25,
             DealStage::ProposalSent => 45,
             default => 60,
-        }, 'مرحله: '.$deal->stage->getLabel()];
+        }, 'مرحله: '.$stage->getLabel()];
 
         $value = (int) $deal->value;
 
@@ -99,7 +103,9 @@ class LeadScorer
     {
         $score = $this->score($deal)['score'];
 
-        Deal::query()->whereKey($deal->id)->update(['lead_score' => $score]);
+        // toBase(): an Eloquent update() would also touch updated_at, which
+        // would make every rescored deal look freshly worked on.
+        Deal::query()->whereKey($deal->id)->toBase()->update(['lead_score' => $score]);
         $deal->setAttribute('lead_score', $score);
         $deal->syncOriginalAttribute('lead_score');
 

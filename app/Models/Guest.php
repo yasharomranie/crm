@@ -245,7 +245,7 @@ class Guest extends Authenticatable
                 'type' => $type,
                 'amount' => $amount,
                 'reason' => $reason,
-                'created_by' => Auth::id(),
+                'created_by' => Auth::guard('web')->id(),
                 ...$extra,
             ]);
 

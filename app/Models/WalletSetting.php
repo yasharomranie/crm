@@ -32,7 +32,7 @@ class WalletSetting extends Model
 
     public static function current(): self
     {
-        return static::query()->firstOrCreate(['id' => 1]);
+        return static::query()->firstOrCreate(['id' => 1])->refresh();
     }
 
     public function cashbackPercentFor(LoyaltyTier $tier): float

@@ -161,6 +161,7 @@ class GateOfflineSyncTest extends TestCase
         GateRule::factory()->create(['gate_id' => $gateA->id, 'ticket_variant_id' => $variant->id, 'direction' => 'outbound']);
         GateRule::factory()->create(['gate_id' => $gateB->id, 'ticket_variant_id' => $variant->id, 'direction' => 'outbound']);
         $ticket = $this->issueTicket($variant);
+        $ticket->update(['valid_from' => now()->subHour()]);
         $operator = $this->operator();
 
         // Both gates were offline and each locally accepted the same

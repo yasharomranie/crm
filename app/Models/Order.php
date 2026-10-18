@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasManyThrough;
 use Illuminate\Support\Str;
 
 class Order extends Model
@@ -42,7 +43,7 @@ class Order extends Model
         return $this->hasMany(OrderItem::class);
     }
 
-    public function tickets(): HasMany
+    public function tickets(): HasManyThrough
     {
         return $this->hasManyThrough(AdmissionTicket::class, OrderItem::class);
     }

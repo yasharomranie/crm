@@ -33,7 +33,7 @@ class LogCrmActivityAction
                     ->rows(3),
             ])
             ->action(function (array $data, Model $record): void {
-                $type = CrmActivityType::from($data['type']);
+                $type = $data['type'] instanceof CrmActivityType ? $data['type'] : CrmActivityType::from($data['type']);
 
                 activity('crm_interactions')
                     ->performedOn($record)
