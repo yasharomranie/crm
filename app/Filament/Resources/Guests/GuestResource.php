@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Guests;
 
+use App\Domain\Crm\GuestSegmentQuery;
 use App\Filament\Resources\Guests\Pages\CreateGuest;
 use App\Filament\Resources\Guests\Pages\EditGuest;
 use App\Filament\Resources\Guests\Pages\ListGuests;
@@ -11,6 +12,7 @@ use App\Filament\Resources\Tasks\RelationManagers\FollowUpTasksRelationManager;
 use App\Filament\Support\FieldHelp;
 use App\Filament\Support\TableExports;
 use App\Models\Guest;
+use App\Models\GuestSegment;
 use BackedEnum;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -23,7 +25,9 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
 
 class GuestResource extends Resource
@@ -89,7 +93,16 @@ class GuestResource extends Resource
                 TextColumn::make('bookings_count')->label('تعداد رزرو')->counts('bookings')->numeric(),
             ])
             ->filters([
-                //
+                SelectFilter::make('segment')
+                    ->label('بخش مشتریان')
+                    ->options(fn () => GuestSegment::query()->orderBy('name')->pluck('name', 'id'))
+                    ->query(function (Builder $query, array $data) {
+                        $segment = filled($data['value'] ?? null) ? GuestSegment::find($data['value']) : null;
+
+                        return $segment
+                            ? $query->whereIn('guests.id', app(GuestSegmentQuery::class)->query($segment)->select('guests.id'))
+                            : $query;
+                    }),
             ])
             ->headerActions([
                 TableExports::excel('مهمانان', static::exportColumns()),
