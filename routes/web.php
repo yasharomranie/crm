@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\AssistantConversationPrintController;
 use App\Http\Controllers\AssistantRunController;
@@ -79,6 +80,9 @@ Route::middleware('auth')->group(function () {
         ->name('seo.google.redirect');
     Route::get('/seo/google/callback', [GoogleOAuthController::class, 'callback'])
         ->name('seo.google.callback');
+    Route::get('/seo/wp-plugin.zip', function (WpPluginPackage $package) {
+        return response()->download($package->zipPath(), WpPluginPackage::SLUG.'-'.$package->version().'.zip', ['Content-Type' => 'application/zip']);
+    })->middleware('can:seo-projects.view_any')->name('seo.wp-plugin.download');
     Route::get('/seo-periodic-reports/{seoPeriodicReport}/print', [SeoPeriodicReportPrintController::class, 'show'])
         ->name('seo-periodic-reports.print');
 });

@@ -116,6 +116,7 @@ class Admin
             'window_start' => max(0, min(23, (int) ($_POST['window_start'] ?? 0))),
             'window_end' => max(1, min(24, (int) ($_POST['window_end'] ?? 24))),
             'max_batches_per_run' => max(1, min(20, (int) ($_POST['max_batches_per_run'] ?? 5))),
+            'auto_update' => ! empty($_POST['auto_update']),
         ];
 
         Settings::save($settings);
@@ -285,6 +286,11 @@ class Admin
         printf(
             '<p>حداکثر تعداد دسته (هر دسته ۵۰ مورد) در هر نوبت: <input type="number" name="max_batches_per_run" min="1" max="20" value="%d" style="width:60px"></p>',
             (int) $settings['max_batches_per_run']
+        );
+
+        printf(
+            '<h3>به‌روزرسانی</h3><p><label><input type="checkbox" name="auto_update" value="1" %s> پلاگین خودکار از CRM به‌روز شود</label></p>',
+            checked($settings['auto_update'], true, false)
         );
 
         echo '<h3>نوشتن در سایت</h3><p><em>در این نسخه CRM فقط می‌خواند و هیچ تغییری در سایت شما نمی‌دهد. اگر در نسخه‌های بعد قابلیت نوشتن اضافه شود، با کلید جداگانه و پیش‌فرض خاموش خواهد بود.</em></p>';

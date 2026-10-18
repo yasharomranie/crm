@@ -3,10 +3,12 @@
 namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\WpConnector\WpPairingService;
+use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Domain\Seo\WpConnector\WpSignature;
 use App\Models\SeoProject;
 use App\Models\SeoWpPost;
 use App\Models\SeoWpSite;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Testing\TestResponse;
 use Tests\TestCase;
@@ -211,5 +213,61 @@ class WpConnectorTest extends TestCase
 
         $this->assertFalse($fresh->isStale());
         $this->assertTrue($silent->isStale());
+    }
+
+    public function test_the_plugin_version_matches_its_header_and_constant(): void
+    {
+        $package = app(WpPluginPackage::class);
+        $main = file_get_contents($package->sourcePath().'/farsiwp-seo-connector.php');
+
+        preg_match("/define\('FSWC_VERSION', '([^']+)'\)/", $main, $constant);
+
+        $this->assertMatchesRegularExpression('/^\d+\.\d+\.\d+$/', $package->version());
+        $this->assertSame($package->version(), $constant[1] ?? null);
+    }
+
+    public function test_an_older_plugin_is_told_about_the_update_and_can_download_it(): void
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            $this->markTestSkipped('The zip extension is not available.');
+        }
+
+        $site = $this->connectedSite();
+        $version = app(WpPluginPackage::class)->version();
+
+        $response = $this->signedPost($site, '/api/v1/wp-connector/update-check', ['current_version' => '0.0.1'])
+            ->assertOk()
+            ->assertJsonPath('version', $version)
+            ->assertJsonPath('update_available', true);
+
+        $this->signedPost($site, '/api/v1/wp-connector/update-check', ['current_version' => $version])
+            ->assertJsonPath('update_available', false);
+
+        $download = $this->get($response->json('package'))->assertOk();
+        $this->assertSame('application/zip', $download->headers->get('Content-Type'));
+
+        $zip = new \ZipArchive;
+        $this->assertTrue($zip->open($download->baseResponse->getFile()->getPathname()));
+        $this->assertNotFalse($zip->locateName('farsiwp-seo-connector/farsiwp-seo-connector.php'));
+        $this->assertNotFalse($zip->locateName('farsiwp-seo-connector/includes/Updater.php'));
+        $zip->close();
+    }
+
+    public function test_a_tampered_package_link_is_refused(): void
+    {
+        $this->get('/api/v1/wp-connector/package')->assertStatus(403);
+        $this->get('/api/v1/wp-connector/package?signature=forged')->assertStatus(403);
+    }
+
+    public function test_staff_with_seo_access_can_download_the_plugin_from_the_panel(): void
+    {
+        if (! class_exists(\ZipArchive::class)) {
+            $this->markTestSkipped('The zip extension is not available.');
+        }
+
+        $this->actingAs(User::factory()->create())
+            ->get(route('seo.wp-plugin.download'))
+            ->assertOk()
+            ->assertHeader('Content-Type', 'application/zip');
     }
 }

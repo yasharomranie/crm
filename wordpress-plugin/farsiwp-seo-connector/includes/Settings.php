@@ -37,6 +37,7 @@ class Settings
             'window_start' => 0,
             'window_end' => 24,
             'max_batches_per_run' => 5,
+            'auto_update' => true,
         ];
     }
 
