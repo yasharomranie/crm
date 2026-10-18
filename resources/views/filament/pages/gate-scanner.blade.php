@@ -8,6 +8,13 @@
     @include('filament.components.qr-scanner-assets')
 
     <div x-data="gateScanner()" class="mx-auto max-w-lg space-y-4">
+        @php($occupancy = $this->occupancy())
+        <div class="grid grid-cols-3 gap-2 text-center text-sm">
+            <div class="rounded-lg border p-2"><div class="text-xs text-gray-500">داخل مجموعه (الان)</div><div class="text-xl font-bold">{{ \Illuminate\Support\Number::toPersian($occupancy['inside']) }}</div></div>
+            <div class="rounded-lg border p-2"><div class="text-xs text-gray-500">ورودی امروز</div><div class="text-xl font-bold">{{ \Illuminate\Support\Number::toPersian($occupancy['entries']) }}</div></div>
+            <div class="rounded-lg border p-2"><div class="text-xs text-gray-500">کل عبور امروز</div><div class="text-xl font-bold">{{ \Illuminate\Support\Number::toPersian($occupancy['total_passes']) }}</div></div>
+        </div>
+
         {{-- Online/offline status + pending-sync count. The scanner never
             blocks on this - it's purely informational, see handleScan(). --}}
         <div
@@ -77,6 +84,8 @@
                 x-ref="input"
                 wire:model="qrToken"
                 x-on:keydown.enter.prevent="handleScan($event.target.value)"
+                x-on:blur.debounce.400ms="if (selectedGateId && document.activeElement === document.body) { $el.focus(); }"
+                autocomplete="off"
                 placeholder="کد QR بلیت..."
                 class="fi-input w-full rounded-lg py-4 text-center text-base"
             />
@@ -170,7 +179,15 @@
                 // must not need a manual click back into the field) - still
                 // useful alongside the camera for a physical USB/BT scanner
                 // gun, which works by "typing" into whatever's focused.
-                this.$wire.$on('scan-handled', () => this.$nextTick(() => this.$refs.input?.focus()));
+                this.$wire.$on('scan-handled', () => {
+                    this.$nextTick(() => this.$refs.input?.focus());
+                    this.feedback(this.$wire.lastResult === 'success');
+                });
+                this.$watch('offlineResult', (value) => {
+                    if (value) {
+                        this.feedback(value.result === 'success');
+                    }
+                });
                 this.$refs.input?.focus();
 
                 if (this.selectedGateId) {
@@ -196,6 +213,29 @@
                         this.syncPackage().then(() => this.pushPendingScans());
                     }
                 });
+            },
+
+            // A sound and a vibration for every scan, so the gate staff can
+            // look at the person instead of the screen: one short high
+            // beep for a pass, a long low buzz for a rejection.
+            feedback(ok) {
+                try {
+                    navigator.vibrate?.(ok ? 80 : [200, 80, 200]);
+                } catch (e) {}
+
+                try {
+                    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+                    this.audio = this.audio || new AudioCtx();
+                    const oscillator = this.audio.createOscillator();
+                    const gain = this.audio.createGain();
+                    oscillator.type = ok ? 'sine' : 'square';
+                    oscillator.frequency.value = ok ? 880 : 220;
+                    gain.gain.value = 0.15;
+                    oscillator.connect(gain);
+                    gain.connect(this.audio.destination);
+                    oscillator.start();
+                    oscillator.stop(this.audio.currentTime + (ok ? 0.12 : 0.45));
+                } catch (e) {}
             },
 
             onGateChange(gateId) {
@@ -367,18 +407,31 @@
                 this.syncing = true;
 
                 try {
-                    const response = await fetch(`/gate-scanner/${this.selectedGateId}/sync-package`, {
-                        headers: { 'Accept': 'application/json' },
-                    });
+                    // The package arrives in pages (thousands of tickets
+                    // would be a huge single response); everything is
+                    // collected first and swapped into the local store in
+                    // one go, so a connection lost halfway never leaves a
+                    // half-empty offline copy behind.
+                    let afterId = 0;
+                    let tickets = [];
+                    let data = null;
 
-                    if (! response.ok) {
-                        return;
-                    }
+                    do {
+                        const response = await fetch(`/gate-scanner/${this.selectedGateId}/sync-package?after_id=${afterId}`, {
+                            headers: { 'Accept': 'application/json' },
+                        });
 
-                    const data = await response.json();
+                        if (! response.ok) {
+                            return;
+                        }
+
+                        data = await response.json();
+                        tickets = tickets.concat(data.tickets);
+                        afterId = data.next_after_id;
+                    } while (afterId);
 
                     await this.idbClear('tickets');
-                    for (const ticket of data.tickets) {
+                    for (const ticket of tickets) {
                         await this.idbPut('tickets', ticket);
                     }
                     await this.idbPut('meta', { key: 'gate:' + this.selectedGateId, value: data.gate });

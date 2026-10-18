@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Ticketing\GateOccupancy;
 use App\Domain\Ticketing\GateValidationService;
 use App\Enums\GateScanResult;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
@@ -61,6 +62,14 @@ class GateScanner extends Page
     public function getGates(): Collection
     {
         return Gate::query()->where('is_active', true)->orderBy('name')->get();
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    public function occupancy(): array
+    {
+        return app(GateOccupancy::class)->today();
     }
 
     public function scan(): void
