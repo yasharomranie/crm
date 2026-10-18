@@ -12,6 +12,7 @@ use App\Models\SeoWpSite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
@@ -94,32 +95,51 @@ class WpConnectorController extends Controller
             return response()->json(['error' => ['code' => 'SCOPE_REQUIRED', 'message' => 'دسترسی «فهرست محتوا» در تنظیمات پلاگین باید روشن باشد.']], 422);
         }
 
-        $info = $data['site'] ?? [];
-        $site->update(array_filter([
-            'site_url' => $info['url'] ?? null,
-            'plugin_version' => $info['plugin_version'] ?? null,
-            'wp_version' => $info['wp_version'] ?? null,
-            'php_version' => $info['php_version'] ?? null,
-            'seo_plugin' => $info['seo_plugin'] ?? null,
-            'search_engines_discouraged' => isset($info['search_engines_discouraged']) ? (bool) $info['search_engines_discouraged'] : null,
-        ], fn ($value) => $value !== null) + [
-            'scopes' => $scopes,
-            'has_woocommerce' => (bool) ($info['woocommerce'] ?? $site->has_woocommerce),
-            'last_seen_at' => now(),
-        ]);
+        try {
+            $info = $data['site'] ?? [];
+            $site->update(array_filter([
+                'site_url' => $info['url'] ?? null,
+                'plugin_version' => $info['plugin_version'] ?? null,
+                'wp_version' => $info['wp_version'] ?? null,
+                'php_version' => $info['php_version'] ?? null,
+                'seo_plugin' => $info['seo_plugin'] ?? null,
+                'search_engines_discouraged' => isset($info['search_engines_discouraged']) ? (bool) $info['search_engines_discouraged'] : null,
+            ], fn ($value) => $value !== null) + [
+                'scopes' => $scopes,
+                'has_woocommerce' => (bool) ($info['woocommerce'] ?? $site->has_woocommerce),
+                'last_seen_at' => now(),
+            ]);
 
-        $result = $ingestor->ingest($site, $request->input('posts', []), array_map('intval', $data['deleted'] ?? []));
+            $result = $ingestor->ingest($site, $request->input('posts', []), array_map('intval', $data['deleted'] ?? []));
 
-        $site->update(['last_sync_at' => now(), 'last_error' => null]);
+            $site->update(['last_sync_at' => now(), 'last_error' => null]);
 
-        if ($result['accepted'] > 0 || $result['deleted'] > 0) {
-            AnalyzeWpSiteJob::dispatch($site->id)->delay(now()->addMinutes(2));
+            if ($result['accepted'] > 0 || $result['deleted'] > 0) {
+                AnalyzeWpSiteJob::dispatch($site->id)->delay(now()->addMinutes(2));
+            }
+
+            return response()->json($result + [
+                'cursor' => $data['cursor'] ?? null,
+                'next_sync_after_seconds' => self::SYNC_INTERVAL_SECONDS,
+            ]);
+        } catch (\Throwable $exception) {
+            return $this->syncFailed($site, $exception);
         }
+    }
 
-        return response()->json($result + [
-            'cursor' => $data['cursor'] ?? null,
-            'next_sync_after_seconds' => self::SYNC_INTERVAL_SECONDS,
-        ]);
+    /**
+     * A failed sync is written on the site (shown in the CRM) and answered
+     * with a readable message, so the site owner sees what went wrong
+     * instead of a bare HTTP 500.
+     */
+    private function syncFailed(SeoWpSite $site, \Throwable $exception): JsonResponse
+    {
+        report($exception);
+
+        $message = Str::limit(class_basename($exception).': '.$exception->getMessage(), 400);
+        $site->update(['last_error' => $message]);
+
+        return response()->json(['error' => ['code' => 'SERVER_ERROR', 'message' => $message]], 500);
     }
 
     /**

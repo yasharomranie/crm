@@ -21,6 +21,15 @@ class ManageSeoWpPosts extends ManageRecords
 
         $discouraged = SeoWpSite::query()->with('project')->where('search_engines_discouraged', true)->get();
 
+        foreach (SeoWpSite::query()->with('project')->whereNotNull('last_error')->get() as $failing) {
+            Notification::make()
+                ->title('آخرین دریافت از «'.$failing->project?->name.'» با خطا مواجه شد')
+                ->body($failing->last_error)
+                ->warning()
+                ->persistent()
+                ->send();
+        }
+
         if ($discouraged->isNotEmpty()) {
             Notification::make()
                 ->title('«جلوگیری از ایندکس‌شدن توسط موتورهای جست‌وجو» روشن است')

@@ -4,6 +4,7 @@ namespace Tests\Feature\Seo;
 
 use App\Domain\Seo\WpConnector\WpPairingService;
 use App\Domain\Seo\WpConnector\WpPluginPackage;
+use App\Domain\Seo\WpConnector\WpPostIngestor;
 use App\Domain\Seo\WpConnector\WpSignature;
 use App\Models\SeoProject;
 use App\Models\SeoWpPost;
@@ -279,5 +280,19 @@ class WpConnectorTest extends TestCase
             ->get(route('seo.wp-plugin.download'))
             ->assertOk()
             ->assertHeader('Content-Type', 'application/zip');
+    }
+
+    public function test_a_crash_while_syncing_is_reported_and_remembered_on_the_site(): void
+    {
+        $site = $this->connectedSite();
+
+        $this->mock(WpPostIngestor::class, fn ($mock) => $mock->shouldReceive('ingest')->andThrow(new \RuntimeException('boom')));
+
+        $this->signedPost($site, self::SYNC_URL, ['posts' => [$this->samplePost()]])
+            ->assertStatus(500)
+            ->assertJsonPath('error.code', 'SERVER_ERROR')
+            ->assertJsonPath('error.message', 'RuntimeException: boom');
+
+        $this->assertSame('RuntimeException: boom', $site->refresh()->last_error);
     }
 }
