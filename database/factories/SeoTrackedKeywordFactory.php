@@ -20,7 +20,7 @@ class SeoTrackedKeywordFactory extends Factory
     {
         return [
             'seo_project_id' => SeoProject::factory(),
-            'keyword' => $this->faker->words(3, true),
+            'keyword' => $this->faker->unique()->words(3, true),
             'is_active' => true,
         ];
     }
