@@ -2339,7 +2339,7 @@ trait HasAiAssistantEngine
 
     private function parseFlexibleDate(mixed $value): ?Carbon
     {
-        $text = trim(CalendarUtils::convertNumbers((string) $value));
+        $text = trim(CalendarUtils::convertNumbers((string) $value, true));
 
         if (! preg_match('/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/', $text, $parts)) {
             return null;

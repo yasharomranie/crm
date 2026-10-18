@@ -166,7 +166,7 @@ class AiAssistantExperienceTest extends TestCase
 
         $payload = $this->toolPayload();
 
-        $this->assertSame('از 1405/07/01 تا 1405/07/30', $payload['period']);
+        $this->assertSame('از ۱۴۰۵/۰۷/۰۱ تا ۱۴۰۵/۰۷/۳۰', $payload['period']);
         $this->assertSame(2, $payload['bookings_created']);
         $this->assertSame(1, $payload['cancelled_count']);
     }
