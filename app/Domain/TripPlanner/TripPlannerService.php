@@ -46,9 +46,38 @@ class TripPlannerService
     ) {}
 
     /**
+     * The whole job in one call (request, then build) - for callers that
+     * can wait. A plan that cannot be built is not left behind.
+     *
      * @param  array{days: int, starts_on?: ?string, interests?: array<int, string>, pace: string, group_type?: ?string, has_car?: bool, budget_level?: ?string}  $input
      */
     public function generate(Guest $guest, array $input): TripPlan
+    {
+        $plan = $this->request($guest, $input);
+
+        if ($plan->status !== TripPlan::STATUS_PENDING) {
+            return $plan;
+        }
+
+        try {
+            $this->build($plan);
+        } catch (\Throwable $exception) {
+            $plan->delete();
+
+            throw $exception;
+        }
+
+        return $plan->refresh();
+    }
+
+    /**
+     * Checks the request and records it as a pending plan, without calling
+     * the AI - the slow part, build(), runs later on the queue. A repeat of
+     * a very recent request returns that plan instead of making another.
+     *
+     * @param  array{days: int, starts_on?: ?string, interests?: array<int, string>, pace: string, group_type?: ?string, has_car?: bool, budget_level?: ?string}  $input
+     */
+    public function request(Guest $guest, array $input): TripPlan
     {
         $settings = TripPlannerSetting::current();
 
@@ -62,22 +91,76 @@ class TripPlannerService
         $recent = $guest->tripPlans()
             ->where('fingerprint', $fingerprint)
             ->where('created_at', '>=', now()->subMinutes(self::DUPLICATE_WINDOW_MINUTES))
-            ->latest('id')
+            ->get()
+            ->filter(fn (TripPlan $plan) => $plan->isReady() || $plan->isBeingBuilt())
+            ->sortByDesc('id')
             ->first();
 
         if ($recent) {
             return $recent;
         }
 
-        if ($guest->tripPlans()->where('created_at', '>=', now()->subDay())->count() >= $settings->plans_per_day_limit) {
+        $counted = $guest->tripPlans()
+            ->where('created_at', '>=', now()->subDay())
+            ->where('status', '!=', TripPlan::STATUS_FAILED)
+            ->count();
+
+        if ($counted >= $settings->plans_per_day_limit) {
             throw TripPlannerException::dailyLimitReached($settings->plans_per_day_limit);
         }
 
         $startsOn = $input['starts_on'] ? Carbon::parse($input['starts_on'])->startOfDay() : now()->startOfDay();
-        $days = $input['days'];
-        $endsOn = $startsOn->copy()->addDays($days - 1);
 
-        $eligible = $this->eligibleAttractions($startsOn, $endsOn);
+        if ($this->eligibleAttractions($startsOn, $startsOn->copy()->addDays($input['days'] - 1))->isEmpty()) {
+            throw TripPlannerException::noEligibleAttractions();
+        }
+
+        return $guest->tripPlans()->create([
+            'days' => $input['days'],
+            'starts_on' => $startsOn,
+            'interests' => $input['interests'],
+            'pace' => $input['pace'],
+            'group_type' => $input['group_type'],
+            'has_car' => $input['has_car'],
+            'budget_level' => $input['budget_level'],
+            'status' => TripPlan::STATUS_PENDING,
+            'fingerprint' => $fingerprint,
+        ]);
+    }
+
+    /**
+     * Fills a pending plan with its schedule. Only one caller can take a
+     * plan, so a job that runs twice builds it once. Throws when no usable
+     * plan comes out; the caller decides what to do with the plan then
+     * (see markFailed()).
+     */
+    public function build(TripPlan $plan): void
+    {
+        $claimed = TripPlan::query()
+            ->whereKey($plan->id)
+            ->where('status', TripPlan::STATUS_PENDING)
+            ->update(['status' => TripPlan::STATUS_BUILDING, 'updated_at' => now()]);
+
+        if (! $claimed) {
+            return;
+        }
+
+        $plan->refresh();
+        $guest = $plan->guest;
+        $settings = TripPlannerSetting::current();
+        $input = [
+            'days' => $plan->days,
+            'starts_on' => $plan->starts_on?->toDateString(),
+            'interests' => $plan->interests ?? [],
+            'pace' => $plan->pace,
+            'group_type' => $plan->group_type,
+            'has_car' => $plan->has_car,
+            'budget_level' => $plan->budget_level,
+        ];
+
+        $startsOn = $plan->starts_on->copy()->startOfDay();
+        $days = $plan->days;
+        $eligible = $this->eligibleAttractions($startsOn, $startsOn->copy()->addDays($days - 1));
 
         if ($eligible->isEmpty()) {
             throw TripPlannerException::noEligibleAttractions();
@@ -101,25 +184,30 @@ class TripPlannerService
             throw TripPlannerException::invalidAiResponse();
         }
 
-        $plan = $guest->tripPlans()->create([
-            'days' => $days,
-            'starts_on' => $startsOn,
-            'interests' => $input['interests'],
-            'pace' => $input['pace'],
-            'group_type' => $input['group_type'],
-            'has_car' => $input['has_car'],
-            'budget_level' => $input['budget_level'],
+        $plan->update([
             'overview' => $overview,
-            'fingerprint' => $fingerprint,
             'generation_method' => $method,
             'generation_ms' => (int) round((microtime(true) - $startedAt) * 1000),
             'attractions_sent' => $shortlist->count(),
         ]);
 
         $this->saveSchedule($plan, $schedule);
+        $plan->update(['status' => TripPlan::STATUS_READY, 'error_message' => null]);
         $this->followUp->afterPlanCreated($plan);
+    }
 
-        return $plan;
+    /**
+     * Records why a plan could not be built, in words the customer can read.
+     */
+    public function markFailed(TripPlan $plan, \Throwable $exception): void
+    {
+        $plan->items()->delete();
+        $plan->update([
+            'status' => TripPlan::STATUS_FAILED,
+            'error_message' => $exception instanceof TripPlannerException
+                ? $exception->getMessage()
+                : 'ساخت برنامه با مشکل روبه‌رو شد. لطفاً دوباره تلاش کنید.',
+        ]);
     }
 
     /**

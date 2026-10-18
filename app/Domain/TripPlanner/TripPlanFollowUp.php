@@ -51,6 +51,7 @@ class TripPlanFollowUp
         $sent = 0;
 
         TripPlan::query()
+            ->ready()
             ->with('guest')
             ->whereDate('starts_on', now()->addDay()->toDateString())
             ->whereNull('reminder_sent_at')
