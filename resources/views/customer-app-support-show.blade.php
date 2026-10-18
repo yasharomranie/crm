@@ -267,6 +267,27 @@
                 @endforelse
             </section>
 
+            @if ($ticket->canBeRated())
+                <section class="card">
+                    <form method="POST" action="{{ route('customer-app.support.rate', $ticket) }}">
+                        @csrf
+                        <label class="field">
+                            {{ $ticket->csat_score ? 'امتیاز شما به پشتیبانی (می‌توانید تغییر دهید)' : 'از پاسخ پشتیبانی چقدر راضی بودید؟' }}
+                            <select name="csat_score" required>
+                                @foreach ([5 => '۵ - عالی', 4 => '۴ - خوب', 3 => '۳ - متوسط', 2 => '۲ - ضعیف', 1 => '۱ - خیلی ضعیف'] as $value => $label)
+                                    <option value="{{ $value }}" {{ (int) old('csat_score', $ticket->csat_score) === $value ? 'selected' : '' }}>{{ $label }}</option>
+                                @endforeach
+                            </select>
+                        </label>
+                        <label class="field">
+                            نظر شما (اختیاری)
+                            <textarea name="csat_comment" rows="2" maxlength="1000">{{ old('csat_comment', $ticket->csat_comment) }}</textarea>
+                        </label>
+                        <button type="submit" class="btn">ثبت امتیاز</button>
+                    </form>
+                </section>
+            @endif
+
             <section class="card">
                 <form method="POST" action="{{ route('customer-app.support.reply', $ticket) }}">
                     @csrf

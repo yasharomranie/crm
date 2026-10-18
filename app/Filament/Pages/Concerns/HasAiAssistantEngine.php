@@ -1915,10 +1915,17 @@ trait HasAiAssistantEngine
             ->where('sla_due_at', '<', now())
             ->count();
 
+        $rated = GuestTicket::whereNotNull('csat_score')->where('csat_responded_at', '>=', now()->subDays(90));
+
         return [
             'deals_by_stage' => $dealsByStage->all(),
             'open_tickets' => $openTickets,
             'sla_breached_tickets' => $breachedTickets,
+            'support_satisfaction_90d' => [
+                'responses' => (clone $rated)->count(),
+                'average_of_5' => (clone $rated)->count() > 0 ? round((float) (clone $rated)->avg('csat_score'), 2) : null,
+                'unhappy_responses' => (clone $rated)->where('csat_score', '<=', 2)->count(),
+            ],
         ];
     }
 
