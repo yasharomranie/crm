@@ -8,6 +8,7 @@ use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Forms\Components\DateTimePicker;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
@@ -34,9 +35,15 @@ class PricesRelationManager extends RelationManager
         return $schema
             ->components([
                 TextInput::make('amount')
-                    ->label('مبلغ (ریال)')
+                    ->label('مبلغ (تومان)')
                     ->numeric()
                     ->required(),
+                Select::make('applies_to')
+                    ->label('روزهای اعتبار این قیمت')
+                    ->options(['all' => 'همه‌ی روزها', 'weekday' => 'فقط روزهای عادی', 'weekend' => 'فقط آخر هفته (پنجشنبه و جمعه)'])
+                    ->default('all')
+                    ->required()
+                    ->helperText('قیمتِ مخصوص آخر هفته/روز عادی، در روز مربوط بر قیمت «همه‌ی روزها» مقدم است.'),
                 DateTimePicker::make('effective_from')
                     ->label('اعتبار از')
                     ->default(now())
@@ -51,7 +58,8 @@ class PricesRelationManager extends RelationManager
         return $table
             ->defaultSort('effective_from', 'desc')
             ->columns([
-                TextColumn::make('amount')->label('مبلغ')->numeric(),
+                TextColumn::make('amount')->label('مبلغ (تومان)')->numeric(),
+                TextColumn::make('applies_to')->label('روزها')->badge()->formatStateUsing(fn (string $state) => ['all' => 'همه', 'weekday' => 'روز عادی', 'weekend' => 'آخر هفته'][$state] ?? $state),
                 TextColumn::make('effective_from')->label('از')->dateTime('Y-m-d H:i'),
                 TextColumn::make('effective_until')->label('تا')->dateTime('Y-m-d H:i')->placeholder('تا اطلاع ثانوی'),
             ])

@@ -30,6 +30,7 @@ use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TicketingReportsPage;
 use App\Filament\Pages\TripPlannerReportPage;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WalletLiabilityReport;
@@ -60,6 +61,7 @@ use App\Models\GuestFeedback;
 use App\Models\GuestSegment;
 use App\Models\GuestTicket;
 use App\Models\LeadCaptureForm;
+use App\Models\Order;
 use App\Models\PriceRule;
 use App\Models\Product;
 use App\Models\Project;
@@ -143,6 +145,7 @@ return [
 
         'ticketing-products' => ['model' => Product::class, 'label' => 'محصولات (جاذبه‌ها)', 'group' => 'گیشه بلیط'],
         'ticketing-variants' => ['model' => TicketVariant::class, 'label' => 'انواع بلیت', 'group' => 'گیشه بلیط'],
+        'orders' => ['model' => Order::class, 'label' => 'سفارش‌ها و بلیت‌ها', 'group' => 'گیشه بلیط'],
         'ticketing-gates' => ['model' => Gate::class, 'label' => 'گیت‌ها', 'group' => 'گیشه بلیط'],
         'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
 
@@ -216,6 +219,7 @@ return [
                 'issue_complimentary' => 'صدور بلیت رایگان/اهدایی',
             ],
         ],
+        'ticketing-reports' => ['page' => TicketingReportsPage::class, 'label' => 'گزارش‌های گیشه', 'group' => 'گیشه بلیط'],
         'gate-scanner' => ['page' => GateScanner::class, 'label' => 'اسکن بلیط (گیت)', 'group' => 'گیشه بلیط'],
         'web-app-domain-settings' => ['page' => WebAppDomainSettings::class, 'label' => 'دامنه اختصاصی', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],

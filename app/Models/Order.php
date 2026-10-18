@@ -20,7 +20,7 @@ class Order extends Model
         'customer_name', 'customer_phone',
         'discount_code_id', 'discount_code_snapshot', 'discount_type_snapshot', 'discount_value_snapshot',
         'original_amount', 'discount_amount', 'tax_amount', 'final_amount', 'amount_paid', 'currency',
-        'created_by',
+        'created_by', 'cashier_shift_id',
     ];
 
     protected function casts(): array

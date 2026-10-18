@@ -3,11 +3,11 @@
 namespace App\Http\Controllers\Api\V1\External;
 
 use App\Enums\DocumentAccessLevel;
+use App\Http\Controllers\Api\V1\External\Concerns\RunsIdempotently;
 use App\Http\Controllers\Controller;
 use App\Models\Document;
 use App\Models\ExternalApiClient;
 use App\Models\IdempotencyKey;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -23,6 +23,8 @@ use Symfony\Component\HttpFoundation\StreamedResponse;
  */
 class DocumentController extends Controller
 {
+    use RunsIdempotently;
+
     public function store(Request $request): JsonResponse
     {
         /** @var ExternalApiClient $client */
@@ -68,20 +70,34 @@ class DocumentController extends Controller
             return $replay;
         }
 
-        $filePath = $file->store('documents', config('filesystems.default'));
+        $filePath = null;
 
-        $document = Document::create([
-            'title' => $data['title'],
-            'file_path' => $filePath,
-            'mime_type' => Storage::disk()->mimeType($filePath),
-            'size_kb' => (int) ceil(Storage::disk()->size($filePath) / 1024),
-            'access_level' => $accessLevel,
-            'department_id' => $data['department_id'] ?? null,
-            'uploaded_by' => $client->created_by,
-            'external_api_client_id' => $client->id,
-        ]);
+        return $this->idempotently(
+            $client,
+            $idempotencyKey,
+            $requestHash,
+            function () use ($client, $data, $file, $accessLevel, &$filePath) {
+                $filePath = $file->store('documents', config('filesystems.default'));
 
-        return $this->storeIdempotencyAndRespond($client, $idempotencyKey, $requestHash, 201, $this->transformDocument($document));
+                $document = Document::create([
+                    'title' => $data['title'],
+                    'file_path' => $filePath,
+                    'mime_type' => Storage::disk()->mimeType($filePath),
+                    'size_kb' => (int) ceil(Storage::disk()->size($filePath) / 1024),
+                    'access_level' => $accessLevel,
+                    'department_id' => $data['department_id'] ?? null,
+                    'uploaded_by' => $client->created_by,
+                    'external_api_client_id' => $client->id,
+                ]);
+
+                return [201, $this->transformDocument($document)];
+            },
+            function () use (&$filePath) {
+                if ($filePath) {
+                    Storage::disk(config('filesystems.default'))->delete($filePath);
+                }
+            },
+        );
     }
 
     public function download(Request $request, int $document): StreamedResponse|JsonResponse
@@ -130,28 +146,6 @@ class DocumentController extends Controller
         }
 
         return response()->json($existing->response_body, $existing->response_status);
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function storeIdempotencyAndRespond(ExternalApiClient $client, string $key, string $requestHash, int $status, array $body): JsonResponse
-    {
-        try {
-            IdempotencyKey::create([
-                'external_api_client_id' => $client->id,
-                'key' => $key,
-                'request_hash' => $requestHash,
-                'response_status' => $status,
-                'response_body' => $body,
-            ]);
-        } catch (QueryException) {
-            if ($replay = $this->replayIfSeen($client, $key, $requestHash)) {
-                return $replay;
-            }
-        }
-
-        return response()->json($body, $status);
     }
 
     private function error(string $code, string $message, int $status): JsonResponse

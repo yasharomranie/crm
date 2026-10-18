@@ -39,6 +39,7 @@ class ActivitiesRelationManager extends RelationManager
                         'updated' => 'ویرایش اطلاعات',
                         'lead_captured' => 'ثبت از فرم سرنخ',
                         'trip_plan_created' => 'برنامه‌ی سفر',
+                        'ticket_purchased' => 'خرید بلیت',
                         'merged' => 'ادغام پرونده',
                         'email_sent' => 'ایمیل',
                         'sms_sent' => 'پیامک',

@@ -5,6 +5,7 @@ use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
+use App\Domain\Ticketing\GateAnomalyDetector;
 use App\Domain\TripPlanner\TripPlanFollowUp;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -89,6 +90,13 @@ Schedule::call(fn () => app(LeadScorer::class)->refreshOpenDeals())
     ->name('crm-lead-scores')
     ->dailyAt('02:30')
     ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Alerts the admins about a ticket rejected again and again at the gates
+// (a copied QR code, most likely).
+Schedule::call(fn () => app(GateAnomalyDetector::class)->notifyAdmins())
+    ->name('gate-anomaly-alerts')
+    ->everyFiveMinutes()
     ->withoutOverlapping();
 
 // Texts guests whose planned trip starts tomorrow (only when enabled in the

@@ -29,9 +29,13 @@ use Illuminate\Support\Collection;
  */
 class GateOfflineSyncController extends Controller
 {
+    public const PACKAGE_PAGE_SIZE = 2000;
+
     public function pullPackage(Request $request, Gate $gate): JsonResponse
     {
         $this->authorizeGateScannerAccess($request);
+
+        $pageSize = max(100, min(5000, (int) $request->query('limit', self::PACKAGE_PAGE_SIZE)));
 
         $rules = $gate->rules()
             ->where('is_active', true)
@@ -52,17 +56,27 @@ class GateOfflineSyncController extends Controller
                 AdmissionTicketStatus::Blocked,
                 AdmissionTicketStatus::Used,
             ])
+            ->where('admission_tickets.id', '>', max(0, (int) $request->query('after_id', 0)))
             ->where('valid_until', '>', now())
             ->whereHas('qrToken', fn ($query) => $query->whereNull('revoked_at'))
             ->with(['qrToken:id,admission_ticket_id,token', 'ticketVariant:id,product_id,direction'])
+            ->orderBy('admission_tickets.id')
+            ->limit($pageSize + 1)
             ->get([
                 'id', 'ticket_number', 'ticket_variant_id', 'status',
                 'allowed_uses', 'used_uses', 'valid_from', 'valid_until',
             ]);
 
+        // One more row than the page is asked for tells whether another
+        // page follows; the browser keeps fetching with after_id until
+        // next_after_id comes back null, then swaps its local copy in one go.
+        $hasMore = $tickets->count() > $pageSize;
+        $tickets = $tickets->take($pageSize);
+
         return response()->json([
             'gate' => ['id' => $gate->id, 'name' => $gate->name],
             'rules' => $rules,
+            'next_after_id' => $hasMore ? $tickets->last()->id : null,
             'tickets' => $tickets->map(fn ($ticket) => [
                 'token' => $ticket->qrToken?->token,
                 'ticket_id' => $ticket->id,
