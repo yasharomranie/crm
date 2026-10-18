@@ -5,6 +5,7 @@ use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
 use App\Http\Controllers\CustomerApp\ProfileController as CustomerAppProfileController;
+use App\Http\Controllers\CustomerApp\PublicTripPlanController;
 use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSupportTicketController;
 use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
 use App\Http\Controllers\CustomerApp\TripPlannerController as CustomerAppTripPlannerController;
@@ -129,6 +130,9 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 
 // Customer-app account features - "سفارش‌های من" etc. - all behind the
 // 'customer' guard (see config/auth.php), never the staff 'auth' group.
+// Read-only page behind a trip plan's share link.
+Route::get('/trip/{token}', [PublicTripPlanController::class, 'show'])->name('trip-plan.public');
+
 // Where the payment gateway sends the customer back after paying.
 Route::get('/app/wallet/topup/callback', [CustomerAppWalletTopupController::class, 'callback'])->name('customer-app.wallet.topup.callback');
 
@@ -147,4 +151,12 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::get('/trip-planner', [CustomerAppTripPlannerController::class, 'index'])->name('trip-planner');
     Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->name('trip-planner.store');
     Route::get('/trip-planner/{plan}', [CustomerAppTripPlannerController::class, 'show'])->name('trip-planner.show');
+    Route::post('/trip-planner/{plan}/items', [CustomerAppTripPlannerController::class, 'storeItem'])->name('trip-planner.items.store');
+    Route::delete('/trip-planner/{plan}/items/{item}', [CustomerAppTripPlannerController::class, 'destroyItem'])->name('trip-planner.items.destroy');
+    Route::post('/trip-planner/{plan}/items/{item}/move', [CustomerAppTripPlannerController::class, 'moveItem'])->name('trip-planner.items.move');
+    Route::post('/trip-planner/{plan}/days/{day}/regenerate', [CustomerAppTripPlannerController::class, 'regenerateDay'])->whereNumber('day')->name('trip-planner.days.regenerate');
+    Route::post('/trip-planner/{plan}/rating', [CustomerAppTripPlannerController::class, 'rate'])->name('trip-planner.rate');
+    Route::post('/trip-planner/{plan}/share', [CustomerAppTripPlannerController::class, 'share'])->name('trip-planner.share');
+    Route::delete('/trip-planner/{plan}/share', [CustomerAppTripPlannerController::class, 'unshare'])->name('trip-planner.unshare');
+    Route::get('/trip-planner/{plan}/calendar.ics', [CustomerAppTripPlannerController::class, 'calendar'])->name('trip-planner.calendar');
 });

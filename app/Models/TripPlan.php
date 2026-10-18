@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -48,5 +49,14 @@ class TripPlan extends Model
     public function itemsByDay(): Collection
     {
         return $this->items()->with('attraction')->get()->groupBy('day_number');
+    }
+
+    /**
+     * The calendar date of one day of the trip (plans made without a start
+     * date count from the day they were made).
+     */
+    public function dateForDay(int $dayNumber): Carbon
+    {
+        return ($this->starts_on ?? $this->created_at)->copy()->startOfDay()->addDays($dayNumber - 1);
     }
 }
