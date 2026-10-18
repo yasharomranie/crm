@@ -2,6 +2,7 @@
 
 namespace App\Providers;
 
+use App\Domain\Payments\ZarinpalGateway;
 use App\Http\Middleware\EnsureIdempotentLivewireUpdate;
 use App\Livewire\AiAssistantWidget;
 use App\Models\Booking;
@@ -37,7 +38,9 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        // The container would otherwise build the gateway around an empty
+        // settings model (no merchant id) instead of the saved singleton row.
+        $this->app->bind(ZarinpalGateway::class, fn () => ZarinpalGateway::make());
     }
 
     /**

@@ -78,7 +78,7 @@ class WalletTransactionsRelationManager extends RelationManager
                         $amount = (int) $data['amount'];
 
                         try {
-                            return $data['type'] === WalletTransactionType::Credit->value
+                            return WalletTransactionType::tryFrom($data['type'] instanceof WalletTransactionType ? $data['type']->value : $data['type']) === WalletTransactionType::Credit
                                 ? $guest->creditWallet($amount, $data['reason'])
                                 : $guest->debitWallet($amount, $data['reason']);
                         } catch (InsufficientWalletBalanceException $exception) {
