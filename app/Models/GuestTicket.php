@@ -13,6 +13,7 @@ class GuestTicket extends Model
     protected $fillable = [
         'guest_id', 'subject', 'description', 'status', 'priority',
         'sla_due_at', 'resolved_at', 'created_by', 'assigned_to', 'sla_breach_notified_at',
+        'csat_score', 'csat_comment', 'csat_responded_at',
     ];
 
     protected function casts(): array
@@ -23,6 +24,8 @@ class GuestTicket extends Model
             'sla_due_at' => 'datetime',
             'resolved_at' => 'datetime',
             'sla_breach_notified_at' => 'datetime',
+            'csat_score' => 'integer',
+            'csat_responded_at' => 'datetime',
         ];
     }
 
@@ -58,5 +61,13 @@ class GuestTicket extends Model
         return $this->sla_due_at
             && $this->sla_due_at->isPast()
             && ! in_array($this->status, [TicketStatus::Resolved, TicketStatus::Closed]);
+    }
+
+    /**
+     * Customers can only rate support once it is over.
+     */
+    public function canBeRated(): bool
+    {
+        return in_array($this->status, [TicketStatus::Resolved, TicketStatus::Closed], true);
     }
 }

@@ -4,6 +4,7 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use App\Enums\LoyaltyTier;
+use App\Enums\MessageChannel;
 use App\Enums\WalletTransactionType;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Models\Concerns\HasFollowUpTasks;
@@ -80,6 +81,41 @@ class Guest extends Authenticatable
         return $this->hasMany(GuestTicket::class);
     }
 
+    public function consents(): HasMany
+    {
+        return $this->hasMany(GuestConsent::class);
+    }
+
+    /**
+     * Whether the guest's latest answer for this channel is "yes" to
+     * promotional messages. No answer at all means no consent.
+     */
+    public function hasMarketingConsent(MessageChannel $channel): bool
+    {
+        return $this->consents()->where('channel', $channel->value)->orderByDesc('id')->value('status') === GuestConsent::STATUS_GRANTED;
+    }
+
+    /**
+     * Appends a consent decision - only when it differs from the current
+     * answer (no answer counts as "no"), so repeated form submissions
+     * don't pad the history.
+     */
+    public function recordConsent(MessageChannel $channel, bool $granted, string $source, ?string $note = null, ?int $recordedBy = null, ?string $ip = null): ?GuestConsent
+    {
+        if ($this->hasMarketingConsent($channel) === $granted) {
+            return null;
+        }
+
+        return $this->consents()->create([
+            'channel' => $channel,
+            'status' => $granted ? GuestConsent::STATUS_GRANTED : GuestConsent::STATUS_REVOKED,
+            'source' => $source,
+            'note' => $note,
+            'ip_address' => $ip,
+            'recorded_by' => $recordedBy,
+        ]);
+    }
+
     public function customerMessages(): HasMany
     {
         return $this->hasMany(CustomerMessage::class);
@@ -136,9 +172,16 @@ class Guest extends Authenticatable
      */
     public function loyaltyTier(): LoyaltyTier
     {
-        $frequency = $this->frequency();
-        $monetary = $this->monetaryTotal();
+        return static::tierFor($this->frequency(), $this->monetaryTotal());
+    }
 
+    /**
+     * The tier thresholds in one place, so reports that already hold the
+     * numbers (stays, lifetime spend) classify guests exactly as the guest
+     * page does.
+     */
+    public static function tierFor(int $frequency, int $monetary): LoyaltyTier
+    {
         return match (true) {
             $frequency >= 5 && $monetary >= 100_000_000 => LoyaltyTier::Vip,
             $frequency >= 3 || $monetary >= 50_000_000 => LoyaltyTier::Gold,

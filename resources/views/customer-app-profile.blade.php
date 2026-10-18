@@ -230,6 +230,19 @@
                 <a href="{{ route('customer-app.support') }}">پشتیبانی <span class="arrow">←</span></a>
             </section>
 
+            <section class="quick-links" style="display:block;padding:1rem">
+                @if (session('success'))
+                    <p style="color:#15803d;font-size:.82rem;margin:0 0 .6rem">{{ session('success') }}</p>
+                @endif
+                <form method="POST" action="{{ route('customer-app.profile.consents') }}">
+                    @csrf
+                    <p style="margin:0 0 .5rem;font-weight:700;font-size:.88rem">دریافت پیشنهادها و اخبار</p>
+                    <label style="display:flex;gap:.5rem;font-size:.82rem;margin-bottom:.4rem"><input type="checkbox" name="sms" value="1" {{ $smsConsent ? 'checked' : '' }}> پیامک</label>
+                    <label style="display:flex;gap:.5rem;font-size:.82rem;margin-bottom:.6rem"><input type="checkbox" name="email" value="1" {{ $emailConsent ? 'checked' : '' }}> ایمیل</label>
+                    <button type="submit" style="all:unset;cursor:pointer;color:#c2410c;font-weight:700;font-size:.82rem">ذخیره</button>
+                </form>
+            </section>
+
             <form class="logout-form" method="POST" action="{{ route('customer-app.auth.logout') }}">
                 @csrf
                 <button type="submit">خروج از حساب کاربری</button>

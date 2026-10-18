@@ -91,4 +91,29 @@ class SupportTicketController extends Controller
 
         return redirect()->route('customer-app.support.show', $ticket)->with('success', 'پاسخ شما ثبت شد.');
     }
+
+    public function rate(Request $request, GuestTicket $ticket): RedirectResponse
+    {
+        /** @var Guest $guest */
+        $guest = Auth::guard('customer')->user();
+
+        abort_unless($ticket->guest_id === $guest->id, 404);
+
+        if (! $ticket->canBeRated()) {
+            return back()->withErrors(['csat_score' => 'پس از حل‌شدن تیکت می‌توانید به پشتیبانی امتیاز دهید.']);
+        }
+
+        $data = $request->validate([
+            'csat_score' => ['required', 'integer', 'between:1,5'],
+            'csat_comment' => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $ticket->update([
+            'csat_score' => $data['csat_score'],
+            'csat_comment' => $data['csat_comment'] ?? null,
+            'csat_responded_at' => now(),
+        ]);
+
+        return back()->with('success', 'ممنون از امتیازتان!');
+    }
 }

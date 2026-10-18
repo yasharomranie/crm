@@ -9,6 +9,7 @@ use App\Models\Guest;
 use Filament\Actions\Action;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 
 /**
@@ -36,13 +37,16 @@ class SendGuestMessageAction
                     ->required()
                     ->rows(5)
                     ->maxLength($isEmail ? 5000 : 500),
+                Toggle::make('is_marketing')
+                    ->label('پیام تبلیغاتی / کمپین است')
+                    ->helperText('پیام تبلیغاتی فقط به مشتریانی ارسال می‌شود که رضایت دریافتش را در همین کانال داده باشند؛ پیام خدماتی (پیگیری رزرو، پاسخ تیکت و...) نیازی به رضایت ندارد.'),
             ]))
             ->action(function (array $data, Guest $record) use ($isEmail): void {
                 $messenger = app(GuestMessenger::class);
 
                 $message = $isEmail
-                    ? $messenger->sendEmail($record, $data['subject'], $data['body'], auth()->user())
-                    : $messenger->sendSms($record, $data['body'], auth()->user());
+                    ? $messenger->sendEmail($record, $data['subject'], $data['body'], auth()->user(), (bool) ($data['is_marketing'] ?? false))
+                    : $messenger->sendSms($record, $data['body'], auth()->user(), (bool) ($data['is_marketing'] ?? false));
 
                 $notification = Notification::make();
 

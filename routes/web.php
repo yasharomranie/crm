@@ -138,6 +138,7 @@ Route::get('/app/wallet/topup/callback', [CustomerAppWalletTopupController::clas
 
 Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
     Route::get('/profile', [CustomerAppProfileController::class, 'index'])->name('profile');
+    Route::post('/profile/consents', [CustomerAppProfileController::class, 'updateConsents'])->name('profile.consents');
     Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
     Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
     Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
@@ -147,6 +148,7 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');
     Route::post('/support', [CustomerAppSupportTicketController::class, 'store'])->name('support.store');
     Route::get('/support/{ticket}', [CustomerAppSupportTicketController::class, 'show'])->name('support.show');
+    Route::post('/support/{ticket}/rating', [CustomerAppSupportTicketController::class, 'rate'])->name('support.rate');
     Route::post('/support/{ticket}/replies', [CustomerAppSupportTicketController::class, 'reply'])->name('support.reply');
     Route::get('/trip-planner', [CustomerAppTripPlannerController::class, 'index'])->name('trip-planner');
     Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->middleware('throttle:trip-planner')->name('trip-planner.store');

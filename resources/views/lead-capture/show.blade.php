@@ -139,6 +139,13 @@
           @error('message') <p class="error">{{ $message }}</p> @enderror
         </div>
 
+        <div class="field">
+          <label for="sms_consent" style="display:flex;gap:.5rem;align-items:flex-start;font-weight:400">
+            <input type="checkbox" id="sms_consent" name="sms_consent" value="1" {{ old('sms_consent') ? 'checked' : '' }} style="width:auto;margin-top:.25rem">
+            <span>با دریافت پیامک‌های اطلاع‌رسانی و پیشنهادهای ویژه موافقم (هر زمان می‌توانم لغو کنم).</span>
+          </label>
+        </div>
+
         <div class="hp" aria-hidden="true">
           <label for="website">وب‌سایت</label>
           <input type="text" id="website" name="website" tabindex="-1" autocomplete="off">

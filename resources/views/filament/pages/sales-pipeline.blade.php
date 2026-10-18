@@ -42,6 +42,9 @@
                             >
                                 <div class="flex items-start justify-between gap-2">
                                     <span class="font-medium text-gray-950 dark:text-white">{{ $deal->title }}</span>
+                                    @if ($deal->lead_score !== null)
+                                        <x-filament::badge :color="\App\Domain\Crm\LeadScorer::colorFor($deal->lead_score)" size="xs">{{ \App\Domain\Crm\LeadScorer::labelFor($deal->lead_score) }}</x-filament::badge>
+                                    @endif
                                     @if ($deal->source)
                                         <x-filament::badge color="gray" size="xs">{{ $deal->source->getLabel() }}</x-filament::badge>
                                     @endif

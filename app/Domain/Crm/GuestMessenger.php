@@ -20,14 +20,22 @@ use Illuminate\Support\Facades\Mail;
  * mail driver is still the "log" placeholder, SMS isn't configured, the SMTP
  * server rejects it - is recorded as failed with the reason, never
  * silently reported as sent.
+ *
+ * Promotional messages ($marketing = true) are only sent to guests whose
+ * latest consent for that channel is "granted"; service messages
+ * (a booking, a ticket reply, an expiry reminder) are not marketing.
  */
 class GuestMessenger
 {
-    public function sendEmail(Guest $guest, string $subject, string $body, ?User $sender = null): CustomerMessage
+    public const NO_CONSENT_ERROR = 'این مشتری رضایت دریافت پیام تبلیغاتی در این کانال را نداده است.';
+
+    public function sendEmail(Guest $guest, string $subject, string $body, ?User $sender = null, bool $marketing = false): CustomerMessage
     {
         $error = null;
 
-        if (blank($guest->email)) {
+        if ($marketing && ! $guest->hasMarketingConsent(MessageChannel::Email)) {
+            $error = self::NO_CONSENT_ERROR;
+        } elseif (blank($guest->email)) {
             $error = 'این مشتری ایمیل ثبت‌شده‌ای ندارد.';
         } elseif (in_array(config('mail.default'), ['log', 'array'], true)) {
             $error = 'ارسال ایمیل روی این سرور تنظیم نشده است (MAIL_MAILER هنوز روی log است).';
@@ -42,11 +50,13 @@ class GuestMessenger
         return $this->record($guest, MessageChannel::Email, $body, $error, $sender, $subject);
     }
 
-    public function sendSms(Guest $guest, string $body, ?User $sender = null): CustomerMessage
+    public function sendSms(Guest $guest, string $body, ?User $sender = null, bool $marketing = false): CustomerMessage
     {
         $error = null;
 
-        if (blank($guest->mobile)) {
+        if ($marketing && ! $guest->hasMarketingConsent(MessageChannel::Sms)) {
+            $error = self::NO_CONSENT_ERROR;
+        } elseif (blank($guest->mobile)) {
             $error = 'این مشتری شماره‌ی موبایل ثبت‌شده‌ای ندارد.';
         } elseif (! SmsGateway::send($guest->mobile, $body)) {
             $error = 'ارسال پیامک ناموفق بود (سرویس پیامک غیرفعال، تنظیم‌نشده یا دارای خطاست).';
