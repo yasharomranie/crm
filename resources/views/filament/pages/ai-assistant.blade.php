@@ -6,12 +6,7 @@
             || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content)));
         $alerts = \App\Filament\Pages\AiAssistant::computeAlerts();
 
-        $suggestions = [
-            'وضعیت کلی امروز رو خلاصه کن و هشدارها رو بگو',
-            'گزارش اشغال و درآمد اقامتگاه این ماه',
-            'وضعیت پروژه‌های فعال از نظر بودجه و زمان‌بندی چطوره؟',
-            'کارمندهایی که این ماه بیشترین تأخیر رو داشتن کیا هستن؟',
-        ];
+        $suggestions = $this->getSuggestedPrompts();
 
         $alertStyles = [
             'danger' => ['bg-danger-50 dark:bg-danger-500/10', 'text-danger-700 dark:text-danger-400', 'heroicon-o-exclamation-circle'],
@@ -112,18 +107,66 @@
                     </button>
                 </div>
 
+                <div class="border-b border-gray-200 p-2 dark:border-white/10">
+                    <input
+                        type="search"
+                        id="ai-conversation-search"
+                        wire:model.live.debounce.300ms="conversationSearch"
+                        placeholder="جست‌وجو در گفتگوها..."
+                        aria-label="جست‌وجو در گفتگوها"
+                        class="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                    />
+                </div>
+
                 <div class="flex-1 space-y-1 overflow-y-auto p-2">
                     @forelse ($conversations as $conversation)
                         @php $isActive = $selected && $selected->id === $conversation->id; @endphp
-                        <button
-                            type="button"
-                            wire:click="selectConversation({{ $conversation->id }})"
-                            x-on:click="mobileView = 'thread'"
-                            class="flex w-full items-center gap-2 rounded-lg px-2.5 py-3 text-start text-sm transition hover:bg-gray-50 md:py-2.5 dark:hover:bg-white/5 {{ $isActive ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
-                        >
-                            <x-heroicon-o-chat-bubble-left-right class="h-4 w-4 shrink-0" />
-                            <span class="truncate">{{ $conversation->title ?: 'گفتگوی جدید' }}</span>
-                        </button>
+                        <div class="group flex items-center" x-data="{ renaming: false }">
+                            <button
+                                type="button"
+                                wire:click="selectConversation({{ $conversation->id }})"
+                                x-on:click="mobileView = 'thread'"
+                                x-show="! renaming"
+                                class="flex min-w-0 flex-1 items-center gap-2 rounded-lg px-2.5 py-3 text-start text-sm transition hover:bg-gray-50 md:py-2.5 dark:hover:bg-white/5 {{ $isActive ? 'bg-primary-50 font-medium text-primary-700 dark:bg-primary-500/10 dark:text-primary-400' : 'text-gray-700 dark:text-gray-300' }}"
+                            >
+                                <x-heroicon-o-chat-bubble-left-right class="h-4 w-4 shrink-0" />
+                                <span class="truncate">{{ $conversation->title ?: 'گفتگوی جدید' }}</span>
+                            </button>
+
+                            <div x-show="renaming" x-cloak class="min-w-0 flex-1 py-1 ps-2.5 pe-1">
+                                <input
+                                    type="text"
+                                    x-ref="renameInput{{ $conversation->id }}"
+                                    value="{{ $conversation->title }}"
+                                    x-on:keydown.enter="$wire.renameConversation({{ $conversation->id }}, $event.target.value); renaming = false"
+                                    x-on:keydown.escape="renaming = false"
+                                    x-on:blur="renaming = false"
+                                    class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-xs text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white"
+                                />
+                            </div>
+
+                            <div x-show="! renaming" class="relative z-10 flex shrink-0 items-center gap-0.5 pe-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                                <button
+                                    type="button"
+                                    x-on:click="renaming = true; $nextTick(() => $refs['renameInput{{ $conversation->id }}'].focus())"
+                                    aria-label="تغییر نام گفتگو"
+                                    title="تغییر نام گفتگو"
+                                    class="rounded-lg p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-600 dark:hover:bg-white/5"
+                                >
+                                    <x-heroicon-o-pencil-square class="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    wire:click="deleteConversation({{ $conversation->id }})"
+                                    wire:confirm="این گفتگو حذف شود؟"
+                                    aria-label="حذف گفتگو"
+                                    title="حذف گفتگو"
+                                    class="rounded-lg p-1 text-gray-300 hover:bg-danger-50 hover:text-danger-600 dark:text-gray-600 dark:hover:bg-danger-500/10"
+                                >
+                                    <x-heroicon-o-trash class="h-3.5 w-3.5" />
+                                </button>
+                            </div>
+                        </div>
                     @empty
                         <div class="flex h-full flex-col items-center justify-center gap-2 px-4 py-12 text-center">
                             <x-heroicon-o-sparkles class="h-8 w-8 text-gray-300 dark:text-gray-600" />
@@ -197,7 +240,38 @@
                                     </div>
                                 @endif
 
-                                <span class="px-1 text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                                <div class="flex items-center gap-1 px-1" @if (! $isUser) x-data="{ copied: false }" @endif>
+                                    <span class="text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
+                                    @if (! $isUser)
+                                        <button
+                                            type="button"
+                                            x-on:click="copied = true; navigator.clipboard.writeText(@js($message->content ?? '')); setTimeout(() => copied = false, 1500)"
+                                            title="کپی پاسخ"
+                                            aria-label="کپی پاسخ"
+                                            class="rounded p-0.5 text-gray-300 hover:text-gray-500 dark:text-gray-600"
+                                        >
+                                            <x-heroicon-o-check class="h-3.5 w-3.5 text-success-600 dark:text-success-400" x-show="copied" x-cloak />
+                                            <x-heroicon-o-clipboard class="h-3.5 w-3.5" x-show="! copied" />
+                                        </button>
+                                        @if (\App\Domain\Ai\MarkdownTables::hasTable($message->content))
+                                            <button
+                                                type="button"
+                                                wire:click="downloadMessageTables({{ $message->id }})"
+                                                title="دانلود جدول‌ها به Excel"
+                                                aria-label="دانلود جدول‌ها به Excel"
+                                                class="rounded p-0.5 text-gray-300 hover:text-gray-500 dark:text-gray-600"
+                                            >
+                                                <x-heroicon-o-arrow-down-tray class="h-3.5 w-3.5" />
+                                            </button>
+                                        @endif
+                                        <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'up')" title="پاسخ خوبی بود" aria-label="پاسخ خوبی بود" class="rounded p-0.5 {{ $message->feedback === 'up' ? 'text-success-600 dark:text-success-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
+                                            <x-heroicon-o-hand-thumb-up class="h-3.5 w-3.5" />
+                                        </button>
+                                        <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'down')" title="پاسخ ضعیفی بود" aria-label="پاسخ ضعیفی بود" class="rounded p-0.5 {{ $message->feedback === 'down' ? 'text-danger-600 dark:text-danger-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
+                                            <x-heroicon-o-hand-thumb-down class="h-3.5 w-3.5" />
+                                        </button>
+                                    @endif
+                                </div>
                             </div>
                         </div>
                     @empty

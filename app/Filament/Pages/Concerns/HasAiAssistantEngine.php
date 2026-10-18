@@ -2,7 +2,10 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AiPageContextResolver;
+use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
+use App\Domain\Ai\MarkdownTables;
 use App\Domain\TripPlanner\TripPlannerReport;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
@@ -35,6 +38,7 @@ use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
 use App\Models\AiAssistantModelSetting;
 use App\Models\AiConversation;
+use App\Models\AiMessage;
 use App\Models\AiProvider;
 use App\Models\AttendanceRecord;
 use App\Models\Booking;
@@ -84,6 +88,7 @@ use Illuminate\Support\Number;
 use Illuminate\Support\Str;
 use Morilog\Jalali\Jalalian;
 use Spatie\Permission\Models\Role;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The AI assistant's entire conversation/tool engine - every property and
@@ -140,6 +145,8 @@ trait HasAiAssistantEngine
 
     public bool $isThinking = false;
 
+    public string $conversationSearch = '';
+
     /**
      * Transient within a single send() call only - never a Livewire-synced
      * property, since it only needs to survive from a tool's execution
@@ -169,6 +176,11 @@ trait HasAiAssistantEngine
             // AI Assistants Hub) are scoped out of this, the global
             // management assistant's own list - the two never mix.
             ->whereNull('ai_assistant_profile_id')
+            ->when(filled($this->conversationSearch), fn ($query) => $query->where(
+                'title',
+                'like',
+                '%'.addcslashes(trim($this->conversationSearch), '%_\\').'%',
+            ))
             ->latest('updated_at')
             ->get();
     }
@@ -282,7 +294,11 @@ trait HasAiAssistantEngine
         try {
             $this->runAgentLoop($conversation, $provider);
         } catch (AiProviderException $exception) {
-            Notification::make()->title($exception->getMessage())->danger()->send();
+            Notification::make()
+                ->title($exception->getMessage())
+                ->body('چند لحظه بعد دوباره تلاش کنید. اگر تکرار شد، از مدیر سیستم بخواهید ارائه‌دهندهٔ هوش مصنوعی را در تنظیمات بررسی کند.')
+                ->danger()
+                ->send();
         } finally {
             $this->isThinking = false;
         }
@@ -1306,6 +1322,87 @@ trait HasAiAssistantEngine
                 .(filled($arguments['sla_hours'] ?? null) ? ' با مهلت '.(int) $arguments['sla_hours'].' ساعت' : ''),
             default => $name,
         };
+    }
+
+    /**
+     * @return list<string> starter questions that follow the module the manager was last in
+     */
+    public function getSuggestedPrompts(): array
+    {
+        return AiSuggestedPrompts::for(app(AiPageContextResolver::class)->previousContext());
+    }
+
+    public function setMessageFeedback(int $messageId, string $feedback): void
+    {
+        if (! in_array($feedback, ['up', 'down'], true)) {
+            return;
+        }
+
+        $message = $this->ownAssistantMessage($messageId);
+
+        $message?->update(['feedback' => $message->feedback === $feedback ? null : $feedback]);
+    }
+
+    public function renameConversation(int $conversationId, string $title): void
+    {
+        $title = trim($title);
+
+        if ($title === '') {
+            return;
+        }
+
+        AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->whereNull('ai_assistant_profile_id')
+            ->whereKey($conversationId)
+            ->update(['title' => Str::limit($title, 80, '')]);
+    }
+
+    public function deleteConversation(int $conversationId): void
+    {
+        $conversation = AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->whereNull('ai_assistant_profile_id')
+            ->find($conversationId);
+
+        if (! $conversation) {
+            return;
+        }
+
+        $conversation->delete();
+
+        if ($this->conversationId === $conversationId) {
+            $this->conversationId = $this->getConversations()->first()?->id;
+        }
+    }
+
+    public function downloadMessageTables(int $messageId): ?StreamedResponse
+    {
+        $tables = MarkdownTables::extract((string) $this->ownAssistantMessage($messageId)?->content);
+
+        if ($tables === []) {
+            Notification::make()->title('جدولی برای دانلود در این پاسخ نیست')->warning()->send();
+
+            return null;
+        }
+
+        $path = MarkdownTables::toWorkbook($tables);
+
+        return response()->streamDownload(function () use ($path) {
+            readfile($path);
+            @unlink($path);
+        }, 'گزارش-دستیار-'.now()->format('Y-m-d').'.xlsx');
+    }
+
+    private function ownAssistantMessage(int $messageId): ?AiMessage
+    {
+        return AiMessage::query()
+            ->where('id', $messageId)
+            ->where('role', AiMessageRole::Assistant)
+            ->whereHas('conversation', fn ($query) => $query
+                ->where('user_id', Auth::id())
+                ->whereNull('ai_assistant_profile_id'))
+            ->first();
     }
 
     public function confirmPendingAction(int $index = 0): void
