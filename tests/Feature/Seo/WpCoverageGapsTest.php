@@ -34,7 +34,7 @@ class WpCoverageGapsTest extends TestCase
         return SeoProject::factory()->create();
     }
 
-    private function post(SeoProject $project, string $title, ?string $focus = null, string $url = 'https://example.test/p'): SeoWpPost
+    private function wpPost(SeoProject $project, string $title, ?string $focus = null, string $url = 'https://example.test/p'): SeoWpPost
     {
         $site = SeoWpSite::firstOrCreate(['seo_project_id' => $project->id], ['status' => SeoWpSite::STATUS_CONNECTED]);
 
@@ -62,7 +62,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_a_search_no_page_targets_is_an_uncovered_gap(): void
     {
         $project = $this->project();
-        $this->post($project, 'راهنمای غار علیصدر', 'غار علیصدر');
+        $this->wpPost($project, 'راهنمای غار علیصدر', 'غار علیصدر');
         $this->profile($project, 'اجاره ویلا نزدیک همدان', 25.0);
 
         $gaps = app(WpCoverageGaps::class)->analyze($project);
@@ -74,7 +74,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_a_search_a_page_ranks_for_on_page_two_is_one_to_improve(): void
     {
         $project = $this->project();
-        $post = $this->post($project, 'راهنمای غار علیصدر', 'غار علیصدر', 'https://example.test/ali-sadr');
+        $post = $this->wpPost($project, 'راهنمای غار علیصدر', 'غار علیصدر', 'https://example.test/ali-sadr');
         $this->profile($project, 'ساعت بازدید غار علیصدر', 14.0, 300, 'https://example.test/ali-sadr/');
 
         $gaps = app(WpCoverageGaps::class)->analyze($project);
@@ -87,7 +87,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_targeted_well_ranked_planned_and_quiet_searches_are_left_out(): void
     {
         $project = $this->project();
-        $this->post($project, 'راهنمای سفر به همدان', 'سفر به همدان');
+        $this->wpPost($project, 'راهنمای سفر به همدان', 'سفر به همدان');
         $this->profile($project, 'سفر به همدان', 30.0);
         $this->profile($project, 'سفر همدان راهنما', 40.0);
         $this->profile($project, 'عبارت در رتبه خوب', 4.0);
@@ -103,7 +103,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_a_focus_keyword_in_another_spelling_still_counts_as_targeted(): void
     {
         $project = $this->project();
-        $this->post($project, 'مقاله', 'اجاره ويلا');
+        $this->wpPost($project, 'مقاله', 'اجاره ويلا');
         $this->profile($project, 'اجاره ویلا', 35.0);
 
         $this->assertTrue(app(WpCoverageGaps::class)->analyze($project)['uncovered']->isEmpty());
@@ -115,7 +115,7 @@ class WpCoverageGapsTest extends TestCase
 
         $this->assertFalse(app(WpCoverageGaps::class)->analyze($project)['has_pages']);
 
-        $this->post($project, 'مقاله');
+        $this->wpPost($project, 'مقاله');
 
         $gaps = app(WpCoverageGaps::class)->analyze($project);
         $this->assertTrue($gaps['has_pages']);
@@ -125,7 +125,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_the_page_lists_gaps_and_adds_a_row_to_the_calendar(): void
     {
         $project = $this->project();
-        $this->post($project, 'مقاله‌ی دیگر', 'چیز دیگر');
+        $this->wpPost($project, 'مقاله‌ی دیگر', 'چیز دیگر');
         $this->profile($project, 'اجاره ویلا نزدیک همدان', 25.0);
 
         $page = Livewire::actingAs($this->admin())
@@ -144,7 +144,7 @@ class WpCoverageGapsTest extends TestCase
     public function test_an_improve_row_becomes_a_needs_update_item(): void
     {
         $project = $this->project();
-        $post = $this->post($project, 'راهنمای غار', 'غار', 'https://example.test/cave');
+        $post = $this->wpPost($project, 'راهنمای غار', 'غار', 'https://example.test/cave');
         $this->profile($project, 'ساعت بازدید غار', 14.0, 300, 'https://example.test/cave');
 
         Livewire::actingAs($this->admin())
