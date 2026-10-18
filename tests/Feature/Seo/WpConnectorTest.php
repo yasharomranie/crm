@@ -295,4 +295,13 @@ class WpConnectorTest extends TestCase
 
         $this->assertSame('RuntimeException: boom', $site->refresh()->last_error);
     }
+
+    public function test_a_very_long_slug_is_cut_to_fit_the_column(): void
+    {
+        $site = $this->connectedSite();
+
+        $this->signedPost($site, self::SYNC_URL, ['posts' => [$this->samplePost(['slug' => str_repeat('a', 400)])]])->assertOk();
+
+        $this->assertSame(191, mb_strlen(SeoWpPost::sole()->slug));
+    }
 }
