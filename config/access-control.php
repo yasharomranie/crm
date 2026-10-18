@@ -29,6 +29,7 @@ use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TripPlannerReportPage;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WalletLiabilityReport;
 use App\Filament\Pages\WalletSettings;
@@ -218,6 +219,7 @@ return [
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-auth-settings' => ['page' => CustomerAppAuthSettings::class, 'label' => 'روش‌های ورود', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-nav-settings' => ['page' => CustomerAppNavSettings::class, 'label' => 'منوی پایین اپ', 'group' => 'وب‌اپ مشتریان'],
+        'trip-planner-report' => ['page' => TripPlannerReportPage::class, 'label' => 'گزارش تریپ‌پلنر', 'group' => 'تریپ‌پلنر'],
         'trip-planner-settings' => ['page' => TripPlannerSettings::class, 'label' => 'تنظیمات دستیار سفر', 'group' => 'تریپ‌پلنر'],
     ],
 ];
