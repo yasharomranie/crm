@@ -23,7 +23,7 @@ class RuleBasedTripPlanner
     public function plan(Collection $attractions, Carbon $startsOn, int $days, array $input): array
     {
         $perDay = TripPlanNormalizer::maxStopsFor($input['pace'] ?? 'balanced');
-        $remaining = $attractions->sortBy([[fn (Attraction $a) => $this->score($a, $input), 'desc'], ['id', 'asc']])->values();
+        $remaining = $attractions->sortBy('id')->sortByDesc(fn (Attraction $a) => $this->score($a, $input))->values();
         $planDays = [];
         $startMinutes = ($input['pace'] ?? 'balanced') === 'relaxed' ? 10 * 60 : 9 * 60;
 

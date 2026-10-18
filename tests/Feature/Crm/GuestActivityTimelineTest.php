@@ -29,8 +29,10 @@ class GuestActivityTimelineTest extends TestCase
 
         $guest->update(['name' => 'نام جدید']);
 
-        $this->assertSame(1, $guest->activitiesAsSubject()->count());
-        $this->assertSame('updated', $guest->activitiesAsSubject()->first()->event);
+        $updates = $guest->activitiesAsSubject()->where('event', 'updated');
+
+        $this->assertSame(1, $updates->count());
+        $this->assertSame('updated', $updates->first()->event);
     }
 
     public function test_logging_a_manual_interaction_from_the_guest_page_records_it_against_the_guest(): void

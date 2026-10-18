@@ -453,7 +453,17 @@
                 </section>
             @endif
 
-            @php($mapStops = $itemsByDay->flatten(1)->filter(fn ($i) => $i->attraction->lat && $i->attraction->lng)->values())
+            @php
+                $mapStops = $itemsByDay->flatten(1)->filter(fn ($i) => $i->attraction->lat && $i->attraction->lng)->values();
+                $mapStopsPayload = $mapStops
+                    ->map(fn ($i) => [
+                        'lat' => (float) $i->attraction->lat,
+                        'lng' => (float) $i->attraction->lng,
+                        'name' => $i->attraction->name,
+                        'day' => $i->day_number,
+                    ])
+                    ->all();
+            @endphp
             @if ($mapStops->isNotEmpty())
                 <details class="map-wrap" open>
                     <summary>نقشه‌ی توقف‌ها</summary>
@@ -513,7 +523,7 @@
         <script>
             (function () {
                 if (typeof L === 'undefined') { return; }
-                var stops = @json($mapStops->map(fn ($i) => ['lat' => (float) $i->attraction->lat, 'lng' => (float) $i->attraction->lng, 'name' => $i->attraction->name, 'day' => $i->day_number])->all());
+                var stops = @json($mapStopsPayload);
                 var map = L.map('trip-map');
                 L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
                 var colors = ['#f97316', '#0ea5e9', '#16a34a', '#a855f7', '#e11d48', '#ca8a04', '#0d9488'];

@@ -279,7 +279,8 @@ class TripPlannerService
         }
 
         return $attractions
-            ->sortBy([[fn (Attraction $a) => $this->ruleBasedPlanner->score($a, $input), 'desc'], ['id', 'asc']])
+            ->sortBy('id')
+            ->sortByDesc(fn (Attraction $a) => $this->ruleBasedPlanner->score($a, $input))
             ->take(self::SHORTLIST_SIZE)
             ->values();
     }
