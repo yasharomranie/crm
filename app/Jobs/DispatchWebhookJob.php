@@ -7,6 +7,8 @@ use App\Models\WebhookSubscription;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
+use Throwable;
 
 /**
  * POSTs one subscription's payload with an HMAC-SHA256 signature (over the
@@ -51,14 +53,32 @@ class DispatchWebhookJob implements ShouldQueue
 
         $signature = hash_hmac('sha256', $body, $subscription->signing_secret);
 
-        Http::withBody($body, 'application/json')
-            ->withHeaders([
-                'X-Webhook-Event' => $this->eventType->value,
-                'X-Webhook-Signature' => $signature,
-            ])
-            ->timeout(10)
-            ->post($subscription->target_url);
+        try {
+            // throw(): without it a 4xx/5xx answer counted as delivered and
+            // was never retried - only a refused connection used to be.
+            Http::withBody($body, 'application/json')
+                ->withHeaders([
+                    'X-Webhook-Event' => $this->eventType->value,
+                    'X-Webhook-Signature' => $signature,
+                ])
+                ->timeout(10)
+                ->post($subscription->target_url)
+                ->throw();
+        } catch (Throwable $exception) {
+            $subscription->update(['last_failed_at' => now(), 'last_error' => Str::limit($exception->getMessage(), 500)]);
 
-        $subscription->update(['last_triggered_at' => now()]);
+            throw $exception;
+        }
+
+        $subscription->update(['last_triggered_at' => now(), 'consecutive_failures' => 0, 'last_error' => null]);
+    }
+
+    /**
+     * After the last retry also failed: counts one more failed delivery, so
+     * the admin screen shows a receiver that keeps being down.
+     */
+    public function failed(?Throwable $exception): void
+    {
+        WebhookSubscription::query()->whereKey($this->webhookSubscriptionId)->increment('consecutive_failures');
     }
 }

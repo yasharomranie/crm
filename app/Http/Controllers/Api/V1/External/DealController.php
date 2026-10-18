@@ -4,12 +4,12 @@ namespace App\Http\Controllers\Api\V1\External;
 
 use App\Enums\DealSource;
 use App\Enums\DealStage;
+use App\Http\Controllers\Api\V1\External\Concerns\RunsIdempotently;
 use App\Http\Controllers\Controller;
 use App\Models\Deal;
 use App\Models\ExternalApiClient;
 use App\Models\Guest;
 use App\Models\IdempotencyKey;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +21,8 @@ use Illuminate\Http\Request;
  */
 class DealController extends Controller
 {
+    use RunsIdempotently;
+
     public function store(Request $request): JsonResponse
     {
         /** @var ExternalApiClient $client */
@@ -54,27 +56,29 @@ class DealController extends Controller
             return $this->error('FORBIDDEN', 'این اکانت مجاز به ثبت سرنخ نیست.', 403);
         }
 
-        $guest = null;
+        return $this->idempotently($client, $idempotencyKey, $requestHash, function () use ($client, $data) {
+            $guest = null;
 
-        if (! empty($data['guest'])) {
-            $guest = Guest::firstOrCreate(
-                ['mobile' => $data['guest']['mobile']],
-                ['name' => $data['guest']['name'], 'email' => $data['guest']['email'] ?? null],
-            );
-        }
+            if (! empty($data['guest'])) {
+                $guest = Guest::firstOrCreate(
+                    ['mobile' => $data['guest']['mobile']],
+                    ['name' => $data['guest']['name'], 'email' => $data['guest']['email'] ?? null],
+                );
+            }
 
-        $deal = Deal::create([
-            'guest_id' => $guest?->id,
-            'title' => $data['title'],
-            'stage' => DealStage::NewLead,
-            'value' => $data['value'] ?? null,
-            'source' => isset($data['source']) ? DealSource::from($data['source']) : DealSource::Online,
-            'external_api_client_id' => $client->id,
-            'expected_close_date' => $data['expected_close_date'] ?? null,
-            'notes' => $data['notes'] ?? null,
-        ]);
+            $deal = Deal::create([
+                'guest_id' => $guest?->id,
+                'title' => $data['title'],
+                'stage' => DealStage::NewLead,
+                'value' => $data['value'] ?? null,
+                'source' => isset($data['source']) ? DealSource::from($data['source']) : DealSource::Online,
+                'external_api_client_id' => $client->id,
+                'expected_close_date' => $data['expected_close_date'] ?? null,
+                'notes' => $data['notes'] ?? null,
+            ]);
 
-        return $this->storeIdempotencyAndRespond($client, $idempotencyKey, $requestHash, 201, $this->transformDeal($deal));
+            return [201, $this->transformDeal($deal)];
+        });
     }
 
     public function show(Request $request, int $id): JsonResponse
@@ -123,28 +127,6 @@ class DealController extends Controller
         }
 
         return response()->json($existing->response_body, $existing->response_status);
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function storeIdempotencyAndRespond(ExternalApiClient $client, string $key, string $requestHash, int $status, array $body): JsonResponse
-    {
-        try {
-            IdempotencyKey::create([
-                'external_api_client_id' => $client->id,
-                'key' => $key,
-                'request_hash' => $requestHash,
-                'response_status' => $status,
-                'response_body' => $body,
-            ]);
-        } catch (QueryException) {
-            if ($replay = $this->replayIfSeen($client, $key, $requestHash)) {
-                return $replay;
-            }
-        }
-
-        return response()->json($body, $status);
     }
 
     private function error(string $code, string $message, int $status): JsonResponse

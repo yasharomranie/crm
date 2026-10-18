@@ -5,13 +5,13 @@ namespace App\Http\Controllers\Api\V1\External;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Exceptions\RoomNotAvailableException;
+use App\Http\Controllers\Api\V1\External\Concerns\RunsIdempotently;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
 use App\Models\ExternalApiClient;
 use App\Models\Guest;
 use App\Models\IdempotencyKey;
 use App\Models\Room;
-use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -19,6 +19,8 @@ use Illuminate\Support\Facades\DB;
 
 class BookingController extends Controller
 {
+    use RunsIdempotently;
+
     public function store(Request $request): JsonResponse
     {
         /** @var ExternalApiClient $client */
@@ -55,9 +57,7 @@ class BookingController extends Controller
             return $this->error('FORBIDDEN', 'این اکانت مجاز به ثبت رزرو نیست.', 403);
         }
 
-        [$status, $body] = $this->createBooking($client, $data);
-
-        return $this->storeIdempotencyAndRespond($client, $idempotencyKey, $requestHash, $status, $body);
+        return $this->idempotently($client, $idempotencyKey, $requestHash, fn () => $this->createBooking($client, $data));
     }
 
     public function show(Request $request, string $referenceCode): JsonResponse
@@ -166,28 +166,6 @@ class BookingController extends Controller
         }
 
         return response()->json($existing->response_body, $existing->response_status);
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function storeIdempotencyAndRespond(ExternalApiClient $client, string $key, string $requestHash, int $status, array $body): JsonResponse
-    {
-        try {
-            IdempotencyKey::create([
-                'external_api_client_id' => $client->id,
-                'key' => $key,
-                'request_hash' => $requestHash,
-                'response_status' => $status,
-                'response_body' => $body,
-            ]);
-        } catch (QueryException) {
-            if ($replay = $this->replayIfSeen($client, $key, $requestHash)) {
-                return $replay;
-            }
-        }
-
-        return response()->json($body, $status);
     }
 
     private function error(string $code, string $message, int $status): JsonResponse
