@@ -13,7 +13,18 @@ class AiConversation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'ai_assistant_profile_id', 'title'];
+    protected $fillable = ['user_id', 'ai_assistant_profile_id', 'title', 'pending_actions'];
+
+    /**
+     * Actions the assistant wants to run that change data and are waiting
+     * for the user's explicit confirmation (see HasAiAssistantEngine).
+     *
+     * @return array<string, string>
+     */
+    protected function casts(): array
+    {
+        return ['pending_actions' => 'array'];
+    }
 
     public function user(): BelongsTo
     {

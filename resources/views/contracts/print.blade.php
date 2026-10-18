@@ -279,7 +279,7 @@
         </p>
 
         <div class="contract-body">
-            {!! Illuminate\Support\Str::markdown($contract->body) !!}
+            {!! \App\Support\SafeMarkdown::toHtml($contract->body) !!}
         </div>
 
         <div class="signatures">

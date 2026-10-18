@@ -44,7 +44,7 @@ class AiAssistantAttendanceToolsTest extends TestCase
         $role = Role::create(['name' => 'مدیر کامل حضور و غیاب']);
         $role->givePermissionTo(Permission::whereIn('name', [
             'ai-assistant.access', 'ai-assistant.report',
-        ])->get());
+        ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);

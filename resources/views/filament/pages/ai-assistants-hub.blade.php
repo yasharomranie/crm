@@ -541,7 +541,7 @@
                                                 <div class="space-y-2">
                                                     @foreach ($pendingEntries as $entry)
                                                         <div wire:key="pending-{{ $entry->id }}" class="rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-500/20 dark:bg-warning-500/10" x-data="{ editing: false }">
-                                                            <div x-show="! editing" class="ai-markdown text-sm text-gray-800 dark:text-gray-100">{!! \Illuminate\Support\Str::markdown($entry->content) !!}</div>
+                                                            <div x-show="! editing" class="ai-markdown text-sm text-gray-800 dark:text-gray-100">{!! \App\Support\SafeMarkdown::toHtml($entry->content) !!}</div>
                                                             <div x-show="editing" x-cloak>
                                                                 <textarea x-ref="editInput{{ $entry->id }}" rows="3" class="w-full min-w-0 rounded-lg border border-gray-300 bg-white px-2 py-1 text-sm text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white">{{ $entry->content }}</textarea>
                                                             </div>
@@ -565,7 +565,7 @@
                                             @forelse ($approvedEntries as $entry)
                                                 @php
                                                     $isLong = mb_strlen($entry->content) > 140;
-                                                    $entryHtml = \Illuminate\Support\Str::markdown($entry->content);
+                                                    $entryHtml = \App\Support\SafeMarkdown::toHtml($entry->content);
                                                 @endphp
                                                 <div wire:key="approved-{{ $entry->id }}" class="group flex items-start justify-between gap-2 border-b border-gray-100 py-2 dark:border-white/5" x-data="{ expanded: false, editing: false }">
                                                     <div class="min-w-0 flex-1">
@@ -804,7 +804,7 @@
                                             @if ($isUser)
                                                 <span class="whitespace-pre-line">{{ $message->content }}</span>
                                             @else
-                                                {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
+                                                {!! \App\Support\SafeMarkdown::toHtml($message->content ?? '') !!}
                                             @endif
                                         </div>
                                         <div class="flex items-center gap-1 px-1" @if (! $isUser) x-data="{ copied: false }" @endif>

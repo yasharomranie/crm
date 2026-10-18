@@ -99,7 +99,7 @@ class TripPlannerReportTest extends TestCase
         AiProvider::factory()->active()->create();
         $this->artisan('access-control:sync');
         $role = Role::create(['name' => 'مدیر گزارش']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
         $user = User::factory()->create();
         $user->assignRole($role);
         $this->actingAs($user);

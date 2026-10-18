@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AiToolAccess;
 use App\Domain\TripPlanner\TripPlannerReport;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
@@ -114,6 +115,16 @@ trait HasAiAssistantEngine
         'بده', 'بگی', 'بگید', 'کجاست', 'چیه', 'چیست',
     ];
 
+    /**
+     * Action tools that change existing data or create a real record; they
+     * wait for the user's confirmation. The design_* tools are left out on
+     * purpose: they only ever create inactive drafts and already ask before
+     * duplicating a form.
+     */
+    private const CONFIRMED_ACTION_TOOLS = [
+        'create_task', 'add_field_to_form_template', 'set_form_document_template', 'update_workflow_step',
+    ];
+
     public ?int $conversationId = null;
 
     public string $body = '';
@@ -129,6 +140,9 @@ trait HasAiAssistantEngine
      * @var array<string, mixed>|null
      */
     private ?array $pendingChart = null;
+
+    /** The id of the model's tool call being executed right now (send() only). */
+    private ?string $currentToolCallId = null;
 
     public function mount(): void
     {
@@ -302,6 +316,7 @@ trait HasAiAssistantEngine
 
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
+                $this->currentToolCallId = $toolCall['id'] ?? null;
                 $result = $this->executeTool($toolCall['function']['name'], $arguments);
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
 
@@ -351,7 +366,7 @@ trait HasAiAssistantEngine
             تو دستیار هوشمند مدیریتی یک سامانهٔ یکپارچهٔ مدیریت اقامتگاه، پروژه، فروش و منابع انسانی هستی. کاربر تو، مدیر یا صاحب کسب‌وکار است.
             همیشه به فارسی و روان پاسخ بده. برای هر سؤالی که نیاز به داده دارد، حتماً از ابزارهای موجود استفاده کن - هیچ‌وقت عدد یا آمار را حدس نزن.
             وقتی داده‌های عددی داری، آن‌ها را در قالب جدول Markdown نمایش بده. بعد از هر گزارش، در صورت لزوم یک جمع‌بندی کوتاه و یک پیشنهاد/هشدار عملی اضافه کن.
-            اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن و نتیجه را به‌وضوح تأیید کن.
+            اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن. ابزارهای create_task، add_field_to_form_template، set_form_document_template و update_workflow_step فوراً اجرا نمی‌شوند: نتیجه‌شان awaiting_user_confirmation است، یعنی کاربر باید اقدام را روی کارت تأیید زیر گفتگو تأیید کند. تا وقتی نتیجهٔ واقعی را ندیده‌ای، نگو که انجام شد؛ فقط بگو اقدام آماده است و منتظر تأیید او می‌ماند.
             مبالغ همیشه به تومان هستند.
 
             دربارهٔ جست‌وجوی سراسری (search_everything):
@@ -475,7 +490,7 @@ trait HasAiAssistantEngine
      * this, so a user who loses a permission can never get an action tool to
      * actually run even if the model still asks for it.
      */
-    private function executeTool(string $name, array $arguments): array
+    private function executeTool(string $name, array $arguments, bool $confirmed = false): array
     {
         $actionTools = [
             'create_task', 'design_workflow_draft', 'design_form_template_draft',
@@ -508,6 +523,13 @@ trait HasAiAssistantEngine
             return ['error' => 'شما اجازهٔ ایجاد این نوع رکورد را در سیستم ندارید.'];
         }
 
+        // The general report/act gates above say the user may use the
+        // assistant; this one says they may read (or create in) the module
+        // the tool touches - the same permission the panel itself would ask.
+        if (! AiToolAccess::allowsTool(Auth::user(), $name)) {
+            return ['error' => 'شما به بخشی از سیستم که این ابزار به آن مربوط است دسترسی ندارید.'];
+        }
+
         // The model sometimes leaves the name out when the user is already on
         // that form's own page ("add a mobile field"); fill it from the page
         // context instead of failing. Only the form-editing tools, and only
@@ -517,6 +539,16 @@ trait HasAiAssistantEngine
             && ($currentForm = $this->currentFormTemplate())) {
             $arguments['form_template_name'] = $currentForm->title;
         }
+
+        // Tools that change existing data (or create a real record) never
+        // run straight from the model's say-so: they wait for the user to
+        // confirm the exact action on a card, then run via
+        // confirmPendingAction().
+        if (! $confirmed && in_array($name, self::CONFIRMED_ACTION_TOOLS, true)) {
+            return $this->queueActionForConfirmation($name, $arguments);
+        }
+
+        $this->recordToolCall($name, $arguments);
 
         return match ($name) {
             'search_everything' => $this->globalSearchTool($arguments),
@@ -1142,7 +1174,128 @@ trait HasAiAssistantEngine
             }
         }
 
-        return $tools;
+        return array_values(array_filter(
+            $tools,
+            fn (array $tool) => AiToolAccess::allowsTool($user, $tool['function']['name']),
+        ));
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function queueActionForConfirmation(string $name, array $arguments): array
+    {
+        $conversation = $this->getSelectedConversation();
+
+        if (! $conversation) {
+            return ['error' => 'گفتگو پیدا نشد؛ اقدام ثبت نشد.'];
+        }
+
+        $pending = $conversation->pending_actions ?? [];
+        $pending[] = [
+            'tool' => $name,
+            'arguments' => $arguments,
+            'tool_call_id' => $this->currentToolCallId,
+            'summary' => $this->describePendingAction($name, $arguments),
+        ];
+        $conversation->update(['pending_actions' => $pending]);
+
+        return [
+            'status' => 'awaiting_user_confirmation',
+            'message' => 'این اقدام هنوز انجام نشده و منتظر تأیید کاربر است. به کاربر بگو که اقدام را در کارت تأیید زیر گفتگو بررسی و تأیید یا رد کند؛ تا آن موقع نگو که انجام شد.',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function describePendingAction(string $name, array $arguments): string
+    {
+        $text = fn (string $key): string => Str::limit((string) ($arguments[$key] ?? ''), 80);
+
+        return match ($name) {
+            'create_task' => 'ایجاد وظیفهٔ «'.$text('title').'»'
+                .(filled($arguments['due_at'] ?? null) ? ' با مهلت '.$text('due_at') : '')
+                .(filled($arguments['department_name'] ?? null) ? ' برای دپارتمان '.$text('department_name') : ''),
+            'add_field_to_form_template' => 'افزودن فیلد «'.Str::limit((string) ($arguments['field']['label'] ?? ''), 80).'» به فرم «'.$text('form_template_name').'»',
+            'set_form_document_template' => (($arguments['replace_existing'] ?? false) ? 'جایگزینی متن سند فرم «' : 'تنظیم متن سند فرم «').$text('form_template_name').'»',
+            'update_workflow_step' => 'تغییر مرحلهٔ «'.$text('step_name').'» در گردش‌کار «'.$text('workflow_name').'»'
+                .(filled($arguments['new_name'] ?? null) ? ' به نام «'.$text('new_name').'»' : '')
+                .(filled($arguments['sla_hours'] ?? null) ? ' با مهلت '.(int) $arguments['sla_hours'].' ساعت' : ''),
+            default => $name,
+        };
+    }
+
+    public function confirmPendingAction(int $index = 0): void
+    {
+        $conversation = $this->getSelectedConversation();
+        $pending = $conversation?->pending_actions ?? [];
+        $action = $pending[$index] ?? null;
+
+        if (! $conversation || ! $action) {
+            return;
+        }
+
+        unset($pending[$index]);
+        $conversation->update(['pending_actions' => array_values($pending) ?: null]);
+
+        $result = $this->executeTool($action['tool'], $action['arguments'], confirmed: true);
+
+        // The model asked for this action in an earlier turn and was told it
+        // was pending; swap in the real outcome so its next turn sees it.
+        $conversation->messages()
+            ->where('tool_call_id', $action['tool_call_id'])
+            ->update(['content' => json_encode($result, JSON_UNESCAPED_UNICODE)]);
+
+        $failed = isset($result['error']);
+        $notification = Notification::make()
+            ->title($failed ? 'اقدام انجام نشد' : 'اقدام انجام شد')
+            ->body($failed ? (string) $result['error'] : $action['summary']);
+        $failed ? $notification->danger()->send() : $notification->success()->send();
+
+        $this->dispatch('message-sent');
+    }
+
+    public function cancelPendingAction(int $index = 0): void
+    {
+        $conversation = $this->getSelectedConversation();
+        $pending = $conversation?->pending_actions ?? [];
+        $action = $pending[$index] ?? null;
+
+        if (! $conversation || ! $action) {
+            return;
+        }
+
+        unset($pending[$index]);
+        $conversation->update(['pending_actions' => array_values($pending) ?: null]);
+
+        $conversation->messages()
+            ->where('tool_call_id', $action['tool_call_id'])
+            ->update(['content' => json_encode(['status' => 'cancelled_by_user', 'message' => 'کاربر این اقدام را رد کرد؛ انجام نشد.'], JSON_UNESCAPED_UNICODE)]);
+
+        Notification::make()->title('اقدام لغو شد')->body($action['summary'])->send();
+    }
+
+    /**
+     * Every tool the assistant runs for someone is written to the activity
+     * log (who, which tool, with what arguments) so access to sensitive
+     * modules through chat can be audited like access through the panel.
+     *
+     * @param  array<string, mixed>  $arguments
+     */
+    private function recordToolCall(string $name, array $arguments): void
+    {
+        $loggable = collect($arguments)
+            ->except(['document_template'])
+            ->map(fn (mixed $value) => is_string($value) ? Str::limit($value, 200) : $value)
+            ->all();
+
+        activity('ai_assistant')
+            ->causedBy(Auth::user())
+            ->withProperties(['tool' => $name, 'arguments' => $loggable])
+            ->event('tool_called')
+            ->log("ابزار دستیار هوشمند: {$name}");
     }
 
     /**
@@ -1516,8 +1669,10 @@ trait HasAiAssistantEngine
 
         $limit = max(1, min(30, (int) ($arguments['limit'] ?? 15)));
 
+        $user = Auth::user();
+
         $matched = $results
-            ->filter(fn (array $result) => $result['score'] > 0)
+            ->filter(fn (array $result) => $result['score'] > 0 && AiToolAccess::allowsSearchResult($user, $result['type']))
             ->sortByDesc('score')
             ->values();
 

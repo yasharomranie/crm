@@ -321,7 +321,7 @@
                             @if ($isUser)
                                 <span class="whitespace-pre-line">{{ $message->content }}</span>
                             @else
-                                {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
+                                {!! \App\Support\SafeMarkdown::toHtml($message->content ?? '') !!}
                             @endif
                         </div>
 
@@ -344,6 +344,8 @@
                     <p class="text-xs text-gray-500 dark:text-gray-400">می‌تونی هر سؤالی دربارهٔ وضعیت سیستم بپرسی.</p>
                 </div>
             @endforelse
+
+            @include('partials.ai-pending-actions', ['selected' => $selected ?? $this->getSelectedConversation()])
 
             @if ($isThinking)
                 <div class="flex justify-end">

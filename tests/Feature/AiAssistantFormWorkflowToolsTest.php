@@ -52,7 +52,7 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
             'ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act',
             'form-templates.create', 'form-templates.update',
             'workflow-definitions.create', 'workflow-definitions.update',
-        ])->get());
+        ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);
@@ -504,7 +504,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یه فیلد شمارهٔ تماس به فرم مرخصی اضافه کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertModelExists($existingField->fresh());
         $this->assertDatabaseHas('form_fields', ['form_template_id' => $template->id, 'field_key' => 'contact_number']);
@@ -525,7 +526,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یه فیلد دلیل دیگه به فرم مرخصی اضافه کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertSame(1, $template->fields()->count());
     }
@@ -553,7 +555,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'اسم مرحلهٔ تأیید اولیه رو به تأیید نهایی تغییر بده و مهلتش رو ۴۸ ساعت کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $step->refresh();
         $this->assertSame('تأیید نهایی', $step->name);
@@ -606,7 +609,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یه فیلد جدید به فرم مرخصی اضافه کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertSame(0, $template->fields()->count());
     }
@@ -723,7 +727,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'متن قرارداد اجاره رو روی فرمش بذار')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertSame('<p>مستأجر: {{tenant_name}}</p>', $template->fresh()->document_template);
         $this->assertSame(1, $template->fields()->count());
@@ -744,7 +749,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'متن جدید بذار')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertSame('<p>متن قدیمی</p>', $template->fresh()->document_template);
         $this->assertTrue($this->toolResultPayload()['needs_confirmation']);
@@ -765,7 +771,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'بله جایگزین کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertSame('<p>مستأجر: {{tenant_name}}</p>', $template->fresh()->document_template);
     }
@@ -784,7 +791,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'متن بذار')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertNull($template->fresh()->document_template);
         $this->assertStringContainsString('landlord_name', $this->toolResultPayload()['error']);
@@ -798,7 +806,7 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         $this->artisan('access-control:sync');
         $role = Role::create(['name' => 'بدون ویرایش قالب فرم']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
         $user = User::factory()->create();
         $user->assignRole($role);
         $this->actingAs($user);
@@ -810,7 +818,8 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'متن بذار')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertNull($template->fresh()->document_template);
     }

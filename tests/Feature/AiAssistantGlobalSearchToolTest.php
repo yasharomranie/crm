@@ -40,7 +40,7 @@ class AiAssistantGlobalSearchToolTest extends TestCase
         $this->artisan('access-control:sync');
 
         $role = Role::create(['name' => 'مدیر کامل جست‌وجوی سراسری']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);
