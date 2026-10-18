@@ -40,6 +40,9 @@ class SeoContentGaps extends Page
     #[Url(as: 'project')]
     public ?int $projectId = null;
 
+    #[Url(as: 'min')]
+    public int $minImpressions = WpCoverageGaps::DEFAULT_MIN_IMPRESSIONS;
+
     public static function accessControlPermission(): string
     {
         return 'seo-content-gaps.access';
@@ -59,13 +62,13 @@ class SeoContentGaps extends Page
     }
 
     /**
-     * @return array{has_pages: bool, has_searches: bool, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}|null
+     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}|null
      */
     public function gaps(): ?array
     {
         $project = $this->projectId ? SeoProject::find($this->projectId) : null;
 
-        return $project ? app(WpCoverageGaps::class)->analyze($project) : null;
+        return $project ? app(WpCoverageGaps::class)->analyze($project, $this->minImpressions) : null;
     }
 
     public function addToCalendar(string $kind, string $query, ?int $postId = null): void

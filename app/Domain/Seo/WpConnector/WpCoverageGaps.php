@@ -23,14 +23,17 @@ use Illuminate\Support\Collection;
  */
 class WpCoverageGaps
 {
-    public const MIN_IMPRESSIONS = 50;
+    /** Small sites have few impressions per search, so the default is low; the page lets the user raise it. */
+    public const DEFAULT_MIN_IMPRESSIONS = 10;
+
+    public const MIN_IMPRESSIONS_CHOICES = [5, 10, 30, 50, 100];
 
     private const LIMIT = 50;
 
     /**
-     * @return array{has_pages: bool, has_searches: bool, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}
+     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}
      */
-    public function analyze(SeoProject $project): array
+    public function analyze(SeoProject $project, int $minImpressions = self::DEFAULT_MIN_IMPRESSIONS): array
     {
         $posts = SeoWpPost::query()
             ->whereHas('site', fn ($site) => $site->where('seo_project_id', $project->id))
@@ -38,16 +41,21 @@ class WpCoverageGaps
             ->whereIn('post_type', ['post', 'page', 'product'])
             ->get(['id', 'title', 'url', 'url_hash', 'seo']);
 
+        $searchesTotal = SeoKeywordProfile::query()->where('seo_project_id', $project->id)->count();
+
         $profiles = SeoKeywordProfile::query()
             ->where('seo_project_id', $project->id)
-            ->where('impressions_28d', '>=', self::MIN_IMPRESSIONS)
+            ->where('impressions_28d', '>=', $minImpressions)
             ->orderByDesc('impressions_28d')
             ->limit(500)
             ->get();
 
         $result = [
             'has_pages' => $posts->isNotEmpty(),
-            'has_searches' => $profiles->isNotEmpty(),
+            'has_searches' => $searchesTotal > 0,
+            'searches_total' => $searchesTotal,
+            'searches_considered' => $profiles->count(),
+            'min_impressions' => $minImpressions,
             'uncovered' => collect(),
             'improve' => collect(),
         ];
@@ -60,16 +68,16 @@ class WpCoverageGaps
             ->where('seo_project_id', $project->id)
             ->whereNotNull('target_keyword')
             ->pluck('target_keyword')
-            ->map(fn (string $keyword) => WpContentInventory::normalize($keyword))
+            ->map(fn (string $keyword) => WpContentInventory::canonical($keyword))
             ->flip();
 
         $byKey = $posts->keyBy('url_hash');
-        $focus = $posts->map(fn (SeoWpPost $post) => WpContentInventory::normalize((string) ($post->seo['focus_keyword'] ?? '')))->filter()->unique()->values();
-        $titleWords = $posts->map(fn (SeoWpPost $post) => explode(' ', WpContentInventory::normalize($post->title)));
+        $focus = $posts->map(fn (SeoWpPost $post) => WpContentInventory::canonical((string) ($post->seo['focus_keyword'] ?? '')))->filter()->unique()->values();
+        $titleWords = $posts->map(fn (SeoWpPost $post) => WpContentInventory::tokens($post->title));
 
         foreach ($profiles as $profile) {
             $position = (float) $profile->current_position;
-            $query = WpContentInventory::normalize($profile->query);
+            $query = WpContentInventory::canonical($profile->query);
 
             if ($position <= 10 || $planned->has($query)) {
                 continue;

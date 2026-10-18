@@ -16,6 +16,11 @@ use Illuminate\Support\Str;
  */
 class WpContentInventory
 {
+    private const STOP_WORDS = ['و', 'به', 'از', 'در', 'با', 'که', 'را', 'برای', 'این', 'آن', 'یا', 'تا', 'بر', 'هم', 'ها', 'های'];
+
+    /** @var list<array{0: string, 1: int}> a suffix and how many letters must remain after cutting it */
+    private const SUFFIXES = [['ترین', 3], ['های', 2], ['ها', 2], ['ان', 4], ['ات', 4], ['ی', 3]];
+
     private const PROMPT_PAGES = 150;
 
     private const PROMPT_DRAFTS = 40;
@@ -71,7 +76,7 @@ class WpContentInventory
      */
     public function isTargeted(SeoProject $project, string $keyword): bool
     {
-        return in_array(self::normalize($keyword), $this->focusKeywordSet($project), true);
+        return in_array(self::canonical($keyword), $this->focusKeywordSet($project), true);
     }
 
     /**
@@ -80,7 +85,7 @@ class WpContentInventory
     public function focusKeywordSet(SeoProject $project): array
     {
         return $this->published($project)
-            ->map(fn (SeoWpPost $post) => self::normalize((string) ($post->seo['focus_keyword'] ?? '')))
+            ->map(fn (SeoWpPost $post) => self::canonical((string) ($post->seo['focus_keyword'] ?? '')))
             ->filter()
             ->unique()
             ->values()
@@ -96,6 +101,52 @@ class WpContentInventory
         $text = strtr($text, ['ي' => 'ی', 'ك' => 'ک', "\u{200C}" => ' ', '۰' => '0', '۱' => '1', '۲' => '2', '۳' => '3', '۴' => '4', '۵' => '5', '۶' => '6', '۷' => '7', '۸' => '8', '۹' => '9']);
 
         return trim(preg_replace('/\s+/u', ' ', mb_strtolower($text)) ?? '');
+    }
+
+    /**
+     * The words of a text as they are compared: split on anything that is
+     * not a letter or digit, filler words dropped, and each word reduced to
+     * a light Persian stem so «راهنمای سفر» and «راهنما سفر»,
+     * «غارها» and «غار» are the same. Deliberately conservative - both sides
+     * of a comparison go through the same function, so what matters is
+     * consistency, not linguistic correctness.
+     *
+     * @return list<string>
+     */
+    public static function tokens(string $text): array
+    {
+        $words = preg_split('/[^\p{L}\p{N}]+/u', self::normalize($text), -1, PREG_SPLIT_NO_EMPTY) ?: [];
+
+        $stems = [];
+
+        foreach ($words as $word) {
+            if (in_array($word, self::STOP_WORDS, true)) {
+                continue;
+            }
+
+            $stems[] = self::stem($word);
+        }
+
+        return $stems;
+    }
+
+    /**
+     * One string for comparing two phrases: their stems joined by a space.
+     */
+    public static function canonical(string $text): string
+    {
+        return implode(' ', self::tokens($text));
+    }
+
+    private static function stem(string $word): string
+    {
+        foreach (self::SUFFIXES as [$suffix, $minRemaining]) {
+            if (str_ends_with($word, $suffix) && mb_strlen($word) - mb_strlen($suffix) >= $minRemaining) {
+                return mb_substr($word, 0, mb_strlen($word) - mb_strlen($suffix));
+            }
+        }
+
+        return $word;
     }
 
     /**

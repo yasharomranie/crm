@@ -2,6 +2,7 @@
 
 namespace App\Jobs;
 
+use App\Domain\Seo\WpConnector\WpPublishedContentMatcher;
 use App\Domain\Seo\WpConnector\WpSiteAnalyzer;
 use App\Models\SeoWpSite;
 use Illuminate\Contracts\Queue\ShouldBeUnique;
@@ -9,7 +10,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 
 /**
- * Re-analyses one connected WordPress site. Unique for five minutes, so a
+ * Re-analyses one connected WordPress site and marks the calendar rows whose article it now has as published. Unique for five minutes, so a
  * burst of synced batches queues a single analysis, not one per batch.
  */
 class AnalyzeWpSiteJob implements ShouldBeUnique, ShouldQueue
@@ -29,12 +30,16 @@ class AnalyzeWpSiteJob implements ShouldBeUnique, ShouldQueue
         return (string) $this->siteId;
     }
 
-    public function handle(WpSiteAnalyzer $analyzer): void
+    public function handle(WpSiteAnalyzer $analyzer, WpPublishedContentMatcher $matcher): void
     {
-        $site = SeoWpSite::find($this->siteId);
+        $site = SeoWpSite::with('project')->find($this->siteId);
 
         if ($site) {
             $analyzer->analyze($site);
+
+            if ($site->project) {
+                $matcher->match($site->project);
+            }
         }
     }
 }
