@@ -149,7 +149,8 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistantWidget::class)
             ->set('body', 'یه فیلد شماره موبایل اضافه کن')
-            ->call('send', "/admin/form-templates/{$template->id}/edit");
+            ->call('send', "/admin/form-templates/{$template->id}/edit")
+            ->call('confirmPendingAction');
 
         $this->assertTrue(
             FormField::where('form_template_id', $template->id)->where('field_key', 'mobile_number')->exists()
@@ -169,7 +170,8 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistantWidget::class)
             ->set('body', 'در فرم مرخصی فیلد علت اضافه کن')
-            ->call('send', "/admin/form-templates/{$onScreen->id}/edit");
+            ->call('send', "/admin/form-templates/{$onScreen->id}/edit")
+            ->call('confirmPendingAction');
 
         $this->assertTrue(FormField::where('form_template_id', $other->id)->where('field_key', 'reason')->exists());
         $this->assertFalse(FormField::where('form_template_id', $onScreen->id)->where('field_key', 'reason')->exists());
@@ -185,8 +187,7 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'سلام')
-            ->call('send')
-            ->call('confirmPendingAction');
+            ->call('send');
 
         $prompt = $this->systemPromptOfFirstRequest();
 
