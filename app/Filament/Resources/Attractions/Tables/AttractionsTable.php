@@ -60,10 +60,23 @@ class AttractionsTable
                     ->tooltip(fn (Attraction $record): string => (blank($record->lat) || blank($record->lng))
                         ? 'مختصات ثبت نشده - این جاذبه قابل فعال‌سازی نیست.'
                         : 'مکان ثبت شده است.'),
+                TextColumn::make('source')
+                    ->label('منبع')
+                    ->state(fn (Attraction $record): string => match (true) {
+                        $record->source !== 'ai_suggested' => 'دستی',
+                        $record->verified_at === null => 'هوش مصنوعی - بازبینی نشده',
+                        default => 'هوش مصنوعی - تأییدشده',
+                    })
+                    ->badge()
+                    ->color(fn (string $state): string => $state === 'هوش مصنوعی - بازبینی نشده' ? 'warning' : ($state === 'دستی' ? 'gray' : 'success')),
                 ToggleColumn::make('is_active')
                     ->label('فعال')
-                    ->disabled(fn (Attraction $record): bool => blank($record->lat) || blank($record->lng))
-                    ->tooltip(fn (Attraction $record): ?string => (blank($record->lat) || blank($record->lng)) ? 'ابتدا از صفحه ویرایش، مختصات را ثبت کنید.' : null),
+                    ->disabled(fn (Attraction $record): bool => blank($record->lat) || blank($record->lng) || ($record->source === 'ai_suggested' && $record->verified_at === null))
+                    ->tooltip(fn (Attraction $record): ?string => match (true) {
+                        blank($record->lat) || blank($record->lng) => 'ابتدا از صفحه ویرایش، مختصات را ثبت کنید.',
+                        $record->source === 'ai_suggested' && $record->verified_at === null => 'ابتدا اطلاعات این جاذبه را بازبینی و تأیید کنید.',
+                        default => null,
+                    }),
             ])
             ->filters([
                 SelectFilter::make('category')
@@ -71,6 +84,10 @@ class AttractionsTable
                     ->options(AttractionCategory::class),
                 TernaryFilter::make('is_active')
                     ->label('فعال'),
+                Filter::make('unverified')
+                    ->label('پیشنهاد هوش مصنوعی بازبینی‌نشده')
+                    ->query(fn ($query) => $query->where('source', 'ai_suggested')->whereNull('verified_at'))
+                    ->toggle(),
                 Filter::make('needs_location')
                     ->label('نیاز به مکان')
                     ->query(fn ($query) => $query->whereNull('lat')->orWhereNull('lng'))

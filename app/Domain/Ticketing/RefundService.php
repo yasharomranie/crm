@@ -3,7 +3,10 @@
 namespace App\Domain\Ticketing;
 
 use App\Enums\AdmissionTicketStatus;
+use App\Enums\PaymentMethod;
 use App\Models\AdmissionTicket;
+use App\Models\Guest;
+use App\Models\Payment;
 use App\Models\Refund;
 use App\Models\User;
 use Illuminate\Support\Facades\DB;
@@ -55,7 +58,39 @@ class RefundService
 
             $locked->update(['status' => AdmissionTicketStatus::Refunded]);
 
+            $this->returnToWalletIfPaidFromWallet($refund);
+
             return $refund;
         });
+    }
+
+    /**
+     * An order paid from a customer's wallet is refunded back into that
+     * wallet - never more than the wallet portion of the order, however
+     * many of its tickets are refunded one by one.
+     */
+    private function returnToWalletIfPaidFromWallet(Refund $refund): void
+    {
+        $walletPayment = Payment::query()
+            ->where('order_id', $refund->order_id)
+            ->where('method', PaymentMethod::Wallet)
+            ->first();
+
+        $guestId = $walletPayment?->metadata['guest_id'] ?? null;
+        $guest = $guestId ? Guest::find($guestId) : null;
+
+        if (! $guest) {
+            return;
+        }
+
+        $alreadyRefunded = (int) Refund::query()
+            ->where('order_id', $refund->order_id)
+            ->whereKeyNot($refund->id)
+            ->sum('amount');
+        $creditable = min((int) $refund->amount, (int) $walletPayment->amount - $alreadyRefunded);
+
+        if ($creditable > 0) {
+            $guest->creditWallet($creditable, "استرداد بلیت - سفارش {$refund->order->order_number}");
+        }
     }
 }

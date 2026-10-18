@@ -150,6 +150,12 @@ class AppServiceProvider extends ServiceProvider
         // Public lead forms have no login to gate them, so one IP is capped
         // per minute and per hour to keep a script from flooding the
         // pipeline with junk deals.
+        // Each trip plan is a paid AI call: a per-guest hourly cap on top
+        // of the daily limit in TripPlannerSetting.
+        RateLimiter::for('trip-planner', function ($request) {
+            return Limit::perHour(10)->by('trip-planner:'.($request->user('customer')?->getAuthIdentifier() ?? $request->ip()));
+        });
+
         RateLimiter::for('lead-capture', function ($request) {
             return [
                 Limit::perMinute(5)->by('lead-ip-minute:'.$request->ip()),

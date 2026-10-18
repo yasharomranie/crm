@@ -3,8 +3,11 @@
 namespace App\Filament\Resources\Attractions\Schemas;
 
 use App\Enums\AttractionCategory;
+use App\Models\Attraction;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -82,6 +85,54 @@ class AttractionForm
                             ->seconds(false),
                     ]),
 
+                Section::make('جزئیات برای مهمان و برنامه‌ریز')
+                    ->description('هرچه این اطلاعات کامل‌تر باشد، برنامه‌ی ساخته‌شده دقیق‌تر و به نیاز مهمان نزدیک‌تر است.')
+                    ->columns(2)
+                    ->components([
+                        CheckboxList::make('closed_weekdays')
+                            ->label('روزهای تعطیل هفتگی')
+                            ->options(Attraction::WEEKDAY_LABELS)
+                            ->columns(4)
+                            ->columnSpanFull(),
+                        TextInput::make('entry_fee')
+                            ->label('هزینه‌ی ورودی (تومان)')
+                            ->helperText('خالی = نامشخص، ۰ = رایگان.')
+                            ->numeric()
+                            ->minValue(0),
+                        TextInput::make('phone')
+                            ->label('تلفن تماس')
+                            ->maxLength(50),
+                        Toggle::make('kid_friendly')->label('مناسب کودک'),
+                        Toggle::make('senior_friendly')->label('مناسب سالمند'),
+                        Toggle::make('has_parking')->label('پارکینگ دارد'),
+                        Select::make('product_id')
+                            ->label('محصول بلیت مرتبط (برای دکمه‌ی خرید بلیت)')
+                            ->relationship('product', 'name')
+                            ->searchable()
+                            ->preload(),
+                        Textarea::make('best_time_note')
+                            ->label('بهترین زمان بازدید')
+                            ->helperText('مثلاً «غروب» یا «بهار». برای مهمان و برنامه‌ریز نمایش داده می‌شود.')
+                            ->rows(2)
+                            ->columnSpanFull(),
+                        Placeholder::make('source_info')
+                            ->label('منبع')
+                            ->content(fn (?Attraction $record) => match (true) {
+                                $record === null => 'ثبت دستی',
+                                $record->source === 'ai_suggested' && $record->verified_at === null => 'پیشنهاد هوش مصنوعی - هنوز بازبینی نشده',
+                                $record->source === 'ai_suggested' => 'پیشنهاد هوش مصنوعی - بازبینی‌شده',
+                                default => 'ثبت دستی',
+                            })
+                            ->columnSpanFull(),
+                        Toggle::make('verified')
+                            ->label('اطلاعات این جاذبه را بازبینی و تأیید کردم')
+                            ->helperText('برای جاذبه‌های پیشنهادی هوش مصنوعی: نام، توضیح و ساعت‌ها را با منبع معتبر مقایسه کنید.')
+                            ->afterStateHydrated(fn (Toggle $component, ?Attraction $record) => $component->state($record?->verified_at !== null))
+                            ->dehydrated(false)
+                            ->visible(fn (?Attraction $record) => $record?->source === 'ai_suggested')
+                            ->columnSpanFull(),
+                    ]),
+
                 Section::make('دخالت و اولویت‌دهی ادمین')
                     ->description('این بخش مستقیماً روی پیشنهادهای دستیار هوشمند تریپ‌پلنر اثر می‌گذارد - بدون نیاز به دیپلوی.')
                     ->columns(2)
@@ -106,11 +157,15 @@ class AttractionForm
                             ->displayFormat('Y/m/d'),
                         Textarea::make('admin_note')
                             ->label('یادداشت برای دستیار هوشمند')
-                            ->helperText('این متن مستقیماً در پرامپت هوش مصنوعی قرار می‌گیرد؛ مثلاً «این هفته تخفیف ویژه» یا «به دلیل برف فعلاً خطرناک است».')
+                            ->helperText('این متن مستقیماً در پرامپت هوش مصنوعی قرار می‌گیرد؛ مثلاً «این هفته تخفیف ویژه» یا «به دلیل برف فعلاً خطرناک است». فقط کسانی که به «تنظیمات دستیار سفر» دسترسی دارند می‌توانند آن را ویرایش کنند.')
+                            ->disabled(fn () => ! auth()->user()?->can('trip-planner-settings.access'))
+                            ->dehydrated(fn () => (bool) auth()->user()?->can('trip-planner-settings.access'))
                             ->columnSpanFull(),
                         Toggle::make('is_active')
                             ->label('فعال (در فهرست و پیشنهادها نمایش داده شود)')
+                            ->helperText('جاذبه‌ی پیشنهادی هوش مصنوعی تا وقتی بازبینی و تأیید نشده فعال نمی‌شود.')
                             ->default(true)
+                            ->disabled(fn (?Attraction $record) => $record?->source === 'ai_suggested' && $record->verified_at === null)
                             ->live(),
                         TextInput::make('sort_order')
                             ->label('ترتیب نمایش')

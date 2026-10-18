@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\TripPlanner\TripPlannerReport;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
 use App\Enums\AttendanceStatus;
@@ -401,6 +402,7 @@ trait HasAiAssistantEngine
             - برای عملکرد فروش هر کارشناس (پایپ‌لاین باز، نرخ موفقیت) از get_deals_by_assignee، و برای اینکه مشتری‌ها از کجا می‌آیند (حضوری/آنلاین/معرفی و...) از get_deal_source_breakdown استفاده کن.
             - برای فهرست مشتریان برتر/پرارزش (برای تماس قدردانی یا پیشنهاد ویژه) از get_top_guests_by_value استفاده کن.
             - برای رضایت مشتری (NPS) از get_guest_satisfaction_summary، و برای وضعیت کیف پول/کش‌بک مشتریان از get_wallet_activity_summary استفاده کن.
+            - برای عملکرد تریپ‌پلنر مشتریان (تعداد برنامه، امتیاز، تبدیل به رزرو، جاذبه‌های پرطرفدار یا انتخاب‌نشده) از get_trip_planner_summary استفاده کن.
 
             دربارهٔ گزارش‌های مرکز سئو:
             - اگر فقط یک پروژهٔ سئو در سیستم تعریف شده باشد، نیازی به پرسیدن نام پروژه از کاربر نیست - پارامتر seo_project_name را خالی بگذار، خود ابزار آن را به‌صورت خودکار انتخاب می‌کند. اگر چند پروژه وجود داشته باشد و ابزار خطای ابهام برگرداند، لیست available_projects را به کاربر نشان بده و نام دقیق را بپرس.
@@ -536,6 +538,7 @@ trait HasAiAssistantEngine
             'get_top_guests_by_value' => $this->topGuestsByValueTool($arguments),
             'get_guest_satisfaction_summary' => $this->guestSatisfactionSummaryTool($arguments),
             'get_wallet_activity_summary' => $this->walletActivitySummaryTool($arguments),
+            'get_trip_planner_summary' => app(TripPlannerReport::class)->build((int) ($arguments['days'] ?? 30)),
             'get_seo_overview' => $this->seoOverviewTool($arguments),
             'get_seo_traffic_trend' => $this->seoTrafficTrendTool($arguments),
             'get_seo_top_queries' => $this->seoTopQueriesTool($arguments),
@@ -722,6 +725,14 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+
+            $tools[] = $this->toolSchema('get_trip_planner_summary', 'Get how the customer-facing trip planner (تریپ‌پلنر) is doing over the last N days: plans made, average trip length, guest ratings, share of plans that had to fall back to the rule-based planner, how many plans turned into a stay booking for the planned dates, the most-scheduled attractions, popular categories, and active attractions that were never scheduled. Use for "تریپ‌پلنر چطور کار می‌کنه" or "کدوم جاذبه‌ها انتخاب نمیشن".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'Look-back window in days - defaults to 30, max 365'],
                 ],
                 'required' => [],
             ]);

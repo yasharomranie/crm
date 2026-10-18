@@ -3,6 +3,8 @@
 use App\Domain\Crm\FollowUpReminderService;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
+use App\Domain\Crm\WalletExpiryService;
+use App\Domain\TripPlanner\TripPlanFollowUp;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -67,6 +69,25 @@ Schedule::call(fn () => app(FollowUpReminderService::class)->sendDueReminders())
 Schedule::call(fn () => app(TicketSlaBreachService::class)->notifyBreachedTickets())
     ->name('crm-ticket-sla-breaches')
     ->everyTenMinutes()
+    ->withoutOverlapping();
+
+// Takes back the unspent part of cashback whose validity has ended, then
+// texts guests whose cashback is about to run out.
+Schedule::call(function () {
+    app(WalletExpiryService::class)->expireDue();
+    app(WalletExpiryService::class)->sendExpiryReminders();
+})
+    ->name('wallet-expiry')
+    ->dailyAt('03:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Texts guests whose planned trip starts tomorrow (only when enabled in the
+// trip planner settings).
+Schedule::call(fn () => app(TripPlanFollowUp::class)->sendDayBeforeReminders())
+    ->name('trip-plan-reminders')
+    ->dailyAt('09:00')
+    ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
 // One morning digest per deal owner (admins for unassigned deals) of open

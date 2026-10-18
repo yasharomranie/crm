@@ -5,10 +5,12 @@ use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
 use App\Http\Controllers\CustomerApp\ProfileController as CustomerAppProfileController;
+use App\Http\Controllers\CustomerApp\PublicTripPlanController;
 use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSupportTicketController;
 use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
 use App\Http\Controllers\CustomerApp\TripPlannerController as CustomerAppTripPlannerController;
 use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
+use App\Http\Controllers\CustomerApp\WalletTopupController as CustomerAppWalletTopupController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -128,11 +130,18 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 
 // Customer-app account features - "سفارش‌های من" etc. - all behind the
 // 'customer' guard (see config/auth.php), never the staff 'auth' group.
+// Read-only page behind a trip plan's share link.
+Route::get('/trip/{token}', [PublicTripPlanController::class, 'show'])->name('trip-plan.public');
+
+// Where the payment gateway sends the customer back after paying.
+Route::get('/app/wallet/topup/callback', [CustomerAppWalletTopupController::class, 'callback'])->name('customer-app.wallet.topup.callback');
+
 Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
     Route::get('/profile', [CustomerAppProfileController::class, 'index'])->name('profile');
     Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
     Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
     Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
+    Route::post('/wallet/topup', [CustomerAppWalletTopupController::class, 'store'])->name('wallet.topup');
     Route::get('/tickets', [CustomerAppTicketController::class, 'index'])->name('tickets');
     Route::post('/tickets', [CustomerAppTicketController::class, 'store'])->name('tickets.store');
     Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');
@@ -140,6 +149,14 @@ Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(
     Route::get('/support/{ticket}', [CustomerAppSupportTicketController::class, 'show'])->name('support.show');
     Route::post('/support/{ticket}/replies', [CustomerAppSupportTicketController::class, 'reply'])->name('support.reply');
     Route::get('/trip-planner', [CustomerAppTripPlannerController::class, 'index'])->name('trip-planner');
-    Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->name('trip-planner.store');
+    Route::post('/trip-planner', [CustomerAppTripPlannerController::class, 'store'])->middleware('throttle:trip-planner')->name('trip-planner.store');
     Route::get('/trip-planner/{plan}', [CustomerAppTripPlannerController::class, 'show'])->name('trip-planner.show');
+    Route::post('/trip-planner/{plan}/items', [CustomerAppTripPlannerController::class, 'storeItem'])->name('trip-planner.items.store');
+    Route::delete('/trip-planner/{plan}/items/{item}', [CustomerAppTripPlannerController::class, 'destroyItem'])->name('trip-planner.items.destroy');
+    Route::post('/trip-planner/{plan}/items/{item}/move', [CustomerAppTripPlannerController::class, 'moveItem'])->name('trip-planner.items.move');
+    Route::post('/trip-planner/{plan}/days/{day}/regenerate', [CustomerAppTripPlannerController::class, 'regenerateDay'])->whereNumber('day')->name('trip-planner.days.regenerate');
+    Route::post('/trip-planner/{plan}/rating', [CustomerAppTripPlannerController::class, 'rate'])->name('trip-planner.rate');
+    Route::post('/trip-planner/{plan}/share', [CustomerAppTripPlannerController::class, 'share'])->name('trip-planner.share');
+    Route::delete('/trip-planner/{plan}/share', [CustomerAppTripPlannerController::class, 'unshare'])->name('trip-planner.unshare');
+    Route::get('/trip-planner/{plan}/calendar.ics', [CustomerAppTripPlannerController::class, 'calendar'])->name('trip-planner.calendar');
 });

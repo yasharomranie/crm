@@ -14,11 +14,16 @@ use Illuminate\Database\Eloquent\Model;
  */
 class TripPlannerSetting extends Model
 {
-    protected $fillable = ['assistant_note', 'is_enabled'];
+    protected $fillable = ['assistant_note', 'is_enabled', 'plans_per_day_limit', 'create_followup_tasks', 'send_reminders'];
 
     protected function casts(): array
     {
-        return ['is_enabled' => 'boolean'];
+        return [
+            'is_enabled' => 'boolean',
+            'plans_per_day_limit' => 'integer',
+            'create_followup_tasks' => 'boolean',
+            'send_reminders' => 'boolean',
+        ];
     }
 
     /**
@@ -31,6 +36,9 @@ class TripPlannerSetting extends Model
         return static::query()->firstOrCreate(['id' => 1], [
             'assistant_note' => null,
             'is_enabled' => true,
+            'plans_per_day_limit' => 5,
+            'create_followup_tasks' => false,
+            'send_reminders' => false,
         ]);
     }
 }

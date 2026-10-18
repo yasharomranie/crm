@@ -5,6 +5,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 /**
@@ -16,13 +17,19 @@ use Illuminate\Support\Collection;
  */
 class TripPlan extends Model
 {
-    protected $fillable = ['guest_id', 'days', 'starts_on', 'interests', 'pace', 'overview'];
+    protected $fillable = [
+        'guest_id', 'days', 'starts_on', 'interests', 'pace', 'group_type', 'has_car', 'budget_level',
+        'overview', 'fingerprint', 'generation_method', 'generation_ms', 'attractions_sent',
+        'share_token', 'rating', 'feedback', 'reminder_sent_at',
+    ];
 
     protected function casts(): array
     {
         return [
             'starts_on' => 'date',
             'interests' => 'array',
+            'has_car' => 'boolean',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 
@@ -42,5 +49,14 @@ class TripPlan extends Model
     public function itemsByDay(): Collection
     {
         return $this->items()->with('attraction')->get()->groupBy('day_number');
+    }
+
+    /**
+     * The calendar date of one day of the trip (plans made without a start
+     * date count from the day they were made).
+     */
+    public function dateForDay(int $dayNumber): Carbon
+    {
+        return ($this->starts_on ?? $this->created_at)->copy()->startOfDay()->addDays($dayNumber - 1);
     }
 }

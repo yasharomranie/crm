@@ -15,6 +15,7 @@ use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
+use App\Filament\Pages\PaymentGatewaySettings;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\ProductionDeploy;
 use App\Filament\Pages\RoomRack;
@@ -28,7 +29,10 @@ use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TripPlannerReportPage;
 use App\Filament\Pages\TripPlannerSettings;
+use App\Filament\Pages\WalletLiabilityReport;
+use App\Filament\Pages\WalletSettings;
 use App\Filament\Pages\WebAppDomainSettings;
 use App\Filament\Pages\WhatsAppSettings;
 use App\Models\AiProvider;
@@ -188,6 +192,9 @@ return [
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
         'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
+        'wallet-liability-report' => ['page' => WalletLiabilityReport::class, 'label' => 'گزارش بدهی کیف پول', 'group' => 'CRM و مشتریان'],
+        'wallet-settings' => ['page' => WalletSettings::class, 'label' => 'تنظیمات کیف پول و کش‌بک', 'group' => 'CRM و مشتریان'],
+        'payment-gateway-settings' => ['page' => PaymentGatewaySettings::class, 'label' => 'درگاه پرداخت آنلاین', 'group' => 'زیرساخت سازمانی'],
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
         'production-deploy' => ['page' => ProductionDeploy::class, 'label' => 'دیپلوی سرور', 'group' => 'زیرساخت سازمانی'],
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],
@@ -212,6 +219,7 @@ return [
         'customer-app-google-settings' => ['page' => CustomerAppGoogleSettings::class, 'label' => 'ورود با گوگل', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-auth-settings' => ['page' => CustomerAppAuthSettings::class, 'label' => 'روش‌های ورود', 'group' => 'وب‌اپ مشتریان'],
         'customer-app-nav-settings' => ['page' => CustomerAppNavSettings::class, 'label' => 'منوی پایین اپ', 'group' => 'وب‌اپ مشتریان'],
+        'trip-planner-report' => ['page' => TripPlannerReportPage::class, 'label' => 'گزارش تریپ‌پلنر', 'group' => 'تریپ‌پلنر'],
         'trip-planner-settings' => ['page' => TripPlannerSettings::class, 'label' => 'تنظیمات دستیار سفر', 'group' => 'تریپ‌پلنر'],
     ],
 ];

@@ -87,6 +87,7 @@
                             <option value="cash">نقدی</option>
                             <option value="card">کارت‌خوان</option>
                             <option value="online">آنلاین</option>
+                            <option value="wallet">کیف پول مشتری (با شماره موبایل)</option>
                             <option value="other">سایر</option>
                         </select>
                     @endif

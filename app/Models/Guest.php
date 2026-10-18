@@ -5,11 +5,16 @@ namespace App\Models;
 use App\Enums\BookingStatus;
 use App\Enums\LoyaltyTier;
 use App\Enums\WalletTransactionType;
+use App\Exceptions\InsufficientWalletBalanceException;
 use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 use Spatie\Activitylog\Models\Concerns\LogsActivity;
 use Spatie\Activitylog\Support\LogOptions;
 
@@ -142,31 +147,71 @@ class Guest extends Authenticatable
         };
     }
 
-    public function creditWallet(int $amount, string $reason, ?Booking $booking = null): WalletTransaction
+    /**
+     * Every wallet change goes through creditWallet()/debitWallet(): the
+     * guest row is locked, the ledger row and the cached wallet_balance are
+     * written in one database transaction, and a debit can never take the
+     * balance below zero - so two simultaneous spends cannot both succeed
+     * on the same money, and the ledger always adds up to the balance.
+     */
+    public function creditWallet(int $amount, string $reason, ?Booking $booking = null, ?CarbonInterface $expiresAt = null): WalletTransaction
     {
-        $transaction = $this->walletTransactions()->create([
-            'booking_id' => $booking?->id,
-            'type' => WalletTransactionType::Credit,
-            'amount' => $amount,
-            'reason' => $reason,
-        ]);
-
-        $this->increment('wallet_balance', $amount);
-
-        return $transaction;
+        return $this->applyWalletChange(WalletTransactionType::Credit, $amount, $reason, $booking, ['expires_at' => $expiresAt]);
     }
 
-    public function debitWallet(int $amount, string $reason, ?Booking $booking = null): WalletTransaction
+    /**
+     * @throws InsufficientWalletBalanceException
+     */
+    public function debitWallet(int $amount, string $reason, ?Booking $booking = null, ?int $sourceTransactionId = null): WalletTransaction
     {
-        $transaction = $this->walletTransactions()->create([
-            'booking_id' => $booking?->id,
-            'type' => WalletTransactionType::Debit,
-            'amount' => $amount,
-            'reason' => $reason,
-        ]);
+        return $this->applyWalletChange(WalletTransactionType::Debit, $amount, $reason, $booking, ['source_transaction_id' => $sourceTransactionId]);
+    }
 
-        $this->decrement('wallet_balance', $amount);
+    /**
+     * Sum of the ledger (credits minus debits). Should always equal
+     * wallet_balance; a difference means the balance was changed outside
+     * creditWallet()/debitWallet().
+     */
+    public function walletLedgerBalance(): int
+    {
+        $credits = (int) $this->walletTransactions()->where('type', WalletTransactionType::Credit)->sum('amount');
+        $debits = (int) $this->walletTransactions()->where('type', WalletTransactionType::Debit)->sum('amount');
 
-        return $transaction;
+        return $credits - $debits;
+    }
+
+    /**
+     * @param  array<string, mixed>  $extra  additional wallet_transactions columns
+     */
+    private function applyWalletChange(WalletTransactionType $type, int $amount, string $reason, ?Booking $booking, array $extra = []): WalletTransaction
+    {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('مبلغ تراکنش کیف پول باید بیشتر از صفر باشد.');
+        }
+
+        return DB::transaction(function () use ($type, $amount, $reason, $booking, $extra) {
+            $locked = static::query()->lockForUpdate()->findOrFail($this->getKey());
+            $currentBalance = (int) $locked->wallet_balance;
+
+            if ($type === WalletTransactionType::Debit && $currentBalance < $amount) {
+                throw new InsufficientWalletBalanceException($currentBalance, $amount);
+            }
+
+            $transaction = $locked->walletTransactions()->create([
+                'booking_id' => $booking?->id,
+                'type' => $type,
+                'amount' => $amount,
+                'reason' => $reason,
+                'created_by' => Auth::id(),
+                ...$extra,
+            ]);
+
+            $newBalance = $type === WalletTransactionType::Credit ? $currentBalance + $amount : $currentBalance - $amount;
+            $locked->forceFill(['wallet_balance' => $newBalance])->saveQuietly();
+            $this->setAttribute('wallet_balance', $newBalance);
+            $this->syncOriginalAttribute('wallet_balance');
+
+            return $transaction;
+        });
     }
 }
