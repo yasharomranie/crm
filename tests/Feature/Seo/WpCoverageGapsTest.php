@@ -89,7 +89,7 @@ class WpCoverageGapsTest extends TestCase
         $project = $this->project();
         $this->wpPost($project, 'راهنمای سفر به همدان', 'سفر به همدان');
         $this->profile($project, 'سفر به همدان', 30.0);
-        $this->profile($project, 'سفر همدان راهنما', 40.0);
+        $this->profile($project, 'همدان سفر', 40.0);
         $this->profile($project, 'عبارت در رتبه خوب', 4.0);
         $this->profile($project, 'عبارت کم‌نمایش', 40.0, 10);
         $this->profile($project, 'عبارت برنامه‌ریزی‌شده', 40.0);
