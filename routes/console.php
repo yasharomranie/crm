@@ -1,6 +1,7 @@
 <?php
 
 use App\Domain\Crm\FollowUpReminderService;
+use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
@@ -79,6 +80,14 @@ Schedule::call(function () {
 })
     ->name('wallet-expiry')
     ->dailyAt('03:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Re-scores every open deal each night: the score depends on how long a
+// deal has been quiet, which changes without anyone saving the deal.
+Schedule::call(fn () => app(LeadScorer::class)->refreshOpenDeals())
+    ->name('crm-lead-scores')
+    ->dailyAt('02:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 

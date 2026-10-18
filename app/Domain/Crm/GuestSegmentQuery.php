@@ -33,6 +33,8 @@ class GuestSegmentQuery
 
     public const TYPE_OPEN_TICKET = 'open_ticket';
 
+    public const TYPE_HOT_LEAD = 'hot_lead';
+
     public const TYPE_REGISTERED_WITHIN_DAYS = 'registered_within_days';
 
     public const TYPE_REGISTERED_BEFORE_DAYS = 'registered_before_days';
@@ -56,6 +58,7 @@ class GuestSegmentQuery
             self::TYPE_HAS_TAG => 'برچسب دارد',
             self::TYPE_OPEN_DEAL => 'معاملهٔ باز دارد',
             self::TYPE_OPEN_TICKET => 'تیکت باز دارد',
+            self::TYPE_HOT_LEAD => 'سرنخ داغ دارد (امتیاز ۷۰ به بالا)',
             self::TYPE_REGISTERED_WITHIN_DAYS => 'ثبت‌شده در N روز اخیر',
             self::TYPE_REGISTERED_BEFORE_DAYS => 'ثبت‌شده بیش از N روز پیش',
             self::TYPE_HAS_EMAIL => 'ایمیل دارد',
@@ -84,7 +87,7 @@ class GuestSegmentQuery
      */
     public static function yesNoTypes(): array
     {
-        return [self::TYPE_OPEN_DEAL, self::TYPE_OPEN_TICKET, self::TYPE_HAS_EMAIL, self::TYPE_HAS_MOBILE];
+        return [self::TYPE_OPEN_DEAL, self::TYPE_OPEN_TICKET, self::TYPE_HOT_LEAD, self::TYPE_HAS_EMAIL, self::TYPE_HAS_MOBILE];
     }
 
     /**
@@ -144,6 +147,9 @@ class GuestSegmentQuery
                 : $query->whereRaw('1 = 0'),
             self::TYPE_OPEN_DEAL => $this->applyExistence($query, 'deals', $isYes, fn (Builder $deals) => $deals->whereNotIn('stage', [DealStage::Won, DealStage::Lost])),
             self::TYPE_OPEN_TICKET => $this->applyExistence($query, 'tickets', $isYes, fn (Builder $tickets) => $tickets->whereIn('status', [TicketStatus::Open, TicketStatus::InProgress])),
+            self::TYPE_HOT_LEAD => $this->applyExistence($query, 'deals', $isYes, fn (Builder $deals) => $deals
+                ->whereNotIn('stage', [DealStage::Won, DealStage::Lost])
+                ->where('lead_score', '>=', LeadScorer::HOT_AT)),
             self::TYPE_REGISTERED_WITHIN_DAYS => is_numeric($value)
                 ? $query->where('created_at', '>=', now()->subDays((int) $value))
                 : $query->whereRaw('1 = 0'),

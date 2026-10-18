@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Domain\Crm\DealAutomationService;
+use App\Domain\Crm\LeadScorer;
 use App\Enums\DealSource;
 use App\Enums\DealStage;
 use App\Models\Concerns\HasFollowUpTasks;
@@ -15,7 +16,7 @@ class Deal extends Model
     use HasFollowUpTasks, HasTags;
 
     protected $fillable = [
-        'guest_id', 'title', 'stage', 'value', 'assigned_to',
+        'guest_id', 'title', 'stage', 'value', 'lead_score', 'assigned_to',
         'source', 'external_api_client_id', 'lead_capture_form_id', 'expected_close_date', 'notes', 'created_by',
     ];
 
@@ -36,6 +37,9 @@ class Deal extends Model
             if ($deal->wasRecentlyCreated || $deal->wasChanged('stage')) {
                 app(DealAutomationService::class)->handleStageEntered($deal);
             }
+
+            // refresh() writes with a plain query, so this never re-triggers saved.
+            app(LeadScorer::class)->refresh($deal);
         });
     }
 
