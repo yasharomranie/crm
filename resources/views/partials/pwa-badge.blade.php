@@ -8,7 +8,7 @@
     // Firefox silently no-op the optional-chained calls below).
     $user = auth()->user();
     $badgeCount = $user
-        ? \App\Models\Message::totalUnreadFor($user) + count(\App\Filament\Pages\AiAssistant::computeAlerts())
+        ? \App\Models\Message::totalUnreadFor($user) + count(\App\Filament\Pages\AiAssistant::visibleAlerts($user))
         : 0;
 @endphp
 <script>

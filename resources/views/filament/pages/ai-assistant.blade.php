@@ -4,7 +4,7 @@
         $selected = $this->getSelectedConversation();
         $visibleMessages = $this->getMessages()->filter(fn ($message) => $message->role === \App\Enums\AiMessageRole::User
             || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content)));
-        $alerts = \App\Filament\Pages\AiAssistant::computeAlerts();
+        $alerts = \App\Filament\Pages\AiAssistant::visibleAlerts(auth()->user());
 
         $suggestions = $this->getSuggestedPrompts();
 

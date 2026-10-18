@@ -9,6 +9,7 @@ use App\Models\AiMessage;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Spatie\Activitylog\Models\Activity;
@@ -77,6 +78,28 @@ class AiAssistantUsageDashboard extends Page
             'feedback_down' => (clone $messages)->where('feedback', 'down')->count(),
             'top_tools' => $topTools,
         ];
+    }
+
+    /**
+     * The most recent assistant tool calls, including the ones refused for
+     * lack of permission, for whoever audits what people ask the assistant.
+     *
+     * @return Collection<int, array{when: string, user: string, tool: string, denied: bool}>
+     */
+    public function getRecentToolCalls(): Collection
+    {
+        return Activity::query()
+            ->with('causer')
+            ->where('log_name', 'ai_assistant')
+            ->latest('id')
+            ->limit(25)
+            ->get()
+            ->map(fn (Activity $activity) => [
+                'when' => $activity->created_at->toJalali('Y/m/d H:i'),
+                'user' => (string) ($activity->causer?->name ?? '—'),
+                'tool' => (string) ($activity->properties['tool'] ?? ''),
+                'denied' => $activity->event === 'tool_denied',
+            ]);
     }
 
     /**

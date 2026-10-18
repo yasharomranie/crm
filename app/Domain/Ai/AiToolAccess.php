@@ -86,6 +86,11 @@ class AiToolAccess
         'get_form_template_fields' => 'form-templates',
 
         'create_task' => 'tasks',
+
+        // The read-only lookups custom assistants can be granted (CrmToolCatalog).
+        'check_room_availability' => 'bookings',
+        'lookup_guest' => 'guests',
+        'check_support_ticket_status' => 'guest-tickets',
     ];
 
     /**

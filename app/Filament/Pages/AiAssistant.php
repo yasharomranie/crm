@@ -30,7 +30,7 @@ class AiAssistant extends Page
 
     public static function getNavigationBadge(): ?string
     {
-        $count = count(static::computeAlerts());
+        $count = count(static::visibleAlerts(auth()->user()));
 
         return $count > 0 ? Number::toPersian($count) : null;
     }

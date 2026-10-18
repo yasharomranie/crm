@@ -854,6 +854,13 @@ class AiAssistantTest extends TestCase
 
     public function test_navigation_badge_reflects_alert_count(): void
     {
+        $this->artisan('access-control:sync');
+        $role = Role::create(['name' => 'مشاهده‌گر وظایف']);
+        $role->givePermissionTo(Permission::where('name', 'tasks.view_any')->get());
+        $viewer = User::factory()->create();
+        $viewer->assignRole($role);
+        $this->actingAs($viewer);
+
         $this->assertNull(AiAssistant::getNavigationBadge());
 
         Task::factory()->create(['status' => TaskStatus::Todo, 'due_at' => now()->subDay()]);
