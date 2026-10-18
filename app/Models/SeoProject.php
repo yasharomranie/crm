@@ -51,6 +51,11 @@ class SeoProject extends Model
         return $this->hasMany(SeoProjectCompetitor::class);
     }
 
+    public function wpSite(): HasOne
+    {
+        return $this->hasOne(SeoWpSite::class);
+    }
+
     public function googleConnection(): HasOne
     {
         return $this->hasOne(SeoGoogleConnection::class);

@@ -159,6 +159,12 @@ class AppServiceProvider extends ServiceProvider
             return Limit::perHour(10)->by('trip-planner:'.($request->user('customer')?->getAuthIdentifier() ?? $request->ip()));
         });
 
+        // Pairing is the one open WordPress-connector call: the code is
+        // random and single-use, and a few tries per minute is plenty.
+        RateLimiter::for('wp-connector-pair', function ($request) {
+            return Limit::perMinute(10)->by('wp-pair-ip:'.$request->ip());
+        });
+
         RateLimiter::for('lead-capture', function ($request) {
             return [
                 Limit::perMinute(5)->by('lead-ip-minute:'.$request->ip()),

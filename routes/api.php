@@ -13,6 +13,7 @@ use App\Http\Controllers\Api\V1\External\TicketController;
 use App\Http\Controllers\Api\V1\External\TicketVariantController;
 use App\Http\Controllers\Api\V1\External\WebhookSubscriptionController;
 use App\Http\Controllers\Api\V1\WhatsAppWebhookController;
+use App\Http\Controllers\Api\V1\WpConnectorController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -70,4 +71,24 @@ Route::prefix('v1/external')->middleware('external-api.auth')->group(function ()
     Route::get('/webhooks', [WebhookSubscriptionController::class, 'index']);
     Route::post('/webhooks', [WebhookSubscriptionController::class, 'store']);
     Route::delete('/webhooks/{webhookSubscription}', [WebhookSubscriptionController::class, 'destroy']);
+});
+
+/*
+|--------------------------------------------------------------------------
+| WordPress connector plugin
+|--------------------------------------------------------------------------
+|
+| The SEO-center plugin installed on a WordPress site sends its content
+| inventory here. pair() is open (guarded by a one-time code and an IP
+| throttle); everything else is signed with the secret pair() handed out
+| (see App\Http\Middleware\AuthenticateWpConnector).
+|
+*/
+Route::prefix('v1/wp-connector')->group(function () {
+    Route::post('/pair', [WpConnectorController::class, 'pair'])->middleware('throttle:wp-connector-pair');
+
+    Route::middleware('wp-connector.auth')->group(function () {
+        Route::post('/sync', [WpConnectorController::class, 'sync']);
+        Route::post('/disconnect', [WpConnectorController::class, 'disconnect']);
+    });
 });

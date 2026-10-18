@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SeoProjects\Tables;
 
 use App\Enums\SeoConnectionStatus;
+use App\Models\SeoWpSite;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
@@ -31,6 +32,25 @@ class SeoProjectsTable
                 TextColumn::make('googleConnection.last_synced_at')
                     ->label('آخرین همگام‌سازی')
                     ->dateTime('Y/m/d H:i')
+                    ->placeholder('—'),
+                TextColumn::make('wpSite.status')
+                    ->label('وردپرس')
+                    ->badge()
+                    ->state(fn ($record) => match (true) {
+                        ! $record->wpSite => null,
+                        $record->wpSite->isStale() => 'قدیمی',
+                        default => match ($record->wpSite->status) {
+                            SeoWpSite::STATUS_CONNECTED => 'متصل',
+                            SeoWpSite::STATUS_DISCONNECTED => 'قطع‌شده',
+                            default => 'در انتظار اتصال',
+                        },
+                    })
+                    ->color(fn (?string $state) => match ($state) {
+                        'متصل' => 'success',
+                        'قدیمی' => 'warning',
+                        'قطع‌شده' => 'danger',
+                        default => 'gray',
+                    })
                     ->placeholder('—'),
                 IconColumn::make('is_active')
                     ->label('فعال')

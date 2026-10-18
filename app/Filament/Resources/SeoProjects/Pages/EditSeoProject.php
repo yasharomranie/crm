@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\SeoProjects\Pages;
 
 use App\Domain\Seo\SearchConsoleClient;
+use App\Domain\Seo\WpConnector\WpPairingService;
 use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Filament\Resources\SeoProjects\SeoProjectResource;
@@ -185,6 +186,34 @@ class EditSeoProject extends EditRecord
                         ->body('نتایج در بخش «پیشنهادهای کلمات کلیدی» قابل بررسی و تأیید خواهند بود.')
                         ->success()
                         ->send();
+                }),
+
+            Action::make('connectWordPress')
+                ->label('اتصال وردپرس')
+                ->icon(Heroicon::OutlinedPuzzlePiece)
+                ->tooltip('یک کد اتصال یک‌بارمصرف می‌سازد؛ آن را در پلاگین اتصال CRM روی سایت وردپرسی وارد کنید.')
+                ->action(function (SeoProject $record, WpPairingService $pairing) {
+                    $code = $pairing->issueCode($record);
+
+                    Notification::make()
+                        ->title("کد اتصال: {$code}")
+                        ->body('این کد ۲۴ ساعت و فقط یک بار معتبر است. در پلاگین، آدرس CRM را «'.url('/').'» و همین کد را وارد کنید.')
+                        ->success()
+                        ->persistent()
+                        ->send();
+                }),
+
+            Action::make('disconnectWordPress')
+                ->label('قطع اتصال وردپرس')
+                ->icon(Heroicon::OutlinedXCircle)
+                ->color('danger')
+                ->requiresConfirmation()
+                ->modalDescription('پلاگین دیگر نمی‌تواند چیزی بفرستد تا دوباره با کد تازه وصل شود. اطلاعاتی که تا حالا دریافت شده می‌ماند.')
+                ->visible(fn (SeoProject $record) => $record->wpSite?->isConnected() ?? false)
+                ->action(function (SeoProject $record, WpPairingService $pairing) {
+                    $pairing->disconnect($record->wpSite);
+
+                    Notification::make()->title('اتصال وردپرس قطع شد.')->success()->send();
                 }),
 
             DeleteAction::make(),

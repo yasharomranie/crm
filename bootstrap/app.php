@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Middleware\AuthenticateExternalApiClient;
+use App\Http\Middleware\AuthenticateWpConnector;
 use App\Http\Middleware\EnsureExternalApiClientCan;
 use App\Http\Middleware\ServeCustomerAppOnCustomDomain;
 use Illuminate\Foundation\Application;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'external-api.auth' => AuthenticateExternalApiClient::class,
             'external-api.can' => EnsureExternalApiClientCan::class,
+            'wp-connector.auth' => AuthenticateWpConnector::class,
         ]);
 
         // Must run before routing resolves "/" to the default welcome
