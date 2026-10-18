@@ -5,6 +5,8 @@ namespace App\Models;
 use App\Exceptions\AiProviderException;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Http\Client\ConnectionException;
+use Illuminate\Http\Client\RequestException;
 use Illuminate\Support\Facades\Http;
 
 /**
@@ -63,10 +65,18 @@ class AiProvider extends Model
             $payload['tool_choice'] = 'auto';
         }
 
-        $response = Http::withToken($this->api_key)
-            ->baseUrl(rtrim($this->base_url, '/'))
-            ->timeout(90)
-            ->post('/chat/completions', $payload);
+        try {
+            // A rate limit, a gateway hiccup or a dropped connection is worth
+            // one more try before the manager sees an error; a bad key or a
+            // rejected request (4xx other than 408/429) is not.
+            $response = Http::withToken($this->api_key)
+                ->baseUrl(rtrim($this->base_url, '/'))
+                ->timeout(90)
+                ->retry(2, 800, fn (\Throwable $exception) => $this->isTransientFailure($exception), throw: false)
+                ->post('/chat/completions', $payload);
+        } catch (ConnectionException) {
+            throw AiProviderException::requestFailed('اتصال به سرویس هوش مصنوعی برقرار نشد یا زمان پاسخ‌گویی تمام شد.');
+        }
 
         if ($response->failed()) {
             throw AiProviderException::requestFailed(
@@ -81,6 +91,12 @@ class AiProvider extends Model
         }
 
         return $message;
+    }
+
+    private function isTransientFailure(\Throwable $exception): bool
+    {
+        return $exception instanceof ConnectionException
+            || ($exception instanceof RequestException && in_array($exception->response->status(), [408, 429, 500, 502, 503, 504], true));
     }
 
     /**
