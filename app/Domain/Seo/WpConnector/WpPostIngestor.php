@@ -18,6 +18,9 @@ class WpPostIngestor
     /** What each scope lets the plugin send, beyond the basic content facts. */
     public const SCOPES = ['content', 'seo_meta', 'structure', 'images', 'terms', 'authors', 'commerce', 'health'];
 
+    /** The slug column is VARCHAR(191) on a database that has not run the widening migration yet. */
+    private const SLUG_LENGTH = 191;
+
     private const SEO_KEYS = ['focus_keyword', 'title', 'description', 'canonical', 'noindex', 'robots', 'plugin'];
 
     private const COMMERCE_KEYS = ['product_type', 'price', 'regular_price', 'sale_price', 'stock_status', 'sku', 'rating_average', 'review_count'];
@@ -65,7 +68,7 @@ class WpPostIngestor
             'url' => $url,
             'url_hash' => SeoWpPost::hashUrl($url),
             'title' => Str::limit((string) ($post['title'] ?? ''), 500, ''),
-            'slug' => isset($post['slug']) ? Str::limit((string) $post['slug'], 255, '') : null,
+            'slug' => isset($post['slug']) ? Str::limit((string) $post['slug'], self::SLUG_LENGTH, '') : null,
             'author_name' => $site->allows('authors') && isset($post['author_name']) ? Str::limit((string) $post['author_name'], 120, '') : null,
             'published_at' => $this->date($post['published_at'] ?? null),
             'modified_at' => $this->date($post['modified_at'] ?? null),
