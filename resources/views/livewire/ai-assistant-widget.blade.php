@@ -75,6 +75,7 @@
         }
         .ai-widget-bubble.is-dragging .ai-widget-creature,
         .ai-widget-bubble.is-dragging .ai-widget-glow { animation-play-state: paused; }
+        @media (prefers-reduced-motion: reduce) { .ai-widget-bubble *, .ai-widget-bubble, .animate-bounce, .animate-pulse { animation: none !important; transition: none !important; } }
         @keyframes ai-widget-bob {
             0%, 100% { transform: translateY(0) rotate(-3deg); }
             50% { transform: translateY(-7px) rotate(3deg); }
@@ -308,7 +309,7 @@
             </div>
         @endif
 
-        <div x-ref="messages" class="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        <div x-ref="messages" role="log" aria-live="polite" aria-label="گفتگو با دستیار" class="flex-1 space-y-3 overflow-y-auto px-3 py-3">
             @forelse ($visibleMessages as $message)
                 @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
                 <div class="flex {{ $isUser ? 'justify-start' : 'justify-end' }}">
@@ -335,6 +336,8 @@
                                 ></canvas>
                             </div>
                         @endif
+
+                        @include('partials.ai-message-actions', ['message' => $message, 'isUser' => $isUser])
                     </div>
                 </div>
             @empty
@@ -342,6 +345,17 @@
                     <span class="text-3xl">🧡</span>
                     <p class="text-sm font-medium text-gray-700 dark:text-gray-300">سلام! چه کمکی از دستم برمیاد؟</p>
                     <p class="text-xs text-gray-500 dark:text-gray-400">می‌تونی هر سؤالی دربارهٔ وضعیت سیستم بپرسی.</p>
+                    <div class="mt-1 flex flex-wrap justify-center gap-1.5">
+                        @foreach (array_slice($this->getSuggestedPrompts(), 0, 3) as $suggestion)
+                            <button
+                                type="button"
+                                wire:click="$set('body', {{ \Illuminate\Support\Js::from($suggestion) }})"
+                                class="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] text-gray-600 transition hover:border-amber-300 hover:text-amber-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-amber-500 dark:border-white/10 dark:text-gray-300"
+                            >
+                                {{ $suggestion }}
+                            </button>
+                        @endforeach
+                    </div>
                 </div>
             @endforelse
 
@@ -386,6 +400,10 @@
         >
             <textarea
                 wire:model="body"
+                x-init="try { $el.value = localStorage.getItem('ai_widget_draft') || ''; if ($el.value) { $el.dispatchEvent(new Event('input')) } } catch (e) {}"
+                x-on:input.debounce.400ms="try { localStorage.setItem('ai_widget_draft', $el.value) } catch (e) {}"
+                x-on:message-sent.window="try { localStorage.removeItem('ai_widget_draft') } catch (e) {}"
+                aria-label="پیام شما"
                 x-on:input="autoGrow($event.target)"
                 x-on:keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.send(window.location.href); }"
                 rows="2"

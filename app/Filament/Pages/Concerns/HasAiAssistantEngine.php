@@ -38,6 +38,11 @@ use App\Enums\WalletTransactionType;
 use App\Enums\WorkflowActionType;
 use App\Enums\WorkflowInstanceStatus;
 use App\Exceptions\AiProviderException;
+use App\Filament\Resources\Bookings\BookingResource;
+use App\Filament\Resources\FormSubmissions\FormSubmissionResource;
+use App\Filament\Resources\Guests\GuestResource;
+use App\Filament\Resources\GuestTickets\GuestTicketResource;
+use App\Filament\Resources\Tasks\TaskResource;
 use App\Models\AiAssistantModelSetting;
 use App\Models\AiConversation;
 use App\Models\AiMessage;
@@ -80,6 +85,7 @@ use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
 use Filament\Notifications\Notification;
+use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\Eloquent\Model;
@@ -88,6 +94,7 @@ use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Number;
 use Illuminate\Support\Str;
+use Morilog\Jalali\CalendarUtils;
 use Morilog\Jalali\Jalalian;
 use Spatie\Permission\Models\Role;
 use Symfony\Component\HttpFoundation\StreamedResponse;
@@ -149,6 +156,8 @@ trait HasAiAssistantEngine
 
     public string $conversationSearch = '';
 
+    public bool $showArchived = false;
+
     /**
      * Transient within a single send() call only - never a Livewire-synced
      * property, since it only needs to survive from a tool's execution
@@ -183,6 +192,9 @@ trait HasAiAssistantEngine
                 'like',
                 '%'.addcslashes(trim($this->conversationSearch), '%_\\').'%',
             ))
+            ->when(! $this->showArchived, fn ($query) => $query->whereNull('archived_at'))
+            ->orderByRaw('pinned_at is null')
+            ->orderByDesc('pinned_at')
             ->latest('updated_at')
             ->get();
     }
@@ -406,6 +418,21 @@ trait HasAiAssistantEngine
     }
 
     /**
+     * The panel page for a record, as a path the answer can link to; null
+     * when the resource has no such page.
+     *
+     * @param  class-string<\Filament\Resources\Resource>  $resource
+     */
+    private function panelLink(string $resource, string $page, Model $record): ?string
+    {
+        try {
+            return $resource::getUrl($page, ['record' => $record], isAbsolute: false);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
+    /**
      * What the progress endpoint reports while a turn runs (and clears it
      * afterwards); written straight to the table so it never bumps the
      * conversation's updated_at, which orders the conversation list.
@@ -532,6 +559,9 @@ trait HasAiAssistantEngine
             وقتی داده‌های عددی داری، آن‌ها را در قالب جدول Markdown نمایش بده. بعد از هر گزارش، در صورت لزوم یک جمع‌بندی کوتاه و یک پیشنهاد/هشدار عملی اضافه کن.
             اگر کاربر خواست کاری در سیستم انجام شود (مثلاً ایجاد وظیفه)، از ابزار مربوطه استفاده کن. ابزارهای create_task، add_field_to_form_template، set_form_document_template و update_workflow_step فوراً اجرا نمی‌شوند: نتیجه‌شان awaiting_user_confirmation است، یعنی کاربر باید اقدام را روی کارت تأیید زیر گفتگو تأیید کند. تا وقتی نتیجهٔ واقعی را ندیده‌ای، نگو که انجام شد؛ فقط بگو اقدام آماده است و منتظر تأیید او می‌ماند.
             مبالغ همیشه به تومان هستند.
+            وقتی نتیجهٔ یک ابزار فیلد link دارد، نام همان رکورد را در پاسخ به‌صورت لینک Markdown بنویس (مثلاً [رضا کریمی](/admin/guests/12)) تا مدیر با یک کلیک آن را در پنل باز کند؛ لینک را خودت نساز و فقط همان مقدار link را بگذار.
+            اگر ابزاری error برگرداند، همان را کلمه‌به‌کلمه تکرار نکن: به فارسی ساده بگو چه مشکلی پیش آمد و کاربر چه کاری می‌تواند بکند (مثلاً نام را دقیق‌تر بنویسد، بازه را تغییر بدهد یا از مدیر سیستم دسترسی بخواهد).
+            برای گزارش‌هایی که فقط «این ماه/ماه قبل» پشتیبانی می‌کنند، اگر کاربر بازهٔ دیگری خواست از from_date و to_date (تاریخ شمسی Y/m/d) استفاده کن.
 
             دربارهٔ جست‌وجوی سراسری (search_everything):
             - وقتی کاربر چیزی را با یک نام/عبارت کلی می‌خواهد (مثل نام یک مشتری، پروژه، قرارداد، یا هر کلیدواژه‌ای) بدون این‌که بگوید دقیقاً مال کدام بخش سیستم است، اول search_everything را با همان عبارت صدا بزن - هیچ‌وقت مستقیم حدس نزن کدوم ابزار تخصصی مناسبه و هیچ‌وقت فقط به این دلیل که یک ابزار تخصصی‌تر چیزی پیدا نکرد، بگو «پیدا نشد»؛ همیشه اول با این ابزار در کل سیستم بگرد.
@@ -705,7 +735,7 @@ trait HasAiAssistantEngine
         if (! AiToolAccess::allowsTool(Auth::user(), $name)) {
             $this->recordToolCall($name, $arguments, 'tool_denied');
 
-            return ['error' => 'شما به بخشی از سیستم که این ابزار به آن مربوط است دسترسی ندارید.'];
+            return ['error' => AiToolAccess::deniedMessage($name)];
         }
 
         // The model sometimes leaves the name out when the user is already on
@@ -861,6 +891,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -868,6 +900,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -882,6 +916,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -922,6 +958,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -936,6 +974,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -943,6 +983,8 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                    'from_date' => ['type' => 'string', 'description' => 'Optional custom range start, Jalali Y/m/d (e.g. 1405/07/01); use together with to_date instead of period'],
+                    'to_date' => ['type' => 'string', 'description' => 'Optional custom range end, Jalali Y/m/d; at most one year after from_date'],
                 ],
                 'required' => [],
             ]);
@@ -1447,6 +1489,49 @@ trait HasAiAssistantEngine
             ->update(['title' => Str::limit($title, 80, '')]);
     }
 
+    public function togglePinConversation(int $conversationId): void
+    {
+        $conversation = $this->ownConversation($conversationId);
+
+        if (! $conversation) {
+            return;
+        }
+
+        // Written straight to the table so pinning does not count as
+        // activity and reshuffle the list by updated_at.
+        AiConversation::query()->whereKey($conversation->id)->toBase()->update([
+            'pinned_at' => $conversation->pinned_at ? null : now(),
+        ]);
+    }
+
+    public function toggleArchiveConversation(int $conversationId): void
+    {
+        $conversation = $this->ownConversation($conversationId);
+
+        if (! $conversation) {
+            return;
+        }
+
+        $archiving = $conversation->archived_at === null;
+
+        AiConversation::query()->whereKey($conversation->id)->toBase()->update([
+            'archived_at' => $archiving ? now() : null,
+            'pinned_at' => null,
+        ]);
+
+        if ($archiving && $this->conversationId === $conversationId && ! $this->showArchived) {
+            $this->conversationId = $this->getConversations()->first()?->id;
+        }
+    }
+
+    private function ownConversation(int $conversationId): ?AiConversation
+    {
+        return AiConversation::query()
+            ->where('user_id', Auth::id())
+            ->whereNull('ai_assistant_profile_id')
+            ->find($conversationId);
+    }
+
     public function deleteConversation(int $conversationId): void
     {
         $conversation = AiConversation::query()
@@ -1601,6 +1686,11 @@ trait HasAiAssistantEngine
     private function buildChartForTool(string $name, array $result): ?array
     {
         return match ($name) {
+            'get_ticketing_sales_summary' => $this->chartFromRows('bar', 'فروش خالص بلیت به تفکیک محصول (تومان)', $result['sales']['by_product'] ?? [], 'name', 'net'),
+            'get_cancellation_summary' => $this->chartFromCounts('doughnut', 'سرنوشت رزروهای این بازه', [
+                'لغوشده' => $result['cancelled_count'] ?? 0,
+                'باقی‌مانده' => max(0, ($result['bookings_created'] ?? 0) - ($result['cancelled_count'] ?? 0)),
+            ]),
             'get_attendance_summary' => $this->chartFromCounts('doughnut', 'وضعیت حضور این ماه', [
                 'به‌موقع' => $result['on_time_count'] ?? 0,
                 'تأخیر' => $result['late_count'] ?? 0,
@@ -2074,6 +2164,7 @@ trait HasAiAssistantEngine
         return [
             'count' => $bookings->count(),
             'bookings' => $bookings->map(fn (Booking $booking) => [
+                'link' => $this->panelLink(BookingResource::class, 'edit', $booking),
                 'reference_code' => $booking->reference_code,
                 'guest_name' => $booking->guest?->name,
                 'room' => $booking->room?->name,
@@ -2201,6 +2292,70 @@ trait HasAiAssistantEngine
      *
      * @return array{0: Carbon, 1: Carbon}
      */
+    /**
+     * The period a report tool asked for: an explicit from_date/to_date
+     * (Jalali Y/m/d, or Gregorian Y-m-d) when both parse, otherwise this or
+     * last Jalali month. A range is capped at one year.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array{0: Carbon, 1: Carbon}
+     */
+    private function resolvePeriod(array $arguments): array
+    {
+        $custom = $this->customRange($arguments);
+
+        return $custom ?? $this->resolveJalaliPeriod((string) ($arguments['period'] ?? 'this_month'));
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     */
+    private function periodLabel(array $arguments): string
+    {
+        $custom = $this->customRange($arguments);
+
+        if ($custom) {
+            return 'از '.$custom[0]->toJalali('Y/m/d').' تا '.$custom[1]->toJalali('Y/m/d');
+        }
+
+        return ($arguments['period'] ?? 'this_month') === 'last_month' ? 'ماه قبل' : 'این ماه';
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array{0: Carbon, 1: Carbon}|null
+     */
+    private function customRange(array $arguments): ?array
+    {
+        $from = $this->parseFlexibleDate($arguments['from_date'] ?? null);
+        $to = $this->parseFlexibleDate($arguments['to_date'] ?? null);
+
+        if (! $from || ! $to || $to->lt($from) || $from->diffInDays($to) > 366) {
+            return null;
+        }
+
+        return [$from->startOfDay(), $to->endOfDay()];
+    }
+
+    private function parseFlexibleDate(mixed $value): ?Carbon
+    {
+        $text = trim(CalendarUtils::convertNumbers((string) $value, true));
+
+        if (! preg_match('/^(\d{4})[\/-](\d{1,2})[\/-](\d{1,2})$/', $text, $parts)) {
+            return null;
+        }
+
+        [, $year, $month, $day] = array_map('intval', $parts);
+
+        try {
+            return $year < 1700
+                ? Carbon::instance((new Jalalian($year, $month, $day))->toCarbon())
+                : Carbon::create($year, $month, $day);
+        } catch (\Throwable) {
+            return null;
+        }
+    }
+
     private function resolveJalaliPeriod(string $period): array
     {
         $thisMonth = Jalalian::now();
@@ -2219,8 +2374,7 @@ trait HasAiAssistantEngine
      */
     private function revenueByRoomTypeTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
         $periodDays = max(1, $start->diffInDays($end) + 1);
 
         $roomTypes = RoomType::query()
@@ -2253,7 +2407,7 @@ trait HasAiAssistantEngine
             ->values();
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'room_types' => $roomTypes->all(),
         ];
     }
@@ -2263,8 +2417,7 @@ trait HasAiAssistantEngine
      */
     private function bookingSourceBreakdownTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
 
         $sources = collect(BookingSource::cases())
             ->map(function (BookingSource $source) use ($start, $end) {
@@ -2290,7 +2443,7 @@ trait HasAiAssistantEngine
         }
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'sources' => $sources->all(),
         ];
     }
@@ -2323,8 +2476,7 @@ trait HasAiAssistantEngine
 
     private function cancellationSummaryTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
 
         // Defined as one cohort - of the bookings MADE in this period, how
         // many ended up cancelled (as of now) - rather than mixing
@@ -2334,7 +2486,7 @@ trait HasAiAssistantEngine
         $cancelledOfThose = $createdInPeriod->where('status', BookingStatus::Cancelled)->count();
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'bookings_created' => $createdInPeriod->count(),
             'cancelled_count' => $cancelledOfThose,
             'cancellation_rate_percent' => $createdInPeriod->count() > 0
@@ -2404,6 +2556,7 @@ trait HasAiAssistantEngine
         $latestFeedback = $guest->feedbacks()->whereNotNull('submitted_at')->latest('submitted_at')->first();
 
         return [
+            'link' => $this->panelLink(GuestResource::class, 'view', $guest),
             'name' => $guest->name,
             'mobile' => $guest->mobile,
             'email' => $guest->email,
@@ -2452,6 +2605,7 @@ trait HasAiAssistantEngine
         return [
             'count' => $guests->count(),
             'guests' => $guests->map(fn (Guest $guest) => [
+                'link' => $this->panelLink(GuestResource::class, 'view', $guest),
                 'name' => $guest->name,
                 'mobile' => $guest->mobile,
                 'loyalty_tier' => $guest->loyaltyTier()->getLabel(),
@@ -2487,6 +2641,7 @@ trait HasAiAssistantEngine
         return [
             'breached_count' => $tickets->count(),
             'tickets' => $tickets->map(fn (GuestTicket $ticket) => [
+                'link' => $this->panelLink(GuestTicketResource::class, 'edit', $ticket),
                 'subject' => $ticket->subject,
                 'guest' => $ticket->guest?->name,
                 'priority' => $ticket->priority->getLabel(),
@@ -2540,8 +2695,7 @@ trait HasAiAssistantEngine
      */
     private function dealSourceBreakdownTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
 
         $sources = collect(DealSource::cases())
             ->map(function (DealSource $source) use ($start, $end) {
@@ -2568,7 +2722,7 @@ trait HasAiAssistantEngine
         }
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'sources' => $sources->all(),
         ];
     }
@@ -2605,8 +2759,7 @@ trait HasAiAssistantEngine
      */
     private function guestSatisfactionSummaryTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
 
         $feedback = GuestFeedback::query()
             ->whereNotNull('submitted_at')
@@ -2623,7 +2776,7 @@ trait HasAiAssistantEngine
         $detractors = $feedback->filter(fn (GuestFeedback $item) => $item->npsCategory() === 'detractor')->count();
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'responses' => $feedback->count(),
             'average_score' => round((float) $feedback->avg('nps_score'), 1),
             'promoters' => $promoters,
@@ -2639,8 +2792,7 @@ trait HasAiAssistantEngine
      */
     private function walletActivitySummaryTool(array $arguments): array
     {
-        $period = (string) ($arguments['period'] ?? 'this_month');
-        [$start, $end] = $this->resolveJalaliPeriod($period);
+        [$start, $end] = $this->resolvePeriod($arguments);
 
         $transactions = WalletTransaction::query()->whereBetween('created_at', [$start, $end])->get();
 
@@ -2659,7 +2811,7 @@ trait HasAiAssistantEngine
             ->map(fn (Guest $guest) => ['guest' => $guest->name, 'balance_toman' => (int) $guest->wallet_balance]);
 
         return [
-            'period' => $period === 'last_month' ? 'ماه قبل' : 'این ماه',
+            'period' => $this->periodLabel($arguments),
             'credited_toman' => $credited,
             'debited_toman' => $debited,
             'net_toman' => $credited - $debited,
@@ -3752,6 +3904,7 @@ trait HasAiAssistantEngine
         return [
             'count' => $tasks->count(),
             'tasks' => $tasks->map(fn (Task $task) => [
+                'link' => $this->panelLink(TaskResource::class, 'edit', $task),
                 'title' => $task->title,
                 'assignee' => $task->assignee?->name,
                 'department' => $task->department?->name,
@@ -3789,6 +3942,7 @@ trait HasAiAssistantEngine
         return [
             'overdue_count' => $tasks->count(),
             'tasks' => $tasks->map(fn (Task $task) => [
+                'link' => $this->panelLink(TaskResource::class, 'edit', $task),
                 'title' => $task->title,
                 'assignee' => $task->assignee?->name,
                 'department' => $task->department?->name,
@@ -4766,6 +4920,7 @@ trait HasAiAssistantEngine
             'form' => $template->title,
             'matched_count' => $submissions->count(),
             'submissions' => $submissions->map(fn (FormSubmission $submission) => [
+                'link' => $this->panelLink(FormSubmissionResource::class, 'view', $submission),
                 'id' => $submission->id,
                 'submitted_by' => $submission->submitter?->name,
                 'submitted_at' => $submission->submitted_at?->format('Y-m-d'),

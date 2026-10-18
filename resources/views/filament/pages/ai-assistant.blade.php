@@ -16,6 +16,7 @@
     @endphp
 
     <style>
+        @media (prefers-reduced-motion: reduce) { .animate-bounce, .animate-pulse { animation: none !important; } }
         .ai-markdown :where(h1, h2, h3) { font-weight: 700; margin-block: .5rem; }
         .ai-markdown h1 { font-size: 1.1rem; }
         .ai-markdown h2 { font-size: 1.05rem; }
@@ -61,7 +62,18 @@
             </div>
         @endif
 
-        <div class="flex justify-end">
+        <div class="flex items-center justify-end gap-2">
+            @if ($selected)
+                <a
+                    href="{{ route('ai-assistant.conversation.print', ['conversation' => $selected, 'auto' => 1]) }}"
+                    target="_blank"
+                    rel="noopener"
+                    class="flex items-center gap-1.5 rounded-lg border border-gray-200 px-2.5 py-1.5 text-xs text-gray-600 hover:border-primary-300 hover:text-primary-600 dark:border-white/10 dark:text-gray-300"
+                >
+                    <x-heroicon-o-printer class="h-3.5 w-3.5 shrink-0" />
+                    چاپ / PDF گفتگو
+                </a>
+            @endif
             <div class="relative" x-data="{ open: false }">
                 <button
                     type="button"
@@ -116,6 +128,10 @@
                         aria-label="جست‌وجو در گفتگوها"
                         class="w-full rounded-lg border border-gray-300 bg-white px-2.5 py-1.5 text-xs text-gray-950 dark:border-white/10 dark:bg-white/5 dark:text-white"
                     />
+                    <label class="mt-2 flex items-center gap-2 text-xs text-gray-500 dark:text-gray-400">
+                        <input type="checkbox" id="ai-show-archived" wire:model.live="showArchived" class="rounded border-gray-300" />
+                        نمایش گفتگوهای آرشیوشده
+                    </label>
                 </div>
 
                 <div class="flex-1 space-y-1 overflow-y-auto p-2">
@@ -145,7 +161,25 @@
                                 />
                             </div>
 
-                            <div x-show="! renaming" class="relative z-10 flex shrink-0 items-center gap-0.5 pe-1 opacity-100 md:opacity-0 md:group-hover:opacity-100">
+                            <div x-show="! renaming" class="relative z-10 flex shrink-0 items-center gap-0.5 pe-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 md:group-focus-within:opacity-100">
+                                <button
+                                    type="button"
+                                    wire:click="togglePinConversation({{ $conversation->id }})"
+                                    aria-label="{{ $conversation->pinned_at ? 'برداشتن سنجاق گفتگو' : 'سنجاق کردن گفتگو' }}"
+                                    title="{{ $conversation->pinned_at ? 'برداشتن سنجاق' : 'سنجاق کردن' }}"
+                                    class="rounded-lg p-1 hover:bg-gray-100 dark:hover:bg-white/5 {{ $conversation->pinned_at ? 'text-primary-600' : 'text-gray-300 hover:text-gray-600 dark:text-gray-600' }}"
+                                >
+                                    <x-heroicon-o-bookmark class="h-3.5 w-3.5" />
+                                </button>
+                                <button
+                                    type="button"
+                                    wire:click="toggleArchiveConversation({{ $conversation->id }})"
+                                    aria-label="{{ $conversation->archived_at ? 'بازگرداندن از آرشیو' : 'آرشیو گفتگو' }}"
+                                    title="{{ $conversation->archived_at ? 'بازگرداندن از آرشیو' : 'آرشیو' }}"
+                                    class="rounded-lg p-1 text-gray-300 hover:bg-gray-100 hover:text-gray-600 dark:text-gray-600 dark:hover:bg-white/5"
+                                >
+                                    <x-heroicon-o-archive-box class="h-3.5 w-3.5" />
+                                </button>
                                 <button
                                     type="button"
                                     x-on:click="renaming = true; $nextTick(() => $refs['renameInput{{ $conversation->id }}'].focus())"
@@ -209,7 +243,7 @@
                     </button>
                 </div>
 
-                <div x-ref="messages" class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
+                <div x-ref="messages" role="log" aria-live="polite" aria-label="گفتگو با دستیار" class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                     @forelse ($visibleMessages as $message)
                         @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
                         <div class="flex {{ $isUser ? 'justify-start' : 'justify-end' }}">
@@ -240,38 +274,7 @@
                                     </div>
                                 @endif
 
-                                <div class="flex items-center gap-1 px-1" @if (! $isUser) x-data="{ copied: false }" @endif>
-                                    <span class="text-[11px] text-gray-400">{{ $message->created_at->format('H:i') }}</span>
-                                    @if (! $isUser)
-                                        <button
-                                            type="button"
-                                            x-on:click="copied = true; navigator.clipboard.writeText(@js($message->content ?? '')); setTimeout(() => copied = false, 1500)"
-                                            title="کپی پاسخ"
-                                            aria-label="کپی پاسخ"
-                                            class="rounded p-0.5 text-gray-300 hover:text-gray-500 dark:text-gray-600"
-                                        >
-                                            <x-heroicon-o-check class="h-3.5 w-3.5 text-success-600 dark:text-success-400" x-show="copied" x-cloak />
-                                            <x-heroicon-o-clipboard class="h-3.5 w-3.5" x-show="! copied" />
-                                        </button>
-                                        @if (\App\Domain\Ai\MarkdownTables::hasTable($message->content))
-                                            <button
-                                                type="button"
-                                                wire:click="downloadMessageTables({{ $message->id }})"
-                                                title="دانلود جدول‌ها به Excel"
-                                                aria-label="دانلود جدول‌ها به Excel"
-                                                class="rounded p-0.5 text-gray-300 hover:text-gray-500 dark:text-gray-600"
-                                            >
-                                                <x-heroicon-o-arrow-down-tray class="h-3.5 w-3.5" />
-                                            </button>
-                                        @endif
-                                        <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'up')" title="پاسخ خوبی بود" aria-label="پاسخ خوبی بود" class="rounded p-0.5 {{ $message->feedback === 'up' ? 'text-success-600 dark:text-success-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
-                                            <x-heroicon-o-hand-thumb-up class="h-3.5 w-3.5" />
-                                        </button>
-                                        <button type="button" wire:click="setMessageFeedback({{ $message->id }}, 'down')" title="پاسخ ضعیفی بود" aria-label="پاسخ ضعیفی بود" class="rounded p-0.5 {{ $message->feedback === 'down' ? 'text-danger-600 dark:text-danger-400' : 'text-gray-300 hover:text-gray-500 dark:text-gray-600' }}">
-                                            <x-heroicon-o-hand-thumb-down class="h-3.5 w-3.5" />
-                                        </button>
-                                    @endif
-                                </div>
+                                @include('partials.ai-message-actions', ['message' => $message, 'isUser' => $isUser])
                             </div>
                         </div>
                     @empty
@@ -329,6 +332,10 @@
                 >
                     <textarea
                         wire:model="body"
+                        x-init="try { $el.value = localStorage.getItem('ai_draft') || ''; if ($el.value) { $el.dispatchEvent(new Event('input')) } } catch (e) {}"
+                        x-on:input.debounce.400ms="try { localStorage.setItem('ai_draft', $el.value) } catch (e) {}"
+                        x-on:message-sent.window="try { localStorage.removeItem('ai_draft') } catch (e) {}"
+                        aria-label="سؤال یا درخواست شما"
                         x-on:input="autoGrow($event.target)"
                         @keydown.enter="if (! $event.shiftKey) { $event.preventDefault(); $wire.send(); }"
                         rows="2"

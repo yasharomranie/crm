@@ -148,6 +148,19 @@ class AiToolAccess
         return $label ? "در حال گرفتن اطلاعات از «{$label}»…" : 'در حال بررسی…';
     }
 
+    /**
+     * What the manager is told when a tool is refused for a missing module
+     * permission: which part of the system, and who can grant it.
+     */
+    public static function deniedMessage(string $tool): string
+    {
+        $label = self::MODULE_LABELS[self::TOOL_MODULES[$tool] ?? ''] ?? null;
+
+        return $label
+            ? "شما به بخش «{$label}» دسترسی ندارید؛ برای دیدن این گزارش از مدیر سیستم بخواهید مجوز مشاهدهٔ آن بخش را برایتان فعال کند."
+            : 'شما به بخشی از سیستم که این ابزار به آن مربوط است دسترسی ندارید.';
+    }
+
     public static function allowsTool(?User $user, string $tool): bool
     {
         if (! $user) {

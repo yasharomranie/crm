@@ -13,7 +13,7 @@ class AiConversation extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['user_id', 'ai_assistant_profile_id', 'title', 'pending_actions', 'run_label', 'cancel_requested'];
+    protected $fillable = ['user_id', 'ai_assistant_profile_id', 'title', 'pending_actions', 'run_label', 'cancel_requested', 'pinned_at', 'archived_at'];
 
     /**
      * Actions the assistant wants to run that change data and are waiting
@@ -23,7 +23,7 @@ class AiConversation extends Model
      */
     protected function casts(): array
     {
-        return ['pending_actions' => 'array', 'cancel_requested' => 'boolean'];
+        return ['pending_actions' => 'array', 'cancel_requested' => 'boolean', 'pinned_at' => 'datetime', 'archived_at' => 'datetime'];
     }
 
     public function user(): BelongsTo
