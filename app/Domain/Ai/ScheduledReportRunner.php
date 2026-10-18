@@ -21,7 +21,7 @@ class ScheduledReportRunner
     {
         $user = $report->user;
 
-        if (! $user || ! $user->can('ai-assistant.report')) {
+        if (! $user || ! $user->can('ai-assistant.report') || app(AssistantUsage::class)->isOverCap()) {
             $report->forceFill(['last_run_at' => now()])->save();
 
             return null;

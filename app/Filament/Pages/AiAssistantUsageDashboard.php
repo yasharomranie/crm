@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Ai\AssistantUsage;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AiAssistantProfile;
@@ -48,11 +49,12 @@ class AiAssistantUsageDashboard extends Page
      * widget), for the last 30 days across all users: how much it is used,
      * what it cost in tokens, how people rated it and which tools it calls.
      *
-     * @return array{questions: int, conversations: int, prompt_tokens: int, completion_tokens: int, feedback_up: int, feedback_down: int, top_tools: array<int, array{tool: string, calls: int}>}
+     * @return array{questions: int, conversations: int, prompt_tokens: int, completion_tokens: int, feedback_up: int, feedback_down: int, avg_latency_ms: ?int, errors: int, cost_toman: int, month_cost_toman: int, cap_percent: ?int, top_tools: array<int, array{tool: string, calls: int}>}
      */
     public function getMainAssistantStats(): array
     {
         $since = now()->subDays(30);
+        $usage = app(AssistantUsage::class);
 
         $messages = AiMessage::query()
             ->where('ai_messages.created_at', '>=', $since)
@@ -76,6 +78,11 @@ class AiAssistantUsageDashboard extends Page
             'completion_tokens' => (int) (clone $messages)->sum('completion_tokens'),
             'feedback_up' => (clone $messages)->where('feedback', 'up')->count(),
             'feedback_down' => (clone $messages)->where('feedback', 'down')->count(),
+            'avg_latency_ms' => ($avg = (clone $messages)->whereNotNull('latency_ms')->avg('latency_ms')) === null ? null : (int) round($avg),
+            'errors' => Activity::query()->where('log_name', 'ai_assistant')->where('event', 'provider_error')->where('created_at', '>=', $since)->count(),
+            'cost_toman' => $usage->costToman((int) (clone $messages)->sum('prompt_tokens'), (int) (clone $messages)->sum('completion_tokens')),
+            'month_cost_toman' => $usage->monthCostToman(),
+            'cap_percent' => $usage->capUsagePercent(),
             'top_tools' => $topTools,
         ];
     }

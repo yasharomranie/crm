@@ -295,6 +295,31 @@
                                     </button>
                                 @endforeach
                             </div>
+
+                            @php $guide = $this->getCapabilityGuide(); @endphp
+                            @if (! empty($guide))
+                                <details class="mt-3 w-full max-w-md rounded-xl border border-gray-200 px-4 py-3 text-start text-xs dark:border-white/10">
+                                    <summary class="cursor-pointer font-medium text-gray-700 dark:text-gray-300">چه چیزهایی می‌توانم بپرسم؟</summary>
+                                    <div class="mt-3 space-y-3">
+                                        @foreach ($guide as $section)
+                                            <div>
+                                                <p class="font-semibold text-gray-950 dark:text-white">{{ $section['label'] }}</p>
+                                                <div class="mt-1 flex flex-wrap gap-1.5">
+                                                    @foreach ($section['examples'] as $example)
+                                                        <button
+                                                            type="button"
+                                                            wire:click="$set('body', {{ \Illuminate\Support\Js::from($example) }})"
+                                                            class="rounded-full border border-gray-200 px-2.5 py-1 text-[11px] text-gray-600 transition hover:border-primary-300 hover:text-primary-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-primary-500 dark:border-white/10 dark:text-gray-300"
+                                                        >
+                                                            {{ $example }}
+                                                        </button>
+                                                    @endforeach
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                    </div>
+                                </details>
+                            @endif
                         </div>
                     @endforelse
 

@@ -27,6 +27,7 @@ class AssistantAlertDigestService
         }
 
         $notified = 0;
+        $usage = app(AssistantUsage::class);
 
         foreach ($recipients as $recipient) {
             // Each person only hears about modules they may see themselves.
@@ -35,6 +36,11 @@ class AssistantAlertDigestService
                 ->pluck('message')
                 ->values()
                 ->all();
+
+            // Admins also hear when the monthly assistant budget runs low.
+            if ($recipient->hasRole('admin') && ($costWarning = $usage->capWarning())) {
+                $messages[] = $costWarning;
+            }
 
             if ($messages === []) {
                 continue;
