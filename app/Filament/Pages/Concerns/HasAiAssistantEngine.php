@@ -121,6 +121,15 @@ trait HasAiAssistantEngine
      * purpose: they only ever create inactive drafts and already ask before
      * duplicating a form.
      */
+    /** Past this many seconds into a turn the assistant stops calling tools and answers with what it has. */
+    private const TURN_TIME_BUDGET_SECONDS = 100;
+
+    /** How many of the user's most recent questions (with their answers) are sent back to the model. */
+    private const HISTORY_TURNS = 12;
+
+    /** Tool output from earlier questions is cut to this many characters. */
+    private const OLD_TOOL_RESULT_LIMIT = 1500;
+
     private const CONFIRMED_ACTION_TOOLS = [
         'create_task', 'add_field_to_form_template', 'set_form_document_template', 'update_workflow_step',
     ];
@@ -291,8 +300,18 @@ trait HasAiAssistantEngine
         $this->pendingChart = null;
 
         $model = AiAssistantModelSetting::modelFor('ai-assistant');
+        $deadline = microtime(true) + self::TURN_TIME_BUDGET_SECONDS;
+
+        // Shared hosting often caps a request well below five slow model
+        // calls; ask for more time and, whatever the host allows, stop
+        // starting new rounds once the budget is spent.
+        @set_time_limit(self::TURN_TIME_BUDGET_SECONDS + 150);
 
         for ($round = 0; $round < 5; $round++) {
+            if ($round > 0 && microtime(true) > $deadline) {
+                break;
+            }
+
             $assistantMessage = $provider->chatCompletion($messages, $tools, $model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
@@ -345,17 +364,79 @@ trait HasAiAssistantEngine
             }
         }
 
+        $this->answerWithoutMoreTools($conversation, $provider, $messages, $model);
+    }
+
+    /**
+     * The turn ran out of rounds or time while the model still wanted tools.
+     * Instead of failing, ask once more with no tools offered so it answers
+     * with what it already fetched and says what it could not finish.
+     *
+     * @param  array<int, array<string, mixed>>  $messages
+     */
+    private function answerWithoutMoreTools(AiConversation $conversation, AiProvider $provider, array $messages, ?string $model): void
+    {
+        $messages[] = [
+            'role' => 'system',
+            'content' => 'محدودیت تعداد مراحل یا زمان این پرسش رسیده است. دیگر ابزاری صدا نزن؛ با اطلاعاتی که تا اینجا گرفته‌ای بهترین پاسخ ممکن را بده و صریح بگو کدام بخش را کامل نکردی.',
+        ];
+
+        try {
+            $final = $provider->chatCompletion($messages, [], $model);
+
+            if (filled($final['content'] ?? null)) {
+                $conversation->messages()->create([
+                    'role' => AiMessageRole::Assistant,
+                    'content' => $final['content'],
+                    'chart' => $this->pendingChart,
+                ]);
+
+                return;
+            }
+        } catch (AiProviderException) {
+            // Fall through to the notification below.
+        }
+
         Notification::make()->title('دستیار پس از چند تلاش هنوز پاسخ نهایی ارائه نداد. دوباره تلاش کنید.')->warning()->send();
     }
 
     /**
+     * What the model is sent back each turn: only the last few questions
+     * (cut on a question boundary so a tool call never loses its result),
+     * with the bulky tool output of earlier questions shortened - the
+     * answers that were built from it stay in full.
+     *
      * @return array<int, array<string, mixed>>
      */
     private function buildChatHistory(AiConversation $conversation): array
     {
         $system = ['role' => 'system', 'content' => $this->systemPrompt()];
 
-        $history = $conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all();
+        $messages = $conversation->messages()->get()->values();
+
+        $userPositions = $messages
+            ->filter(fn ($message) => $message->role === AiMessageRole::User)
+            ->keys()
+            ->values();
+
+        $keepFrom = $userPositions->count() > self::HISTORY_TURNS
+            ? $userPositions[$userPositions->count() - self::HISTORY_TURNS]
+            : 0;
+        $currentQuestion = $userPositions->last() ?? 0;
+
+        $history = $messages
+            ->slice($keepFrom)
+            ->map(function ($message, int $position) use ($currentQuestion) {
+                $payload = $message->toChatPayload();
+
+                if ($message->role === AiMessageRole::Tool && $position < $currentQuestion && mb_strlen((string) $payload['content']) > self::OLD_TOOL_RESULT_LIMIT) {
+                    $payload['content'] = mb_substr($payload['content'], 0, self::OLD_TOOL_RESULT_LIMIT).' …[ادامهٔ خروجی این ابزار برای کوتاه‌شدن حذف شد]';
+                }
+
+                return $payload;
+            })
+            ->values()
+            ->all();
 
         return [$system, ...$history];
     }
