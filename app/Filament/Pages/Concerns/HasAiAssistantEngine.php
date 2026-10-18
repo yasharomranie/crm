@@ -2349,7 +2349,7 @@ trait HasAiAssistantEngine
 
         try {
             return $year < 1700
-                ? (new Jalalian($year, $month, $day))->toCarbon()
+                ? Carbon::instance((new Jalalian($year, $month, $day))->toCarbon())
                 : Carbon::create($year, $month, $day);
         } catch (\Throwable) {
             return null;
