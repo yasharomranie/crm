@@ -15,6 +15,7 @@ use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
+use App\Filament\Pages\PaymentGatewaySettings;
 use App\Filament\Pages\PeriodicFormReport;
 use App\Filament\Pages\ProductionDeploy;
 use App\Filament\Pages\RoomRack;
@@ -192,6 +193,7 @@ return [
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
         'wallet-liability-report' => ['page' => WalletLiabilityReport::class, 'label' => 'گزارش بدهی کیف پول', 'group' => 'CRM و مشتریان'],
         'wallet-settings' => ['page' => WalletSettings::class, 'label' => 'تنظیمات کیف پول و کش‌بک', 'group' => 'CRM و مشتریان'],
+        'payment-gateway-settings' => ['page' => PaymentGatewaySettings::class, 'label' => 'درگاه پرداخت آنلاین', 'group' => 'زیرساخت سازمانی'],
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
         'production-deploy' => ['page' => ProductionDeploy::class, 'label' => 'دیپلوی سرور', 'group' => 'زیرساخت سازمانی'],
         'seo-google-settings' => ['page' => SeoGoogleSettings::class, 'label' => 'تنظیمات اتصال گوگل', 'group' => 'مرکز سئو'],

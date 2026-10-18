@@ -9,6 +9,7 @@ use App\Http\Controllers\CustomerApp\SupportTicketController as CustomerAppSuppo
 use App\Http\Controllers\CustomerApp\TicketController as CustomerAppTicketController;
 use App\Http\Controllers\CustomerApp\TripPlannerController as CustomerAppTripPlannerController;
 use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
+use App\Http\Controllers\CustomerApp\WalletTopupController as CustomerAppWalletTopupController;
 use App\Http\Controllers\CustomerAppController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
@@ -128,11 +129,15 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 
 // Customer-app account features - "سفارش‌های من" etc. - all behind the
 // 'customer' guard (see config/auth.php), never the staff 'auth' group.
+// Where the payment gateway sends the customer back after paying.
+Route::get('/app/wallet/topup/callback', [CustomerAppWalletTopupController::class, 'callback'])->name('customer-app.wallet.topup.callback');
+
 Route::middleware('auth:customer')->prefix('app')->name('customer-app.')->group(function () {
     Route::get('/profile', [CustomerAppProfileController::class, 'index'])->name('profile');
     Route::get('/bookings', [CustomerAppBookingController::class, 'index'])->name('bookings');
     Route::post('/bookings', [CustomerAppBookingController::class, 'store'])->name('bookings.store');
     Route::get('/wallet', [CustomerAppWalletController::class, 'index'])->name('wallet');
+    Route::post('/wallet/topup', [CustomerAppWalletTopupController::class, 'store'])->name('wallet.topup');
     Route::get('/tickets', [CustomerAppTicketController::class, 'index'])->name('tickets');
     Route::post('/tickets', [CustomerAppTicketController::class, 'store'])->name('tickets.store');
     Route::get('/support', [CustomerAppSupportTicketController::class, 'index'])->name('support');

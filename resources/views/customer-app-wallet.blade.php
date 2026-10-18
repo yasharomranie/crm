@@ -182,6 +182,13 @@
         .tx-row .amount.credit { color: var(--green); }
         .tx-row .amount.debit { color: var(--red); }
 
+        .topup-note { margin: 0; padding: .6rem .8rem; border-radius: .6rem; font-size: .82rem; }
+        .topup-note.ok { background: var(--green-soft); color: var(--green); }
+        .topup-note.bad { background: var(--red-soft); color: var(--red); }
+        .topup-form { display: flex; gap: .5rem; }
+        .topup-form input { flex: 1; min-width: 0; padding: .6rem .7rem; border: 1px solid var(--line); border-radius: .6rem; font: inherit; font-size: .85rem; }
+        .topup-form button { padding: .6rem 1rem; border: 0; border-radius: .6rem; background: var(--orange); color: #fff; font: inherit; font-size: .85rem; font-weight: 700; cursor: pointer; }
+
         .empty {
             text-align: center;
             color: var(--ink-faint);
@@ -202,6 +209,24 @@
                 <div class="label">موجودی کیف پول</div>
                 <div class="amount">{{ number_format($guest->wallet_balance) }} تومان</div>
             </section>
+
+            @if (session('success'))
+                <p class="topup-note ok">{{ session('success') }}</p>
+            @endif
+            @if ($errors->has('amount'))
+                <p class="topup-note bad">{{ $errors->first('amount') }}</p>
+            @endif
+
+            @if ($canTopUp)
+                <section class="card">
+                    <h2>شارژ کیف پول</h2>
+                    <form method="POST" action="{{ route('customer-app.wallet.topup') }}" class="topup-form">
+                        @csrf
+                        <input type="number" name="amount" inputmode="numeric" min="{{ $minTopUp }}" max="{{ $maxTopUp }}" placeholder="مبلغ به تومان (حداقل {{ number_format($minTopUp) }})" value="{{ old('amount') }}" required>
+                        <button type="submit">پرداخت آنلاین</button>
+                    </form>
+                </section>
+            @endif
 
             <section class="tier-card">
                 <span class="tier-badge {{ $tier->getColor() }}">باشگاه مشتریان: {{ $tier->getLabel() }}</span>
