@@ -2,10 +2,12 @@
 
 namespace App\Filament\Pages\Concerns;
 
+use App\Domain\Ai\AiCapabilityGuide;
 use App\Domain\Ai\AiPageContextResolver;
 use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AiToolRouter;
+use App\Domain\Ai\AssistantUsage;
 use App\Domain\Ai\MarkdownTables;
 use App\Domain\Ticketing\TicketingReport;
 use App\Domain\TripPlanner\TripPlannerReport;
@@ -296,6 +298,16 @@ trait HasAiAssistantEngine
             return;
         }
 
+        if (app(AssistantUsage::class)->isOverCap()) {
+            Notification::make()
+                ->title('سقف مصرف ماهانهٔ دستیار هوشمند پر شده است')
+                ->body('تا ماه بعد یا تغییر سقف توسط مدیر سیستم، پرسش تازه‌ای پاسخ داده نمی‌شود.')
+                ->warning()
+                ->send();
+
+            return;
+        }
+
         $this->capturePageContext($pageUrl);
 
         $conversation = $this->getSelectedConversation() ?? AiConversation::create(['user_id' => Auth::id()]);
@@ -314,6 +326,12 @@ trait HasAiAssistantEngine
         try {
             $this->runAgentLoop($conversation, $provider);
         } catch (AiProviderException $exception) {
+            activity('ai_assistant')
+                ->causedBy(Auth::user())
+                ->event('provider_error')
+                ->withProperties(['message' => Str::limit($exception->getMessage(), 300)])
+                ->log('خطای ارائه‌دهندهٔ هوش مصنوعی');
+
             Notification::make()
                 ->title($exception->getMessage())
                 ->body('چند لحظه بعد دوباره تلاش کنید. اگر تکرار شد، از مدیر سیستم بخواهید ارائه‌دهندهٔ هوش مصنوعی را در تنظیمات بررسی کند.')
@@ -456,13 +474,14 @@ trait HasAiAssistantEngine
     }
 
     /**
-     * @return array{prompt_tokens: ?int, completion_tokens: ?int} what the provider billed for the call just made
+     * @return array{prompt_tokens: ?int, completion_tokens: ?int, latency_ms: ?int} what the provider billed and how long it took for the call just made
      */
     private function tokenUsage(AiProvider $provider): array
     {
         return [
             'prompt_tokens' => isset($provider->lastUsage['prompt_tokens']) ? (int) $provider->lastUsage['prompt_tokens'] : null,
             'completion_tokens' => isset($provider->lastUsage['completion_tokens']) ? (int) $provider->lastUsage['completion_tokens'] : null,
+            'latency_ms' => $provider->lastLatencyMs,
         ];
     }
 
@@ -1492,6 +1511,14 @@ trait HasAiAssistantEngine
     public function getSuggestedPrompts(): array
     {
         return AiSuggestedPrompts::for(app(AiPageContextResolver::class)->previousContext());
+    }
+
+    /**
+     * @return list<array{label: string, examples: list<string>}> the parts of the system the assistant can report on for this user
+     */
+    public function getCapabilityGuide(): array
+    {
+        return AiCapabilityGuide::forUser(Auth::user());
     }
 
     public function setMessageFeedback(int $messageId, string $feedback): void

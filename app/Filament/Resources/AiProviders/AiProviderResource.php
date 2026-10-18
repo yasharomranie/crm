@@ -127,13 +127,21 @@ class AiProviderResource extends Resource
                         Notification::make()->title('مدل پیش‌فرض به‌روزرسانی شد.')->success()->send();
                     }),
                 Action::make('testConnection')
-                    ->label('آزمایش اتصال')
+                    ->label('آزمایش اتصال و مدل')
                     ->icon(Heroicon::OutlinedSignal)
-                    ->action(function (AiProvider $record) {
+                    ->schema([
+                        TextInput::make('model')
+                            ->label('مدل برای آزمایش')
+                            ->placeholder('خالی = مدل پیش‌فرض این ارائه‌دهنده')
+                            ->helperText('یک مدل دیگر را بنویسید تا قبل از انتخابش بدانید این ارائه‌دهنده آن را می‌شناسد و پاسخ می‌دهد.')
+                            ->maxLength(255),
+                    ])
+                    ->action(function (array $data, AiProvider $record) {
                         $startedAt = microtime(true);
+                        $model = filled($data['model'] ?? null) ? trim($data['model']) : null;
 
                         try {
-                            $record->chatCompletion([['role' => 'user', 'content' => 'فقط بنویس: آماده']]);
+                            $record->chatCompletion([['role' => 'user', 'content' => 'فقط بنویس: آماده']], [], $model);
                         } catch (AiProviderException $exception) {
                             Notification::make()
                                 ->title('اتصال برقرار نشد')
@@ -146,7 +154,7 @@ class AiProviderResource extends Resource
 
                         Notification::make()
                             ->title('اتصال برقرار است')
-                            ->body(sprintf('مدل «%s» در %s ثانیه پاسخ داد.', $record->default_model, Number::toPersian(number_format(microtime(true) - $startedAt, 1))))
+                            ->body(sprintf('مدل «%s» در %s ثانیه پاسخ داد.', $model ?: $record->default_model, Number::toPersian(number_format(microtime(true) - $startedAt, 1))))
                             ->success()
                             ->send();
                     }),

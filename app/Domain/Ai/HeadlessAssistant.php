@@ -21,6 +21,59 @@ class HeadlessAssistant
     use HasAiAssistantEngine;
 
     /**
+     * What the model would do first with a question: which tools it is
+     * offered (after routing) and which it asks for. Nothing is executed.
+     *
+     * @return array{offered: list<string>, chosen: list<string>}|null null when no provider is set up
+     *
+     * @throws AiProviderException
+     */
+    public function chooseTools(User $user, string $question): ?array
+    {
+        $provider = AiProvider::active();
+
+        if (! $provider) {
+            return null;
+        }
+
+        $previousUser = Auth::user();
+        Auth::setUser($user);
+
+        try {
+            $offered = app(AiToolRouter::class)->select($this->getToolDefinitions(), $question);
+            $reply = $provider->chatCompletionWithFallback([
+                ['role' => 'system', 'content' => $this->systemPrompt()],
+                ['role' => 'user', 'content' => $question],
+            ], $offered, AiAssistantModelSetting::modelFor('ai-assistant'));
+
+            return [
+                'offered' => array_column(array_column($offered, 'function'), 'name'),
+                'chosen' => array_values(array_filter(array_column(array_column($reply['tool_calls'] ?? [], 'function'), 'name'))),
+            ];
+        } finally {
+            $previousUser ? Auth::setUser($previousUser) : Auth::forgetUser();
+        }
+    }
+
+    /**
+     * Every tool name this user is offered, for checking the evaluation set
+     * against the real tool list.
+     *
+     * @return list<string>
+     */
+    public function toolNamesFor(User $user): array
+    {
+        $previousUser = Auth::user();
+        Auth::setUser($user);
+
+        try {
+            return array_column(array_column($this->getToolDefinitions(), 'function'), 'name');
+        } finally {
+            $previousUser ? Auth::setUser($previousUser) : Auth::forgetUser();
+        }
+    }
+
+    /**
      * @return string|null the answer, or null when no provider is set up or the model said nothing
      *
      * @throws AiProviderException

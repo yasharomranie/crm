@@ -29,4 +29,24 @@ return [
 
     'tool_routing' => (bool) env('AI_ASSISTANT_TOOL_ROUTING', true),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Cost tracking and monthly cap
+    |--------------------------------------------------------------------------
+    |
+    | Token prices (toman per million tokens, as billed by your provider) turn
+    | the stored token counts into an estimated cost on the usage dashboard.
+    | A monthly cap (cost and/or tokens, 0 = off) stops new questions once it
+    | is reached and warns the admins from 80%.
+    |
+    */
+
+    'prompt_price_per_million_toman' => (float) env('AI_ASSISTANT_PROMPT_PRICE', 0),
+
+    'completion_price_per_million_toman' => (float) env('AI_ASSISTANT_COMPLETION_PRICE', 0),
+
+    'monthly_cost_cap_toman' => (int) env('AI_ASSISTANT_MONTHLY_COST_CAP', 0),
+
+    'monthly_token_cap' => (int) env('AI_ASSISTANT_MONTHLY_TOKEN_CAP', 0),
+
 ];

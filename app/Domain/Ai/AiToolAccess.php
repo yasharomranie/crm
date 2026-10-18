@@ -134,6 +134,14 @@ class AiToolAccess
     ];
 
     /**
+     * @return array<string, string> module => its Persian name
+     */
+    public static function moduleLabels(): array
+    {
+        return self::MODULE_LABELS;
+    }
+
+    /**
      * The module a tool belongs to, or null for cross-cutting tools.
      */
     public static function moduleOf(string $tool): ?string

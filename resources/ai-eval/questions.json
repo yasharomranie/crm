@@ -1,0 +1,319 @@
+[
+  {
+    "question": "امروز چند اتاق خالی داریم؟",
+    "expect": [
+      "get_accommodation_summary",
+      "get_occupancy_forecast"
+    ]
+  },
+  {
+    "question": "برای هفتهٔ آینده اشغال اتاق‌ها چطور است؟",
+    "expect": [
+      "get_occupancy_forecast"
+    ]
+  },
+  {
+    "question": "رزرو آقای کریمی را پیدا کن",
+    "expect": [
+      "search_bookings"
+    ]
+  },
+  {
+    "question": "فردا چه کسانی وارد می‌شوند؟",
+    "expect": [
+      "get_upcoming_arrivals"
+    ]
+  },
+  {
+    "question": "چه کسانی باید امروز خارج شوند؟",
+    "expect": [
+      "get_upcoming_departures"
+    ]
+  },
+  {
+    "question": "کدام مهمان‌ها چک‌اوت نکرده‌اند؟",
+    "expect": [
+      "get_overdue_checkouts"
+    ]
+  },
+  {
+    "question": "درآمد این ماه به تفکیک نوع اتاق چقدر است؟",
+    "expect": [
+      "get_revenue_by_room_type"
+    ]
+  },
+  {
+    "question": "رزروها از کدام منبع می‌آیند؟",
+    "expect": [
+      "get_booking_source_breakdown"
+    ]
+  },
+  {
+    "question": "نرخ کنسلی رزروها چقدر است؟",
+    "expect": [
+      "get_cancellation_summary"
+    ]
+  },
+  {
+    "question": "وضعیت کلی CRM را بگو",
+    "expect": [
+      "get_crm_summary"
+    ]
+  },
+  {
+    "question": "پروندهٔ مشتری رضا کریمی را نشان بده",
+    "expect": [
+      "get_guest_detail"
+    ]
+  },
+  {
+    "question": "مشتریان VIP را فهرست کن",
+    "expect": [
+      "search_guests"
+    ]
+  },
+  {
+    "question": "کدام تیکت‌های پشتیبانی از مهلتشان گذشته؟",
+    "expect": [
+      "get_breached_support_tickets"
+    ]
+  },
+  {
+    "question": "عملکرد فروش هر کارشناس چطور است؟",
+    "expect": [
+      "get_deals_by_assignee"
+    ]
+  },
+  {
+    "question": "مشتری‌ها از چه راهی پیدا می‌شوند؟",
+    "expect": [
+      "get_deal_source_breakdown"
+    ]
+  },
+  {
+    "question": "ارزشمندترین مشتریان کدامند؟",
+    "expect": [
+      "get_top_guests_by_value"
+    ]
+  },
+  {
+    "question": "رضایت مشتریان چطور است؟",
+    "expect": [
+      "get_guest_satisfaction_summary"
+    ]
+  },
+  {
+    "question": "وضعیت کیف پول مشتریان این ماه چطور بوده؟",
+    "expect": [
+      "get_wallet_activity_summary"
+    ]
+  },
+  {
+    "question": "تریپ‌پلنر چقدر استفاده شده؟",
+    "expect": [
+      "get_trip_planner_summary"
+    ]
+  },
+  {
+    "question": "مشتریانی که رزرو لغو کرده‌اند و کیف پول دارند را پیدا کن",
+    "expect": [
+      "search_guests"
+    ]
+  },
+  {
+    "question": "وضعیت سئو چطور است؟",
+    "expect": [
+      "get_seo_overview"
+    ]
+  },
+  {
+    "question": "روند ترافیک سایت در چند هفتهٔ اخیر چطور بوده؟",
+    "expect": [
+      "get_seo_traffic_trend"
+    ]
+  },
+  {
+    "question": "کدام عبارت‌ها بیشترین ترافیک را می‌آورند؟",
+    "expect": [
+      "get_seo_top_queries"
+    ]
+  },
+  {
+    "question": "پربازدیدترین صفحات سایت کدامند؟",
+    "expect": [
+      "get_seo_top_pages"
+    ]
+  },
+  {
+    "question": "رتبهٔ کلیدواژه‌های ردیابی‌شده چطور است؟",
+    "expect": [
+      "get_seo_keyword_rankings"
+    ]
+  },
+  {
+    "question": "رتبهٔ «ویلا در همدان» در ماه گذشته چطور بوده؟",
+    "expect": [
+      "get_seo_keyword_rank_history"
+    ]
+  },
+  {
+    "question": "فرصت‌های سئوی باز کدامند؟",
+    "expect": [
+      "get_seo_open_opportunities"
+    ]
+  },
+  {
+    "question": "کدام کلیدواژه‌ها بهتر یا بدتر شده‌اند؟",
+    "expect": [
+      "get_seo_rank_movers"
+    ]
+  },
+  {
+    "question": "وضعیت پروژه‌ها از نظر بودجه و زمان‌بندی چطور است؟",
+    "expect": [
+      "get_project_health_summary"
+    ]
+  },
+  {
+    "question": "جزئیات پروژهٔ سایت جدید را بگو",
+    "expect": [
+      "get_project_detail"
+    ]
+  },
+  {
+    "question": "کدام فاز پروژه‌ها عقب افتاده است؟",
+    "expect": [
+      "get_overdue_project_phases"
+    ]
+  },
+  {
+    "question": "بودجه و هزینهٔ واقعی پروژه‌ها را مقایسه کن",
+    "expect": [
+      "get_project_budget_summary"
+    ]
+  },
+  {
+    "question": "امروز چه کسانی هنوز ورود نزده‌اند؟",
+    "expect": [
+      "get_not_checked_in_today"
+    ]
+  },
+  {
+    "question": "وضعیت حضور و غیاب این ماه چطور است؟",
+    "expect": [
+      "get_attendance_summary"
+    ]
+  },
+  {
+    "question": "بیشترین تأخیر این ماه با چه کسانی است؟",
+    "expect": [
+      "get_attendance_by_user"
+    ]
+  },
+  {
+    "question": "دپارتمان‌ها را از نظر وقت‌شناسی مقایسه کن",
+    "expect": [
+      "get_department_attendance_summary"
+    ]
+  },
+  {
+    "question": "چه کسانی خروج نزده‌اند؟",
+    "expect": [
+      "get_missing_checkouts"
+    ]
+  },
+  {
+    "question": "اضافه‌کاری و کم‌کاری کارمندان چطور است؟",
+    "expect": [
+      "get_overtime_undertime_summary"
+    ]
+  },
+  {
+    "question": "خلاصهٔ وضعیت وظایف را بگو",
+    "expect": [
+      "get_task_summary"
+    ]
+  },
+  {
+    "question": "کدام وظایف عقب افتاده‌اند و مسئولشان کیست؟",
+    "expect": [
+      "get_overdue_tasks"
+    ]
+  },
+  {
+    "question": "بار کاری افراد را با هم مقایسه کن",
+    "expect": [
+      "get_tasks_by_assignee"
+    ]
+  },
+  {
+    "question": "کدام درخواست‌ها از مهلتشان گذشته و مسئولشان کیست؟",
+    "expect": [
+      "get_breached_sla_submissions"
+    ]
+  },
+  {
+    "question": "گلوگاه گردش‌کارها کجاست؟",
+    "expect": [
+      "get_workflow_bottleneck_analysis"
+    ]
+  },
+  {
+    "question": "عملکرد تأییدکننده‌ها چطور است؟",
+    "expect": [
+      "get_approver_performance"
+    ]
+  },
+  {
+    "question": "چک‌لیست روزانه را چه کسانی پر نکرده‌اند؟",
+    "expect": [
+      "get_daily_checklist_compliance"
+    ]
+  },
+  {
+    "question": "فروش بلیت دیروز چقدر بود؟",
+    "expect": [
+      "get_ticketing_sales_summary"
+    ]
+  },
+  {
+    "question": "سفارشی که با شمارهٔ ۰۹۱۲۱۲۳۴۵۶۷ ثبت شده را پیدا کن",
+    "expect": [
+      "search_orders"
+    ]
+  },
+  {
+    "question": "آیا صندوق دیشب مغایرت داشت؟",
+    "expect": [
+      "get_cashier_shifts"
+    ]
+  },
+  {
+    "question": "کل بدهی کیف پول مشتریان چقدر است؟",
+    "expect": [
+      "get_wallet_liability"
+    ]
+  },
+  {
+    "question": "یک وظیفه برای پیگیری بیمه بساز",
+    "expect": [
+      "create_task"
+    ]
+  },
+  {
+    "question": "هرچه دربارهٔ «قرارداد همدان‌گشت» داریم پیدا کن",
+    "expect": [
+      "search_everything"
+    ]
+  },
+  {
+    "question": "هشدارهای مهم الان چیست؟",
+    "expect": [
+      "list_alerts"
+    ]
+  },
+  {
+    "question": "ممنون، کارم تمام شد",
+    "expect": []
+  }
+]

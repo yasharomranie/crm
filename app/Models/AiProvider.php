@@ -30,6 +30,9 @@ class AiProvider extends Model
      */
     public ?array $lastUsage = null;
 
+    /** How long the most recent chatCompletionWithFallback() call took, in milliseconds. */
+    public ?int $lastLatencyMs = null;
+
     protected function casts(): array
     {
         return [
@@ -76,6 +79,22 @@ class AiProvider extends Model
      * @return array<string, mixed>
      */
     public function chatCompletionWithFallback(array $messages, array $tools = [], ?string $model = null): array
+    {
+        $startedAt = microtime(true);
+
+        try {
+            return $this->completeWithFallback($messages, $tools, $model);
+        } finally {
+            $this->lastLatencyMs = (int) round((microtime(true) - $startedAt) * 1000);
+        }
+    }
+
+    /**
+     * @param  array<int, array<string, mixed>>  $messages
+     * @param  array<int, array<string, mixed>>  $tools
+     * @return array<string, mixed>
+     */
+    private function completeWithFallback(array $messages, array $tools, ?string $model): array
     {
         try {
             return $this->chatCompletion($messages, $tools, $model);

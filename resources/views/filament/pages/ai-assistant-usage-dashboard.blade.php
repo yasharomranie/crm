@@ -7,7 +7,7 @@
                 <span class="text-xs text-gray-500 dark:text-gray-400">۳۰ روز گذشته، همهٔ کاربران</span>
             </div>
 
-            <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
+            <div class="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
                 @foreach ([
                     ['پرسش', $main['questions']],
                     ['گفتگوی جدید', $main['conversations']],
@@ -15,6 +15,9 @@
                     ['توکن خروجی', $main['completion_tokens']],
                     ['پسندیده', $main['feedback_up']],
                     ['نپسندیده', $main['feedback_down']],
+                    ['خطای ارائه‌دهنده', $main['errors']],
+                    ['میانگین زمان پاسخ (میلی‌ثانیه)', $main['avg_latency_ms'] ?? 0],
+                    ['هزینهٔ تخمینی ۳۰ روز (تومان)', $main['cost_toman']],
                 ] as [$label, $value])
                     <div class="rounded-lg bg-gray-50 px-3 py-2 text-center dark:bg-white/5">
                         <div class="text-lg font-bold text-gray-950 dark:text-white">{{ \Illuminate\Support\Number::toPersian(number_format($value)) }}</div>
@@ -22,6 +25,18 @@
                     </div>
                 @endforeach
             </div>
+
+            @if ($main['cap_percent'] !== null)
+                <div class="mt-4">
+                    <div class="mb-1 flex items-center justify-between text-xs text-gray-500 dark:text-gray-400">
+                        <span>مصرف ماه جاری نسبت به سقف</span>
+                        <span>{{ \Illuminate\Support\Number::toPersian($main['cap_percent']) }}٪</span>
+                    </div>
+                    <div class="h-2 overflow-hidden rounded-full bg-gray-100 dark:bg-white/10" role="progressbar" aria-valuenow="{{ min(100, $main['cap_percent']) }}" aria-valuemin="0" aria-valuemax="100" aria-label="مصرف ماه جاری نسبت به سقف">
+                        <div class="h-full rounded-full {{ $main['cap_percent'] >= 100 ? 'bg-danger-500' : ($main['cap_percent'] >= 80 ? 'bg-warning-500' : 'bg-primary-500') }}" style="width: {{ min(100, $main['cap_percent']) }}%"></div>
+                    </div>
+                </div>
+            @endif
 
             @if (! empty($main['top_tools']))
                 <div class="mt-4">
