@@ -11,7 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
  */
 class TripPlanItem extends Model
 {
-    protected $fillable = ['trip_plan_id', 'attraction_id', 'day_number', 'start_time', 'end_time', 'note', 'sort_order'];
+    protected $fillable = ['trip_plan_id', 'attraction_id', 'day_number', 'start_time', 'end_time', 'note', 'travel_minutes', 'sort_order'];
 
     public function tripPlan(): BelongsTo
     {

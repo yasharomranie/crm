@@ -4,6 +4,7 @@ namespace App\Http\Controllers\CustomerApp;
 
 use App\Domain\TripPlanner\TripPlannerException;
 use App\Domain\TripPlanner\TripPlannerService;
+use App\Enums\AttractionCategory;
 use App\Exceptions\AiProviderException;
 use App\Http\Controllers\Controller;
 use App\Models\Guest;
@@ -12,6 +13,7 @@ use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Validation\Rule;
 
 /**
  * "تریپ‌پلنر" in the وب‌اپ مشتریان - a guest says how many days/hours
@@ -43,8 +45,11 @@ class TripPlannerController extends Controller
             'days' => ['required', 'integer', 'min:1', 'max:7'],
             'starts_on' => ['nullable', 'date', 'after_or_equal:today'],
             'interests' => ['nullable', 'array'],
-            'interests.*' => ['string'],
+            'interests.*' => ['string', Rule::in(array_column(AttractionCategory::cases(), 'value'))],
             'pace' => ['required', 'in:relaxed,balanced,packed'],
+            'group_type' => ['nullable', 'in:solo,couple,family_kids,friends,seniors'],
+            'has_car' => ['nullable', 'boolean'],
+            'budget_level' => ['nullable', 'in:low,mid,high'],
         ]);
 
         try {
@@ -53,6 +58,9 @@ class TripPlannerController extends Controller
                 'starts_on' => $data['starts_on'] ?? null,
                 'interests' => $data['interests'] ?? [],
                 'pace' => $data['pace'],
+                'group_type' => $data['group_type'] ?? null,
+                'has_car' => (bool) ($data['has_car'] ?? false),
+                'budget_level' => $data['budget_level'] ?? null,
             ]);
         } catch (TripPlannerException|AiProviderException $exception) {
             return back()->withErrors(['days' => $exception->getMessage()])->withInput();

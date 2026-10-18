@@ -326,7 +326,7 @@
                     <label class="field">
                         علایق شما (اختیاری)
                         <div class="chip-group">
-                            @foreach (['طبیعت‌گردی' => 'nature', 'تاریخی' => 'historical', 'ماجراجویی' => 'adventure', 'خرید' => 'shopping', 'خوراک' => 'food', 'خانوادگی' => 'family'] as $label => $value)
+                            @foreach (['طبیعت‌گردی' => 'nature', 'تاریخی' => 'historical', 'مذهبی' => 'religious', 'ماجراجویی' => 'adventure', 'خرید' => 'shopping', 'خوراک' => 'food', 'خانوادگی' => 'family'] as $label => $value)
                                 <input type="checkbox" name="interests[]" value="{{ $value }}" id="interest-{{ $value }}" {{ in_array($value, old('interests', [])) ? 'checked' : '' }}>
                                 <label for="interest-{{ $value }}">{{ $label }}</label>
                             @endforeach
@@ -345,7 +345,32 @@
                         </div>
                     </label>
 
-                    <button type="submit" class="btn">ساخت برنامه سفر</button>
+                    <label class="field">
+                        همسفرها
+                        <select name="group_type">
+                            <option value="">مشخص نیست</option>
+                            @foreach (['solo' => 'تنها', 'couple' => 'زوج', 'family_kids' => 'خانواده با کودک', 'friends' => 'گروه دوستان', 'seniors' => 'همراه با سالمند'] as $value => $label)
+                                <option value="{{ $value }}" {{ old('group_type') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <label class="field">
+                        بودجه‌ی بازدیدها
+                        <select name="budget_level">
+                            <option value="">مشخص نیست</option>
+                            @foreach (['low' => 'کم (ارزان یا رایگان)', 'mid' => 'متوسط', 'high' => 'بالا'] as $value => $label)
+                                <option value="{{ $value }}" {{ old('budget_level') === $value ? 'selected' : '' }}>{{ $label }}</option>
+                            @endforeach
+                        </select>
+                    </label>
+
+                    <div class="chip-group" style="margin-bottom: 1rem;">
+                        <input type="checkbox" name="has_car" value="1" id="has-car" {{ old('has_car') ? 'checked' : '' }}>
+                        <label for="has-car">خودروی شخصی دارم</label>
+                    </div>
+
+                    <button type="submit" class="btn" id="plan-submit">ساخت برنامه سفر</button>
                 </form>
             </section>
 
@@ -369,5 +394,16 @@
     </div>
 
     @include('partials.customer-app-bottom-nav')
+    <script>
+        (function () {
+            var form = document.getElementById('plan-submit') && document.getElementById('plan-submit').form;
+            if (!form) { return; }
+            form.addEventListener('submit', function () {
+                var button = document.getElementById('plan-submit');
+                button.disabled = true;
+                button.textContent = 'در حال ساخت برنامه... (تا یک دقیقه ممکن است طول بکشد)';
+            });
+        })();
+    </script>
 </body>
 </html>

@@ -7,6 +7,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
@@ -29,7 +30,12 @@ class Attraction extends Model
         'name', 'slug', 'category', 'description', 'image', 'lat', 'lng', 'address',
         'avg_visit_minutes', 'opens_at', 'closes_at', 'closed_from', 'closed_until',
         'boost_weight', 'admin_note', 'is_active', 'sort_order', 'created_by', 'updated_by',
+        'closed_weekdays', 'entry_fee', 'phone', 'kid_friendly', 'senior_friendly', 'has_parking',
+        'best_time_note', 'product_id', 'source', 'verified_at',
     ];
+
+    /** Carbon::dayOfWeek values (0 = Sunday ... 6 = Saturday) with Persian names, Saturday first. */
+    public const WEEKDAY_LABELS = [6 => 'شنبه', 0 => 'یکشنبه', 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه'];
 
     protected function casts(): array
     {
@@ -39,6 +45,12 @@ class Attraction extends Model
             'lng' => 'decimal:7',
             'closed_from' => 'date',
             'closed_until' => 'date',
+            'closed_weekdays' => 'array',
+            'entry_fee' => 'integer',
+            'kid_friendly' => 'boolean',
+            'senior_friendly' => 'boolean',
+            'has_parking' => 'boolean',
+            'verified_at' => 'datetime',
             'is_active' => 'boolean',
         ];
     }
@@ -91,6 +103,28 @@ class Attraction extends Model
         }
 
         return $this->closed_from <= $to && $this->closed_until >= $from;
+    }
+
+    /**
+     * Whether the place is shut on this particular date: either inside the
+     * ad-hoc closure range, or on a weekday it is always closed.
+     */
+    public function isClosedOnDate(\DateTimeInterface $date): bool
+    {
+        $carbon = Carbon::instance($date);
+
+        if (in_array($carbon->dayOfWeek, array_map('intval', $this->closed_weekdays ?? []), true)) {
+            return true;
+        }
+
+        return $this->closed_from && $this->closed_until
+            && $carbon->toDateString() >= $this->closed_from->toDateString()
+            && $carbon->toDateString() <= $this->closed_until->toDateString();
+    }
+
+    public function product(): BelongsTo
+    {
+        return $this->belongsTo(Product::class);
     }
 
     /**

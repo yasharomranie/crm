@@ -24,4 +24,14 @@ class TripPlannerException extends Exception
     {
         return new self('دستیار هوشمند نتوانست برنامه معتبری بسازد. لطفاً دوباره تلاش کنید.');
     }
+
+    public static function dailyLimitReached(int $limit): self
+    {
+        return new self("حداکثر {$limit} برنامه در هر شبانه‌روز می‌توانید بسازید. فردا دوباره امتحان کنید یا یکی از برنامه‌های قبلی‌تان را ویرایش کنید.");
+    }
+
+    public static function invalidEdit(string $reason): self
+    {
+        return new self($reason);
+    }
 }

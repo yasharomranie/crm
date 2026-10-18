@@ -16,13 +16,19 @@ use Illuminate\Support\Collection;
  */
 class TripPlan extends Model
 {
-    protected $fillable = ['guest_id', 'days', 'starts_on', 'interests', 'pace', 'overview'];
+    protected $fillable = [
+        'guest_id', 'days', 'starts_on', 'interests', 'pace', 'group_type', 'has_car', 'budget_level',
+        'overview', 'fingerprint', 'generation_method', 'generation_ms', 'attractions_sent',
+        'share_token', 'rating', 'feedback', 'reminder_sent_at',
+    ];
 
     protected function casts(): array
     {
         return [
             'starts_on' => 'date',
             'interests' => 'array',
+            'has_car' => 'boolean',
+            'reminder_sent_at' => 'datetime',
         ];
     }
 
