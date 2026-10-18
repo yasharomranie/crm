@@ -9,6 +9,7 @@ enum PaymentMethod: string implements HasLabel
     case Cash = 'cash';
     case Card = 'card';
     case Online = 'online';
+    case Wallet = 'wallet';
     case Other = 'other';
 
     public function getLabel(): string
@@ -17,6 +18,7 @@ enum PaymentMethod: string implements HasLabel
             self::Cash => 'نقدی',
             self::Card => 'کارت‌خوان',
             self::Online => 'آنلاین',
+            self::Wallet => 'کیف پول',
             self::Other => 'سایر',
         };
     }

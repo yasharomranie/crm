@@ -6,7 +6,9 @@ use App\Domain\Ticketing\TicketingException;
 use App\Domain\Ticketing\TicketIssuer;
 use App\Enums\PaymentMethod;
 use App\Enums\TicketSourceType;
+use App\Exceptions\InsufficientWalletBalanceException;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Models\Guest;
 use App\Models\Order;
 use App\Models\Product;
 use App\Models\TicketVariant;
@@ -16,6 +18,7 @@ use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The fast Product -> Variant -> Quantity -> Discount -> Payment -> Issue
@@ -174,28 +177,39 @@ class Cashier extends Page
                     );
                 }
             } else {
-                $order = $issuer->issue([
-                    'source_type' => TicketSourceType::Cashier,
-                    'items' => collect($this->cart)->map(fn ($line) => [
-                        'ticket_variant_id' => $line['ticket_variant_id'],
-                        'quantity' => $line['quantity'],
-                    ])->all(),
-                    'customer_name' => $this->customerName ?: null,
-                    'customer_phone' => $this->customerPhone ?: null,
-                    'discount_code' => $this->discountCode ?: null,
-                    'created_by' => Auth::id(),
-                ]);
-
-                if ($order->final_amount > 0) {
-                    $order->payments()->create([
-                        'method' => PaymentMethod::from($this->paymentMethod),
-                        'amount' => $order->final_amount,
-                        'status' => 'paid',
-                        'paid_at' => now(),
+                $order = DB::transaction(function () use ($issuer) {
+                    $order = $issuer->issue([
+                        'source_type' => TicketSourceType::Cashier,
+                        'items' => collect($this->cart)->map(fn ($line) => [
+                            'ticket_variant_id' => $line['ticket_variant_id'],
+                            'quantity' => $line['quantity'],
+                        ])->all(),
+                        'customer_name' => $this->customerName ?: null,
+                        'customer_phone' => $this->customerPhone ?: null,
+                        'discount_code' => $this->discountCode ?: null,
                         'created_by' => Auth::id(),
                     ]);
-                    $order->update(['amount_paid' => $order->final_amount]);
-                }
+
+                    if ($order->final_amount > 0) {
+                        $metadata = null;
+
+                        if ($this->paymentMethod === PaymentMethod::Wallet->value) {
+                            $metadata = ['guest_id' => $this->debitWalletForOrder($order)];
+                        }
+
+                        $order->payments()->create([
+                            'method' => PaymentMethod::from($this->paymentMethod),
+                            'amount' => $order->final_amount,
+                            'status' => 'paid',
+                            'paid_at' => now(),
+                            'metadata' => $metadata,
+                            'created_by' => Auth::id(),
+                        ]);
+                        $order->update(['amount_paid' => $order->final_amount]);
+                    }
+
+                    return $order;
+                });
             }
 
             $this->lastOrderId = $order->id;
@@ -205,6 +219,32 @@ class Cashier extends Page
         } catch (TicketingException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
         }
+    }
+
+    /**
+     * Wallet payment at the desk: the customer is found by the mobile
+     * number typed in, and the debit shares the sale's database
+     * transaction, so a refused payment leaves no order behind.
+     *
+     * @return int the guest whose wallet was charged
+     *
+     * @throws TicketingException
+     */
+    private function debitWalletForOrder(Order $order): int
+    {
+        $guest = filled($this->customerPhone) ? Guest::query()->where('mobile', trim($this->customerPhone))->first() : null;
+
+        if (! $guest) {
+            throw new TicketingException('برای پرداخت با کیف پول، شماره موبایل یک مشتری ثبت‌شده را وارد کنید.');
+        }
+
+        try {
+            $guest->debitWallet((int) $order->final_amount, "خرید بلیط در گیشه - {$order->order_number}");
+        } catch (InsufficientWalletBalanceException) {
+            throw new TicketingException('موجودی کیف پول این مشتری برای این خرید کافی نیست.');
+        }
+
+        return $guest->id;
     }
 
     public function getLastOrder(): ?Order

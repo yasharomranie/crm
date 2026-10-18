@@ -8,6 +8,7 @@ use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Exceptions\InsufficientWalletBalanceException;
 use App\Exceptions\RoomNotAvailableException;
 use App\Models\Concerns\HasTags;
 use Carbon\Carbon;
@@ -16,6 +17,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
+use Illuminate\Support\Facades\DB;
+use InvalidArgumentException;
 
 class Booking extends Model
 {
@@ -24,7 +27,7 @@ class Booking extends Model
     protected $fillable = [
         'reference_code', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
-        'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'notes', 'created_by',
+        'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
     ];
 
     protected function casts(): array
@@ -37,6 +40,7 @@ class Booking extends Model
             'status' => BookingStatus::class,
             'source' => BookingSource::class,
             'commission_amount' => 'decimal:0',
+            'wallet_paid_amount' => 'decimal:0',
         ];
     }
 
@@ -165,6 +169,47 @@ class Booking extends Model
     }
 
     /**
+     * What is still unpaid from the guest's wallet's point of view: the
+     * folio total minus what has already been paid out of the wallet.
+     * (Cash/card payments at the desk are not tracked on the folio.)
+     */
+    public function walletPayableAmount(): int
+    {
+        return max(0, $this->totalAmount() - (int) $this->wallet_paid_amount);
+    }
+
+    /**
+     * Pays part (or all) of the folio from the guest's wallet. The debit
+     * and the folio's wallet_paid_amount move together or not at all, and
+     * the amount can never exceed what is still payable or the balance.
+     *
+     * @throws InsufficientWalletBalanceException
+     * @throws InvalidArgumentException
+     */
+    public function payFromWallet(int $amount): WalletTransaction
+    {
+        if (in_array($this->status, [BookingStatus::Cancelled, BookingStatus::CheckedOut], true)) {
+            throw new InvalidArgumentException('برای رزرو لغوشده یا چک‌اوت‌شده نمی‌توان از کیف پول پرداخت کرد.');
+        }
+
+        return DB::transaction(function () use ($amount) {
+            $locked = static::query()->lockForUpdate()->with('charges')->findOrFail($this->getKey());
+
+            if ($amount <= 0 || $amount > $locked->walletPayableAmount()) {
+                throw new InvalidArgumentException('مبلغ باید بین ۱ و مانده‌ی قابل پرداخت صورت‌حساب باشد.');
+            }
+
+            $transaction = $locked->guest->debitWallet($amount, "پرداخت صورت‌حساب رزرو {$locked->reference_code}", $locked);
+
+            $locked->update(['wallet_paid_amount' => (int) $locked->wallet_paid_amount + $amount]);
+            $this->setAttribute('wallet_paid_amount', $locked->wallet_paid_amount);
+            $this->syncOriginalAttribute('wallet_paid_amount');
+
+            return $transaction;
+        });
+    }
+
+    /**
      * Fast check-in: mark the guest as arrived and free the room's
      * "reserved" state into "occupied".
      */
@@ -248,7 +293,10 @@ class Booking extends Model
 
     private function creditCashback(): void
     {
-        $amount = (int) round($this->totalAmount() * self::CASHBACK_RATE);
+        // Money that came out of the wallet earns no cashback, otherwise
+        // the same toman would be re-credited again and again.
+        $earningAmount = max(0, $this->totalAmount() - (int) $this->wallet_paid_amount);
+        $amount = (int) round($earningAmount * self::CASHBACK_RATE);
 
         if ($amount > 0) {
             $this->guest->creditWallet($amount, "کش‌بک رزرو {$this->reference_code}", $this);

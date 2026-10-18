@@ -4,6 +4,7 @@ namespace App\Http\Controllers\CustomerApp;
 
 use App\Domain\Ticketing\TicketingException;
 use App\Domain\Ticketing\TicketIssuer;
+use App\Enums\PaymentMethod;
 use App\Enums\TicketSourceType;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Http\Controllers\Controller;
@@ -73,6 +74,15 @@ class TicketController extends Controller
                 ]);
 
                 $guest->debitWallet((int) $order->final_amount, "خرید بلیط آنلاین - {$order->order_number}");
+
+                $order->payments()->create([
+                    'method' => PaymentMethod::Wallet,
+                    'amount' => $order->final_amount,
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'metadata' => ['guest_id' => $guest->id],
+                ]);
+                $order->update(['amount_paid' => $order->final_amount]);
             });
         } catch (TicketingException $exception) {
             return back()->withErrors(['ticket_variant_id' => $exception->getMessage()]);

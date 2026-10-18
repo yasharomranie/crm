@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
+use App\Exceptions\InsufficientWalletBalanceException;
 use App\Filament\Support\TableExports;
 use App\Models\Booking;
 use Filament\Actions\Action;
@@ -10,11 +11,14 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
+use InvalidArgumentException;
 
 class BookingsTable
 {
@@ -67,6 +71,39 @@ class BookingsTable
                             ->title('چک‌اوت ثبت شد و تسک نظافت ساخته شد')
                             ->success()
                             ->send();
+                    }),
+                Action::make('payFromWallet')
+                    ->label('پرداخت از کیف پول')
+                    ->icon(Heroicon::OutlinedWallet)
+                    ->color('success')
+                    ->visible(fn (Booking $record) => in_array($record->status, [BookingStatus::Pending, BookingStatus::Confirmed, BookingStatus::CheckedIn], true)
+                        && (int) $record->guest?->wallet_balance > 0
+                        && $record->walletPayableAmount() > 0)
+                    ->modalDescription(fn (Booking $record) => 'موجودی کیف پول: '.Number::toPersian(number_format((int) $record->guest->wallet_balance)).' تومان - مانده‌ی قابل پرداخت صورت‌حساب: '.Number::toPersian(number_format($record->walletPayableAmount())).' تومان. مبلغ پرداخت‌شده از کیف پول کش‌بک نمی‌گیرد.')
+                    ->fillForm(fn (Booking $record) => [
+                        'amount' => min((int) $record->guest->wallet_balance, $record->walletPayableAmount()),
+                    ])
+                    ->schema([
+                        TextInput::make('amount')
+                            ->label('مبلغ (تومان)')
+                            ->numeric()
+                            ->minValue(1)
+                            ->required(),
+                    ])
+                    ->action(function (Booking $record, array $data) {
+                        try {
+                            $record->payFromWallet((int) $data['amount']);
+                        } catch (InsufficientWalletBalanceException $exception) {
+                            Notification::make()->title($exception->getMessage())->danger()->send();
+
+                            return;
+                        } catch (InvalidArgumentException $exception) {
+                            Notification::make()->title($exception->getMessage())->danger()->send();
+
+                            return;
+                        }
+
+                        Notification::make()->title('پرداخت از کیف پول ثبت شد')->success()->send();
                     }),
                 EditAction::make(),
                 DeleteAction::make(),
