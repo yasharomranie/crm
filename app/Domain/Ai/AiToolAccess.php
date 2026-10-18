@@ -26,6 +26,9 @@ class AiToolAccess
         'get_cancellation_summary' => 'bookings',
         'get_channel_manager_summary' => 'sales-channels',
         'get_ticketing_sales_summary' => 'orders',
+        'search_orders' => 'orders',
+        'get_cashier_shifts' => 'orders',
+        'get_wallet_liability' => 'guests',
 
         'get_crm_summary' => 'guests',
         'get_guest_detail' => 'guests',
