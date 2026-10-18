@@ -286,20 +286,25 @@ class Booking extends Model
     }
 
     /**
-     * Loyalty cashback: a flat percentage of the folio total credited to
-     * the guest's wallet on checkout (doc2 5.3 "کیف پول و امتیاز خرید").
+     * Loyalty cashback credited to the guest's wallet on checkout
+     * (doc2 5.3 "کیف پول و امتیاز خرید"): the percentage depends on the
+     * guest's loyalty tier and the optional validity period, both set in
+     * WalletSetting.
      */
-    public const CASHBACK_RATE = 0.02;
-
     private function creditCashback(): void
     {
+        $settings = WalletSetting::current();
+        $percent = $settings->cashbackPercentFor($this->guest->loyaltyTier());
+
         // Money that came out of the wallet earns no cashback, otherwise
         // the same toman would be re-credited again and again.
         $earningAmount = max(0, $this->totalAmount() - (int) $this->wallet_paid_amount);
-        $amount = (int) round($earningAmount * self::CASHBACK_RATE);
+        $amount = (int) round($earningAmount * $percent / 100);
 
         if ($amount > 0) {
-            $this->guest->creditWallet($amount, "کش‌بک رزرو {$this->reference_code}", $this);
+            $expiresAt = $settings->cashback_expiry_days ? now()->addDays($settings->cashback_expiry_days) : null;
+
+            $this->guest->creditWallet($amount, "کش‌بک رزرو {$this->reference_code}", $this, $expiresAt);
         }
     }
 

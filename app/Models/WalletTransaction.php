@@ -8,13 +8,19 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
 class WalletTransaction extends Model
 {
-    protected $fillable = ['guest_id', 'booking_id', 'type', 'amount', 'reason', 'created_by'];
+    protected $fillable = [
+        'guest_id', 'booking_id', 'type', 'amount', 'reason', 'created_by',
+        'expires_at', 'expiry_reminded_at', 'expiry_processed_at', 'source_transaction_id',
+    ];
 
     protected function casts(): array
     {
         return [
             'type' => WalletTransactionType::class,
             'amount' => 'decimal:0',
+            'expires_at' => 'datetime',
+            'expiry_reminded_at' => 'datetime',
+            'expiry_processed_at' => 'datetime',
         ];
     }
 

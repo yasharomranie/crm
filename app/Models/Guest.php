@@ -8,6 +8,7 @@ use App\Enums\WalletTransactionType;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -153,17 +154,17 @@ class Guest extends Authenticatable
      * balance below zero - so two simultaneous spends cannot both succeed
      * on the same money, and the ledger always adds up to the balance.
      */
-    public function creditWallet(int $amount, string $reason, ?Booking $booking = null): WalletTransaction
+    public function creditWallet(int $amount, string $reason, ?Booking $booking = null, ?CarbonInterface $expiresAt = null): WalletTransaction
     {
-        return $this->applyWalletChange(WalletTransactionType::Credit, $amount, $reason, $booking);
+        return $this->applyWalletChange(WalletTransactionType::Credit, $amount, $reason, $booking, ['expires_at' => $expiresAt]);
     }
 
     /**
      * @throws InsufficientWalletBalanceException
      */
-    public function debitWallet(int $amount, string $reason, ?Booking $booking = null): WalletTransaction
+    public function debitWallet(int $amount, string $reason, ?Booking $booking = null, ?int $sourceTransactionId = null): WalletTransaction
     {
-        return $this->applyWalletChange(WalletTransactionType::Debit, $amount, $reason, $booking);
+        return $this->applyWalletChange(WalletTransactionType::Debit, $amount, $reason, $booking, ['source_transaction_id' => $sourceTransactionId]);
     }
 
     /**
@@ -179,13 +180,16 @@ class Guest extends Authenticatable
         return $credits - $debits;
     }
 
-    private function applyWalletChange(WalletTransactionType $type, int $amount, string $reason, ?Booking $booking): WalletTransaction
+    /**
+     * @param  array<string, mixed>  $extra  additional wallet_transactions columns
+     */
+    private function applyWalletChange(WalletTransactionType $type, int $amount, string $reason, ?Booking $booking, array $extra = []): WalletTransaction
     {
         if ($amount <= 0) {
             throw new InvalidArgumentException('مبلغ تراکنش کیف پول باید بیشتر از صفر باشد.');
         }
 
-        return DB::transaction(function () use ($type, $amount, $reason, $booking) {
+        return DB::transaction(function () use ($type, $amount, $reason, $booking, $extra) {
             $locked = static::query()->lockForUpdate()->findOrFail($this->getKey());
             $currentBalance = (int) $locked->wallet_balance;
 
@@ -199,6 +203,7 @@ class Guest extends Authenticatable
                 'amount' => $amount,
                 'reason' => $reason,
                 'created_by' => Auth::id(),
+                ...$extra,
             ]);
 
             $newBalance = $type === WalletTransactionType::Credit ? $currentBalance + $amount : $currentBalance - $amount;
