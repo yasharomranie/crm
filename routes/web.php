@@ -54,6 +54,8 @@ Route::middleware('auth')->group(function () {
         ->name('messages.attachment');
     Route::post('/messages/voice-note', [VoiceMessageController::class, 'store'])
         ->name('messages.voice-note.store');
+    Route::get('/admission-orders/{order}/print', [AdmissionTicketPrintController::class, 'order'])
+        ->name('admission-orders.print');
     Route::get('/admission-tickets/{ticket}/print', [AdmissionTicketPrintController::class, 'show'])
         ->name('admission-tickets.print');
     Route::get('/gate-scanner/{gate}/sync-package', [GateOfflineSyncController::class, 'pullPackage'])

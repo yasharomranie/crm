@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Enums\PrintType;
 use App\Models\AdmissionTicket;
+use App\Models\Order;
 use Illuminate\Http\Request;
 use Illuminate\View\View;
 
@@ -35,5 +36,23 @@ class AdmissionTicketPrintController extends Controller
         ]);
 
         return view('tickets.print', ['ticket' => $ticket]);
+    }
+
+    /**
+     * Every ticket of one sale on one page (each rendered by the single
+     * ticket page in an iframe, so templates and print logging behave
+     * exactly as for a single print), with an optional auto-print and an
+     * 80mm receipt-printer paper size.
+     */
+    public function order(Request $request, Order $order): View
+    {
+        abort_unless($request->user()?->can('cashier.access'), 403, 'شما مجاز به چاپ بلیت نیستید.');
+
+        return view('tickets.print-order', [
+            'order' => $order->load('items.tickets'),
+            'tickets' => $order->items->flatMap(fn ($item) => $item->tickets)->values(),
+            'autoPrint' => $request->boolean('auto'),
+            'thermal' => $request->query('paper') === 'thermal',
+        ]);
     }
 }
