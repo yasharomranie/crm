@@ -29,6 +29,7 @@ use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\TripPlannerSettings;
+use App\Filament\Pages\WalletLiabilityReport;
 use App\Filament\Pages\WalletSettings;
 use App\Filament\Pages\WebAppDomainSettings;
 use App\Filament\Pages\WhatsAppSettings;
@@ -189,6 +190,7 @@ return [
         'contract-assistant' => ['page' => ContractAssistant::class, 'label' => 'دستیار حقوقی و قرارداد', 'group' => 'حقوقی و قرارداد'],
         'periodic-form-report' => ['page' => PeriodicFormReport::class, 'label' => 'گزارش ادواری فرم‌ها', 'group' => 'فرم‌ساز و گردش‌کار'],
         'document-browser' => ['page' => DocumentArchiveBrowser::class, 'label' => 'بایگانی اسناد (فایل‌منیجر)', 'group' => 'مدیریت اسناد'],
+        'wallet-liability-report' => ['page' => WalletLiabilityReport::class, 'label' => 'گزارش بدهی کیف پول', 'group' => 'CRM و مشتریان'],
         'wallet-settings' => ['page' => WalletSettings::class, 'label' => 'تنظیمات کیف پول و کش‌بک', 'group' => 'CRM و مشتریان'],
         'sms-settings' => ['page' => SmsSettings::class, 'label' => 'تنظیمات پیامک', 'group' => 'زیرساخت سازمانی'],
         'production-deploy' => ['page' => ProductionDeploy::class, 'label' => 'دیپلوی سرور', 'group' => 'زیرساخت سازمانی'],
