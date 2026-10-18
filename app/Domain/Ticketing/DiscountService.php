@@ -2,6 +2,7 @@
 
 namespace App\Domain\Ticketing;
 
+use App\Domain\Crm\GuestDuplicateDetector;
 use App\Models\DiscountCode;
 use App\Models\Order;
 use App\Models\TicketVariant;
@@ -51,6 +52,13 @@ class DiscountService
             throw new TicketingException('مبلغ خرید کمتر از حداقل لازم برای این کد تخفیف است.');
         }
 
+        if ($discountCode->per_customer_usage_limit !== null && blank($customerPhone)) {
+            // Without a phone number the per-customer limit cannot be
+            // checked at all, which would let anyone skip it by leaving
+            // the field empty.
+            throw new TicketingException('برای استفاده از این کد تخفیف، شماره‌ی موبایل مشتری لازم است.');
+        }
+
         if ($customerPhone && $discountCode->per_customer_usage_limit !== null) {
             $customerUsages = $discountCode->usages()->where('customer_phone', $customerPhone)->count();
 
@@ -60,6 +68,19 @@ class DiscountService
         }
 
         return $discountCode;
+    }
+
+    /**
+     * The same person typed as 0912..., +98912... or in Persian digits must
+     * count as one customer for the per-customer limit.
+     */
+    public function normalizePhone(?string $phone): ?string
+    {
+        if (blank($phone)) {
+            return null;
+        }
+
+        return GuestDuplicateDetector::normalizeMobile($phone) ?? trim($phone);
     }
 
     public function variantIsEligible(DiscountCode $code, TicketVariant $variant): bool

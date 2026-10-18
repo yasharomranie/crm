@@ -55,7 +55,11 @@ class AdmissionTicket extends Model
         static::creating(function (self $ticket) {
             // Human-readable, sequential-looking, but NOT the QR secret -
             // see QrToken. TKT-<Ymd>-<6 random digits>, per section 14.
-            $ticket->ticket_number ??= 'TKT-'.now()->format('ymd').'-'.str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            // Six random digits per day collide eventually on a busy day,
+            // and ticket_number is unique - pick again instead of failing a sale.
+            while (blank($ticket->ticket_number) || static::where('ticket_number', $ticket->ticket_number)->exists()) {
+                $ticket->ticket_number = 'TKT-'.now()->format('ymd').'-'.str_pad((string) random_int(0, 999999), 6, '0', STR_PAD_LEFT);
+            }
         });
     }
 

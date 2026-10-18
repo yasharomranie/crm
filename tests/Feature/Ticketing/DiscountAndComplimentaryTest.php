@@ -124,9 +124,10 @@ class DiscountAndComplimentaryTest extends TestCase
             'discount_code' => $code->code,
         ]);
 
-        // The code is valid and gets "used", but discounts nothing since
-        // this order's variant isn't in its allow-list.
+        // The code is valid but discounts nothing since this order's
+        // variant isn't in its allow-list - so it is not used up either.
         $this->assertSame(100000, $order->final_amount);
+        $this->assertSame(0, $code->fresh()->used_count);
     }
 
     public function test_an_order_below_the_minimum_purchase_amount_is_rejected(): void

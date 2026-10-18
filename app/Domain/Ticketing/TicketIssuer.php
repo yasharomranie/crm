@@ -33,6 +33,9 @@ use Illuminate\Support\Facades\DB;
  */
 class TicketIssuer
 {
+    /** Guards against a typo (or a script) issuing thousands of tickets in one go. */
+    public const MAX_QUANTITY_PER_LINE = 200;
+
     public function __construct(private readonly DiscountService $discounts) {}
 
     public function issue(array $data): Order
@@ -60,6 +63,11 @@ class TicketIssuer
             foreach ($items as $item) {
                 $variant = TicketVariant::with('product')->findOrFail($item['ticket_variant_id']);
                 $quantity = max(1, (int) $item['quantity']);
+
+                if ($quantity > self::MAX_QUANTITY_PER_LINE) {
+                    throw new TicketingException('حداکثر '.self::MAX_QUANTITY_PER_LINE.' بلیت در هر قلم قابل صدور است.');
+                }
+
                 $price = $variant->currentPrice();
 
                 if (! $price) {
@@ -83,25 +91,35 @@ class TicketIssuer
 
             $discountCode = null;
             $discountTotal = 0;
+            $customerPhone = $this->discounts->normalizePhone($data['customer_phone'] ?? null);
 
             if (! empty($data['discount_code'])) {
                 $discountCode = $this->discounts->lockAndValidate(
                     $data['discount_code'],
                     $originalTotal,
-                    $data['customer_phone'] ?? null,
+                    $customerPhone,
                 );
             }
 
             foreach ($lines as &$line) {
-                $lineDiscount = 0;
+                $line['discount_amount'] = 0;
+            }
 
-                if ($discountCode && $this->discounts->variantIsEligible($discountCode, $line['variant'])) {
-                    $lineDiscount = $discountCode->calculateDiscount($line['original_amount']);
+            unset($line);
+
+            if ($discountCode) {
+                $discountTotal = $this->applyDiscount($discountCode, $lines);
+
+                // A code that matches none of the lines (restricted to
+                // other products) discounts nothing, so it must not use
+                // up one of its limited uses either.
+                if ($discountTotal === 0) {
+                    $discountCode = null;
                 }
+            }
 
-                $line['discount_amount'] = $lineDiscount;
-                $line['final_amount'] = $line['original_amount'] - $lineDiscount;
-                $discountTotal += $lineDiscount;
+            foreach ($lines as &$line) {
+                $line['final_amount'] = $line['original_amount'] - $line['discount_amount'];
             }
 
             unset($line);
@@ -148,7 +166,7 @@ class TicketIssuer
             }
 
             if ($discountCode) {
-                $this->discounts->recordUsage($discountCode, $order, $discountTotal, $data['customer_phone'] ?? null);
+                $this->discounts->recordUsage($discountCode, $order, $discountTotal, $customerPhone);
             }
 
             $order->update([
@@ -163,6 +181,40 @@ class TicketIssuer
 
             return $order->fresh(['items.tickets.qrToken', 'items.ticketVariant', 'items.product']);
         });
+    }
+
+    /**
+     * The code's discount is worked out once for the whole set of lines it
+     * applies to (so a fixed amount is taken off the order once, and a
+     * maximum discount caps the order, not each line), then shared out
+     * between those lines in proportion to their price.
+     *
+     * @param  array<int, array<string, mixed>>  $lines
+     * @return int the total discount given
+     */
+    private function applyDiscount(DiscountCode $code, array &$lines): int
+    {
+        $eligible = array_keys(array_filter($lines, fn (array $line) => $this->discounts->variantIsEligible($code, $line['variant'])));
+
+        if ($eligible === []) {
+            return 0;
+        }
+
+        $eligibleSubtotal = array_sum(array_map(fn (int $index) => $lines[$index]['original_amount'], $eligible));
+        $total = $code->calculateDiscount($eligibleSubtotal);
+        $allocated = 0;
+        $lastIndex = end($eligible);
+
+        foreach ($eligible as $index) {
+            $share = $index === $lastIndex
+                ? $total - $allocated
+                : (int) floor($total * $lines[$index]['original_amount'] / $eligibleSubtotal);
+
+            $lines[$index]['discount_amount'] = $share;
+            $allocated += $share;
+        }
+
+        return $total;
     }
 
     /**

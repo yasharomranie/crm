@@ -14,6 +14,7 @@ use App\Models\QrToken;
 use App\Models\TicketUsageLog;
 use App\Models\User;
 use Illuminate\Database\QueryException;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -66,7 +67,9 @@ class GateValidationService
             return $this->reject($ticket, $gate, $user, null, GateRejectionReason::Blocked, $context);
         }
 
-        $now = now();
+        // A scan replayed after the device was offline is judged at the
+        // time the person actually stood at the gate, not at sync time.
+        $now = $this->effectiveScanTime($context);
 
         if ($now->lessThan($ticket->valid_from)) {
             return $this->reject($ticket, $gate, $user, null, GateRejectionReason::NotYetValid, $context);
@@ -100,6 +103,34 @@ class GateValidationService
         }
 
         return $this->consume($ticket, $gate, $user, $matchedRule, $nextUsageNumber, $context);
+    }
+
+    /**
+     * How far back an offline scan's own timestamp is trusted. Scanner
+     * clocks are not guaranteed to be right, so a claimed time is never
+     * accepted from the future, nor from further back than this.
+     */
+    public const MAX_OFFLINE_SCAN_AGE_HOURS = 72;
+
+    private function effectiveScanTime(array $context): Carbon
+    {
+        $now = now();
+
+        if (empty($context['scanned_at'])) {
+            return $now;
+        }
+
+        try {
+            $claimed = Carbon::parse($context['scanned_at']);
+        } catch (\Throwable) {
+            return $now;
+        }
+
+        if ($claimed->greaterThan($now) || $claimed->lessThan($now->copy()->subHours(self::MAX_OFFLINE_SCAN_AGE_HOURS))) {
+            return $now;
+        }
+
+        return $claimed;
     }
 
     private function findMatchingRule(Gate $gate, AdmissionTicket $ticket, int $nextUsageNumber): ?GateRule
@@ -206,7 +237,7 @@ class GateValidationService
             'device_identifier' => $context['device_identifier'] ?? null,
             'ip_address' => $context['ip_address'] ?? null,
             'metadata' => $context['metadata'] ?? null,
-            'scanned_at' => now(),
+            'scanned_at' => $this->effectiveScanTime($context),
         ]);
 
         $this->webhooks->dispatch(

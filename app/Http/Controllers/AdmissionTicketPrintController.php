@@ -18,6 +18,10 @@ class AdmissionTicketPrintController extends Controller
 {
     public function show(Request $request, AdmissionTicket $ticket): View
     {
+        // A printed ticket shows its QR secret, so being signed in is not
+        // enough: only people who sell tickets at the desk may print them.
+        abort_unless($request->user()?->can('cashier.access'), 403, 'شما مجاز به چاپ بلیت نیستید.');
+
         $ticket->load(['ticketVariant.product', 'qrToken', 'ticketTemplateVersion.elements', 'orderItem.order']);
 
         $isReprint = $ticket->printLogs()->exists();

@@ -9,8 +9,10 @@ use App\Enums\GateScanResult;
 use App\Models\AdmissionTicket;
 use App\Models\Gate;
 use App\Models\GateOfflineScanSync;
+use App\Models\GateRule;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Collection;
 
 /**
  * Backs the Gate Scanner page's offline mode (messenger.blade.php's
@@ -41,6 +43,9 @@ class GateOfflineSyncController extends Controller
         // ticket that isn't valid *yet* may well become valid while this
         // device is offline (e.g. a multi-day pass synced the day before).
         $tickets = AdmissionTicket::query()
+            ->when($this->ruleScope($rules), fn ($query, array $scope) => $query->whereHas('ticketVariant', fn ($variants) => $variants->where(fn ($either) => $either
+                ->whereIn('ticket_variants.id', $scope['variants'])
+                ->orWhereIn('ticket_variants.product_id', $scope['products']))))
             ->whereNotIn('status', [
                 AdmissionTicketStatus::Cancelled,
                 AdmissionTicketStatus::Refunded,
@@ -73,6 +78,28 @@ class GateOfflineSyncController extends Controller
             ])->filter(fn ($ticket) => $ticket['token'] !== null)->values(),
             'synced_at' => now()->toIso8601String(),
         ]);
+    }
+
+    /**
+     * The products/variants this gate can admit at all, so the offline
+     * package only carries tickets that gate could ever accept instead of
+     * every ticket in the system. Null (no filtering) as soon as any rule
+     * is unrestricted - and also when the gate has no rules, where nothing
+     * could be admitted anyway but the package stays harmless.
+     *
+     * @param  Collection<int, GateRule>  $rules
+     * @return array{products: list<int>, variants: list<int>}|null
+     */
+    private function ruleScope($rules): ?array
+    {
+        if ($rules->isEmpty() || $rules->contains(fn ($rule) => $rule->product_id === null && $rule->ticket_variant_id === null)) {
+            return null;
+        }
+
+        return [
+            'products' => $rules->pluck('product_id')->filter()->unique()->values()->all(),
+            'variants' => $rules->pluck('ticket_variant_id')->filter()->unique()->values()->all(),
+        ];
     }
 
     public function pushScans(Request $request, Gate $gate): JsonResponse
@@ -108,6 +135,7 @@ class GateOfflineSyncController extends Controller
             $result = app(GateValidationService::class)->scan($scan['qr_token'], $gate, $request->user(), [
                 'device_identifier' => $request->header('X-Device-Id'),
                 'ip_address' => $request->ip(),
+                'scanned_at' => $scan['scanned_at'],
                 'metadata' => ['offline_sync' => true, 'client_scanned_at' => $scan['scanned_at']],
             ]);
 
