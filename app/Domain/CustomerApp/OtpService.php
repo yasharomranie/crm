@@ -3,6 +3,7 @@
 namespace App\Domain\CustomerApp;
 
 use App\Models\GuestOtpCode;
+use App\Support\MobileNumber;
 use App\Support\SmsGateway;
 
 /**
@@ -24,6 +25,8 @@ class OtpService
 
     public function requestOtp(string $mobile): GuestOtpCode
     {
+        $mobile = MobileNumber::canonical($mobile) ?? $mobile;
+
         // Previous outstanding codes for this number are no longer usable
         // once a new one is requested - otherwise an old, still-unexpired
         // code sitting in an intercepted SMS stays valid indefinitely.
@@ -42,6 +45,8 @@ class OtpService
 
     public function verifyOtp(string $mobile, string $code): bool
     {
+        $mobile = MobileNumber::canonical($mobile) ?? $mobile;
+
         $otp = GuestOtpCode::where('mobile', $mobile)
             ->whereNull('consumed_at')
             ->latest('id')

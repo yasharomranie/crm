@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\CustomerAppAuthSetting;
 use App\Models\CustomerAppGoogleSetting;
 use App\Models\Guest;
+use App\Support\MobileNumber;
 use Illuminate\Contracts\View\View;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -50,9 +51,11 @@ class AuthController extends Controller
 
         $data = $request->validate(['mobile' => ['required', 'string', 'max:32']]);
 
-        $this->otp->requestOtp($data['mobile']);
+        $mobile = MobileNumber::canonical($data['mobile']);
 
-        return redirect()->route('customer-app.auth.login', ['step' => 'otp', 'mobile' => $data['mobile']]);
+        $this->otp->requestOtp($mobile);
+
+        return redirect()->route('customer-app.auth.login', ['step' => 'otp', 'mobile' => $mobile]);
     }
 
     public function verifyOtp(Request $request): RedirectResponse
@@ -64,13 +67,15 @@ class AuthController extends Controller
             'code' => ['required', 'string'],
         ]);
 
-        if (! $this->otp->verifyOtp($data['mobile'], $data['code'])) {
+        $mobile = MobileNumber::canonical($data['mobile']);
+
+        if (! $this->otp->verifyOtp($mobile, $data['code'])) {
             throw ValidationException::withMessages(['code' => 'کد وارد شده نادرست یا منقضی شده است.']);
         }
 
         $guest = Guest::firstOrCreate(
-            ['mobile' => $data['mobile']],
-            ['name' => $data['mobile']],
+            ['mobile' => $mobile],
+            ['name' => $mobile],
         );
 
         if (! $guest->mobile_verified_at) {
@@ -83,6 +88,9 @@ class AuthController extends Controller
     public function register(Request $request): RedirectResponse
     {
         abort_unless(CustomerAppAuthSetting::current()->password_enabled, 403, 'ورود با رمز عبور غیرفعال است.');
+
+        // Normalised first, so the unique check sees the one stored spelling.
+        $request->merge(['mobile' => MobileNumber::canonical((string) $request->input('mobile'))]);
 
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
@@ -109,8 +117,9 @@ class AuthController extends Controller
         ]);
 
         $field = filter_var($data['login'], FILTER_VALIDATE_EMAIL) ? 'email' : 'mobile';
+        $login = $field === 'mobile' ? MobileNumber::canonical($data['login']) : $data['login'];
 
-        if (! Auth::guard('customer')->attempt([$field => $data['login'], 'password' => $data['password']], remember: true)) {
+        if (! Auth::guard('customer')->attempt([$field => $login, 'password' => $data['password']], remember: true)) {
             throw ValidationException::withMessages(['login' => 'شماره موبایل/ایمیل یا رمز عبور نادرست است.']);
         }
 

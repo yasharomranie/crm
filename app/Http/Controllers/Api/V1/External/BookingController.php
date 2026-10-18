@@ -12,6 +12,7 @@ use App\Models\ExternalApiClient;
 use App\Models\Guest;
 use App\Models\IdempotencyKey;
 use App\Models\Room;
+use App\Support\MobileNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -99,7 +100,7 @@ class BookingController extends Controller
                 Booking::assertRoomAvailable($room, $checkIn, $checkOut);
 
                 $guest = Guest::firstOrCreate(
-                    ['mobile' => $data['guest']['mobile']],
+                    ['mobile' => MobileNumber::canonical($data['guest']['mobile'])],
                     [
                         'name' => $data['guest']['name'],
                         'national_code' => $data['guest']['national_code'] ?? null,

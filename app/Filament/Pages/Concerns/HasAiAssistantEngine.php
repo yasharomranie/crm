@@ -91,6 +91,7 @@ use App\Models\WorkflowAction;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkflowInstance;
 use App\Models\WorkflowStep;
+use App\Support\MobileNumber;
 use Filament\Notifications\Notification;
 use Filament\Resources\Resource;
 use Illuminate\Database\Eloquent\Builder;
@@ -2679,7 +2680,7 @@ trait HasAiAssistantEngine
         }
 
         return Guest::query()->where('name', $name)->first()
-            ?? Guest::query()->where('mobile', $name)->first()
+            ?? (($canonicalMobile = MobileNumber::canonical($name)) ? Guest::query()->where('mobile', $canonicalMobile)->first() : null)
             ?? Guest::query()->where('name', 'like', "%{$name}%")->first();
     }
 
@@ -2734,7 +2735,7 @@ trait HasAiAssistantEngine
         }
 
         if ($mobile !== '') {
-            $query->where('mobile', 'like', "%{$mobile}%");
+            $query->where('mobile', 'like', '%'.MobileNumber::searchFragment($mobile).'%');
         }
 
         // Combine freely: "customers with a cancelled booking who still hold

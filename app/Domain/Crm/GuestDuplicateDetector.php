@@ -3,6 +3,7 @@
 namespace App\Domain\Crm;
 
 use App\Models\Guest;
+use App\Support\MobileNumber;
 use Illuminate\Support\Collection;
 
 /**
@@ -85,20 +86,7 @@ class GuestDuplicateDetector
      */
     public static function normalizeMobile(?string $mobile): ?string
     {
-        if ($mobile === null) {
-            return null;
-        }
-
-        $digits = preg_replace('/\D+/', '', LeadCaptureService::normalizeMobile($mobile));
-
-        $digits = match (true) {
-            str_starts_with($digits, '0098') => '0'.substr($digits, 4),
-            str_starts_with($digits, '98') && strlen($digits) === 12 => '0'.substr($digits, 2),
-            strlen($digits) === 10 && str_starts_with($digits, '9') => '0'.$digits,
-            default => $digits,
-        };
-
-        return preg_match('/^09\d{9}$/', $digits) ? $digits : null;
+        return MobileNumber::normalize($mobile);
     }
 
     public static function normalizeEmail(?string $email): ?string
