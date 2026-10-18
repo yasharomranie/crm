@@ -7,13 +7,20 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Spatie\Activitylog\Models\Concerns\LogsActivity;
+use Spatie\Activitylog\Support\LogOptions;
 
 class Gate extends Model
 {
     /** @use HasFactory<GateFactory> */
-    use HasFactory;
+    use HasFactory, LogsActivity;
 
-    protected $fillable = ['name', 'code', 'product_id', 'description', 'is_active'];
+    public function getActivitylogOptions(): LogOptions
+    {
+        return LogOptions::defaults()->logAll()->logOnlyDirty()->useLogName('gate');
+    }
+
+    protected $fillable = ['name', 'code', 'product_id', 'kind', 'description', 'is_active'];
 
     protected function casts(): array
     {

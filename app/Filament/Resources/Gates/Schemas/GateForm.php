@@ -23,6 +23,12 @@ class GateForm
                     ->required()
                     ->unique(ignoreRecord: true)
                     ->maxLength(50),
+                Select::make('kind')
+                    ->label('نوع گیت')
+                    ->options(['both' => 'ورود و خروج', 'entry' => 'فقط ورود', 'exit' => 'فقط خروج'])
+                    ->default('both')
+                    ->required()
+                    ->helperText('برای شمارنده‌ی «چند نفر الان داخل هستند» لازم است: ورود +۱ و خروج -۱ حساب می‌شود.'),
                 Select::make('product_id')
                     ->label('محصول (خالی = عمومی)')
                     ->relationship('product', 'name')

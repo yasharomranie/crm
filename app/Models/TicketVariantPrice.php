@@ -19,7 +19,7 @@ class TicketVariantPrice extends Model
         return LogOptions::defaults()->logAll()->useLogName('ticket_variant_price');
     }
 
-    protected $fillable = ['ticket_variant_id', 'amount', 'currency', 'effective_from', 'effective_until', 'created_by'];
+    protected $fillable = ['ticket_variant_id', 'amount', 'currency', 'applies_to', 'effective_from', 'effective_until', 'created_by'];
 
     protected function casts(): array
     {

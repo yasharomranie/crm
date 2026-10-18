@@ -17,7 +17,7 @@ class OrderFactory extends Factory
             'source_type' => TicketSourceType::Cashier,
             'original_amount' => 0,
             'final_amount' => 0,
-            'currency' => 'IRR',
+            'currency' => config('ticketing.currency', 'IRT'),
         ];
     }
 }

@@ -54,14 +54,17 @@ class TicketIssuer
                 'customer_name' => $data['customer_name'] ?? null,
                 'customer_phone' => $data['customer_phone'] ?? null,
                 'created_by' => $data['created_by'] ?? null,
-                'currency' => 'IRR',
+                'currency' => config('ticketing.currency', 'IRT'),
             ]);
 
             $lines = [];
             $originalTotal = 0;
+            $requestedByVariant = [];
 
             foreach ($items as $item) {
-                $variant = TicketVariant::with('product')->findOrFail($item['ticket_variant_id']);
+                // Locked for this transaction: two sales racing for the last
+                // places of a limited ticket type must queue up, not both pass.
+                $variant = TicketVariant::with('product')->lockForUpdate()->findOrFail($item['ticket_variant_id']);
                 $quantity = max(1, (int) $item['quantity']);
 
                 if ($quantity > self::MAX_QUANTITY_PER_LINE) {
@@ -76,6 +79,17 @@ class TicketIssuer
 
                 if (! $variant->is_active || ! $variant->product->is_active) {
                     throw new TicketingException("«{$variant->name}» در حال حاضر برای فروش فعال نیست.");
+                }
+
+                if ($variant->requires_customer_info && (blank($data['customer_name'] ?? null) || blank($data['customer_phone'] ?? null))) {
+                    throw new TicketingException("برای «{$variant->name}» ثبت نام و شماره‌ی تماس خریدار الزامی است.");
+                }
+
+                $requestedByVariant[$variant->id] = ($requestedByVariant[$variant->id] ?? 0) + $quantity;
+                $remaining = $variant->remainingToday();
+
+                if ($remaining !== null && $requestedByVariant[$variant->id] > $remaining) {
+                    throw new TicketingException("ظرفیت فروش امروز «{$variant->name}» کافی نیست (باقی‌مانده: {$remaining}).");
                 }
 
                 $lineOriginal = $price->amount * $quantity;
@@ -140,7 +154,12 @@ class TicketIssuer
 
                 $activeVersion = $variant->ticketTemplate?->activeVersion();
                 $validFrom = now();
-                $validUntil = $validFrom->copy()->addDays($variant->default_validity_days);
+                // "End of day" tickets last until 23:59:59 of the last
+                // valid day (a one-day ticket bought at 15:00 works until
+                // midnight), instead of exactly N x 24 hours from purchase.
+                $validUntil = $variant->validity_end_of_day
+                    ? $validFrom->copy()->addDays(max(0, $variant->default_validity_days - 1))->endOfDay()
+                    : $validFrom->copy()->addDays($variant->default_validity_days);
 
                 for ($i = 0; $i < $line['quantity']; $i++) {
                     $ticket = AdmissionTicket::create([
@@ -179,7 +198,12 @@ class TicketIssuer
                 'final_amount' => $originalTotal - $discountTotal,
             ]);
 
-            return $order->fresh(['items.tickets.qrToken', 'items.ticketVariant', 'items.product']);
+            $order = $order->fresh(['items.tickets.qrToken', 'items.ticketVariant', 'items.product']);
+
+            // The CRM entry is a courtesy: it must never be the reason a sale fails.
+            rescue(fn () => app(TicketCrmLink::class)->record($order));
+
+            return $order;
         });
     }
 

@@ -27,7 +27,7 @@ class AdmissionTicket extends Model
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()
-            ->logOnly(['status', 'used_uses', 'cancelled_at', 'cancellation_reason'])
+            ->logOnly(['status', 'used_uses', 'cancelled_at', 'cancellation_reason', 'blocked_reason'])
             ->logOnlyDirty()
             ->useLogName('admission_ticket');
     }
@@ -36,7 +36,7 @@ class AdmissionTicket extends Model
         'ticket_number', 'order_item_id', 'ticket_variant_id', 'status',
         'allowed_uses', 'used_uses', 'valid_from', 'valid_until', 'source_type',
         'ticket_template_version_id', 'customer_name', 'customer_phone', 'external_ticket_id',
-        'cancelled_by', 'cancelled_at', 'cancellation_reason',
+        'cancelled_by', 'cancelled_at', 'cancellation_reason', 'blocked_reason',
     ];
 
     protected function casts(): array

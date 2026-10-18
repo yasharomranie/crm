@@ -22,7 +22,7 @@
                         <option value="">نوع بلیت</option>
                         @foreach ($variants as $variant)
                             <option value="{{ $variant->id }}">
-                                {{ $variant->name }} - {{ number_format($variant->currentPrice()?->amount ?? 0) }} ریال
+                                {{ $variant->name }} - {{ number_format($variant->currentPrice()?->amount ?? 0) }} تومان
                             </option>
                         @endforeach
                     </select>
@@ -46,7 +46,7 @@
                     <div class="flex items-center justify-between border-b border-gray-100 py-2 text-sm last:border-0 dark:border-white/5">
                         <span>{{ $line['label'] }} × {{ \Illuminate\Support\Number::toPersian($line['quantity']) }}</span>
                         <span class="flex items-center gap-3">
-                            <span class="font-medium">{{ number_format($line['unit_price'] * $line['quantity']) }} ریال</span>
+                            <span class="font-medium">{{ number_format($line['unit_price'] * $line['quantity']) }} تومان</span>
                             <button type="button" wire:click="removeFromCart({{ $index }})" class="text-danger-600 hover:underline">حذف</button>
                         </span>
                     </div>
@@ -57,7 +57,7 @@
                 @if (! empty($cart))
                     <div class="mt-3 flex items-center justify-between border-t border-gray-200 pt-3 text-sm font-semibold dark:border-white/10">
                         <span>جمع کل</span>
-                        <span>{{ number_format($this->cartTotal()) }} ریال</span>
+                        <span>{{ number_format($this->cartTotal()) }} تومان</span>
                     </div>
                 @endif
             </div>

@@ -50,6 +50,16 @@ class TicketVariantForm
                     ->minValue(1)
                     ->default(1)
                     ->required(),
+                Toggle::make('validity_end_of_day')
+                    ->label('اعتبار تا پایان روزِ آخر')
+                    ->helperText('روشن: بلیت یک‌روزه‌ای که ساعت ۱۵ خریده شود تا ۲۳:۵۹ همان روز اعتبار دارد. خاموش: دقیقاً ۲۴ ساعت × تعداد روز از لحظه‌ی خرید.'),
+                TextInput::make('daily_capacity')
+                    ->label('سقف فروش روزانه (خالی = نامحدود)')
+                    ->numeric()
+                    ->minValue(1)
+                    ->helperText('وقتی پر شود، فروش همین نوع بلیت تا فردا متوقف می‌شود؛ بلیتِ لغو/مسترد، جایش را آزاد می‌کند.'),
+                Toggle::make('requires_customer_info')
+                    ->label('نام و موبایل خریدار الزامی باشد'),
                 Select::make('ticket_template_id')
                     ->label('قالب چاپ بلیت')
                     ->options(fn () => TicketTemplate::query()->pluck('name', 'id'))
