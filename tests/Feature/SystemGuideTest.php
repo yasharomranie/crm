@@ -43,4 +43,18 @@ class SystemGuideTest extends TestCase
     {
         $this->get('/api-docs')->assertRedirect('/system-guide#ch-13');
     }
+
+    public function test_the_guide_covers_the_customer_app_and_the_trip_planner(): void
+    {
+        $this->actingAs(User::factory()->create())
+            ->get(route('system-guide'))
+            ->assertOk()
+            ->assertSee('وب‌اپ مشتریان (گنجنامه)')
+            ->assertSee('دامنه اختصاصی')
+            ->assertSee('تریپ‌پلنر')
+            ->assertSee('ساعت ویژه‌ی بعضی روزها')
+            ->assertSee('گزارش‌های زمان‌بندی‌شده')
+            ->assertSee('مشتریان تکراری')
+            ->assertSee('گزارش بدهی کیف پول');
+    }
 }
