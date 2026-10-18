@@ -30,7 +30,7 @@ class Attraction extends Model
         'name', 'slug', 'category', 'description', 'image', 'lat', 'lng', 'address',
         'avg_visit_minutes', 'opens_at', 'closes_at', 'closed_from', 'closed_until',
         'boost_weight', 'admin_note', 'is_active', 'sort_order', 'created_by', 'updated_by',
-        'closed_weekdays', 'entry_fee', 'phone', 'kid_friendly', 'senior_friendly', 'has_parking',
+        'closed_weekdays', 'weekday_hours', 'entry_fee', 'phone', 'kid_friendly', 'senior_friendly', 'has_parking',
         'best_time_note', 'product_id', 'source', 'verified_at',
     ];
 
@@ -46,6 +46,7 @@ class Attraction extends Model
             'closed_from' => 'date',
             'closed_until' => 'date',
             'closed_weekdays' => 'array',
+            'weekday_hours' => 'array',
             'entry_fee' => 'integer',
             'kid_friendly' => 'boolean',
             'senior_friendly' => 'boolean',
@@ -120,6 +121,26 @@ class Attraction extends Model
         return $this->closed_from && $this->closed_until
             && $carbon->toDateString() >= $this->closed_from->toDateString()
             && $carbon->toDateString() <= $this->closed_until->toDateString();
+    }
+
+    /**
+     * The opening hours that apply on a date: the weekday's own hours when
+     * the admin set some for it (Friday opens late, Thursday closes early),
+     * otherwise the place's usual opens_at / closes_at.
+     *
+     * @return array{opens_at: ?string, closes_at: ?string}
+     */
+    public function hoursOn(\DateTimeInterface $date): array
+    {
+        $weekday = Carbon::instance($date)->dayOfWeek;
+
+        foreach ($this->weekday_hours ?? [] as $entry) {
+            if (is_array($entry) && (int) ($entry['weekday'] ?? -1) === $weekday) {
+                return ['opens_at' => $entry['opens_at'] ?? null, 'closes_at' => $entry['closes_at'] ?? null];
+            }
+        }
+
+        return ['opens_at' => $this->opens_at, 'closes_at' => $this->closes_at];
     }
 
     public function product(): BelongsTo

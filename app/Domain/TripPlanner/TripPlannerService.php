@@ -430,7 +430,7 @@ class TripPlannerService
 
             قوانین اجباری:
             - فقط از شناسه‌های (attraction_id) داده‌شده در لیست جاذبه‌ها استفاده کن؛ هیچ جاذبه‌ای خارج از این لیست پیشنهاد نده و هیچ جاذبه‌ای را دوبار نیاور.
-            - ساعات کاری هر جاذبه و روزهای تعطیل هفتگی‌اش (closed_weekdays) را رعایت کن؛ روز هفته‌ی هر روز سفر در پیام آمده است.
+            - ساعات کاری هر جاذبه و روزهای تعطیل هفتگی‌اش (closed_weekdays) را رعایت کن؛ اگر برای روزی در weekday_hours ساعت ویژه آمده، در آن روز به‌جای opens_at/closes_at همان را رعایت کن؛ روز هفته‌ی هر روز سفر در پیام آمده است.
             - بین پایان یک بازدید و شروع بعدی زمان واقعی جابه‌جایی را بگذار؛ جاذبه‌های نزدیک به هم (lat/lng) را در یک روز بیاور.
             - روزها را با تعهدات قبلی مهمان (رزرو اقامت، بلیط) تداخل نده و رویدادهای ذکرشده را در نظر بگیر.
             - برنامه باید واقعاً قابل‌اجرا باشد - نه بیش از حد فشرده و نه خیلی خلوت؛ به مدت بازدید پیشنهادی هر جاذبه (avg_visit_minutes) و سرعت گشت درخواستی مهمان توجه کن.
@@ -455,6 +455,13 @@ class TripPlannerService
             'avg_visit_minutes' => $attraction->avg_visit_minutes,
             'opens_at' => $attraction->opens_at,
             'closes_at' => $attraction->closes_at,
+            'weekday_hours' => collect($attraction->weekday_hours ?? [])
+                ->filter(fn ($entry) => is_array($entry) && isset($weekdays[(int) ($entry['weekday'] ?? -1)]))
+                ->map(fn (array $entry) => [
+                    'day' => $weekdays[(int) $entry['weekday']],
+                    'opens_at' => $entry['opens_at'] ?? null,
+                    'closes_at' => $entry['closes_at'] ?? null,
+                ])->values()->all(),
             'closed_weekdays' => collect($attraction->closed_weekdays ?? [])->map(fn ($day) => $weekdays[(int) $day] ?? null)->filter()->values()->all(),
             'entry_fee' => $attraction->entry_fee,
             'kid_friendly' => $attraction->kid_friendly,

@@ -101,8 +101,9 @@ class TripPlanNormalizer
                     continue;
                 }
 
-                $opensAt = self::toMinutes($attraction->opens_at);
-                $closesAt = self::toMinutes($attraction->closes_at);
+                $hours = $attraction->hoursOn($date);
+                $opensAt = self::toMinutes($hours['opens_at']);
+                $closesAt = self::toMinutes($hours['closes_at']);
 
                 $start = max($candidate['start'], self::DAY_START, $opensAt ?? 0);
                 $travel = null;
