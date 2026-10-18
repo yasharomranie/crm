@@ -22,6 +22,7 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class AiProviderResource extends Resource
 {
@@ -120,6 +121,30 @@ class AiProviderResource extends Resource
                         $record->update(['default_model' => $data['model']]);
 
                         Notification::make()->title('مدل پیش‌فرض به‌روزرسانی شد.')->success()->send();
+                    }),
+                Action::make('testConnection')
+                    ->label('آزمایش اتصال')
+                    ->icon(Heroicon::OutlinedSignal)
+                    ->action(function (AiProvider $record) {
+                        $startedAt = microtime(true);
+
+                        try {
+                            $record->chatCompletion([['role' => 'user', 'content' => 'فقط بنویس: آماده']]);
+                        } catch (AiProviderException $exception) {
+                            Notification::make()
+                                ->title('اتصال برقرار نشد')
+                                ->body($exception->getMessage())
+                                ->danger()
+                                ->send();
+
+                            return;
+                        }
+
+                        Notification::make()
+                            ->title('اتصال برقرار است')
+                            ->body(sprintf('مدل «%s» در %s ثانیه پاسخ داد.', $record->default_model, Number::toPersian(number_format(microtime(true) - $startedAt, 1))))
+                            ->success()
+                            ->send();
                     }),
                 EditAction::make(),
                 DeleteAction::make(),

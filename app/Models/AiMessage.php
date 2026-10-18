@@ -13,6 +13,7 @@ class AiMessage extends Model
 
     protected $fillable = [
         'ai_conversation_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'chart', 'feedback',
+        'prompt_tokens', 'completion_tokens',
     ];
 
     protected function casts(): array

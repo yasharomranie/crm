@@ -6,6 +6,7 @@ use App\Domain\Ai\AiPageContextResolver;
 use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\MarkdownTables;
+use App\Domain\Ticketing\TicketingReport;
 use App\Domain\TripPlanner\TripPlannerReport;
 use App\Enums\AiMessageRole;
 use App\Enums\ApproverType;
@@ -341,6 +342,7 @@ trait HasAiAssistantEngine
                 // loop (tool execution happens strictly before the NEXT
                 // round reaches here) is guaranteed.
                 'chart' => $toolCalls ? null : $this->pendingChart,
+                ...$this->tokenUsage($provider),
             ]);
 
             $messages[] = $assistantMessage;
@@ -384,6 +386,17 @@ trait HasAiAssistantEngine
     }
 
     /**
+     * @return array{prompt_tokens: ?int, completion_tokens: ?int} what the provider billed for the call just made
+     */
+    private function tokenUsage(AiProvider $provider): array
+    {
+        return [
+            'prompt_tokens' => isset($provider->lastUsage['prompt_tokens']) ? (int) $provider->lastUsage['prompt_tokens'] : null,
+            'completion_tokens' => isset($provider->lastUsage['completion_tokens']) ? (int) $provider->lastUsage['completion_tokens'] : null,
+        ];
+    }
+
+    /**
      * The turn ran out of rounds or time while the model still wanted tools.
      * Instead of failing, ask once more with no tools offered so it answers
      * with what it already fetched and says what it could not finish.
@@ -405,6 +418,7 @@ trait HasAiAssistantEngine
                     'role' => AiMessageRole::Assistant,
                     'content' => $final['content'],
                     'chart' => $this->pendingChart,
+                    ...$this->tokenUsage($provider),
                 ]);
 
                 return;
@@ -658,6 +672,7 @@ trait HasAiAssistantEngine
             'get_revenue_by_room_type' => $this->revenueByRoomTypeTool($arguments),
             'get_booking_source_breakdown' => $this->bookingSourceBreakdownTool($arguments),
             'get_cancellation_summary' => $this->cancellationSummaryTool($arguments),
+            'get_ticketing_sales_summary' => $this->ticketingSalesSummaryTool($arguments),
             'get_crm_summary' => $this->crmSummary(),
             'get_guest_detail' => $this->guestDetailTool($arguments),
             'search_guests' => $this->searchGuestsTool($arguments),
@@ -786,6 +801,13 @@ trait HasAiAssistantEngine
                 'type' => 'object',
                 'properties' => [
                     'period' => ['type' => 'string', 'enum' => ['this_month', 'last_month'], 'description' => 'Defaults to this_month'],
+                ],
+                'required' => [],
+            ]);
+            $tools[] = $this->toolSchema('get_ticketing_sales_summary', 'Get the box-office (ticket sales) report for the last N days including today: orders, tickets sold, gross/discount/net revenue, broken down by product, cashier, payment method and sales source, plus discount-code usage, unused or expired tickets, complimentary tickets and reconciliation warnings (online orders without a payment reference, stuck top-ups, failing webhooks). Use for "فروش بلیت امروز/این هفته چقدر بود" or "صندوقدار کی بیشترین فروش را داشت".', [
+                'type' => 'object',
+                'properties' => [
+                    'days' => ['type' => 'integer', 'description' => 'How many days back to include, ending now - defaults to 1 (today only), max 90'],
                 ],
                 'required' => [],
             ]);
@@ -2209,6 +2231,29 @@ trait HasAiAssistantEngine
     /**
      * @param  array<string, mixed>  $arguments
      */
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function ticketingSalesSummaryTool(array $arguments): array
+    {
+        $days = max(1, min(90, (int) ($arguments['days'] ?? 1)));
+        $from = now()->subDays($days - 1)->startOfDay();
+        $to = now();
+
+        $report = app(TicketingReport::class)->build($from, $to);
+
+        return [
+            'from' => $from->toJalali('Y/m/d'),
+            'to' => $to->toJalali('Y/m/d H:i'),
+            'sales' => $report['sales'],
+            'discounts' => $report['discounts'],
+            'unused_or_expired' => $report['unused'],
+            'complimentary' => $report['complimentary'],
+            'reconciliation' => $report['reconciliation'],
+        ];
+    }
+
     private function cancellationSummaryTool(array $arguments): array
     {
         $period = (string) ($arguments['period'] ?? 'this_month');

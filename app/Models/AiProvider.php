@@ -22,6 +22,14 @@ class AiProvider extends Model
 
     protected $fillable = ['name', 'base_url', 'api_key', 'default_model', 'is_active'];
 
+    /**
+     * The token usage the provider reported for the most recent
+     * chatCompletion() call on this instance, when it reports any.
+     *
+     * @var array{prompt_tokens?: int, completion_tokens?: int}|null
+     */
+    public ?array $lastUsage = null;
+
     protected function casts(): array
     {
         return [
@@ -83,6 +91,8 @@ class AiProvider extends Model
                 $response->json('error.message') ?? "HTTP {$response->status()}",
             );
         }
+
+        $this->lastUsage = $response->json('usage');
 
         $message = $response->json('choices.0.message');
 

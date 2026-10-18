@@ -5,10 +5,13 @@ namespace App\Filament\Pages;
 use App\Enums\AiMessageRole;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Models\AiAssistantProfile;
+use App\Models\AiMessage;
 use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\DB;
+use Spatie\Activitylog\Models\Activity;
 
 /**
  * A per-assistant usage overview for the AI Assistants Hub - how much
@@ -37,6 +40,43 @@ class AiAssistantUsageDashboard extends Page
     public static function accessControlPermission(): string
     {
         return 'ai-assistant-usage-dashboard.access';
+    }
+
+    /**
+     * The management assistant itself (the full page and the floating
+     * widget), for the last 30 days across all users: how much it is used,
+     * what it cost in tokens, how people rated it and which tools it calls.
+     *
+     * @return array{questions: int, conversations: int, prompt_tokens: int, completion_tokens: int, feedback_up: int, feedback_down: int, top_tools: array<int, array{tool: string, calls: int}>}
+     */
+    public function getMainAssistantStats(): array
+    {
+        $since = now()->subDays(30);
+
+        $messages = AiMessage::query()
+            ->where('ai_messages.created_at', '>=', $since)
+            ->whereHas('conversation', fn ($query) => $query->whereNull('ai_assistant_profile_id'));
+
+        $topTools = Activity::query()
+            ->where('log_name', 'ai_assistant')
+            ->where('created_at', '>=', $since)
+            ->get()
+            ->countBy(fn (Activity $activity) => (string) ($activity->properties['tool'] ?? ''))
+            ->sortDesc()
+            ->take(5)
+            ->map(fn (int $calls, string $tool) => ['tool' => $tool, 'calls' => $calls])
+            ->values()
+            ->all();
+
+        return [
+            'questions' => (clone $messages)->where('role', AiMessageRole::User)->count(),
+            'conversations' => DB::table('ai_conversations')->whereNull('ai_assistant_profile_id')->where('created_at', '>=', $since)->count(),
+            'prompt_tokens' => (int) (clone $messages)->sum('prompt_tokens'),
+            'completion_tokens' => (int) (clone $messages)->sum('completion_tokens'),
+            'feedback_up' => (clone $messages)->where('feedback', 'up')->count(),
+            'feedback_down' => (clone $messages)->where('feedback', 'down')->count(),
+            'top_tools' => $topTools,
+        ];
     }
 
     /**
