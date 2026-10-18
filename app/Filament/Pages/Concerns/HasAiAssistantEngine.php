@@ -2349,7 +2349,7 @@ trait HasAiAssistantEngine
 
         try {
             return $year < 1700
-                ? Jalalian::fromFormat('Y/n/j', "{$year}/{$month}/{$day}")->toCarbon()
+                ? (new Jalalian($year, $month, $day))->toCarbon()
                 : Carbon::create($year, $month, $day);
         } catch (\Throwable) {
             return null;
