@@ -5,6 +5,7 @@ namespace App\Filament\Pages\Concerns;
 use App\Domain\Ai\AiPageContextResolver;
 use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
+use App\Domain\Ai\AiToolRouter;
 use App\Domain\Ai\MarkdownTables;
 use App\Domain\Ticketing\TicketingReport;
 use App\Domain\TripPlanner\TripPlannerReport;
@@ -291,6 +292,7 @@ trait HasAiAssistantEngine
         }
 
         $this->isThinking = true;
+        $this->setRunState($conversation, 'در حال بررسی درخواست…');
 
         try {
             $this->runAgentLoop($conversation, $provider);
@@ -302,6 +304,7 @@ trait HasAiAssistantEngine
                 ->send();
         } finally {
             $this->isThinking = false;
+            $this->setRunState($conversation, null);
         }
 
         $this->dispatch('message-sent');
@@ -310,7 +313,11 @@ trait HasAiAssistantEngine
     private function runAgentLoop(AiConversation $conversation, AiProvider $provider): void
     {
         $messages = $this->buildChatHistory($conversation);
-        $tools = $this->getToolDefinitions();
+        $tools = app(AiToolRouter::class)->select(
+            $this->getToolDefinitions(),
+            (string) $conversation->messages()->where('role', AiMessageRole::User->value)->latest('id')->value('content'),
+            $conversation->messages()->whereNotNull('tool_name')->latest('id')->limit(10)->pluck('tool_name')->unique()->all(),
+        );
         // Reset per send() - a chart from an earlier, unrelated question
         // must never leak onto a later turn that calls no chartable tool
         // at all (e.g. a plain "ممنون" reply).
@@ -329,7 +336,19 @@ trait HasAiAssistantEngine
                 break;
             }
 
-            $assistantMessage = $provider->chatCompletion($messages, $tools, $model);
+            // Checked only between rounds, when every tool call so far has
+            // its result stored, so a stopped turn never leaves a tool call
+            // without an answer in the history.
+            if ($this->wasStopped($conversation)) {
+                $conversation->messages()->create([
+                    'role' => AiMessageRole::Assistant,
+                    'content' => 'پاسخ‌دهی به درخواست شما متوقف شد.',
+                ]);
+
+                return;
+            }
+
+            $assistantMessage = $provider->chatCompletionWithFallback($messages, $tools, $model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
             $conversation->messages()->create([
@@ -354,6 +373,7 @@ trait HasAiAssistantEngine
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
                 $this->currentToolCallId = $toolCall['id'] ?? null;
+                $this->setRunState($conversation, AiToolAccess::progressLabel($toolCall['function']['name'] ?? ''), clearStop: false);
                 $result = $this->executeTool($toolCall['function']['name'], $arguments);
                 $encodedResult = json_encode($result, JSON_UNESCAPED_UNICODE);
 
@@ -386,6 +406,24 @@ trait HasAiAssistantEngine
     }
 
     /**
+     * What the progress endpoint reports while a turn runs (and clears it
+     * afterwards); written straight to the table so it never bumps the
+     * conversation's updated_at, which orders the conversation list.
+     */
+    private function setRunState(AiConversation $conversation, ?string $label, bool $clearStop = true): void
+    {
+        AiConversation::query()
+            ->whereKey($conversation->id)
+            ->toBase()
+            ->update($clearStop ? ['run_label' => $label, 'cancel_requested' => false] : ['run_label' => $label]);
+    }
+
+    private function wasStopped(AiConversation $conversation): bool
+    {
+        return (bool) AiConversation::query()->whereKey($conversation->id)->value('cancel_requested');
+    }
+
+    /**
      * @return array{prompt_tokens: ?int, completion_tokens: ?int} what the provider billed for the call just made
      */
     private function tokenUsage(AiProvider $provider): array
@@ -411,7 +449,7 @@ trait HasAiAssistantEngine
         ];
 
         try {
-            $final = $provider->chatCompletion($messages, [], $model);
+            $final = $provider->chatCompletionWithFallback($messages, [], $model);
 
             if (filled($final['content'] ?? null)) {
                 $conversation->messages()->create([
@@ -468,7 +506,22 @@ trait HasAiAssistantEngine
             ->values()
             ->all();
 
-        return [$system, ...$history];
+        $digest = [];
+        $earlierQuestions = $messages
+            ->slice(0, $keepFrom)
+            ->filter(fn ($message) => $message->role === AiMessageRole::User)
+            ->map(fn ($message) => '- '.Str::limit((string) preg_replace('/\s+/u', ' ', (string) $message->content), 100))
+            ->take(-30)
+            ->values();
+
+        if ($earlierQuestions->isNotEmpty()) {
+            $digest[] = [
+                'role' => 'system',
+                'content' => "پرسش‌های قبلی همین گفتگو (جزئیات پاسخ‌ها برای فشرده ماندن حذف شده؛ اگر به داده‌ای از آن‌ها نیاز شد دوباره از ابزارها بگیر):\n".$earlierQuestions->implode("\n"),
+            ];
+        }
+
+        return [$system, ...$digest, ...$history];
     }
 
     private function systemPrompt(): string

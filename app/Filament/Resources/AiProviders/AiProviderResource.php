@@ -72,6 +72,9 @@ class AiProviderResource extends Resource
                     ->helperText('بعد از ذخیره، از دکمهٔ «انتخاب مدل از لیست» در جدول می‌توانید مدل دقیق را از فهرست مدل‌های این ارائه‌دهنده انتخاب کنید.')
                     ->maxLength(255)
                     ->hintAction(FieldHelp::make('ai-providers.default_model')),
+                Toggle::make('is_fallback')
+                    ->label('جایگزین در صورت خطا')
+                    ->helperText('اگر ارائه‌دهندهٔ فعال خطا بدهد یا در دسترس نباشد، دستیار هوشمند مدیریتی یک بار با این ارائه‌دهنده تلاش می‌کند. فقط یکی می‌تواند جایگزین باشد و ارائه‌دهندهٔ فعال نمی‌تواند همزمان جایگزین باشد.'),
                 Toggle::make('is_active')
                     ->label('فعال (استفاده در دستیار هوشمند)')
                     ->helperText('در هر لحظه فقط یک ارائه‌دهنده می‌تواند فعال باشد؛ فعال‌کردن این یکی بقیه را غیرفعال می‌کند.')
@@ -87,6 +90,7 @@ class AiProviderResource extends Resource
                 TextColumn::make('base_url')->label('آدرس پایه')->limit(40),
                 TextColumn::make('default_model')->label('مدل پیش‌فرض')->badge(),
                 IconColumn::make('is_active')->label('فعال')->boolean(),
+                IconColumn::make('is_fallback')->label('جایگزین')->boolean(),
             ])
             ->filters([
                 //

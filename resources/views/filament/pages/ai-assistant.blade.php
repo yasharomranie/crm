@@ -295,6 +295,8 @@
                         </div>
                     @endforelse
 
+                    @include('partials.ai-run-progress')
+
                     @include('partials.ai-pending-actions', ['selected' => $selected ?? $this->getSelectedConversation()])
 
                     @if ($isThinking)
