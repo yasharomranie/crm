@@ -5,6 +5,7 @@ namespace Tests\Feature\Crm;
 use App\Domain\Crm\GuestDuplicateDetector;
 use App\Models\Guest;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
 
 class GuestDuplicateDetectorTest extends TestCase
@@ -34,7 +35,8 @@ class GuestDuplicateDetectorTest extends TestCase
     public function test_the_same_mobile_written_differently_is_flagged(): void
     {
         $a = Guest::factory()->create(['name' => 'الف', 'mobile' => '09121234567']);
-        $b = Guest::factory()->create(['name' => 'ب', 'mobile' => '+989121234567']);
+        $b = Guest::factory()->create(['name' => 'ب', 'mobile' => null]);
+        DB::table('guests')->where('id', $b->id)->update(['mobile' => '+989121234567']);
         Guest::factory()->create(['name' => 'ج', 'mobile' => '09350000000']);
 
         $groups = app(GuestDuplicateDetector::class)->findGroups();
@@ -77,7 +79,8 @@ class GuestDuplicateDetectorTest extends TestCase
     public function test_records_matched_by_different_signals_collapse_into_one_group(): void
     {
         $a = Guest::factory()->create(['name' => 'الف', 'mobile' => '09121234567', 'email' => null]);
-        $b = Guest::factory()->create(['name' => 'ب', 'mobile' => '+989121234567', 'email' => 'x@example.com']);
+        $b = Guest::factory()->create(['name' => 'ب', 'mobile' => null, 'email' => 'x@example.com']);
+        DB::table('guests')->where('id', $b->id)->update(['mobile' => '+989121234567']);
         $c = Guest::factory()->create(['name' => 'ج', 'mobile' => null, 'email' => 'X@example.com']);
 
         $this->assertSame([[$a->id, $b->id, $c->id]], $this->groupIds());

@@ -20,6 +20,7 @@ use App\Models\Task;
 use App\Models\TripPlan;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
@@ -89,7 +90,8 @@ class GuestMergeTest extends TestCase
     public function test_blank_contact_fields_on_the_kept_guest_are_filled_from_the_duplicate_without_unique_clashes(): void
     {
         $keep = Guest::factory()->create(['mobile' => '09121234567', 'email' => null, 'national_code' => null]);
-        $duplicate = Guest::factory()->create(['mobile' => '+989121234567', 'email' => 'dup@example.com', 'national_code' => '1234567890']);
+        $duplicate = Guest::factory()->create(['mobile' => null, 'email' => 'dup@example.com', 'national_code' => '1234567890']);
+        DB::table('guests')->where('id', $duplicate->id)->update(['mobile' => '+989121234567']);
 
         app(GuestMergeService::class)->merge($keep, $duplicate);
 
@@ -154,7 +156,8 @@ class GuestMergeTest extends TestCase
     public function test_the_duplicates_page_lists_a_group_and_merges_it_on_confirmation(): void
     {
         $keep = Guest::factory()->create(['name' => 'الف', 'mobile' => '09121234567']);
-        $duplicate = Guest::factory()->create(['name' => 'ب', 'mobile' => '+989121234567']);
+        $duplicate = Guest::factory()->create(['name' => 'ب', 'mobile' => null]);
+        DB::table('guests')->where('id', $duplicate->id)->update(['mobile' => '+989121234567']);
 
         Livewire::actingAs($this->admin())
             ->test(DuplicateGuests::class)
