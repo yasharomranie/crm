@@ -10,6 +10,7 @@ use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class Deal extends Model
 {
@@ -41,6 +42,30 @@ class Deal extends Model
             // refresh() writes with a plain query, so this never re-triggers saved.
             app(LeadScorer::class)->refresh($deal);
         });
+    }
+
+    public function items(): HasMany
+    {
+        return $this->hasMany(DealItem::class);
+    }
+
+    /**
+     * A deal with quote lines is worth exactly what its lines add up to;
+     * one without lines keeps the value typed in by hand.
+     */
+    public function syncValueFromItems(): void
+    {
+        $items = $this->items()->get();
+
+        if ($items->isEmpty()) {
+            return;
+        }
+
+        $total = (int) $items->sum(fn (DealItem $item) => $item->lineTotal());
+
+        if ((int) $this->value !== $total) {
+            $this->update(['value' => $total]);
+        }
     }
 
     public function guest(): BelongsTo

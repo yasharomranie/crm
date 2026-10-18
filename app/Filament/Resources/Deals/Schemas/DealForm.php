@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Deals\Schemas;
 use App\Enums\DealSource;
 use App\Enums\DealStage;
 use App\Filament\Support\FieldHelp;
+use App\Models\Deal;
 use App\Models\Guest;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
@@ -43,6 +44,9 @@ class DealForm
                 TextInput::make('value')
                     ->label('ارزش تخمینی (تومان)')
                     ->numeric()
+                    ->helperText(fn (?Deal $record) => $record?->items()->exists() ? 'این معامله اقلام دارد؛ ارزش، جمع اقلام است و از بخش «اقلام و پیش‌فاکتور» تغییر می‌کند.' : null)
+                    ->disabled(fn (?Deal $record) => (bool) $record?->items()->exists())
+                    ->dehydrated(fn (?Deal $record) => ! $record?->items()->exists())
                     ->hintAction(FieldHelp::make('deals.value')),
                 Select::make('assigned_to')
                     ->label('کارشناس فروش')
