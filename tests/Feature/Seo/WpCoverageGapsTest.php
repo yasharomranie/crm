@@ -91,7 +91,7 @@ class WpCoverageGapsTest extends TestCase
         $this->profile($project, 'سفر به همدان', 30.0);
         $this->profile($project, 'همدان سفر', 40.0);
         $this->profile($project, 'عبارت در رتبه خوب', 4.0);
-        $this->profile($project, 'عبارت کم‌نمایش', 40.0, 10);
+        $this->profile($project, 'عبارت کم‌نمایش', 40.0, 4);
         $this->profile($project, 'عبارت برنامه‌ریزی‌شده', 40.0);
         SeoContentItem::factory()->create(['seo_project_id' => $project->id, 'target_keyword' => 'عبارت برنامه‌ریزی‌شده']);
 
@@ -162,5 +162,25 @@ class WpCoverageGapsTest extends TestCase
         $user->assignRole(Role::create(['name' => 'بدون دسترسی خلأ پوشش']));
 
         Livewire::actingAs($user)->test(SeoContentGaps::class)->assertForbidden();
+    }
+
+    public function test_a_small_site_whose_searches_are_all_quiet_is_told_so_and_can_lower_the_bar(): void
+    {
+        $project = $this->project();
+        $this->wpPost($project, 'مقاله‌ی دیگر', 'چیز دیگر');
+        $this->profile($project, 'اجاره ویلا نزدیک همدان', 25.0, 6);
+
+        $gaps = app(WpCoverageGaps::class)->analyze($project);
+        $this->assertTrue($gaps['has_searches']);
+        $this->assertSame(1, $gaps['searches_total']);
+        $this->assertSame(0, $gaps['searches_considered']);
+
+        $admin = $this->admin();
+
+        Livewire::actingAs($admin)
+            ->test(SeoContentGaps::class, ['projectId' => $project->id])
+            ->assertSee('هیچ‌کدام در ۲۸ روز اخیر 10 ایمپرشن یا بیشتر نداشته است')
+            ->set('minImpressions', 5)
+            ->assertSee('اجاره ویلا نزدیک همدان');
     }
 }
