@@ -140,6 +140,7 @@ class GuestResource extends Resource
         return [
             RelationManagers\ActivitiesRelationManager::class,
             RelationManagers\CustomerMessagesRelationManager::class,
+            RelationManagers\ConsentsRelationManager::class,
             FollowUpTasksRelationManager::class,
             RelationManagers\DealsRelationManager::class,
             RelationManagers\TicketsRelationManager::class,

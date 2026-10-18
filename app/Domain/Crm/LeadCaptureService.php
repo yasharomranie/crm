@@ -3,6 +3,7 @@
 namespace App\Domain\Crm;
 
 use App\Enums\DealStage;
+use App\Enums\MessageChannel;
 use App\Models\Deal;
 use App\Models\Guest;
 use App\Models\LeadCaptureForm;
@@ -16,14 +17,18 @@ use App\Models\LeadCaptureForm;
 class LeadCaptureService
 {
     /**
-     * @param  array{name: string, mobile: string, message?: string|null}  $data
+     * @param  array{name: string, mobile: string, message?: string|null, sms_consent?: bool}  $data
      */
-    public function capture(LeadCaptureForm $form, array $data): Deal
+    public function capture(LeadCaptureForm $form, array $data, ?string $ip = null): Deal
     {
         $guest = Guest::firstOrCreate(
             ['mobile' => $data['mobile']],
             ['name' => $data['name']],
         );
+
+        if (! empty($data['sms_consent'])) {
+            $guest->recordConsent(MessageChannel::Sms, true, 'lead_form', "فرم «{$form->name}»", null, $ip);
+        }
 
         $deal = Deal::create([
             'guest_id' => $guest->id,

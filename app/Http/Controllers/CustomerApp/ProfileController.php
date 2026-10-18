@@ -2,9 +2,12 @@
 
 namespace App\Http\Controllers\CustomerApp;
 
+use App\Enums\MessageChannel;
 use App\Http\Controllers\Controller;
 use App\Models\Guest;
 use Illuminate\Contracts\View\View;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 
 /**
@@ -24,6 +27,19 @@ class ProfileController extends Controller
         return view('customer-app-profile', [
             'guest' => $guest,
             'tier' => $guest->loyaltyTier(),
+            'smsConsent' => $guest->hasMarketingConsent(MessageChannel::Sms),
+            'emailConsent' => $guest->hasMarketingConsent(MessageChannel::Email),
         ]);
+    }
+
+    public function updateConsents(Request $request): RedirectResponse
+    {
+        /** @var Guest $guest */
+        $guest = Auth::guard('customer')->user();
+
+        $guest->recordConsent(MessageChannel::Sms, $request->boolean('sms'), 'customer_app', null, null, $request->ip());
+        $guest->recordConsent(MessageChannel::Email, $request->boolean('email'), 'customer_app', null, null, $request->ip());
+
+        return back()->with('success', 'تنظیمات دریافت پیام ذخیره شد.');
     }
 }

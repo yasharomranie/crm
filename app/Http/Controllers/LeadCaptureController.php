@@ -29,6 +29,7 @@ class LeadCaptureController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'mobile' => ['required', 'regex:/^09\d{9}$/'],
             'message' => ['nullable', 'string', 'max:2000'],
+            'sms_consent' => ['nullable', 'boolean'],
         ], [
             'name.required' => 'نام خود را وارد کنید.',
             'mobile.required' => 'شماره‌ی موبایل را وارد کنید.',
@@ -39,7 +40,7 @@ class LeadCaptureController extends Controller
         // Hidden "website" field a real visitor never sees or fills: a bot
         // that does gets the same success screen but nothing is stored.
         if (! filled($request->input('website'))) {
-            $this->leads->capture($leadCaptureForm, $data);
+            $this->leads->capture($leadCaptureForm, [...$data, 'sms_consent' => (bool) ($data['sms_consent'] ?? false)], $request->ip());
         }
 
         return redirect()->route('lead-capture.show', $leadCaptureForm->slug)->with('lead_submitted', true);

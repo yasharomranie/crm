@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Enums\DealStage;
 use App\Enums\TicketStatus;
 use App\Models\Guest;
+use App\Models\GuestConsent;
 use App\Models\GuestSegment;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -35,6 +36,10 @@ class GuestSegmentQuery
 
     public const TYPE_HOT_LEAD = 'hot_lead';
 
+    public const TYPE_SMS_CONSENT = 'sms_consent';
+
+    public const TYPE_EMAIL_CONSENT = 'email_consent';
+
     public const TYPE_REGISTERED_WITHIN_DAYS = 'registered_within_days';
 
     public const TYPE_REGISTERED_BEFORE_DAYS = 'registered_before_days';
@@ -59,6 +64,8 @@ class GuestSegmentQuery
             self::TYPE_OPEN_DEAL => 'معاملهٔ باز دارد',
             self::TYPE_OPEN_TICKET => 'تیکت باز دارد',
             self::TYPE_HOT_LEAD => 'سرنخ داغ دارد (امتیاز ۷۰ به بالا)',
+            self::TYPE_SMS_CONSENT => 'رضایت دریافت پیامک تبلیغاتی دارد',
+            self::TYPE_EMAIL_CONSENT => 'رضایت دریافت ایمیل تبلیغاتی دارد',
             self::TYPE_REGISTERED_WITHIN_DAYS => 'ثبت‌شده در N روز اخیر',
             self::TYPE_REGISTERED_BEFORE_DAYS => 'ثبت‌شده بیش از N روز پیش',
             self::TYPE_HAS_EMAIL => 'ایمیل دارد',
@@ -87,7 +94,7 @@ class GuestSegmentQuery
      */
     public static function yesNoTypes(): array
     {
-        return [self::TYPE_OPEN_DEAL, self::TYPE_OPEN_TICKET, self::TYPE_HOT_LEAD, self::TYPE_HAS_EMAIL, self::TYPE_HAS_MOBILE];
+        return [self::TYPE_OPEN_DEAL, self::TYPE_OPEN_TICKET, self::TYPE_HOT_LEAD, self::TYPE_SMS_CONSENT, self::TYPE_EMAIL_CONSENT, self::TYPE_HAS_EMAIL, self::TYPE_HAS_MOBILE];
     }
 
     /**
@@ -150,6 +157,8 @@ class GuestSegmentQuery
             self::TYPE_HOT_LEAD => $this->applyExistence($query, 'deals', $isYes, fn (Builder $deals) => $deals
                 ->whereNotIn('stage', [DealStage::Won, DealStage::Lost])
                 ->where('lead_score', '>=', LeadScorer::HOT_AT)),
+            self::TYPE_SMS_CONSENT => $this->applyConsent($query, 'sms', $isYes),
+            self::TYPE_EMAIL_CONSENT => $this->applyConsent($query, 'email', $isYes),
             self::TYPE_REGISTERED_WITHIN_DAYS => is_numeric($value)
                 ? $query->where('created_at', '>=', now()->subDays((int) $value))
                 : $query->whereRaw('1 = 0'),
@@ -178,5 +187,20 @@ class GuestSegmentQuery
         $wanted
             ? $query->whereNotNull($column)->where($column, '!=', '')
             : $query->where(fn (Builder $empty) => $empty->whereNull($column)->orWhere($column, ''));
+    }
+
+    /**
+     * "Has consent" = the newest consent row for that channel says granted.
+     *
+     * @param  Builder<Guest>  $query
+     */
+    private function applyConsent(Builder $query, string $channel, bool $wanted): void
+    {
+        $granted = fn (Builder $consents) => $consents
+            ->where('channel', $channel)
+            ->where('status', GuestConsent::STATUS_GRANTED)
+            ->whereRaw('guest_consents.id = (select max(latest.id) from guest_consents as latest where latest.guest_id = guest_consents.guest_id and latest.channel = guest_consents.channel)');
+
+        $wanted ? $query->whereHas('consents', $granted) : $query->whereDoesntHave('consents', $granted);
     }
 }
