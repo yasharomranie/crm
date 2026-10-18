@@ -89,10 +89,13 @@ class DynamicFormFieldBuilder
 
         return Repeater::make($field->field_key)
             ->table(array_map(fn (array $column) => TableColumn::make($column['label']), $columns))
+            // Each input gets its column's label explicitly: on narrow screens
+            // the table collapses to stacked fields, which would otherwise show
+            // the humanized column key (English) instead of the heading.
             ->schema(array_map(fn (array $column) => match ($column['type']) {
-                TableColumnType::Number => TextInput::make($column['key'])->numeric(),
-                TableColumnType::DateJalali => DatePicker::make($column['key'])->jalali()->displayFormat('Y/m/d'),
-                TableColumnType::Text => TextInput::make($column['key']),
+                TableColumnType::Number => TextInput::make($column['key'])->label($column['label'])->numeric(),
+                TableColumnType::DateJalali => DatePicker::make($column['key'])->label($column['label'])->jalali()->displayFormat('Y/m/d'),
+                TableColumnType::Text => TextInput::make($column['key'])->label($column['label']),
             }, $columns))
             ->defaultItems((int) ($field->table_default_rows ?? 0))
             ->addActionLabel('افزودن ردیف')
