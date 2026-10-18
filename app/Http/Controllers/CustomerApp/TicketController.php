@@ -5,6 +5,7 @@ namespace App\Http\Controllers\CustomerApp;
 use App\Domain\Ticketing\TicketingException;
 use App\Domain\Ticketing\TicketIssuer;
 use App\Enums\TicketSourceType;
+use App\Exceptions\InsufficientWalletBalanceException;
 use App\Http\Controllers\Controller;
 use App\Models\AdmissionTicket;
 use App\Models\Guest;
@@ -71,14 +72,12 @@ class TicketController extends Controller
                     'customer_phone' => $guest->mobile,
                 ]);
 
-                if ($guest->wallet_balance < $order->final_amount) {
-                    throw new TicketingException('موجودی کیف پول شما برای این خرید کافی نیست.');
-                }
-
                 $guest->debitWallet((int) $order->final_amount, "خرید بلیط آنلاین - {$order->order_number}");
             });
         } catch (TicketingException $exception) {
             return back()->withErrors(['ticket_variant_id' => $exception->getMessage()]);
+        } catch (InsufficientWalletBalanceException) {
+            return back()->withErrors(['ticket_variant_id' => 'موجودی کیف پول شما برای این خرید کافی نیست.']);
         }
 
         return redirect()->route('customer-app.tickets')->with('success', 'بلیط شما با موفقیت صادر شد.');

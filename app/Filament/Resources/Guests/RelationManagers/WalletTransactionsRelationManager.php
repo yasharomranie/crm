@@ -3,13 +3,17 @@
 namespace App\Filament\Resources\Guests\RelationManagers;
 
 use App\Enums\WalletTransactionType;
+use App\Exceptions\InsufficientWalletBalanceException;
+use App\Models\Guest;
 use Filament\Actions\CreateAction;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Illuminate\Support\Number;
 
 class WalletTransactionsRelationManager extends RelationManager
 {
@@ -38,6 +42,7 @@ class WalletTransactionsRelationManager extends RelationManager
                 TextInput::make('amount')
                     ->label('مبلغ (تومان)')
                     ->numeric()
+                    ->minValue(1)
                     ->required(),
                 TextInput::make('reason')
                     ->label('بابت')
@@ -62,16 +67,24 @@ class WalletTransactionsRelationManager extends RelationManager
             ])
             ->headerActions([
                 CreateAction::make()
-                    ->mutateFormDataUsing(function (array $data) {
-                        $data['created_by'] = auth()->id();
+                    ->using(function (array $data, CreateAction $action, WalletTransactionsRelationManager $livewire) {
+                        /** @var Guest $guest */
+                        $guest = $livewire->getOwnerRecord();
+                        $amount = (int) $data['amount'];
 
-                        return $data;
-                    })
-                    ->after(function ($record) {
-                        $record->guest->increment(
-                            'wallet_balance',
-                            $record->type === WalletTransactionType::Credit ? $record->amount : -$record->amount
-                        );
+                        try {
+                            return $data['type'] === WalletTransactionType::Credit->value
+                                ? $guest->creditWallet($amount, $data['reason'])
+                                : $guest->debitWallet($amount, $data['reason']);
+                        } catch (InsufficientWalletBalanceException $exception) {
+                            Notification::make()
+                                ->danger()
+                                ->title($exception->getMessage())
+                                ->body('موجودی فعلی: '.Number::toPersian(number_format($exception->balance)).' تومان')
+                                ->send();
+
+                            $action->halt();
+                        }
                     }),
             ])
             ->recordActions([
