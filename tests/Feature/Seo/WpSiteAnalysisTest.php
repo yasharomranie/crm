@@ -163,7 +163,7 @@ class WpSiteAnalysisTest extends TestCase
 
         $post->refresh();
         $this->assertNull($post->inbound_links);
-        $this->assertNotContains('orphan', $post->issues);
+        $this->assertNotContains('orphan', $post->issues ?? []);
     }
 
     public function test_a_sync_queues_an_analysis_and_records_the_discourage_flag(): void
