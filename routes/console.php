@@ -1,5 +1,6 @@
 <?php
 
+use App\Domain\Ai\AssistantAlertDigestService;
 use App\Domain\Crm\FollowUpReminderService;
 use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
@@ -89,6 +90,14 @@ Schedule::call(function () {
 Schedule::call(fn () => app(LeadScorer::class)->refreshOpenDeals())
     ->name('crm-lead-scores')
     ->dailyAt('02:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// One morning push of the management assistant's critical alerts (an
+// over-budget project, a breached support SLA) to whoever may use it.
+Schedule::call(fn () => app(AssistantAlertDigestService::class)->notifyDailyDigest())
+    ->name('assistant-alert-digest')
+    ->dailyAt('08:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
