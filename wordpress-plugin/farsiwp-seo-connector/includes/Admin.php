@@ -53,7 +53,7 @@ class Admin
 
         Settings::save(['crm_url' => $crmUrl]);
 
-        $response = Client::send('/pair', ['code' => $code] + Collector::siteInfo(), false);
+        $response = Client::send('/pair', ['code' => $code, 'site_url' => home_url()] + Collector::siteInfo(), false);
 
         if ($response['code'] !== 200 || empty($response['body']['secret'])) {
             self::back($response['error'] ?: 'اتصال برقرار نشد؛ آدرس CRM را بررسی کنید.', 'error');

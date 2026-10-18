@@ -42,8 +42,32 @@ class Client
         return [
             'code' => $code,
             'body' => is_array($decoded) ? $decoded : null,
-            'error' => $code >= 400 ? (isset($decoded['error']['message']) ? $decoded['error']['message'] : 'HTTP '.$code) : null,
+            'error' => $code >= 400 ? self::errorMessage($decoded, $code) : null,
             'retry_after' => $retryAfter !== '' ? (int) $retryAfter : null,
         ];
+    }
+
+    /**
+     * The most useful sentence the CRM's answer holds: its own error text, a
+     * validation message (with the first field that failed), or the bare code.
+     */
+    private static function errorMessage($decoded, $code)
+    {
+        if (isset($decoded['error']['message'])) {
+            return $decoded['error']['message'];
+        }
+
+        if (isset($decoded['errors']) && is_array($decoded['errors'])) {
+            $field = key($decoded['errors']);
+            $first = reset($decoded['errors']);
+
+            return 'داده‌ی نامعتبر ('.$field.'): '.(is_array($first) ? reset($first) : $first);
+        }
+
+        if (isset($decoded['message']) && is_string($decoded['message'])) {
+            return $decoded['message'];
+        }
+
+        return 'HTTP '.$code;
     }
 }

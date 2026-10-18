@@ -26,6 +26,11 @@ class WpConnectorController extends Controller
 
     public function pair(Request $request, WpPairingService $pairing): JsonResponse
     {
+        // Plugin 1.0.0 sends the address as "url" (as it does in every sync).
+        if (! $request->filled('site_url') && $request->filled('url')) {
+            $request->merge(['site_url' => $request->input('url')]);
+        }
+
         $data = $request->validate([
             'code' => ['required', 'string', 'max:40'],
             'site_url' => ['required', 'string', 'max:255', 'regex:#^https?://#'],
