@@ -42,7 +42,7 @@ class Client
         return [
             'code' => $code,
             'body' => is_array($decoded) ? $decoded : null,
-            'error' => $code >= 400 ? self::errorMessage($decoded, $code) : null,
+            'error' => $code >= 400 ? self::errorMessage($decoded, $code, wp_remote_retrieve_body($response)) : null,
             'retry_after' => $retryAfter !== '' ? (int) $retryAfter : null,
         ];
     }
@@ -51,7 +51,7 @@ class Client
      * The most useful sentence the CRM's answer holds: its own error text, a
      * validation message (with the first field that failed), or the bare code.
      */
-    private static function errorMessage($decoded, $code)
+    private static function errorMessage($decoded, $code, $rawBody = '')
     {
         if (isset($decoded['error']['message'])) {
             return $decoded['error']['message'];
@@ -68,6 +68,9 @@ class Client
             return $decoded['message'];
         }
 
-        return 'HTTP '.$code;
+        // Not the CRM's own JSON (a server or firewall error page): show its start.
+        $text = trim(preg_replace('/\s+/u', ' ', wp_strip_all_tags((string) $rawBody)));
+
+        return $text !== '' ? 'HTTP '.$code.' — '.mb_substr($text, 0, 200) : 'HTTP '.$code;
     }
 }
