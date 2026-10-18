@@ -48,7 +48,7 @@ class AiAssistantTest extends TestCase
         $role->givePermissionTo(Permission::whereIn('name', [
             'ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act',
             'workflow-definitions.create', 'form-templates.create',
-        ])->get());
+        ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);
@@ -277,7 +277,8 @@ class AiAssistantTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای تماس با تأمین‌کننده بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertDatabaseHas('tasks', ['title' => 'تماس با تأمین‌کننده']);
     }
@@ -317,7 +318,8 @@ class AiAssistantTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای دپارتمان فروش بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertDatabaseHas('tasks', ['title' => 'پیگیری مشتری', 'department_id' => $department->id]);
     }
@@ -363,7 +365,8 @@ class AiAssistantTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای دپارتمانی که اصلاً وجود ندارد بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertDatabaseMissing('tasks', ['title' => 'پیگیری مشتری']);
 
@@ -415,7 +418,8 @@ class AiAssistantTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای فردا بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $task = Task::sole();
         $toolMessage = AiConversation::sole()->messages->firstWhere('role', AiMessageRole::Tool);
@@ -461,7 +465,8 @@ class AiAssistantTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه با یه تاریخ عجیب بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertDatabaseMissing('tasks', ['title' => 'پیگیری مشتری']);
     }
@@ -712,7 +717,7 @@ class AiAssistantTest extends TestCase
 
         $this->artisan('access-control:sync');
         $role = Role::create(['name' => 'گزارش‌گیر دستیار هوشمند دوم']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
         $user = User::factory()->create();
         $user->assignRole($role);
         $this->actingAs($user);
@@ -1074,14 +1079,15 @@ class AiAssistantTest extends TestCase
 
         $this->artisan('access-control:sync');
         $role = Role::create(['name' => 'گزارش‌گیر دستیار هوشمند']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
         $user = User::factory()->create();
         $user->assignRole($role);
         $this->actingAs($user);
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یک وظیفه برای تماس با تأمین‌کننده بساز')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertDatabaseMissing('tasks', ['title' => 'تماس با تأمین‌کننده']);
 

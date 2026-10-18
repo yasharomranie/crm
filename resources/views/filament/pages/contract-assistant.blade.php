@@ -190,7 +190,7 @@
                 </div>
 
                 <div class="contract-markdown rounded-lg border border-gray-100 bg-gray-50 p-4 text-sm text-gray-900 dark:border-white/5 dark:bg-white/5 dark:text-gray-100">
-                    {!! \Illuminate\Support\Str::markdown($body) !!}
+                    {!! \App\Support\SafeMarkdown::toHtml($body) !!}
                 </div>
 
                 <details class="mt-3">

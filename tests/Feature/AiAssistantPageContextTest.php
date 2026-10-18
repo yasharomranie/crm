@@ -37,7 +37,7 @@ class AiAssistantPageContextTest extends TestCase
             'ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act',
             'form-templates.view_any', 'form-templates.view', 'form-templates.update',
             ...$extraPermissions,
-        ])->get());
+        ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         $user = User::factory()->create();
         $user->assignRole($role);
@@ -122,7 +122,7 @@ class AiAssistantPageContextTest extends TestCase
         AiProvider::factory()->active()->create();
         $this->artisan('access-control:sync');
         $role = Role::create(['name' => 'فقط دستیار']);
-        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->get());
+        $role->givePermissionTo(Permission::whereIn('name', ['ai-assistant.access', 'ai-assistant.report'])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
         $user = User::factory()->create();
         $user->assignRole($role);
         $this->actingAs($user);
@@ -149,7 +149,8 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistantWidget::class)
             ->set('body', 'یه فیلد شماره موبایل اضافه کن')
-            ->call('send', "/admin/form-templates/{$template->id}/edit");
+            ->call('send', "/admin/form-templates/{$template->id}/edit")
+            ->call('confirmPendingAction');
 
         $this->assertTrue(
             FormField::where('form_template_id', $template->id)->where('field_key', 'mobile_number')->exists()
@@ -169,7 +170,8 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistantWidget::class)
             ->set('body', 'در فرم مرخصی فیلد علت اضافه کن')
-            ->call('send', "/admin/form-templates/{$onScreen->id}/edit");
+            ->call('send', "/admin/form-templates/{$onScreen->id}/edit")
+            ->call('confirmPendingAction');
 
         $this->assertTrue(FormField::where('form_template_id', $other->id)->where('field_key', 'reason')->exists());
         $this->assertFalse(FormField::where('form_template_id', $onScreen->id)->where('field_key', 'reason')->exists());
@@ -207,7 +209,8 @@ class AiAssistantPageContextTest extends TestCase
 
         Livewire::test(AiAssistant::class)
             ->set('body', 'یه فیلد اضافه کن')
-            ->call('send');
+            ->call('send')
+            ->call('confirmPendingAction');
 
         $this->assertFalse(FormField::where('form_template_id', $template->id)->exists());
     }

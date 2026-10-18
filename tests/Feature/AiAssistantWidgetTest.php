@@ -36,7 +36,7 @@ class AiAssistantWidgetTest extends TestCase
         $role = Role::create(['name' => 'دسترسی کامل دستیار ویجت']);
         $role->givePermissionTo(Permission::whereIn('name', [
             'ai-assistant.access', 'ai-assistant.report', 'ai-assistant.act',
-        ])->get());
+        ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
         // Explicit is_active: true - a factory-created instance never
         // reflects the users table's own is_active DEFAULT (Eloquent only

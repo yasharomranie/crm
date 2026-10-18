@@ -179,7 +179,7 @@
                                     @if ($isUser)
                                         <span class="whitespace-pre-line">{{ $message->content }}</span>
                                     @else
-                                        {!! \Illuminate\Support\Str::markdown($message->content ?? '') !!}
+                                        {!! \App\Support\SafeMarkdown::toHtml($message->content ?? '') !!}
                                     @endif
                                 </div>
 
@@ -220,6 +220,8 @@
                             </div>
                         </div>
                     @endforelse
+
+                    @include('partials.ai-pending-actions', ['selected' => $selected ?? $this->getSelectedConversation()])
 
                     @if ($isThinking)
                         <div class="flex justify-end">
