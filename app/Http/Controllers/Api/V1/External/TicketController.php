@@ -15,6 +15,7 @@ use App\Models\TicketVariant;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 
 /**
  * The order/ticket the API returns is created through the exact same
@@ -67,9 +68,35 @@ class TicketController extends Controller
             return $this->error('NOT_FOUND', 'نوع بلیت یافت نشد.', 404);
         }
 
-        [$status, $body] = $this->issue($client, $variant, $data);
+        // The order and its idempotency record are written in one
+        // transaction: if an identical request running at the same moment
+        // wins the unique key, this transaction rolls back - tickets
+        // included - and the winner's response is replayed. Without this
+        // both requests would sell tickets and only the replay would hide
+        // the duplicate order.
+        try {
+            [$status, $body] = DB::transaction(function () use ($client, $variant, $data, $idempotencyKey, $requestHash) {
+                [$status, $body] = $this->issue($client, $variant, $data);
 
-        return $this->storeIdempotencyAndRespond($client, $idempotencyKey, $requestHash, $status, $body);
+                IdempotencyKey::create([
+                    'external_api_client_id' => $client->id,
+                    'key' => $idempotencyKey,
+                    'request_hash' => $requestHash,
+                    'response_status' => $status,
+                    'response_body' => $body,
+                ]);
+
+                return [$status, $body];
+            });
+        } catch (QueryException $exception) {
+            if ($replay = $this->replayIfSeen($client, $idempotencyKey, $requestHash)) {
+                return $replay;
+            }
+
+            throw $exception;
+        }
+
+        return response()->json($body, $status);
     }
 
     public function show(Request $request, string $ticketNumber): JsonResponse
@@ -213,31 +240,6 @@ class TicketController extends Controller
         }
 
         return response()->json($existing->response_body, $existing->response_status);
-    }
-
-    /**
-     * @param  array<string, mixed>  $body
-     */
-    private function storeIdempotencyAndRespond(ExternalApiClient $client, string $key, string $requestHash, int $status, array $body): JsonResponse
-    {
-        try {
-            IdempotencyKey::create([
-                'external_api_client_id' => $client->id,
-                'key' => $key,
-                'request_hash' => $requestHash,
-                'response_status' => $status,
-                'response_body' => $body,
-            ]);
-        } catch (QueryException) {
-            // Lost the race to a concurrent identical request (the same
-            // retry fired twice in parallel) - replay whichever response
-            // actually got stored instead of returning our own duplicate.
-            if ($replay = $this->replayIfSeen($client, $key, $requestHash)) {
-                return $replay;
-            }
-        }
-
-        return response()->json($body, $status);
     }
 
     private function error(string $code, string $message, int $status): JsonResponse

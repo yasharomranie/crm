@@ -32,16 +32,12 @@ class RefundService
         ?User $refundedBy = null,
         ?int $amountOverride = null,
     ): Refund {
-        if (in_array($ticket->status, [AdmissionTicketStatus::Refunded, AdmissionTicketStatus::Cancelled], true)) {
-            throw new TicketingException('این بلیت قبلاً لغو یا مسترد شده است.');
-        }
+        $this->assertRefundable($ticket, $amountOverride);
 
         return DB::transaction(function () use ($ticket, $reason, $reference, $refundedBy, $amountOverride) {
             $locked = AdmissionTicket::query()->whereKey($ticket->id)->lockForUpdate()->firstOrFail();
 
-            if (in_array($locked->status, [AdmissionTicketStatus::Refunded, AdmissionTicketStatus::Cancelled], true)) {
-                throw new TicketingException('این بلیت قبلاً لغو یا مسترد شده است.');
-            }
+            $this->assertRefundable($locked, $amountOverride);
 
             $orderItem = $locked->orderItem;
             $amount = $amountOverride ?? intdiv($orderItem->final_amount, max(1, $orderItem->quantity));
@@ -62,6 +58,23 @@ class RefundService
 
             return $refund;
         });
+    }
+
+    /**
+     * A ticket that has already been used (even partly) was consumed, so
+     * refunding it in full would hand money back for something the
+     * customer received. A staff member who decides to refund it anyway
+     * must say how much, by passing an explicit amount.
+     */
+    private function assertRefundable(AdmissionTicket $ticket, ?int $amountOverride): void
+    {
+        if (in_array($ticket->status, [AdmissionTicketStatus::Refunded, AdmissionTicketStatus::Cancelled], true)) {
+            throw new TicketingException('این بلیت قبلاً لغو یا مسترد شده است.');
+        }
+
+        if ($amountOverride === null && in_array($ticket->status, [AdmissionTicketStatus::Used, AdmissionTicketStatus::PartiallyUsed], true)) {
+            throw new TicketingException('این بلیت استفاده شده است و استرداد کامل آن ممکن نیست.');
+        }
     }
 
     /**
