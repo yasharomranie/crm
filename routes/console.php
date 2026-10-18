@@ -4,6 +4,7 @@ use App\Domain\Crm\FollowUpReminderService;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
+use App\Domain\TripPlanner\TripPlanFollowUp;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -78,6 +79,14 @@ Schedule::call(function () {
 })
     ->name('wallet-expiry')
     ->dailyAt('03:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Texts guests whose planned trip starts tomorrow (only when enabled in the
+// trip planner settings).
+Schedule::call(fn () => app(TripPlanFollowUp::class)->sendDayBeforeReminders())
+    ->name('trip-plan-reminders')
+    ->dailyAt('09:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
