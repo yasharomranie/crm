@@ -7,6 +7,7 @@ use App\Domain\Seo\WpConnector\WpPairingService;
 use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Domain\Seo\WpConnector\WpPostIngestor;
 use App\Http\Controllers\Controller;
+use App\Jobs\AnalyzeWpSiteJob;
 use App\Models\SeoWpSite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -69,6 +70,7 @@ class WpConnectorController extends Controller
             'site.php_version' => ['nullable', 'string', 'max:20'],
             'site.seo_plugin' => ['nullable', Rule::in(['yoast', 'rank_math', 'none'])],
             'site.woocommerce' => ['nullable', 'boolean'],
+            'site.search_engines_discouraged' => ['nullable', 'boolean'],
             'site.scopes' => ['nullable', 'array'],
             'site.scopes.*' => ['string', Rule::in(WpPostIngestor::SCOPES)],
             'posts' => ['nullable', 'array', 'max:100'],
@@ -99,6 +101,7 @@ class WpConnectorController extends Controller
             'wp_version' => $info['wp_version'] ?? null,
             'php_version' => $info['php_version'] ?? null,
             'seo_plugin' => $info['seo_plugin'] ?? null,
+            'search_engines_discouraged' => isset($info['search_engines_discouraged']) ? (bool) $info['search_engines_discouraged'] : null,
         ], fn ($value) => $value !== null) + [
             'scopes' => $scopes,
             'has_woocommerce' => (bool) ($info['woocommerce'] ?? $site->has_woocommerce),
@@ -108,6 +111,10 @@ class WpConnectorController extends Controller
         $result = $ingestor->ingest($site, $request->input('posts', []), array_map('intval', $data['deleted'] ?? []));
 
         $site->update(['last_sync_at' => now(), 'last_error' => null]);
+
+        if ($result['accepted'] > 0 || $result['deleted'] > 0) {
+            AnalyzeWpSiteJob::dispatch($site->id)->delay(now()->addMinutes(2));
+        }
 
         return response()->json($result + [
             'cursor' => $data['cursor'] ?? null,

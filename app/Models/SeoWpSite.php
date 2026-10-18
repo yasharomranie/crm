@@ -28,8 +28,8 @@ class SeoWpSite extends Model
 
     protected $fillable = [
         'seo_project_id', 'pairing_code_hash', 'pairing_expires_at', 'secret', 'site_url', 'plugin_version',
-        'wp_version', 'php_version', 'seo_plugin', 'has_woocommerce', 'scopes', 'status', 'last_seen_at',
-        'last_sync_at', 'last_error',
+        'wp_version', 'php_version', 'seo_plugin', 'has_woocommerce', 'search_engines_discouraged', 'scopes', 'status',
+        'last_seen_at', 'last_sync_at', 'analyzed_at', 'last_error',
     ];
 
     protected $hidden = ['secret', 'pairing_code_hash'];
@@ -40,6 +40,8 @@ class SeoWpSite extends Model
             'secret' => 'encrypted',
             'scopes' => 'array',
             'has_woocommerce' => 'boolean',
+            'search_engines_discouraged' => 'boolean',
+            'analyzed_at' => 'datetime',
             'pairing_expires_at' => 'datetime',
             'last_seen_at' => 'datetime',
             'last_sync_at' => 'datetime',

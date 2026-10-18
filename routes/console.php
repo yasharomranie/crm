@@ -9,6 +9,8 @@ use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
 use App\Domain\Ticketing\GateAnomalyDetector;
 use App\Domain\TripPlanner\TripPlanFollowUp;
+use App\Jobs\AnalyzeWpSiteJob;
+use App\Models\SeoWpSite;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\Schedule;
@@ -224,5 +226,17 @@ Schedule::call($artisan('ai-assistant:run-scheduled-reports'))
 Schedule::call($artisan('ai-assistants:run-scheduled-prompts'))
     ->name('ai-assistants:run-scheduled-prompts')
     ->everyFifteenMinutes()
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Re-checks every connected WordPress site each morning (new Search Console
+// numbers, links, problems); sites are staggered so the queue is not hit all
+// at once.
+Schedule::call(function () {
+    SeoWpSite::query()->where('status', SeoWpSite::STATUS_CONNECTED)->get()
+        ->each(fn (SeoWpSite $site, int $index) => AnalyzeWpSiteJob::dispatch($site->id)->delay(now()->addSeconds($index * 20)));
+})
+    ->name('seo-wp-analyze')
+    ->dailyAt('07:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();

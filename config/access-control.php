@@ -77,6 +77,7 @@ use App\Models\SeoPeriodicReport;
 use App\Models\SeoProject;
 use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTrackedKeyword;
+use App\Models\SeoWpPost;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
@@ -155,6 +156,7 @@ return [
 
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
         'seo-opportunities' => ['model' => SeoOpportunity::class, 'label' => 'فرصت‌های سئو', 'group' => 'مرکز سئو'],
+        'seo-wp-posts' => ['model' => SeoWpPost::class, 'label' => 'محتوای سایت (وردپرس)', 'group' => 'مرکز سئو'],
         'seo-keyword-profiles' => ['model' => SeoKeywordProfile::class, 'label' => 'کلمات کلیدی', 'group' => 'مرکز سئو'],
         'seo-keyword-suggestions' => ['model' => SeoKeywordSuggestion::class, 'label' => 'پیشنهادهای کلمات کلیدی', 'group' => 'مرکز سئو'],
         'seo-content-items' => ['model' => SeoContentItem::class, 'label' => 'تقویم محتوا', 'group' => 'مرکز سئو'],
