@@ -14,6 +14,8 @@ use App\Models\SeoProject;
 use App\Models\SeoProjectCompetitor;
 use App\Models\SeoSitemapEntry;
 use App\Models\SeoTopicCluster;
+use App\Models\SeoWpPost;
+use App\Models\SeoWpSite;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
@@ -273,5 +275,59 @@ class AiKeywordDiscoveryServiceTest extends TestCase
 
             return ! str_contains($systemPrompt, 'Topics this business already has real, published pages for');
         });
+    }
+
+    private function wpSiteFor(SeoProject $project): SeoWpSite
+    {
+        return SeoWpSite::factory()->connected()->create(['seo_project_id' => $project->id]);
+    }
+
+    public function test_the_prompt_lists_the_pages_already_published_on_the_wordpress_site(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+        $site = $this->wpSiteFor($project);
+        SeoWpPost::factory()->create(['seo_wp_site_id' => $site->id, 'title' => 'راهنمای غار علیصدر', 'seo' => ['focus_keyword' => 'غار علیصدر'], 'gsc_clicks' => 120]);
+        SeoWpPost::factory()->create(['seo_wp_site_id' => $site->id, 'title' => 'پیش‌نویس سفر زمستانی', 'status' => 'draft']);
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(function (Request $request) {
+            $prompt = json_decode($request->body(), true)['messages'][0]['content'] ?? '';
+
+            return str_contains($prompt, 'راهنمای غار علیصدر — کلمه کانونی: غار علیصدر — 120 کلیک')
+                && str_contains($prompt, 'پیش‌نویس سفر زمستانی');
+        });
+    }
+
+    public function test_the_prompt_omits_the_wordpress_section_when_no_site_is_connected(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+
+        Http::fake(['api.test-provider.example/*' => Http::response(['choices' => [['message' => ['content' => '[]']]]])]);
+
+        app(AiKeywordDiscoveryService::class)->discover($project);
+
+        Http::assertSent(fn (Request $request) => ! str_contains(json_decode($request->body(), true)['messages'][0]['content'] ?? '', 'ALREADY published on its own WordPress site'));
+    }
+
+    public function test_a_suggestion_equal_to_an_existing_focus_keyword_is_dropped_whatever_the_spelling(): void
+    {
+        $this->activeProvider();
+        $project = SeoProject::factory()->create();
+        SeoWpPost::factory()->create(['seo_wp_site_id' => $this->wpSiteFor($project)->id, 'seo' => ['focus_keyword' => 'اجاره ویلا در همدان']]);
+
+        $content = json_encode([
+            ['keyword' => 'اجاره ويلا در همدان', 'intent' => 'transactional', 'topic' => 'اقامت', 'suggested_content_type' => 'صفحه فرود', 'reason' => 'x'],
+            ['keyword' => 'ویلا ارزان نزدیک گنجنامه', 'intent' => 'transactional', 'topic' => 'اقامت', 'suggested_content_type' => 'صفحه فرود', 'reason' => 'y'],
+        ], JSON_UNESCAPED_UNICODE);
+
+        $this->fakeTwoStageResponses($content);
+
+        $this->assertSame(1, app(AiKeywordDiscoveryService::class)->discover($project));
+        $this->assertSame('ویلا ارزان نزدیک گنجنامه', SeoKeywordSuggestion::sole()->keyword);
     }
 }

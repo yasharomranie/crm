@@ -3,6 +3,7 @@
 namespace App\Domain\Seo;
 
 use App\Domain\Seo\Concerns\ParsesAiJsonArray;
+use App\Domain\Seo\WpConnector\WpContentInventory;
 use App\Enums\SeoKeywordSuggestionStatus;
 use App\Enums\SeoSearchIntent;
 use App\Exceptions\AiProviderException;
@@ -44,6 +45,7 @@ class AiKeywordDiscoveryService
         private readonly PillarClusterMapBuilder $mapBuilder,
         private readonly CompetitorContentGapService $competitorGapService,
         private readonly SitemapMonitorService $sitemapMonitor,
+        private readonly WpContentInventory $wpInventory,
     ) {}
 
     public function discover(SeoProject $project, int $count = 20): int
@@ -170,6 +172,8 @@ class AiKeywordDiscoveryService
 
             {$this->formatOwnSitemapCoverage($project)}
 
+            {$this->wpInventory->promptSection($project)}
+
             {$this->formatCompetitorCoverage($project)}
             TXT;
     }
@@ -293,7 +297,8 @@ class AiKeywordDiscoveryService
         foreach ($results as $result) {
             $keyword = trim((string) ($result['keyword'] ?? ''));
 
-            if ($keyword === '') {
+            // A page of the site already has exactly this focus keyword.
+            if ($keyword === '' || $this->wpInventory->isTargeted($project, $keyword)) {
                 continue;
             }
 
