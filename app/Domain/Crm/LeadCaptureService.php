@@ -7,6 +7,7 @@ use App\Enums\MessageChannel;
 use App\Models\Deal;
 use App\Models\Guest;
 use App\Models\LeadCaptureForm;
+use App\Support\MobileNumber;
 
 /**
  * Turns one public-form submission into the same records a salesperson
@@ -22,7 +23,7 @@ class LeadCaptureService
     public function capture(LeadCaptureForm $form, array $data, ?string $ip = null): Deal
     {
         $guest = Guest::firstOrCreate(
-            ['mobile' => $data['mobile']],
+            ['mobile' => MobileNumber::canonical($data['mobile'])],
             ['name' => $data['name']],
         );
 

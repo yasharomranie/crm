@@ -9,7 +9,9 @@ use App\Enums\WalletTransactionType;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Models\Concerns\HasFollowUpTasks;
 use App\Models\Concerns\HasTags;
+use App\Support\MobileNumber;
 use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Foundation\Auth\User as Authenticatable;
@@ -48,6 +50,17 @@ class Guest extends Authenticatable
      * and system-managed fields (password, google_id, mobile_verified_at) that
      * would just add noise to the guest's activity timeline.
      */
+    /**
+     * Every write path stores one spelling of a mobile number (see
+     * MobileNumber), so a customer cannot be saved twice under 0912...,
+     * +98912... and Persian digits. Lookups before a write must normalise
+     * the same way - firstOrCreate(['mobile' => ...]) does not go through here.
+     */
+    protected function mobile(): Attribute
+    {
+        return Attribute::make(set: fn (?string $value) => MobileNumber::canonical($value));
+    }
+
     public function getActivitylogOptions(): LogOptions
     {
         return LogOptions::defaults()

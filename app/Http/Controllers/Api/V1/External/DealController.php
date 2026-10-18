@@ -10,6 +10,7 @@ use App\Models\Deal;
 use App\Models\ExternalApiClient;
 use App\Models\Guest;
 use App\Models\IdempotencyKey;
+use App\Support\MobileNumber;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -61,7 +62,7 @@ class DealController extends Controller
 
             if (! empty($data['guest'])) {
                 $guest = Guest::firstOrCreate(
-                    ['mobile' => $data['guest']['mobile']],
+                    ['mobile' => MobileNumber::canonical($data['guest']['mobile'])],
                     ['name' => $data['guest']['name'], 'email' => $data['guest']['email'] ?? null],
                 );
             }

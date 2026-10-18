@@ -15,6 +15,7 @@ use App\Models\Order;
 use App\Models\OrderItem;
 use App\Models\Product;
 use App\Models\TicketVariant;
+use App\Support\MobileNumber;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -446,7 +447,7 @@ class Cashier extends Page
      */
     private function debitWalletForOrder(Order $order): int
     {
-        $guest = filled($this->customerPhone) ? Guest::query()->where('mobile', trim($this->customerPhone))->first() : null;
+        $guest = filled($this->customerPhone) ? Guest::query()->where('mobile', MobileNumber::canonical($this->customerPhone))->first() : null;
 
         if (! $guest) {
             throw new TicketingException('برای پرداخت با کیف پول، شماره موبایل یک مشتری ثبت‌شده را وارد کنید.');

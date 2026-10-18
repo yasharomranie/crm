@@ -7,6 +7,7 @@ use App\Enums\TicketStatus;
 use App\Models\Guest;
 use App\Models\GuestTicket;
 use App\Models\Room;
+use App\Support\MobileNumber;
 use Illuminate\Support\Carbon;
 
 /**
@@ -157,7 +158,7 @@ class CrmToolCatalog
             return ['error' => 'نام یا شمارهٔ موبایلی داده نشد.'];
         }
 
-        $guest = Guest::query()->where('mobile', $term)->first()
+        $guest = (($canonicalMobile = MobileNumber::canonical($term)) ? Guest::query()->where('mobile', $canonicalMobile)->first() : null)
             ?? Guest::query()->where('name', $term)->first()
             ?? Guest::query()->where('name', 'like', "%{$term}%")->first();
 
