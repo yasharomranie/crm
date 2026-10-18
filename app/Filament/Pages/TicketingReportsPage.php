@@ -3,8 +3,10 @@
 namespace App\Filament\Pages;
 
 use App\Domain\Ticketing\TicketingReport;
+use App\Domain\Ticketing\TicketingReportExport;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Carbon;
@@ -45,6 +47,26 @@ class TicketingReportsPage extends Page
         };
 
         return app(TicketingReport::class)->build($from, Carbon::instance($to));
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('exportExcel')
+                ->label('خروجی اکسل')
+                ->icon(Heroicon::OutlinedTableCells)
+                ->color('gray')
+                ->action(function () {
+                    $path = app(TicketingReportExport::class)->render($this->report());
+
+                    return response()->streamDownload(function () use ($path) {
+                        readfile($path);
+                        @unlink($path);
+                    }, 'گزارش-گیشه-'.now()->format('Y-m-d').'.xlsx', [
+                        'Content-Type' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+                    ]);
+                }),
+        ];
     }
 
     public function toman(int $amount): string
