@@ -60,16 +60,16 @@ class WpCoverageGaps
             ->where('seo_project_id', $project->id)
             ->whereNotNull('target_keyword')
             ->pluck('target_keyword')
-            ->map(fn (string $keyword) => WpContentInventory::normalize($keyword))
+            ->map(fn (string $keyword) => WpContentInventory::canonical($keyword))
             ->flip();
 
         $byKey = $posts->keyBy('url_hash');
-        $focus = $posts->map(fn (SeoWpPost $post) => WpContentInventory::normalize((string) ($post->seo['focus_keyword'] ?? '')))->filter()->unique()->values();
-        $titleWords = $posts->map(fn (SeoWpPost $post) => explode(' ', WpContentInventory::normalize($post->title)));
+        $focus = $posts->map(fn (SeoWpPost $post) => WpContentInventory::canonical((string) ($post->seo['focus_keyword'] ?? '')))->filter()->unique()->values();
+        $titleWords = $posts->map(fn (SeoWpPost $post) => WpContentInventory::tokens($post->title));
 
         foreach ($profiles as $profile) {
             $position = (float) $profile->current_position;
-            $query = WpContentInventory::normalize($profile->query);
+            $query = WpContentInventory::canonical($profile->query);
 
             if ($position <= 10 || $planned->has($query)) {
                 continue;

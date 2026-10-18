@@ -121,14 +121,14 @@ class WpContentBrief
             return collect();
         }
 
-        $own = WpContentInventory::normalize($query);
+        $own = WpContentInventory::canonical($query);
 
         return SeoKeywordProfile::query()
             ->where('seo_project_id', $project->id)
             ->orderByDesc('impressions_28d')
             ->limit(300)
             ->pluck('query')
-            ->filter(fn (string $other) => WpContentInventory::normalize($other) !== $own
+            ->filter(fn (string $other) => WpContentInventory::canonical($other) !== $own
                 && array_intersect($words, $this->words($other)) !== [])
             ->take(self::MAX_RELATED_SEARCHES)
             ->values();
@@ -140,7 +140,7 @@ class WpContentBrief
     private function words(string $text): array
     {
         return array_values(array_unique(array_filter(
-            explode(' ', WpContentInventory::normalize($text)),
+            WpContentInventory::tokens($text),
             fn (string $word) => mb_strlen($word) >= self::MIN_WORD_LENGTH,
         )));
     }
