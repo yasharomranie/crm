@@ -136,9 +136,16 @@ class Guest extends Authenticatable
      */
     public function loyaltyTier(): LoyaltyTier
     {
-        $frequency = $this->frequency();
-        $monetary = $this->monetaryTotal();
+        return static::tierFor($this->frequency(), $this->monetaryTotal());
+    }
 
+    /**
+     * The tier thresholds in one place, so reports that already hold the
+     * numbers (stays, lifetime spend) classify guests exactly as the guest
+     * page does.
+     */
+    public static function tierFor(int $frequency, int $monetary): LoyaltyTier
+    {
         return match (true) {
             $frequency >= 5 && $monetary >= 100_000_000 => LoyaltyTier::Vip,
             $frequency >= 3 || $monetary >= 50_000_000 => LoyaltyTier::Gold,
