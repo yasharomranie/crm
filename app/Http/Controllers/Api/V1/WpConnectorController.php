@@ -4,12 +4,15 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Domain\Seo\WpConnector\WpConnectorException;
 use App\Domain\Seo\WpConnector\WpPairingService;
+use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Domain\Seo\WpConnector\WpPostIngestor;
 use App\Http\Controllers\Controller;
 use App\Models\SeoWpSite;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\URL;
 use Illuminate\Validation\Rule;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 
 /**
  * The CRM end of the WordPress connector plugin: pair() trades the one-time
@@ -105,6 +108,29 @@ class WpConnectorController extends Controller
             'cursor' => $data['cursor'] ?? null,
             'next_sync_after_seconds' => self::SYNC_INTERVAL_SECONDS,
         ]);
+    }
+
+    /**
+     * Tells a site whether a newer plugin exists, with a link WordPress can
+     * download it from. The link is signed rather than secret: the zip holds
+     * only the plugin's own code.
+     */
+    public function updateCheck(Request $request, WpPluginPackage $package): JsonResponse
+    {
+        $current = (string) $request->input('current_version', '0.0.0');
+        $latest = $package->version();
+
+        return response()->json([
+            'version' => $latest,
+            'update_available' => version_compare($latest, $current, '>'),
+            'package' => URL::temporarySignedRoute('wp-connector.package', now()->addHours(48)),
+            'requires_php' => '7.4',
+        ]);
+    }
+
+    public function package(WpPluginPackage $package): BinaryFileResponse
+    {
+        return response()->download($package->zipPath(), WpPluginPackage::SLUG.'.zip', ['Content-Type' => 'application/zip']);
     }
 
     public function disconnect(Request $request, WpPairingService $pairing): JsonResponse

@@ -87,8 +87,11 @@ Route::prefix('v1/external')->middleware('external-api.auth')->group(function ()
 Route::prefix('v1/wp-connector')->group(function () {
     Route::post('/pair', [WpConnectorController::class, 'pair'])->middleware('throttle:wp-connector-pair');
 
+    Route::get('/package', [WpConnectorController::class, 'package'])->middleware('signed')->name('wp-connector.package');
+
     Route::middleware('wp-connector.auth')->group(function () {
         Route::post('/sync', [WpConnectorController::class, 'sync']);
+        Route::post('/update-check', [WpConnectorController::class, 'updateCheck']);
         Route::post('/disconnect', [WpConnectorController::class, 'disconnect']);
     });
 });

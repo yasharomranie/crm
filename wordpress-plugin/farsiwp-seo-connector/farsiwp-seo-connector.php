@@ -13,6 +13,7 @@
 use FarsiWP\SeoConnector\Admin;
 use FarsiWP\SeoConnector\Settings;
 use FarsiWP\SeoConnector\Sync;
+use FarsiWP\SeoConnector\Updater;
 
 if (! defined('ABSPATH')) {
     exit;
@@ -21,7 +22,7 @@ if (! defined('ABSPATH')) {
 define('FSWC_VERSION', '1.0.0');
 define('FSWC_FILE', __FILE__);
 
-foreach (['Signer', 'HtmlAnalyzer', 'Settings', 'Collector', 'Client', 'Sync', 'Admin'] as $class) {
+foreach (['Signer', 'HtmlAnalyzer', 'Settings', 'Collector', 'Client', 'Sync', 'Updater', 'Admin'] as $class) {
     require_once __DIR__.'/includes/'.$class.'.php';
 }
 
@@ -102,6 +103,8 @@ add_action('admin_init', function () {
         });
     }
 });
+
+Updater::register();
 
 if (is_admin()) {
     Admin::register();
