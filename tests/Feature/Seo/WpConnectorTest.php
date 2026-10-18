@@ -87,6 +87,16 @@ class WpConnectorTest extends TestCase
         $this->postJson(self::PAIR_URL, $payload)->assertStatus(422)->assertJsonPath('error.code', 'INVALID_CODE');
     }
 
+    public function test_pairing_accepts_the_address_under_the_name_plugin_1_0_0_uses(): void
+    {
+        $project = SeoProject::factory()->create();
+        $code = app(WpPairingService::class)->issueCode($project);
+
+        $this->postJson(self::PAIR_URL, ['code' => $code, 'url' => 'https://example.test', 'scopes' => ['content']])->assertOk();
+
+        $this->assertSame('https://example.test', $project->wpSite->refresh()->site_url);
+    }
+
     public function test_an_expired_or_wrong_code_is_refused(): void
     {
         $project = SeoProject::factory()->create();
