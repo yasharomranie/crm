@@ -169,4 +169,32 @@ class TripPlanNormalizerTest extends TestCase
 
         $this->assertSame($playful->id, $draft['days'][0]['items'][0]['attraction_id']);
     }
+
+    public function test_a_weekday_with_its_own_hours_uses_them_instead_of_the_usual_ones(): void
+    {
+        // 2026-11-04 is a Wednesday (Carbon dayOfWeek 3).
+        $place = Attraction::factory()->create([
+            'opens_at' => '08:00',
+            'closes_at' => '18:00',
+            'weekday_hours' => [['weekday' => 3, 'opens_at' => '14:00', 'closes_at' => '17:00']],
+        ]);
+
+        $result = $this->normalize([['attraction_id' => $place->id, 'start_time' => '09:00', 'end_time' => '10:00']], [$place]);
+
+        $this->assertSame('14:00', $result[0]['start_time']);
+    }
+
+    public function test_other_weekdays_keep_the_usual_hours(): void
+    {
+        $place = Attraction::factory()->create([
+            'opens_at' => '08:00',
+            'closes_at' => '18:00',
+            'weekday_hours' => [['weekday' => 5, 'opens_at' => '14:00', 'closes_at' => '17:00']],
+        ]);
+
+        $result = $this->normalize([['attraction_id' => $place->id, 'start_time' => '09:00', 'end_time' => '10:00']], [$place]);
+
+        $this->assertSame('09:00', $result[0]['start_time']);
+        $this->assertSame(['opens_at' => '14:00', 'closes_at' => '17:00'], $place->hoursOn(Carbon::parse('2026-11-06')));
+    }
 }

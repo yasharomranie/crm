@@ -8,6 +8,7 @@ use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\FileUpload;
 use Filament\Forms\Components\Placeholder;
+use Filament\Forms\Components\Repeater;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
@@ -93,6 +94,23 @@ class AttractionForm
                             ->label('روزهای تعطیل هفتگی')
                             ->options(Attraction::WEEKDAY_LABELS)
                             ->columns(4)
+                            ->columnSpanFull(),
+                        Repeater::make('weekday_hours')
+                            ->label('ساعت کاری ویژه‌ی بعضی روزها')
+                            ->helperText('فقط برای روزهایی که ساعتشان با ساعت بالا فرق دارد (مثلاً جمعه‌ها دیرتر باز می‌شود). روز دیگر همان ساعت بالا را دارد.')
+                            ->schema([
+                                Select::make('weekday')
+                                    ->label('روز')
+                                    ->options(Attraction::WEEKDAY_LABELS)
+                                    ->required()
+                                    ->distinct()
+                                    ->native(false),
+                                TimePicker::make('opens_at')->label('باز می‌شود')->seconds(false)->required(),
+                                TimePicker::make('closes_at')->label('بسته می‌شود')->seconds(false)->required(),
+                            ])
+                            ->columns(3)
+                            ->addActionLabel('افزودن روز')
+                            ->defaultItems(0)
                             ->columnSpanFull(),
                         TextInput::make('entry_fee')
                             ->label('هزینه‌ی ورودی (تومان)')
