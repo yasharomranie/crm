@@ -1,6 +1,8 @@
 <x-filament-panels::page>
-    @php($report = $this->report())
-    @php($number = fn ($value) => $value === null ? '—' : \Illuminate\Support\Number::toPersian((string) $value))
+    @php
+        $report = $this->report();
+        $number = fn ($value) => $value === null ? '—' : \Illuminate\Support\Number::toPersian((string) $value);
+    @endphp
 
     <div dir="rtl" class="space-y-6">
         <div class="flex flex-wrap items-center gap-3">
