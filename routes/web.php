@@ -19,6 +19,7 @@ use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
 use App\Http\Controllers\GateOfflineSyncController;
+use App\Http\Controllers\GuestFeedbackController;
 use App\Http\Controllers\LeadCaptureController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -144,6 +145,11 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 
 // Customer-app account features - "سفارش‌های من" etc. - all behind the
 // 'customer' guard (see config/auth.php), never the staff 'auth' group.
+// Post-checkout survey behind the signed link texted to the guest.
+Route::match(['get', 'post'], '/feedback/{feedback}', [GuestFeedbackController::class, 'show'])
+    ->middleware(['signed', 'throttle:30,1'])
+    ->name('guest-feedback.show');
+
 // Read-only page behind a trip plan's share link.
 Route::get('/trip/{token}', [PublicTripPlanController::class, 'show'])->name('trip-plan.public');
 

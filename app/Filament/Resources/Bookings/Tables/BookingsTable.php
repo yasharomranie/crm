@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 use App\Enums\BookingStatus;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
+use App\Filament\Resources\Bookings\Actions\SendBookingSmsAction;
 use App\Filament\Support\TableExports;
 use App\Models\Booking;
 use App\Models\CancellationPolicy;
@@ -100,6 +101,7 @@ class BookingsTable
                             ->send();
                     }),
                 RecordPaymentAction::make(),
+                SendBookingSmsAction::make(),
                 Action::make('cancelBooking')
                     ->label('لغو رزرو')
                     ->icon(Heroicon::OutlinedXCircle)

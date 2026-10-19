@@ -2,6 +2,7 @@
 
 use App\Domain\Ai\AssistantAlertDigestService;
 use App\Domain\Ai\AssistantRetention;
+use App\Domain\Crm\BookingMessenger;
 use App\Domain\Crm\FollowUpReminderService;
 use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
@@ -253,5 +254,13 @@ Schedule::call(function () {
 })
     ->name('seo-wp-analyze')
     ->dailyAt('07:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Texts confirmed guests who arrive within the configured number of days
+// (only when enabled in «پیام‌های رزرو»); each booking is reminded once.
+Schedule::call(fn () => app(BookingMessenger::class)->sendDueArrivalReminders())
+    ->name('booking-arrival-reminders')
+    ->dailyAt('09:30')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
