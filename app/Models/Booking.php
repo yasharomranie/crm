@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Domain\Hospitality\StayPricing;
 use App\Enums\BookingPaymentKind;
 use App\Enums\BookingPaymentMethod;
 use App\Enums\BookingPaymentStatus;
@@ -13,6 +14,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Exceptions\ChannelAllotmentExceededException;
 use App\Exceptions\InsufficientWalletBalanceException;
+use App\Exceptions\MinimumStayException;
 use App\Exceptions\RoomNotAvailableException;
 use App\Jobs\SendBookingMessageJob;
 use App\Models\Concerns\HasTags;
@@ -34,7 +36,7 @@ class Booking extends Model
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
         'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
-        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at',
+        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id',
     ];
 
     public const CANCELLED_BY_GUEST = 'guest';
@@ -88,12 +90,17 @@ class Booking extends Model
             );
 
             if ($booking->status !== BookingStatus::Cancelled) {
-                static::assertChannelAllotment(
-                    Room::findOrFail($booking->room_id),
-                    $booking->sales_channel_id,
-                    $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
-                    $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
-                );
+                $room = Room::findOrFail($booking->room_id);
+                $checkIn = $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date);
+                $checkOut = $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date);
+
+                static::assertChannelAllotment($room, $booking->sales_channel_id, $checkIn, $checkOut);
+                static::assertMinimumStay($room, $checkIn, $checkOut);
+
+                if ($booking->promo_code_id) {
+                    BookingPromoCode::query()->lockForUpdate()->findOrFail($booking->promo_code_id)
+                        ->assertUsable(max(1, (int) $checkIn->copy()->startOfDay()->diffInDays($checkOut->copy()->startOfDay())));
+                }
             }
         });
 
@@ -141,6 +148,15 @@ class Booking extends Model
             // allotment lowered after the booking was made; only moving the
             // booking (room, dates, channel) or reviving a cancelled one
             // counts against the allotment again.
+            if ($booking->isDirty(['room_id', 'check_in_date', 'check_out_date'])
+                || $booking->getOriginal('status') === BookingStatus::Cancelled) {
+                static::assertMinimumStay(
+                    Room::findOrFail($booking->room_id),
+                    $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
+                    $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+                );
+            }
+
             if ($booking->isDirty(['room_id', 'check_in_date', 'check_out_date', 'sales_channel_id'])
                 || $booking->getOriginal('status') === BookingStatus::Cancelled) {
                 static::assertChannelAllotment(
@@ -160,16 +176,22 @@ class Booking extends Model
         });
 
         static::created(function (self $booking) {
-            $totalForStay = $booking->room->roomType->effectivePriceForRange(
-                $booking->check_in_date,
-                $booking->check_out_date,
-            );
+            $promo = $booking->promo_code_id ? BookingPromoCode::query()->find($booking->promo_code_id) : null;
+            $adults = max(1, (int) $booking->adults_count);
+            $children = (int) $booking->children_count;
 
-            $booking->charges()->create([
-                'title' => "اقامت {$booking->nights()} شب",
-                'quantity' => 1,
-                'unit_amount' => $totalForStay,
-            ]);
+            $pricing = app(StayPricing::class);
+            $quote = $pricing->quote($booking->room->roomType, $booking->check_in_date, $booking->check_out_date, $adults, $children, $promo);
+
+            foreach ($pricing->folioLines($quote, $adults, $children) as $line) {
+                $booking->charges()->create([
+                    'title' => $line['title'],
+                    'quantity' => 1,
+                    'unit_amount' => $line['amount'],
+                ]);
+            }
+
+            $promo?->increment('used_count');
         });
     }
 
@@ -191,6 +213,21 @@ class Booking extends Model
 
         if ($overlaps) {
             throw RoomNotAvailableException::forOverlap($room->name);
+        }
+    }
+
+    /**
+     * The stay must be at least as long as the room type (and any price rule
+     * on those nights) requires.
+     */
+    public static function assertMinimumStay(Room $room, Carbon $checkIn, Carbon $checkOut): void
+    {
+        $roomType = $room->roomType;
+        $nights = max(1, (int) $checkIn->copy()->startOfDay()->diffInDays($checkOut->copy()->startOfDay()));
+        $minimum = $roomType->minimumNightsFor($checkIn, $checkOut);
+
+        if ($nights < $minimum) {
+            throw MinimumStayException::forStay($roomType->name, $minimum);
         }
     }
 
@@ -230,6 +267,11 @@ class Booking extends Model
         $sequence = str_pad((string) (static::max('id') + 1), 6, '0', STR_PAD_LEFT);
 
         return "GNJ-BKG-{$sequence}";
+    }
+
+    public function promoCode(): BelongsTo
+    {
+        return $this->belongsTo(BookingPromoCode::class);
     }
 
     public function room(): BelongsTo

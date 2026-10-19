@@ -11,6 +11,7 @@ use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
+use Filament\Forms\Components\CheckboxList;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
@@ -82,6 +83,15 @@ class PriceRuleResource extends Resource
                         ? 'مبلغ به تومان به نرخ پایه اضافه می‌شود (برای کاهش، عدد منفی وارد کنید).'
                         : 'درصدی که به نرخ پایه اضافه می‌شود (برای تخفیف، عدد منفی وارد کنید).')
                     ->hintAction(FieldHelp::make('price-rules.adjustment_value')),
+                CheckboxList::make('weekdays')
+                    ->label('فقط در این روزهای هفته')
+                    ->options([6 => 'شنبه', 0 => 'یکشنبه', 1 => 'دوشنبه', 2 => 'سه‌شنبه', 3 => 'چهارشنبه', 4 => 'پنجشنبه', 5 => 'جمعه'])
+                    ->columns(4)
+                    ->helperText('هیچ‌کدام انتخاب نشود یعنی همه‌ی روزهای بازه. شبی حساب می‌شود که از آن روز شروع می‌شود (شب پنجشنبه = پنجشنبه).'),
+                TextInput::make('min_nights')
+                    ->label('حداقل مدت اقامت در این بازه (شب)')
+                    ->numeric()->minValue(1)->maxValue(60)
+                    ->helperText('خالی = بدون الزام. اگر اقامتی یکی از شب‌های این قانون را بگیرد، دست‌کم این‌قدر شب باید باشد.'),
                 TextInput::make('priority')
                     ->label('اولویت')
                     ->numeric()
