@@ -7,6 +7,7 @@ use App\Enums\SeoConnectionStatus;
 use App\Exceptions\SeoGoogleException;
 use App\Filament\Resources\SeoProjects\SeoProjectResource;
 use App\Http\Controllers\Controller;
+use App\Models\SeoGoogleConnection;
 use App\Models\SeoProject;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
@@ -19,6 +20,7 @@ class GoogleOAuthController extends Controller
 
     private const SCOPES = [
         'https://www.googleapis.com/auth/webmasters.readonly',
+        SeoGoogleConnection::ANALYTICS_SCOPE,
     ];
 
     public function redirect(Request $request, SeoProject $project, GoogleOAuthService $oauth): RedirectResponse

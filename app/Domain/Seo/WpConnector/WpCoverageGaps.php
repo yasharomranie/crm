@@ -6,6 +6,7 @@ use App\Models\SeoContentItem;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoProject;
 use App\Models\SeoWpPost;
+use App\Models\SeoWpSearchTerm;
 use Illuminate\Support\Collection;
 
 /**
@@ -30,8 +31,11 @@ class WpCoverageGaps
 
     private const LIMIT = 50;
 
+    /** A site search must have found nothing this often to count as a content wish rather than a typo. */
+    private const MIN_SITE_SEARCH_MISSES = 2;
+
     /**
-     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}
+     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, site_searches: Collection<int, array<string, mixed>>, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}
      */
     public function analyze(SeoProject $project, int $minImpressions = self::DEFAULT_MIN_IMPRESSIONS): array
     {
@@ -53,6 +57,7 @@ class WpCoverageGaps
         $result = [
             'has_pages' => $posts->isNotEmpty(),
             'has_searches' => $searchesTotal > 0,
+            'site_searches' => $this->siteSearches($project),
             'searches_total' => $searchesTotal,
             'searches_considered' => $profiles->count(),
             'min_impressions' => $minImpressions,
@@ -131,5 +136,32 @@ class WpCoverageGaps
         }
 
         return false;
+    }
+
+    /**
+     * What visitors typed into the site's own search box and found nothing
+     * for - content they wanted that the site does not have. Terms already
+     * planned in the calendar are left out.
+     *
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function siteSearches(SeoProject $project): Collection
+    {
+        $planned = SeoContentItem::query()
+            ->where('seo_project_id', $project->id)
+            ->whereNotNull('target_keyword')
+            ->pluck('target_keyword')
+            ->map(fn (string $keyword) => WpContentInventory::canonical($keyword))
+            ->flip();
+
+        return SeoWpSearchTerm::query()
+            ->whereHas('site', fn ($site) => $site->where('seo_project_id', $project->id))
+            ->where('misses', '>=', self::MIN_SITE_SEARCH_MISSES)
+            ->orderByDesc('misses')
+            ->limit(self::LIMIT)
+            ->get()
+            ->reject(fn (SeoWpSearchTerm $term) => $planned->has(WpContentInventory::canonical($term->term)))
+            ->map(fn (SeoWpSearchTerm $term) => ['query' => $term->term, 'count' => $term->count, 'misses' => $term->misses])
+            ->values();
     }
 }

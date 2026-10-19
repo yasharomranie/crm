@@ -2,6 +2,8 @@
 
 namespace App\Filament\Resources\SeoProjects\Pages;
 
+use App\Domain\Seo\GoogleAnalyticsClient;
+use App\Domain\Seo\GoogleOAuthService;
 use App\Domain\Seo\SearchConsoleClient;
 use App\Domain\Seo\WpConnector\WpPairingService;
 use App\Enums\SeoConnectionStatus;
@@ -11,6 +13,7 @@ use App\Jobs\AnalyzeCompetitorContentGapsJob;
 use App\Jobs\AnalyzeSeoProjectJob;
 use App\Jobs\ClassifySeoKeywordsJob;
 use App\Jobs\DiscoverSeoKeywordsJob;
+use App\Jobs\SyncGoogleAnalyticsJob;
 use App\Jobs\SyncSearchConsoleDataJob;
 use App\Jobs\SyncSitemapDataJob;
 use App\Models\SeoProject;
@@ -84,6 +87,56 @@ class EditSeoProject extends EditRecord
                     $record->googleConnection->update(['gsc_site_url' => $data['gsc_site_url']]);
 
                     Notification::make()->title('ملک انتخاب‌شده ذخیره شد.')->success()->send();
+                }),
+
+            Action::make('reconnectForAnalytics')
+                ->label('اتصال مجدد برای Google Analytics')
+                ->icon(Heroicon::OutlinedChartBar)
+                ->tooltip('این اتصال هنوز اجازه‌ی خواندن Google Analytics را ندارد؛ یک بار دیگر حساب گوگل را وصل کنید و گزینه‌ی Analytics را تیک بزنید.')
+                ->visible(fn (SeoProject $record) => $record->googleConnection?->status === SeoConnectionStatus::Connected
+                    && ! $record->googleConnection->canReadAnalytics())
+                ->url(fn (SeoProject $record) => route('seo.google.redirect', $record)),
+
+            Action::make('pickGa4Property')
+                ->label('انتخاب ویژگی Google Analytics (GA4)')
+                ->icon(Heroicon::OutlinedChartBar)
+                ->visible(fn (SeoProject $record) => $record->googleConnection?->status === SeoConnectionStatus::Connected
+                    && $record->googleConnection->canReadAnalytics())
+                ->schema(fn (SeoProject $record) => [
+                    Select::make('ga4_property_id')
+                        ->label('ویژگی (Property)')
+                        ->options(function () use ($record) {
+                            try {
+                                return (new GoogleAnalyticsClient(app(GoogleOAuthService::class)->freshAccessTokenFor($record->googleConnection)))->listProperties();
+                            } catch (SeoGoogleException $exception) {
+                                Notification::make()
+                                    ->title('دریافت فهرست ویژگی‌ها از Google Analytics ناموفق بود')
+                                    ->body($exception->getMessage())
+                                    ->danger()
+                                    ->send();
+
+                                return [];
+                            }
+                        })
+                        ->searchable()
+                        ->required()
+                        ->default($record->googleConnection?->ga4_property_id),
+                ])
+                ->action(function (array $data, SeoProject $record) {
+                    $record->googleConnection->update(['ga4_property_id' => $data['ga4_property_id'], 'ga_last_error' => null]);
+                    SyncGoogleAnalyticsJob::dispatch($record->id);
+
+                    Notification::make()->title('ویژگی ذخیره شد و دریافت آمار در صف قرار گرفت.')->success()->send();
+                }),
+
+            Action::make('syncAnalyticsNow')
+                ->label('همگام‌سازی Analytics الان')
+                ->icon(Heroicon::OutlinedArrowPath)
+                ->visible(fn (SeoProject $record) => filled($record->googleConnection?->ga4_property_id))
+                ->action(function (SeoProject $record) {
+                    SyncGoogleAnalyticsJob::dispatch($record->id);
+
+                    Notification::make()->title('دریافت آمار Analytics در صف اجرا قرار گرفت.')->success()->send();
                 }),
 
             Action::make('syncNow')

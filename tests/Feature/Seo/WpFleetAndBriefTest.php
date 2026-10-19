@@ -65,7 +65,7 @@ class WpFleetAndBriefTest extends TestCase
         $overview = app(WpFleetStatus::class)->overview();
 
         $this->assertSame(
-            ['error' => 1, 'silent' => 1, 'discouraged' => 1, 'outdated' => 1, 'pending' => 1, 'disconnected' => 1, 'ok' => 1],
+            ['down' => 0, 'error' => 1, 'silent' => 1, 'ssl' => 0, 'discouraged' => 1, 'updates' => 0, 'outdated' => 1, 'pending' => 1, 'disconnected' => 1, 'ok' => 1],
             $overview['counts'],
         );
         $this->assertSame(['error', 'silent', 'discouraged', 'outdated', 'pending', 'disconnected', 'ok'], $overview['rows']->pluck('state')->all());

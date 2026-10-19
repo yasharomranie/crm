@@ -146,6 +146,14 @@ Schedule::call($artisan('seo:sync-search-console'))
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
+// آمار Google Analytics (نشست، تبدیل، ورودی از هوش مصنوعی) بعد از همگام‌سازی
+// Search Console. کارها با فاصله در صف می‌روند تا با ۱۰۰ سایت فشار نیاید.
+Schedule::call($artisan('seo:sync-google-analytics'))
+    ->name('seo:sync-google-analytics')
+    ->dailyAt('02:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 // مرکز سئو "learning" step: re-measures every resolved opportunity whose
 // baseline is old enough (OpportunityOutcomeService::FOLLOWUP_WINDOW_DAYS)
 // and records whether it actually helped. Daily is plenty - the
@@ -182,6 +190,13 @@ Schedule::call($artisan('seo:generate-periodic-reports'))
     ->name('seo:generate-periodic-reports')
     ->monthlyOn(1, '04:00')
     ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// هر ربع ساعت می‌پرسد سایت‌ها بالا هستند یا نه و تاریخ SSL را می‌خواند؛
+// فقط تغییرِ تازه (قطع‌شدن، وصل‌شدن، نزدیک‌شدن انقضا) هشدار می‌دهد.
+Schedule::call($artisan('seo:check-site-health'))
+    ->name('seo:check-site-health')
+    ->everyFifteenMinutes()
     ->withoutOverlapping();
 
 // sitemap.xml معمولاً چند بار در روز هم تغییر نمی‌کند، پس یک بار در روز

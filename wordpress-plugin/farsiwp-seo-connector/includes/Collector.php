@@ -264,4 +264,64 @@ class Collector
 
         return $info;
     }
+
+    /**
+     * The slower-changing report sent with the periodic heartbeat: what needs
+     * updating on the site, its 404 addresses and (if allowed) what visitors
+     * searched for. Each part appears only when the owner allowed its scope.
+     *
+     * @return array<string, mixed>
+     */
+    public static function siteReport()
+    {
+        $report = [];
+
+        if (Settings::allows('health')) {
+            $report += self::updatesReport();
+            $report['not_found'] = Observer::notFound();
+        }
+
+        if (Settings::allows('search_terms')) {
+            $report['search_terms'] = Observer::searches();
+        }
+
+        return $report;
+    }
+
+    private static function updatesReport()
+    {
+        if (! function_exists('get_plugins')) {
+            require_once ABSPATH.'wp-admin/includes/plugin.php';
+        }
+
+        $core = get_site_transient('update_core');
+        $coreVersion = null;
+
+        if (is_object($core) && ! empty($core->updates[0]) && isset($core->updates[0]->response) && $core->updates[0]->response === 'upgrade') {
+            $coreVersion = (string) $core->updates[0]->current;
+        }
+
+        $plugins = [];
+        $pluginUpdates = get_site_transient('update_plugins');
+        $installed = get_plugins();
+
+        if (is_object($pluginUpdates) && ! empty($pluginUpdates->response)) {
+            foreach ($pluginUpdates->response as $file => $update) {
+                $plugins[] = [
+                    'name' => isset($installed[$file]['Name']) ? $installed[$file]['Name'] : (string) $file,
+                    'new_version' => isset($update->new_version) ? (string) $update->new_version : null,
+                ];
+            }
+        }
+
+        $themeUpdates = get_site_transient('update_themes');
+
+        return [
+            'wp_core_update' => $coreVersion,
+            'outdated_plugins' => array_slice($plugins, 0, 30),
+            'outdated_themes' => is_object($themeUpdates) && ! empty($themeUpdates->response) ? count($themeUpdates->response) : 0,
+            'ssl' => is_ssl(),
+            'cron_disabled' => defined('DISABLE_WP_CRON') && DISABLE_WP_CRON,
+        ];
+    }
 }

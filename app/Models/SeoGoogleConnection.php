@@ -14,8 +14,10 @@ class SeoGoogleConnection extends Model
     protected $fillable = [
         'seo_project_id', 'google_account_email', 'access_token', 'refresh_token',
         'token_expires_at', 'granted_scopes', 'gsc_site_url', 'ga4_property_id',
-        'status', 'last_synced_at', 'last_sync_error',
+        'status', 'last_synced_at', 'last_sync_error', 'ga_summary', 'ga_synced_at', 'ga_last_error',
     ];
+
+    public const ANALYTICS_SCOPE = 'https://www.googleapis.com/auth/analytics.readonly';
 
     protected function casts(): array
     {
@@ -31,12 +33,23 @@ class SeoGoogleConnection extends Model
             'granted_scopes' => 'array',
             'status' => SeoConnectionStatus::class,
             'last_synced_at' => 'datetime',
+            'ga_summary' => 'array',
+            'ga_synced_at' => 'datetime',
         ];
     }
 
     public function project(): BelongsTo
     {
         return $this->belongsTo(SeoProject::class, 'seo_project_id');
+    }
+
+    /**
+     * Whether the Google account agreed to share Analytics data (Google lets
+     * a user untick one permission on the consent screen).
+     */
+    public function canReadAnalytics(): bool
+    {
+        return in_array(self::ANALYTICS_SCOPE, $this->granted_scopes ?? [], true);
     }
 
     public function isTokenExpired(): bool

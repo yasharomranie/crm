@@ -29,7 +29,7 @@ class SeoWpSite extends Model
     protected $fillable = [
         'seo_project_id', 'pairing_code_hash', 'pairing_expires_at', 'secret', 'site_url', 'plugin_version',
         'wp_version', 'php_version', 'seo_plugin', 'has_woocommerce', 'search_engines_discouraged', 'scopes', 'status',
-        'last_seen_at', 'last_sync_at', 'analyzed_at', 'last_error',
+        'last_seen_at', 'last_sync_at', 'analyzed_at', 'last_error', 'health', 'health_reported_at',
     ];
 
     protected $hidden = ['secret', 'pairing_code_hash'];
@@ -39,6 +39,8 @@ class SeoWpSite extends Model
         return [
             'secret' => 'encrypted',
             'scopes' => 'array',
+            'health' => 'array',
+            'health_reported_at' => 'datetime',
             'has_woocommerce' => 'boolean',
             'search_engines_discouraged' => 'boolean',
             'analyzed_at' => 'datetime',
@@ -56,6 +58,16 @@ class SeoWpSite extends Model
     public function posts(): HasMany
     {
         return $this->hasMany(SeoWpPost::class);
+    }
+
+    public function notFoundUrls(): HasMany
+    {
+        return $this->hasMany(SeoWpNotFoundUrl::class);
+    }
+
+    public function searchTerms(): HasMany
+    {
+        return $this->hasMany(SeoWpSearchTerm::class);
     }
 
     public function isConnected(): bool

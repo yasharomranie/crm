@@ -16,7 +16,7 @@ use Illuminate\Support\Str;
 class WpPostIngestor
 {
     /** What each scope lets the plugin send, beyond the basic content facts. */
-    public const SCOPES = ['content', 'seo_meta', 'structure', 'images', 'terms', 'authors', 'commerce', 'health'];
+    public const SCOPES = ['content', 'seo_meta', 'structure', 'images', 'terms', 'authors', 'commerce', 'health', 'search_terms'];
 
     /** The slug column is VARCHAR(191) on a database that has not run the widening migration yet. */
     private const SLUG_LENGTH = 191;

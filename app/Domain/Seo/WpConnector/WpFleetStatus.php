@@ -2,6 +2,7 @@
 
 namespace App\Domain\Seo\WpConnector;
 
+use App\Domain\Seo\SiteHealth\SiteHealthMonitor;
 use App\Models\SeoWpPost;
 use App\Models\SeoWpSite;
 use Illuminate\Support\Collection;
@@ -16,9 +17,12 @@ class WpFleetStatus
 {
     /** Display order and wording of each state, most urgent first. */
     public const STATES = [
+        'down' => ['label' => 'سایت در دسترس نیست', 'color' => 'danger'],
         'error' => ['label' => 'خطا در دریافت', 'color' => 'danger'],
         'silent' => ['label' => 'ساکت (پلاگین خبر نمی‌دهد)', 'color' => 'danger'],
+        'ssl' => ['label' => 'SSL رو به پایان', 'color' => 'warning'],
         'discouraged' => ['label' => 'موتور جست‌وجو مسدود است', 'color' => 'warning'],
+        'updates' => ['label' => 'وردپرس یا افزونه‌ها قدیمی', 'color' => 'warning'],
         'outdated' => ['label' => 'پلاگین قدیمی', 'color' => 'warning'],
         'pending' => ['label' => 'در انتظار اتصال', 'color' => 'gray'],
         'disconnected' => ['label' => 'قطع‌شده', 'color' => 'gray'],
@@ -34,7 +38,16 @@ class WpFleetStatus
     {
         $latest = $this->package->version();
 
-        $sites = SeoWpSite::query()->with('project:id,name')->withCount('posts')->get();
+        $sites = SeoWpSite::query()
+            ->with([
+                'project:id,name',
+                'project.siteCheck',
+                'project.googleConnection',
+                'notFoundUrls' => fn ($query) => $query->orderByDesc('hits'),
+                'searchTerms' => fn ($query) => $query->where('misses', '>', 0)->orderByDesc('misses'),
+            ])
+            ->withCount('posts')
+            ->get();
 
         $withIssues = SeoWpPost::query()
             ->selectRaw('seo_wp_site_id, count(*) as total')
@@ -45,6 +58,7 @@ class WpFleetStatus
 
         $rows = $sites->map(function (SeoWpSite $site) use ($latest, $withIssues) {
             $state = $this->stateOf($site, $latest);
+            $check = $site->project?->siteCheck;
 
             return [
                 'site_id' => $site->id,
@@ -62,6 +76,15 @@ class WpFleetStatus
                 'last_seen_at' => $site->last_seen_at,
                 'last_sync_at' => $site->last_sync_at,
                 'last_error' => $site->last_error,
+                'core_update' => $site->health['wp_core_update'] ?? null,
+                'outdated_plugins' => $site->health['outdated_plugins'] ?? [],
+                'not_found' => $site->notFoundUrls->take(5)->map(fn ($url) => ['path' => $url->path, 'hits' => $url->hits])->all(),
+                'not_found_total' => $site->notFoundUrls->count(),
+                'search_misses' => $site->searchTerms->take(5)->map(fn ($term) => ['term' => $term->term, 'misses' => $term->misses])->all(),
+                'analytics' => $site->project?->googleConnection?->ga_summary,
+                'analytics_error' => $site->project?->googleConnection?->ga_last_error,
+                'response_ms' => $check?->response_ms,
+                'ssl_days_left' => $check?->sslDaysLeft(),
             ];
         });
 
@@ -83,12 +106,18 @@ class WpFleetStatus
 
     private function stateOf(SeoWpSite $site, string $latest): string
     {
+        $check = $site->project?->siteCheck;
+        $sslDays = $check?->sslDaysLeft();
+
         return match (true) {
             $site->status === SeoWpSite::STATUS_DISCONNECTED => 'disconnected',
             $site->status === SeoWpSite::STATUS_PENDING => 'pending',
+            $check && ! $check->is_up && $check->consecutive_failures >= SiteHealthMonitor::FAILURES_BEFORE_DOWN => 'down',
             filled($site->last_error) => 'error',
             $site->isStale() => 'silent',
+            $sslDays !== null && $sslDays <= SiteHealthMonitor::SSL_ALERT_DAYS[0] => 'ssl',
             $site->search_engines_discouraged => 'discouraged',
+            filled($site->health['wp_core_update'] ?? null) || ! empty($site->health['outdated_plugins']) => 'updates',
             $site->plugin_version && version_compare($site->plugin_version, $latest, '<') => 'outdated',
             default => 'ok',
         };

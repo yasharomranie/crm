@@ -3,7 +3,7 @@
 /**
  * Plugin Name:       اتصال CRM سئو (FarsiWP SEO Connector)
  * Description:       فهرست محتوای سایت را با اجازه‌ی شما به مرکز سئوی CRM می‌فرستد تا کلمات کلیدی و محتوا را هوشمندتر پیشنهاد دهد. فقط می‌خواند و متن کامل نوشته‌ها را نمی‌فرستد.
- * Version:           1.0.2
+ * Version:           1.1.0
  * Requires PHP:      7.4
  * Requires at least: 5.3
  * Author:            FarsiWP
@@ -11,6 +11,7 @@
  */
 
 use FarsiWP\SeoConnector\Admin;
+use FarsiWP\SeoConnector\Observer;
 use FarsiWP\SeoConnector\Settings;
 use FarsiWP\SeoConnector\Sync;
 use FarsiWP\SeoConnector\Updater;
@@ -19,10 +20,10 @@ if (! defined('ABSPATH')) {
     exit;
 }
 
-define('FSWC_VERSION', '1.0.2');
+define('FSWC_VERSION', '1.1.0');
 define('FSWC_FILE', __FILE__);
 
-foreach (['Signer', 'HtmlAnalyzer', 'Settings', 'Collector', 'Client', 'Sync', 'Updater', 'Admin'] as $class) {
+foreach (['Signer', 'HtmlAnalyzer', 'Settings', 'Collector', 'Client', 'Sync', 'Updater', 'Observer', 'Admin'] as $class) {
     require_once __DIR__.'/includes/'.$class.'.php';
 }
 
@@ -105,6 +106,7 @@ add_action('admin_init', function () {
 });
 
 Updater::register();
+Observer::register();
 
 if (is_admin()) {
     Admin::register();

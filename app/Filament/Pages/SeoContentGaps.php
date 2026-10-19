@@ -62,7 +62,7 @@ class SeoContentGaps extends Page
     }
 
     /**
-     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}|null
+     * @return array{has_pages: bool, has_searches: bool, searches_total: int, searches_considered: int, min_impressions: int, site_searches: Collection<int, array<string, mixed>>, uncovered: Collection<int, array<string, mixed>>, improve: Collection<int, array<string, mixed>>}|null
      */
     public function gaps(): ?array
     {
@@ -84,9 +84,12 @@ class SeoContentGaps extends Page
 
         $project = SeoProject::find($this->projectId);
         $target = $improve && $post ? SeoWpPost::find($postId) : null;
-        $reason = $improve && $post
-            ? "این عبارت در رتبه‌ی {$post['position']} است."
-            : 'گوگل این عبارت را به سایت نشان می‌دهد ولی هیچ صفحه‌ای هدفش نیست.';
+        $siteSearch = $kind === 'search' ? $this->gaps()['site_searches']->firstWhere('query', $query) : null;
+        $reason = match (true) {
+            $improve && $post !== null => "این عبارت در رتبه‌ی {$post['position']} است.",
+            $siteSearch !== null => "بازدیدکننده‌ها این عبارت را {$siteSearch['count']} بار در جست‌وجوی داخل سایت تایپ کرده‌اند و {$siteSearch['misses']} بار چیزی پیدا نکرده‌اند.",
+            default => 'گوگل این عبارت را به سایت نشان می‌دهد ولی هیچ صفحه‌ای هدفش نیست.',
+        };
 
         SeoContentItem::create([
             'seo_project_id' => $this->projectId,

@@ -63,6 +63,18 @@ class SeoWpPostsTable
                     ->numeric(1)
                     ->sortable()
                     ->placeholder('—'),
+                TextColumn::make('ga_sessions')
+                    ->label('نشست (GA، ۲۸ روز)')
+                    ->numeric()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(),
+                TextColumn::make('ga_key_events')
+                    ->label('تبدیل (GA)')
+                    ->numeric()
+                    ->sortable()
+                    ->placeholder('—')
+                    ->toggleable(),
                 TextColumn::make('focus_keyword')
                     ->label('کلمه کانونی')
                     ->state(fn (SeoWpPost $record) => $record->seo['focus_keyword'] ?? null)

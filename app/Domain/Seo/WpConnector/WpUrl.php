@@ -24,4 +24,16 @@ class WpUrl
     {
         return rtrim((string) (parse_url(trim($url))['path'] ?? ''), '/') === '';
     }
+
+    /**
+     * Like key() but for the path alone - Google Analytics reports pages as
+     * "/path" with no host.
+     */
+    public static function pathKey(string $urlOrPath): string
+    {
+        $path = parse_url(trim($urlOrPath), PHP_URL_PATH);
+        $path = rtrim(mb_strtolower(rawurldecode((string) $path)), '/');
+
+        return sha1($path);
+    }
 }

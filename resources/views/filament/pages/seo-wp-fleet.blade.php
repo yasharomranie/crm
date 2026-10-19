@@ -40,9 +40,41 @@
                                     @if ($row['url'])
                                         <div dir="ltr" class="text-left text-xs text-gray-500 dark:text-gray-400">{{ $row['url'] }}</div>
                                     @endif
+                                    @if ($row['core_update'] || $row['outdated_plugins'] || $row['not_found'] || $row['search_misses'] || $row['analytics'] || $row['analytics_error'])
+                                        <details class="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                                            <summary class="cursor-pointer text-primary-600 dark:text-primary-400">جزئیات</summary>
+                                            <div class="mt-1 space-y-1">
+                                                @if ($row['analytics'])
+                                                    <div>Google Analytics (۲۸ روز): {{ number_format($row['analytics']['sessions']) }} نشست، {{ number_format($row['analytics']['key_events']) }} تبدیل@if ($row['analytics']['ai_sessions'] > 0)، {{ number_format($row['analytics']['ai_sessions']) }} ورودی از دستیارهای هوش مصنوعی ({{ implode('، ', array_keys($row['analytics']['ai_sources'])) }})@endif.</div>
+                                                @endif
+                                                @if ($row['analytics_error'])
+                                                    <div class="text-danger-600 dark:text-danger-400">خطای Analytics: {{ $row['analytics_error'] }}</div>
+                                                @endif
+                                                @if ($row['core_update'])
+                                                    <div>وردپرس نسخه‌ی <span dir="ltr">{{ $row['core_update'] }}</span> آماده‌ی به‌روزرسانی است.</div>
+                                                @endif
+                                                @if ($row['outdated_plugins'])
+                                                    <div>افزونه‌های قدیمی: @foreach ($row['outdated_plugins'] as $plugin){{ $plugin['name'] }}{{ $plugin['new_version'] ? ' ('.$plugin['new_version'].')' : '' }}{{ $loop->last ? '' : '، ' }}@endforeach</div>
+                                                @endif
+                                                @if ($row['not_found'])
+                                                    <div>پربازدیدترین آدرس‌های «۴۰۴» ({{ number_format($row['not_found_total']) }} آدرس):
+                                                        @foreach ($row['not_found'] as $notFound)
+                                                            <div dir="ltr" class="text-left">{{ $notFound['path'] }} <span class="text-gray-400">× {{ $notFound['hits'] }}</span></div>
+                                                        @endforeach
+                                                    </div>
+                                                @endif
+                                                @if ($row['search_misses'])
+                                                    <div>در سایت جست‌وجو شد و چیزی پیدا نشد: @foreach ($row['search_misses'] as $miss){{ $miss['term'] }} ({{ $miss['misses'] }}){{ $loop->last ? '' : '، ' }}@endforeach</div>
+                                                @endif
+                                            </div>
+                                        </details>
+                                    @endif
                                 </td>
                                 <td class="px-3 py-2">
                                     <x-filament::badge :color="$row['state_color']">{{ $row['state_label'] }}</x-filament::badge>
+                                    @if ($row['ssl_days_left'] !== null && $row['ssl_days_left'] <= \App\Domain\Seo\SiteHealth\SiteHealthMonitor::SSL_ALERT_DAYS[0])
+                                        <div class="mt-1 text-xs text-warning-600 dark:text-warning-400">{{ $row['ssl_days_left'] >= 0 ? 'SSL: '.$row['ssl_days_left'].' روز تا انقضا' : 'SSL منقضی شده' }}</div>
+                                    @endif
                                     @if ($row['last_error'])
                                         <div class="mt-1 max-w-xs text-xs text-danger-600 dark:text-danger-400">{{ \Illuminate\Support\Str::limit($row['last_error'], 120) }}</div>
                                     @endif

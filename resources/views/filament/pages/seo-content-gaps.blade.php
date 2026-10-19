@@ -108,5 +108,36 @@
                 </section>
             </div>
         @endif
+
+        @if ($projectId && $gaps && $gaps['site_searches']->isNotEmpty())
+            <section class="rounded-lg border border-gray-200 p-4 dark:border-white/10">
+                <h3 class="text-base font-semibold text-gray-950 dark:text-white">در خود سایت جست‌وجو شد و چیزی پیدا نشد</h3>
+                <p class="mb-3 mt-1 text-xs text-gray-500 dark:text-gray-400">این عبارت‌ها را بازدیدکننده‌ها در جست‌وجوی داخل سایت تایپ کرده‌اند و صفحه‌ای برایشان نیامده؛ یعنی محتوایی می‌خواهند که ندارید.</p>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-sm">
+                        <thead>
+                            <tr class="text-xs text-gray-500 dark:text-gray-400">
+                                <th class="py-1 text-right font-medium">عبارت</th>
+                                <th class="py-1 text-right font-medium">بار جست‌وجو</th>
+                                <th class="py-1 text-right font-medium">بدون نتیجه</th>
+                                <th class="py-1"></th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-100 dark:divide-white/5">
+                            @foreach ($gaps['site_searches'] as $row)
+                                <tr wire:key="site-search-{{ $loop->index }}">
+                                    <td class="py-1.5 pe-3 text-gray-800 dark:text-gray-200">{{ $row['query'] }}</td>
+                                    <td class="py-1.5 pe-3 tabular-nums text-gray-600 dark:text-gray-400">{{ number_format($row['count']) }}</td>
+                                    <td class="py-1.5 pe-3 tabular-nums text-gray-600 dark:text-gray-400">{{ number_format($row['misses']) }}</td>
+                                    <td class="py-1.5 text-left">
+                                        <x-filament::button size="xs" color="gray" wire:click="addToCalendar('search', @js($row['query']))">افزودن به تقویم</x-filament::button>
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </section>
+        @endif
     </div>
 </x-filament-panels::page>
