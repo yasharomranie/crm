@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use App\Enums\RoomStatus;
+use Carbon\CarbonInterface;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -36,6 +38,24 @@ class Room extends Model
     public function bookings(): HasMany
     {
         return $this->hasMany(Booking::class);
+    }
+
+    /**
+     * Active rooms with no live booking overlapping [$checkIn, $checkOut)
+     * (the booking $exceptBookingId, if given, is ignored).
+     *
+     * @param  Builder<Room>  $query
+     * @return Builder<Room>
+     */
+    public function scopeFreeBetween(Builder $query, CarbonInterface $checkIn, CarbonInterface $checkOut, ?int $exceptBookingId = null): Builder
+    {
+        return $query
+            ->where('is_active', true)
+            ->whereDoesntHave('bookings', fn ($bookings) => $bookings
+                ->where('status', '!=', BookingStatus::Cancelled)
+                ->when($exceptBookingId, fn ($query) => $query->whereKeyNot($exceptBookingId))
+                ->where('check_in_date', '<', $checkOut->toDateString())
+                ->where('check_out_date', '>', $checkIn->toDateString()));
     }
 
     /**
