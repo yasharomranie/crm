@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
 use App\Exceptions\InsufficientWalletBalanceException;
+use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
 use App\Filament\Support\TableExports;
 use App\Models\Booking;
 use Filament\Actions\Action;
@@ -15,8 +16,10 @@ use Filament\Forms\Components\TextInput;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
 use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
 use InvalidArgumentException;
 
@@ -33,10 +36,30 @@ class BookingsTable
                 TextColumn::make('check_out_date')->label('خروج')->jalaliDate('Y/m/d'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
                 TextColumn::make('source')->label('منبع'),
+                TextColumn::make('folio_total')
+                    ->label('صورت‌حساب')
+                    ->state(fn (Booking $record) => $record->totalAmount())
+                    ->numeric()
+                    ->suffix(' تومان')
+                    ->toggleable(),
+                TextColumn::make('folio_balance')
+                    ->label('مانده')
+                    ->state(fn (Booking $record) => $record->status === BookingStatus::Cancelled ? 0 : $record->balanceDue())
+                    ->numeric()
+                    ->suffix(' تومان')
+                    ->color(fn (Booking $record) => $record->status !== BookingStatus::Cancelled && $record->balanceDue() > 0 ? 'danger' : 'success'),
             ])
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments']))
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
+                Filter::make('has_balance')
+                    ->label('فقط رزروهای دارای مانده')
+                    ->query(fn (Builder $query) => $query
+                        ->where('status', '!=', BookingStatus::Cancelled->value)
+                        ->whereRaw('(select coalesce(sum(quantity * unit_amount), 0) from booking_charges where booking_charges.booking_id = bookings.id)'
+                            .' - coalesce(bookings.wallet_paid_amount, 0)'
+                            .' - (select coalesce(sum(case when kind = ? then -amount else amount end), 0) from booking_payments where booking_payments.booking_id = bookings.id) > 0', ['refund'])),
             ])
             ->headerActions([
                 TableExports::excel('رزروها', static::exportColumns()),
@@ -63,7 +86,8 @@ class BookingsTable
                     ->color('warning')
                     ->visible(fn (Booking $record) => $record->status === BookingStatus::CheckedIn)
                     ->requiresConfirmation()
-                    ->modalDescription('اتاق به «نیازمند نظافت» تغییر می‌کند و یک تسک نظافت خودکار برای دپارتمان مربوطه ساخته می‌شود.')
+                    ->modalDescription(fn (Booking $record) => 'اتاق به «نیازمند نظافت» تغییر می‌کند و یک تسک نظافت خودکار برای دپارتمان مربوطه ساخته می‌شود.'
+                        .($record->balanceDue() > 0 ? ' توجه: '.Number::toPersian(number_format($record->balanceDue())).' تومان از صورت‌حساب هنوز پرداخت نشده است.' : ''))
                     ->action(function (Booking $record) {
                         $record->checkOut();
 
@@ -72,6 +96,7 @@ class BookingsTable
                             ->success()
                             ->send();
                     }),
+                RecordPaymentAction::make(),
                 Action::make('payFromWallet')
                     ->label('پرداخت از کیف پول')
                     ->icon(Heroicon::OutlinedWallet)

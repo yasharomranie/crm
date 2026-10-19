@@ -2,6 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\BookingPaymentKind;
+use App\Enums\BookingPaymentMethod;
+use App\Enums\BookingPaymentStatus;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Enums\RoomStatus;
@@ -153,6 +156,11 @@ class Booking extends Model
         return $this->hasMany(BookingCharge::class);
     }
 
+    public function payments(): HasMany
+    {
+        return $this->hasMany(BookingPayment::class);
+    }
+
     public function housekeepingTasks(): MorphMany
     {
         return $this->morphMany(Task::class, 'source');
@@ -169,13 +177,105 @@ class Booking extends Model
     }
 
     /**
-     * What is still unpaid from the guest's wallet's point of view: the
-     * folio total minus what has already been paid out of the wallet.
-     * (Cash/card payments at the desk are not tracked on the folio.)
+     * Money received at the desk or online (payments and advances, minus
+     * refunds) - everything except the wallet, which has its own column.
+     */
+    public function receivedAmount(): int
+    {
+        return (int) $this->payments->sum(fn (BookingPayment $payment) => $payment->signedAmount());
+    }
+
+    /**
+     * Everything paid so far: the desk/online ledger plus what came out of
+     * the guest's wallet.
+     */
+    public function paidAmount(): int
+    {
+        return (int) $this->wallet_paid_amount + $this->receivedAmount();
+    }
+
+    /**
+     * What is still unpaid on the folio.
+     */
+    public function balanceDue(): int
+    {
+        return max(0, $this->totalAmount() - $this->paidAmount());
+    }
+
+    public function paymentStatus(): BookingPaymentStatus
+    {
+        $total = $this->totalAmount();
+        $paid = $this->paidAmount();
+
+        return match (true) {
+            $paid > $total => BookingPaymentStatus::Overpaid,
+            $paid >= $total => BookingPaymentStatus::Paid,
+            $paid > 0 => BookingPaymentStatus::Partial,
+            default => BookingPaymentStatus::Unpaid,
+        };
+    }
+
+    /**
+     * What the guest's wallet may still be asked to pay: the unpaid balance
+     * of the folio, after the wallet and the desk payments.
      */
     public function walletPayableAmount(): int
     {
-        return max(0, $this->totalAmount() - (int) $this->wallet_paid_amount);
+        return $this->balanceDue();
+    }
+
+    /**
+     * Writes one line of the money ledger. A payment or advance can never
+     * exceed what is still unpaid, nor be recorded on a cancelled booking;
+     * a refund can never exceed the money actually received (wallet
+     * payments are not refunded this way). The check and the write share a
+     * transaction with a row lock, so two clerks cannot both overpay.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function recordPayment(
+        int $amount,
+        BookingPaymentMethod $method,
+        BookingPaymentKind $kind = BookingPaymentKind::Payment,
+        ?string $reference = null,
+        ?string $note = null,
+        ?int $userId = null,
+    ): BookingPayment {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('مبلغ باید بیشتر از صفر باشد.');
+        }
+
+        return DB::transaction(function () use ($amount, $method, $kind, $reference, $note, $userId) {
+            $locked = static::query()->lockForUpdate()->with(['charges', 'payments'])->findOrFail($this->getKey());
+
+            if ($kind === BookingPaymentKind::Refund) {
+                if ($amount > $locked->receivedAmount()) {
+                    throw new InvalidArgumentException('مبلغ استرداد از پولِ دریافت‌شده (نقد، کارت، حواله، آنلاین) بیشتر است؛ پرداخت از کیف پول از این راه برگردانده نمی‌شود.');
+                }
+            } else {
+                if ($locked->status === BookingStatus::Cancelled) {
+                    throw new InvalidArgumentException('برای رزرو لغوشده پرداخت ثبت نمی‌شود.');
+                }
+
+                if ($amount > $locked->balanceDue()) {
+                    throw new InvalidArgumentException('مبلغ از مانده‌ی صورت‌حساب ('.number_format($locked->balanceDue()).' تومان) بیشتر است.');
+                }
+            }
+
+            $payment = $locked->payments()->create([
+                'kind' => $kind,
+                'method' => $method,
+                'amount' => $amount,
+                'paid_at' => now(),
+                'reference' => $reference,
+                'note' => $note,
+                'created_by' => $userId,
+            ]);
+
+            $this->unsetRelation('payments');
+
+            return $payment;
+        });
     }
 
     /**
@@ -193,7 +293,7 @@ class Booking extends Model
         }
 
         return DB::transaction(function () use ($amount) {
-            $locked = static::query()->lockForUpdate()->with('charges')->findOrFail($this->getKey());
+            $locked = static::query()->lockForUpdate()->with(['charges', 'payments'])->findOrFail($this->getKey());
 
             if ($amount <= 0 || $amount > $locked->walletPayableAmount()) {
                 throw new InvalidArgumentException('مبلغ باید بین ۱ و مانده‌ی قابل پرداخت صورت‌حساب باشد.');
