@@ -93,11 +93,17 @@ class Sync
             return ['status' => 'done', 'posts' => 0, 'message' => 'چیز تازه‌ای نبود.'];
         }
 
-        $response = Client::send('/sync', [
+        $payload = [
             'site' => Collector::siteInfo(),
             'posts' => $posts,
             'deleted' => $deleted,
-        ]);
+        ];
+
+        if ($heartbeatDue) {
+            $payload['report'] = Collector::siteReport();
+        }
+
+        $response = Client::send('/sync', $payload);
 
         if ($response['code'] === 200) {
             self::advance($ids, $deleted, count($posts));

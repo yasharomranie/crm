@@ -6,6 +6,7 @@ use App\Domain\Seo\WpConnector\WpConnectorException;
 use App\Domain\Seo\WpConnector\WpPairingService;
 use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Domain\Seo\WpConnector\WpPostIngestor;
+use App\Domain\Seo\WpConnector\WpSiteReportIngestor;
 use App\Http\Controllers\Controller;
 use App\Jobs\AnalyzeWpSiteJob;
 use App\Models\SeoWpSite;
@@ -58,7 +59,7 @@ class WpConnectorController extends Controller
         ]);
     }
 
-    public function sync(Request $request, WpPostIngestor $ingestor): JsonResponse
+    public function sync(Request $request, WpPostIngestor $ingestor, WpSiteReportIngestor $reports): JsonResponse
     {
         /** @var SeoWpSite $site */
         $site = $request->attributes->get('seo_wp_site');
@@ -84,6 +85,21 @@ class WpConnectorController extends Controller
             'posts.*.published_at' => ['nullable', 'string'],
             'posts.*.modified_at' => ['nullable', 'string'],
             'posts.*.word_count' => ['nullable', 'integer', 'min:0'],
+            'report' => ['nullable', 'array'],
+            'report.wp_core_update' => ['nullable', 'string', 'max:20'],
+            'report.outdated_plugins' => ['nullable', 'array', 'max:30'],
+            'report.outdated_plugins.*.name' => ['nullable', 'string', 'max:200'],
+            'report.outdated_plugins.*.new_version' => ['nullable', 'string', 'max:30'],
+            'report.outdated_themes' => ['nullable', 'integer', 'min:0'],
+            'report.ssl' => ['nullable', 'boolean'],
+            'report.cron_disabled' => ['nullable', 'boolean'],
+            'report.not_found' => ['nullable', 'array', 'max:60'],
+            'report.not_found.*.path' => ['required', 'string', 'max:255'],
+            'report.not_found.*.hits' => ['nullable', 'integer', 'min:0'],
+            'report.search_terms' => ['nullable', 'array', 'max:120'],
+            'report.search_terms.*.term' => ['required', 'string', 'max:120'],
+            'report.search_terms.*.count' => ['nullable', 'integer', 'min:0'],
+            'report.search_terms.*.misses' => ['nullable', 'integer', 'min:0'],
             'deleted' => ['nullable', 'array', 'max:500'],
             'deleted.*' => ['integer', 'min:1'],
             'cursor' => ['nullable', 'string', 'max:100'],
@@ -111,6 +127,10 @@ class WpConnectorController extends Controller
             ]);
 
             $result = $ingestor->ingest($site, $request->input('posts', []), array_map('intval', $data['deleted'] ?? []));
+
+            if (! empty($data['report'])) {
+                $reports->ingest($site->refresh(), $data['report']);
+            }
 
             $site->update(['last_sync_at' => now(), 'last_error' => null]);
 

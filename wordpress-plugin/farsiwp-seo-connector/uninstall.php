@@ -10,3 +10,5 @@ delete_option('fswc_settings');
 delete_option('fswc_state');
 delete_transient('fswc_sync_lock');
 delete_transient('fswc_admin_tick');
+delete_option('fswc_not_found');
+delete_option('fswc_searches');

@@ -26,10 +26,14 @@ class WpPostIssues
         'thin_content' => ['label' => 'محتوای کم', 'color' => 'gray'],
         'images_missing_alt' => ['label' => 'تصویر بدون alt', 'color' => 'gray'],
         'striking_distance' => ['label' => 'نزدیک به صفحه اول', 'color' => 'success'],
+        'no_conversion' => ['label' => 'ترافیک بدون تبدیل', 'color' => 'warning'],
     ];
 
+    /** A page needs this many sessions in 28 days before "visitors but no key event" means something. */
+    public const NO_CONVERSION_MIN_SESSIONS = 100;
+
     /**
-     * @param  array{status: string, post_type: string, url: string, word_count: int, seo: ?array, images: ?array, inbound: ?int, published_at: ?Carbon, gsc: ?array{clicks: int, impressions: int, ctr: float, position: float, prev_clicks: int}, has_gsc: bool}  $facts
+     * @param  array{status: string, post_type: string, url: string, word_count: int, seo: ?array, images: ?array, inbound: ?int, published_at: ?Carbon, gsc: ?array{clicks: int, impressions: int, ctr: float, position: float, prev_clicks: int}, has_gsc: bool, ga?: ?array{sessions: int, key_events: int, site_tracks_key_events: bool}}  $facts
      * @return list<string> issue codes, most serious first
      */
     public static function detect(array $facts): array
@@ -84,6 +88,12 @@ class WpPostIssues
 
         if ($gsc && $gsc['position'] > 10 && $gsc['position'] <= 20 && $gsc['impressions'] >= 50) {
             $issues[] = 'striking_distance';
+        }
+
+        $ga = $facts['ga'] ?? null;
+
+        if ($ga && $ga['site_tracks_key_events'] && $ga['sessions'] >= self::NO_CONVERSION_MIN_SESSIONS && $ga['key_events'] === 0) {
+            $issues[] = 'no_conversion';
         }
 
         return $issues;

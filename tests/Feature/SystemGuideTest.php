@@ -66,6 +66,10 @@ class SystemGuideTest extends TestCase
             ->assertSee('اتصال وردپرس و محتوای سایت')
             ->assertSee('وضعیت سایت‌های وردپرسی')
             ->assertSee('خلأ پوشش محتوا')
-            ->assertSee('بریف محتوا');
+            ->assertSee('بریف محتوا')
+            ->assertSee('پایش آنلاین‌بودن و SSL')
+            ->assertSee('هشدار در تلگرام')
+            ->assertSee('Google Analytics (GA4)')
+            ->assertSee('سلامت و جزئیات هر سایت');
     }
 }

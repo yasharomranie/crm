@@ -21,7 +21,7 @@ class SeoWpPost extends Model
         'seo_wp_site_id', 'wp_id', 'post_type', 'status', 'url', 'url_hash', 'title', 'slug', 'author_name',
         'published_at', 'modified_at', 'word_count', 'headings', 'internal_links', 'external_links', 'images',
         'terms', 'seo', 'commerce', 'content_hash', 'inbound_links', 'gsc_clicks', 'gsc_impressions', 'gsc_ctr',
-        'gsc_position', 'gsc_prev_clicks', 'issues', 'synced_at',
+        'gsc_position', 'gsc_prev_clicks', 'ga_sessions', 'ga_key_events', 'issues', 'synced_at',
     ];
 
     protected function casts(): array

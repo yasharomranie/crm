@@ -24,12 +24,13 @@ class WpSiteAnalyzer
         $structureShared = $site->allows('structure');
         $inbound = $structureShared ? $this->inboundCounts($site) : [];
         [$metrics, $hasGsc] = $this->searchConsole($site);
+        $tracksKeyEvents = (int) ($site->project?->googleConnection?->ga_summary['key_events'] ?? 0) > 0;
 
         $site->posts()
-            ->select(['id', 'url', 'url_hash', 'status', 'post_type', 'word_count', 'seo', 'images', 'published_at', 'inbound_links', 'gsc_clicks', 'gsc_impressions', 'gsc_ctr', 'gsc_position', 'gsc_prev_clicks', 'issues'])
-            ->chunkById(200, function ($posts) use ($structureShared, $inbound, $metrics, $hasGsc) {
+            ->select(['id', 'url', 'url_hash', 'status', 'post_type', 'word_count', 'seo', 'images', 'published_at', 'inbound_links', 'gsc_clicks', 'gsc_impressions', 'gsc_ctr', 'gsc_position', 'gsc_prev_clicks', 'ga_sessions', 'ga_key_events', 'issues'])
+            ->chunkById(200, function ($posts) use ($structureShared, $inbound, $metrics, $hasGsc, $tracksKeyEvents) {
                 foreach ($posts as $post) {
-                    $this->analyzePost($post, $structureShared ? ($inbound[$post->url_hash] ?? 0) : null, $metrics[$post->url_hash] ?? null, $hasGsc);
+                    $this->analyzePost($post, $structureShared ? ($inbound[$post->url_hash] ?? 0) : null, $metrics[$post->url_hash] ?? null, $hasGsc, $tracksKeyEvents);
                 }
             });
 
@@ -39,7 +40,7 @@ class WpSiteAnalyzer
     /**
      * @param  array{clicks: int, impressions: int, ctr: float, position: float, prev_clicks: int}|null  $gsc
      */
-    private function analyzePost(SeoWpPost $post, ?int $inbound, ?array $gsc, bool $hasGsc): void
+    private function analyzePost(SeoWpPost $post, ?int $inbound, ?array $gsc, bool $hasGsc, bool $tracksKeyEvents): void
     {
         $issues = WpPostIssues::detect([
             'status' => $post->status,
@@ -52,6 +53,11 @@ class WpSiteAnalyzer
             'published_at' => $post->published_at,
             'gsc' => $gsc,
             'has_gsc' => $hasGsc,
+            'ga' => $post->ga_sessions === null ? null : [
+                'sessions' => (int) $post->ga_sessions,
+                'key_events' => (int) $post->ga_key_events,
+                'site_tracks_key_events' => $tracksKeyEvents,
+            ],
         ]);
 
         $fresh = [
