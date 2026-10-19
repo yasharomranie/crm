@@ -79,6 +79,12 @@ class BookingForm
                     ->numeric()
                     ->default(0)
                     ->hintAction(FieldHelp::make('bookings.children_count')),
+                Select::make('hold_hours')
+                    ->label('نگه‌داشتن موقت')
+                    ->options([6 => '۶ ساعت', 12 => '۱۲ ساعت', 24 => '۲۴ ساعت', 48 => '۴۸ ساعت', 72 => '۷۲ ساعت'])
+                    ->placeholder('بدون مهلت')
+                    ->helperText('فقط برای رزرو «در انتظار تأیید»: اگر تا پایان مهلت هیچ پرداختی نیامد، رزرو خودکار لغو (بدون جریمه) و اتاق آزاد می‌شود. با «لینک پرداخت» می‌توانید پرداخت و تأیید را به مهمان بسپارید.')
+                    ->visible(fn (?Booking $record) => $record === null),
                 TextInput::make('promo_code')
                     ->label('کد تخفیف')
                     ->maxLength(40)

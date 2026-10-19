@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
 use App\Exceptions\InsufficientWalletBalanceException;
+use App\Filament\Resources\Bookings\Actions\PaymentLinkAction;
 use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
 use App\Filament\Resources\Bookings\Actions\SendBookingSmsAction;
 use App\Filament\Support\TableExports;
@@ -40,6 +41,7 @@ class BookingsTable
                 TextColumn::make('check_out_date')->label('خروج')->jalaliDate('Y/m/d'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
                 TextColumn::make('source')->label('منبع'),
+                TextColumn::make('hold_expires_at')->label('نگه‌داری تا')->jalaliDateTime('Y/m/d H:i')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('folio_total')
                     ->label('صورت‌حساب')
                     ->state(fn (Booking $record) => $record->totalAmount())
@@ -102,6 +104,13 @@ class BookingsTable
                     }),
                 RecordPaymentAction::make(),
                 SendBookingSmsAction::make(),
+                PaymentLinkAction::make(),
+                Action::make('printInvoice')
+                    ->label('چاپ صورت‌حساب')
+                    ->icon(Heroicon::OutlinedPrinter)
+                    ->color('gray')
+                    ->url(fn (Booking $record) => route('bookings.invoice', $record))
+                    ->openUrlInNewTab(),
                 Action::make('cancelBooking')
                     ->label('لغو رزرو')
                     ->icon(Heroicon::OutlinedXCircle)
