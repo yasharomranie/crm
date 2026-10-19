@@ -34,6 +34,7 @@ use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SeoWpFleet;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\TicketingReportsPage;
+use App\Filament\Pages\TodayArrivals;
 use App\Filament\Pages\TripPlannerReportPage;
 use App\Filament\Pages\TripPlannerSettings;
 use App\Filament\Pages\WalletLiabilityReport;
@@ -199,6 +200,7 @@ return [
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'booking-message-settings' => ['page' => BookingMessageSettings::class, 'label' => 'پیام‌های رزرو', 'group' => 'اقامتی و هتلداری'],
+        'today-arrivals' => ['page' => TodayArrivals::class, 'label' => 'ورود و خروج امروز', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'customer-value-report' => ['page' => CustomerValueReportPage::class, 'label' => 'ارزش و ریزش مشتری', 'group' => 'CRM و مشتریان'],
         'communication-inbox' => ['page' => CommunicationInbox::class, 'label' => 'صندوق پیام', 'group' => 'CRM و مشتریان'],
