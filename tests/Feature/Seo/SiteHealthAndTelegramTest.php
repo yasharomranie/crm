@@ -102,13 +102,18 @@ class SiteHealthAndTelegramTest extends TestCase
         Http::assertSent(fn (Request $request) => str_starts_with($request->url(), 'https://relay.example.test/bot123:ABC/'));
     }
 
-    public function test_the_notifier_does_nothing_when_unusable_and_survives_a_failure(): void
+    public function test_the_notifier_does_nothing_when_telegram_is_not_set_up(): void
     {
         Http::fake();
+
         $this->assertFalse(app(TelegramNotifier::class)->send('سلام', SeoAlertSetting::current()));
         Http::assertNothingSent();
+    }
 
+    public function test_the_notifier_survives_a_failed_send(): void
+    {
         Http::fake(['api.telegram.org/*' => Http::response('blocked', 403)]);
+
         $this->assertFalse(app(TelegramNotifier::class)->send('سلام', $this->telegramOn()));
     }
 
@@ -268,15 +273,20 @@ class SiteHealthAndTelegramTest extends TestCase
         $this->assertSame($requests, Http::recorded()->count());
     }
 
-    public function test_autocomplete_returns_nothing_when_disabled_or_blocked_and_does_not_cache_the_failure_for_long(): void
+    public function test_autocomplete_does_nothing_when_disabled(): void
     {
         Http::fake();
+
         $this->assertSame([], app(GoogleAutocompleteClient::class)->suggestionsFor('غار'));
         Http::assertNothingSent();
+    }
 
+    public function test_autocomplete_returns_nothing_when_google_blocks_the_host(): void
+    {
         config(['seo.autocomplete.enabled' => true]);
         Cache::flush();
         Http::fake(['suggestqueries.google.com/*' => Http::response('blocked', 429)]);
+
         $this->assertSame([], app(GoogleAutocompleteClient::class)->suggestionsFor('غار'));
     }
 
