@@ -803,6 +803,26 @@
         </tbody>
       </table></div>
       <p>رزرو چک‌این‌شده با این دکمه‌ها لغو نمی‌شود؛ برای آن، خروج زودهنگام را با اصلاح اقلام صورت‌حساب و چک‌اوت انجام دهید.</p>
+      <h3 id="ch-02-messages">پیامک‌های خودکار رزرو و نظرسنجی</h3>
+      <p>
+        <b>چرا:</b> مهمانی که تأیید و یادآوری می‌گیرد کمتر نمی‌آید و مهمانی که از او نظر خواسته شود، نظرش را می‌دهد.
+        سامانه این سه پیامک را خودش می‌فرستد و هر کدام را در «مکالمات» پرونده‌ی مهمان ثبت می‌کند.
+      </p>
+      <ol class="steps">
+        <li><b>۱.</b> ابتدا «تنظیمات پیامک» را فعال و کامل کنید (پیامک بدون آن ارسال نمی‌شود و در مکالمات «ناموفق» ثبت می‌شود).</li>
+        <li><b>۲.</b> <b>اقامتی و هتلداری ← پیام‌های رزرو.</b> هر کدام از سه پیامک را جداگانه روشن کنید؛ <b>همه‌چیز در ابتدا خاموش است</b> تا بی‌خبر به مهمان پیامک نرود.</li>
+        <li><b>۳.</b> متن هر پیامک را عوض کنید. متغیرها: <span class="mono">{guest}</span> نام مهمان، <span class="mono">{code}</span> کد رزرو، <span class="mono">{room}</span> اتاق، <span class="mono">{check_in}</span> و <span class="mono">{check_out}</span> تاریخ شمسی ورود و خروج، <span class="mono">{nights}</span> تعداد شب، <span class="mono">{link}</span> لینک نظرسنجی.</li>
+        <li><b>۴.</b> برای ارسال دستی (مثلاً مهمان پیامک را نگرفته): در فهرست رزروها روی ردیف <b>«پیامک رزرو»</b> بزنید.</li>
+      </ol>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>پیامک</th><th>چه زمانی</th></tr></thead>
+        <tbody>
+          <tr><td>تأیید رزرو</td><td>لحظه‌ای که رزرو «قطعی» می‌شود (چه ثبت مستقیم قطعی، چه تغییر وضعیت از «در انتظار»). برای هر رزرو فقط یک بار.</td></tr>
+          <tr><td>یادآوری ورود</td><td>هر صبح ساعت ۹:۳۰ برای رزروهای قطعی که تا «N روز دیگر» می‌رسند. رزروی که همان امروز ثبت شده یادآوری نمی‌گیرد (تأیید را همین حالا گرفته). برای هر رزرو فقط یک بار.</td></tr>
+          <tr><td>نظرسنجی</td><td>بعد از چک‌اوت. مهمان لینک امضاشده‌ای می‌گیرد (۶۰ روز اعتبار) و با عدد ۰ تا ۱۰ و یک نظر کوتاه جواب می‌دهد؛ فقط یک بار می‌تواند جواب دهد. پاسخ در «بازخورد مهمانان» و محاسبه‌ی NPS می‌آید.</td></tr>
+        </tbody>
+      </table></div>
+      <p>اگر پیامکی ارسال نشود (سرویس پیامک خاموش یا بدون شماره)، زمان «ارسال‌شده» روی رزرو ثبت نمی‌شود و ردیف ناموفق با دلیلش در مکالمات مهمان می‌ماند.</p>
       <div class="howto">
         <div class="howto-label">مراحل استفاده</div>
         <div class="shots">
@@ -1864,6 +1884,10 @@ Content-Type: application/json</code></pre>
           <tr><td class="mono"><code>ticket.scanned</code></td><td>اسکن موفق یک بلیط در گیت</td></tr>
           <tr><td class="mono"><code>ticket.rejected</code></td><td>رد شدن یک اسکن در گیت</td></tr>
           <tr><td class="mono"><code>booking.created</code></td><td>ثبت یک رزرو جدید متعلق به همین اکانت</td></tr>
+          <tr><td class="mono"><code>booking.confirmed</code></td><td>قطعی‌شدن رزرو (وضعیت به «رزرو قطعی» رسید)</td></tr>
+          <tr><td class="mono"><code>booking.checked_in</code> / <code>booking.checked_out</code></td><td>چک‌این و چک‌اوت مهمان</td></tr>
+          <tr><td class="mono"><code>booking.cancelled</code></td><td>لغو رزرو یا ثبت عدم حضور؛ شامل <span class="mono">cancellation_kind</span> و <span class="mono">cancellation_fee</span></td></tr>
+          <tr><td class="mono"><code>booking.payment_recorded</code></td><td>ثبت پرداخت، پیش‌پرداخت یا استرداد؛ شامل مبلغ، <span class="mono">paid_amount</span>، <span class="mono">balance_due</span> و <span class="mono">payment_status</span></td></tr>
           <tr><td class="mono"><code>deal.stage_changed</code></td><td>تغییر مرحله‌ی یک سرنخ متعلق به همین اکانت</td></tr>
         </tbody>
       </table></div>

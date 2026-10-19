@@ -3,14 +3,17 @@
 namespace App\Observers;
 
 use App\Domain\Webhooks\WebhookDispatcher;
+use App\Enums\BookingStatus;
 use App\Enums\WebhookEventType;
+use App\Jobs\SendBookingMessageJob;
 use App\Models\Booking;
+use App\Models\BookingMessageSetting;
 
 /**
- * Notifies the owning external client's subscribed webhooks the moment a
- * booking exists - covers both CreateBooking::handleRecordCreation() (the
- * Filament panel) and BookingController::store() (the external API),
- * since both just Booking::create() and this fires either way.
+ * Reacts to a booking's life: notifies the owning external client's
+ * subscribed webhooks (created, confirmed, checked in/out, cancelled) and
+ * queues the guest's confirmation SMS when that is switched on. Covers both
+ * the Filament panel and the external API, since both just save a Booking.
  */
 class BookingObserver
 {
@@ -18,12 +21,55 @@ class BookingObserver
 
     public function created(Booking $booking): void
     {
-        $this->webhooks->dispatch($booking->external_api_client_id, WebhookEventType::BookingCreated, [
+        $this->webhooks->dispatch($booking->external_api_client_id, WebhookEventType::BookingCreated, $this->payload($booking));
+
+        $this->queueConfirmation($booking);
+    }
+
+    public function updated(Booking $booking): void
+    {
+        if (! $booking->wasChanged('status')) {
+            return;
+        }
+
+        $event = match ($booking->status) {
+            BookingStatus::Confirmed => WebhookEventType::BookingConfirmed,
+            BookingStatus::CheckedIn => WebhookEventType::BookingCheckedIn,
+            BookingStatus::CheckedOut => WebhookEventType::BookingCheckedOut,
+            BookingStatus::Cancelled => WebhookEventType::BookingCancelled,
+            default => null,
+        };
+
+        if ($event) {
+            $this->webhooks->dispatch($booking->external_api_client_id, $event, $this->payload($booking));
+        }
+
+        if ($booking->status === BookingStatus::Confirmed) {
+            $this->queueConfirmation($booking);
+        }
+    }
+
+    private function queueConfirmation(Booking $booking): void
+    {
+        if ($booking->status === BookingStatus::Confirmed && BookingMessageSetting::current()->confirmation_enabled) {
+            SendBookingMessageJob::dispatch($booking->id, 'confirmation');
+        }
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function payload(Booking $booking): array
+    {
+        return [
             'booking_id' => $booking->id,
             'reference_code' => $booking->reference_code,
             'status' => $booking->status->value,
             'check_in' => $booking->check_in_date->toDateString(),
             'check_out' => $booking->check_out_date->toDateString(),
-        ]);
+        ] + ($booking->status === BookingStatus::Cancelled ? [
+            'cancellation_kind' => $booking->cancellation_kind,
+            'cancellation_fee' => (int) $booking->cancellation_fee,
+        ] : []);
     }
 }

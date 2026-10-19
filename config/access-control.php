@@ -3,6 +3,7 @@
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
 use App\Filament\Pages\AiAssistantUsageDashboard;
+use App\Filament\Pages\BookingMessageSettings;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
 use App\Filament\Pages\CommunicationInbox;
@@ -197,6 +198,7 @@ return [
         'messenger' => ['page' => Messenger::class, 'label' => 'پیام‌رسان', 'group' => 'ارتباطات داخلی'],
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
+        'booking-message-settings' => ['page' => BookingMessageSettings::class, 'label' => 'پیام‌های رزرو', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'customer-value-report' => ['page' => CustomerValueReportPage::class, 'label' => 'ارزش و ریزش مشتری', 'group' => 'CRM و مشتریان'],
         'communication-inbox' => ['page' => CommunicationInbox::class, 'label' => 'صندوق پیام', 'group' => 'CRM و مشتریان'],

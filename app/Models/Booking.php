@@ -13,6 +13,7 @@ use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Exceptions\RoomNotAvailableException;
+use App\Jobs\SendBookingMessageJob;
 use App\Models\Concerns\HasTags;
 use Carbon\Carbon;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -32,6 +33,7 @@ class Booking extends Model
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
         'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
+        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at',
     ];
 
     public const CANCELLED_BY_GUEST = 'guest';
@@ -52,6 +54,9 @@ class Booking extends Model
             'cancellation_terms' => 'array',
             'cancelled_at' => 'datetime',
             'cancellation_fee' => 'integer',
+            'confirmation_sent_at' => 'datetime',
+            'arrival_reminder_sent_at' => 'datetime',
+            'feedback_sent_at' => 'datetime',
         ];
     }
 
@@ -564,17 +569,20 @@ class Booking extends Model
     }
 
     /**
-     * Creates the CRM record for a post-checkout survey (doc2 5.4). This
-     * only marks a survey as *requested* - actually texting the guest a
-     * survey link needs an SMS gateway integration, which is out of scope
-     * here; a later phase (or wiring GuestFeedback::requested_at into an
-     * n8n/SMS workflow) is expected to consume these records.
+     * Creates the CRM record for a post-checkout survey (doc2 5.4) and, when
+     * the «پیام‌های رزرو» setting is on, texts the guest its link.
      */
     private function requestPostCheckoutFeedback(): GuestFeedback
     {
-        return $this->guest->feedbacks()->create([
+        $feedback = $this->guest->feedbacks()->create([
             'booking_id' => $this->id,
             'requested_at' => now(),
         ]);
+
+        if (BookingMessageSetting::current()->feedback_enabled) {
+            SendBookingMessageJob::dispatch($this->id, 'feedback', $feedback->id);
+        }
+
+        return $feedback;
     }
 }

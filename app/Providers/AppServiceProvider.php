@@ -6,12 +6,14 @@ use App\Domain\Payments\ZarinpalGateway;
 use App\Http\Middleware\EnsureIdempotentLivewireUpdate;
 use App\Livewire\AiAssistantWidget;
 use App\Models\Booking;
+use App\Models\BookingPayment;
 use App\Models\CustomerAppNavItem;
 use App\Models\Deal;
 use App\Models\FormSubmission;
 use App\Models\GuestTicketReply;
 use App\Models\User;
 use App\Observers\BookingObserver;
+use App\Observers\BookingPaymentObserver;
 use App\Observers\DealObserver;
 use App\Observers\FormSubmissionObserver;
 use App\Policies\DynamicPermissionPolicy;
@@ -78,6 +80,7 @@ class AppServiceProvider extends ServiceProvider
 
         FormSubmission::observe(FormSubmissionObserver::class);
         Booking::observe(BookingObserver::class);
+        BookingPayment::observe(BookingPaymentObserver::class);
         Deal::observe(DealObserver::class);
 
         $this->attachIdempotencyMiddlewareToLivewireUpdateRoute();
