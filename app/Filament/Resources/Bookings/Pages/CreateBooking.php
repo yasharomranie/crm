@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Bookings\Pages;
 use App\Exceptions\RoomNotAvailableException;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Models\Booking;
+use App\Models\BookingPromoCode;
 use App\Models\Room;
 use Carbon\Carbon;
 use Filament\Notifications\Notification;
@@ -35,8 +36,11 @@ class CreateBooking extends CreateRecord
      */
     protected function handleRecordCreation(array $data): Model
     {
+        $promoCode = $data['promo_code'] ?? null;
+        unset($data['promo_code']);
+
         try {
-            return DB::transaction(function () use ($data) {
+            return DB::transaction(function () use ($data, $promoCode) {
                 $room = Room::query()->lockForUpdate()->findOrFail($data['room_id']);
 
                 Booking::assertRoomAvailable(
@@ -44,6 +48,13 @@ class CreateBooking extends CreateRecord
                     Carbon::parse($data['check_in_date']),
                     Carbon::parse($data['check_out_date']),
                 );
+
+                if (filled($promoCode)) {
+                    $data['promo_code_id'] = BookingPromoCode::resolve(
+                        $promoCode,
+                        max(1, (int) Carbon::parse($data['check_in_date'])->startOfDay()->diffInDays(Carbon::parse($data['check_out_date'])->startOfDay())),
+                    )->id;
+                }
 
                 return Booking::create($data);
             });

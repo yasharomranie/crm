@@ -46,6 +46,7 @@ use App\Models\AiScheduledReport;
 use App\Models\AttendanceRecord;
 use App\Models\Attraction;
 use App\Models\Booking;
+use App\Models\BookingPromoCode;
 use App\Models\CancellationPolicy;
 use App\Models\ChannelAllotment;
 use App\Models\Company;
@@ -83,6 +84,7 @@ use App\Models\SeoProject;
 use App\Models\SeoTechnicalAudit;
 use App\Models\SeoTrackedKeyword;
 use App\Models\SeoWpPost;
+use App\Models\StayDiscount;
 use App\Models\Tag;
 use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
@@ -134,6 +136,8 @@ return [
         'sales-channels' => ['model' => SalesChannel::class, 'label' => 'کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'channel-allotments' => ['model' => ChannelAllotment::class, 'label' => 'سهمیه‌بندی کانال‌ها', 'group' => 'اقامتی و هتلداری'],
         'price-rules' => ['model' => PriceRule::class, 'label' => 'قیمت‌گذاری پویا', 'group' => 'اقامتی و هتلداری'],
+        'stay-discounts' => ['model' => StayDiscount::class, 'label' => 'تخفیف اقامت طولانی', 'group' => 'اقامتی و هتلداری'],
+        'booking-promo-codes' => ['model' => BookingPromoCode::class, 'label' => 'کدهای تخفیف رزرو', 'group' => 'اقامتی و هتلداری'],
         'cancellation-policies' => ['model' => CancellationPolicy::class, 'label' => 'سیاست‌های لغو', 'group' => 'اقامتی و هتلداری'],
 
         'guests' => ['model' => Guest::class, 'label' => 'مهمانان', 'group' => 'CRM و مشتریان'],

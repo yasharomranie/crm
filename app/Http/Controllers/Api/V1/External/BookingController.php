@@ -4,10 +4,12 @@ namespace App\Http\Controllers\Api\V1\External;
 
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Exceptions\InvalidPromoCodeException;
 use App\Exceptions\RoomNotAvailableException;
 use App\Http\Controllers\Api\V1\External\Concerns\RunsIdempotently;
 use App\Http\Controllers\Controller;
 use App\Models\Booking;
+use App\Models\BookingPromoCode;
 use App\Models\ExternalApiClient;
 use App\Models\Guest;
 use App\Models\IdempotencyKey;
@@ -40,6 +42,7 @@ class BookingController extends Controller
             'adults_count' => ['sometimes', 'integer', 'min:1'],
             'children_count' => ['sometimes', 'integer', 'min:0'],
             'sales_channel_id' => ['nullable', 'integer'],
+            'promo_code' => ['nullable', 'string', 'max:40'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'guest' => ['required', 'array'],
             'guest.name' => ['required', 'string', 'max:255'],
@@ -99,6 +102,10 @@ class BookingController extends Controller
 
                 Booking::assertRoomAvailable($room, $checkIn, $checkOut);
 
+                $promo = filled($data['promo_code'] ?? null)
+                    ? BookingPromoCode::resolve($data['promo_code'], max(1, (int) $checkIn->copy()->startOfDay()->diffInDays($checkOut->copy()->startOfDay())))
+                    : null;
+
                 $guest = Guest::firstOrCreate(
                     ['mobile' => MobileNumber::canonical($data['guest']['mobile'])],
                     [
@@ -117,6 +124,7 @@ class BookingController extends Controller
                     'children_count' => $data['children_count'] ?? 0,
                     'status' => BookingStatus::Confirmed,
                     'sales_channel_id' => $data['sales_channel_id'] ?? null,
+                    'promo_code_id' => $promo?->id,
                     'external_api_client_id' => $client->id,
                     'source' => ($data['sales_channel_id'] ?? null) ? BookingSource::Ota : BookingSource::Online,
                     'notes' => $data['notes'] ?? null,
@@ -126,6 +134,8 @@ class BookingController extends Controller
             return [201, $this->transformBooking($booking->load(['room.roomType', 'guest']))];
         } catch (RoomNotAvailableException $exception) {
             return [409, ['error' => ['code' => 'CONFLICT', 'message' => $exception->getMessage()]]];
+        } catch (InvalidPromoCodeException $exception) {
+            return [422, ['error' => ['code' => 'INVALID_PROMO_CODE', 'message' => $exception->getMessage()]]];
         }
     }
 
@@ -151,6 +161,7 @@ class BookingController extends Controller
             'check_out_date' => $booking->check_out_date->toDateString(),
             'nights' => $booking->nights(),
             'total_amount' => $booking->totalAmount(),
+            'promo_code' => $booking->promoCode?->code,
             'paid_amount' => $booking->paidAmount(),
             'balance_due' => $booking->balanceDue(),
             'payment_status' => $booking->paymentStatus()->value,

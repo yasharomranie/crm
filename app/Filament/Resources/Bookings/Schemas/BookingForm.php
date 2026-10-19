@@ -2,19 +2,25 @@
 
 namespace App\Filament\Resources\Bookings\Schemas;
 
+use App\Domain\Hospitality\StayPricing;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
+use App\Exceptions\InvalidPromoCodeException;
 use App\Filament\Support\FieldHelp;
 use App\Models\Booking;
+use App\Models\BookingPromoCode;
 use App\Models\CancellationPolicy;
 use App\Models\Guest;
+use App\Models\Room;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
 use Filament\Schemas\Components\Section;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Number;
 
 class BookingForm
@@ -25,6 +31,7 @@ class BookingForm
             ->components([
                 Select::make('room_id')
                     ->label('اتاق/ویلا')
+                    ->live(onBlur: true)
                     ->relationship('room', 'name')
                     ->searchable()
                     ->preload()
@@ -46,6 +53,7 @@ class BookingForm
                     ->jalali()
                     ->displayFormat('Y/m/d')
                     ->label('تاریخ ورود')
+                    ->live(onBlur: true)
                     ->required()
                     ->default(now())
                     ->hintAction(FieldHelp::make('bookings.check_in_date')),
@@ -53,21 +61,47 @@ class BookingForm
                     ->jalali()
                     ->displayFormat('Y/m/d')
                     ->label('تاریخ خروج')
+                    ->live(onBlur: true)
                     ->required()
                     ->default(now()->addDay())
                     ->afterOrEqual('check_in_date')
                     ->hintAction(FieldHelp::make('bookings.check_out_date')),
                 TextInput::make('adults_count')
                     ->label('تعداد بزرگسال')
+                    ->live(onBlur: true)
                     ->numeric()
                     ->default(1)
                     ->required()
                     ->hintAction(FieldHelp::make('bookings.adults_count')),
                 TextInput::make('children_count')
                     ->label('تعداد کودک')
+                    ->live(onBlur: true)
                     ->numeric()
                     ->default(0)
                     ->hintAction(FieldHelp::make('bookings.children_count')),
+                TextInput::make('promo_code')
+                    ->label('کد تخفیف')
+                    ->maxLength(40)
+                    ->live(onBlur: true)
+                    ->dehydrated()
+                    ->helperText('اگر مهمان کد تخفیف دارد اینجا بنویسید؛ اعتبار آن همین‌جا بررسی می‌شود.')
+                    ->rule(fn (Get $get) => function (string $attribute, $value, \Closure $fail) use ($get) {
+                        if (blank($value)) {
+                            return;
+                        }
+
+                        try {
+                            BookingPromoCode::resolve($value, self::nights($get));
+                        } catch (InvalidPromoCodeException $exception) {
+                            $fail($exception->getMessage());
+                        }
+                    })
+                    ->visible(fn (?Booking $record) => $record === null),
+                Placeholder::make('price_estimate')
+                    ->label('برآورد قیمت')
+                    ->content(fn (Get $get) => self::estimate($get))
+                    ->columnSpanFull()
+                    ->visible(fn (?Booking $record) => $record === null),
                 Select::make('status')
                     ->label('وضعیت رزرو')
                     ->options(BookingStatus::class)
@@ -124,6 +158,58 @@ class BookingForm
                             ->content(fn (?Booking $record) => $record?->paymentStatus()->getLabel() ?? '—'),
                     ]),
             ]);
+    }
+
+    private static function nights(Get $get): int
+    {
+        try {
+            return max(1, (int) Carbon::parse($get('check_in_date'))->startOfDay()->diffInDays(Carbon::parse($get('check_out_date'))->startOfDay()));
+        } catch (\Throwable) {
+            return 1;
+        }
+    }
+
+    /**
+     * What the stay would cost with the dates, guests and code typed so far.
+     */
+    private static function estimate(Get $get): string
+    {
+        $room = Room::query()->with('roomType.priceRules')->find($get('room_id'));
+
+        if (! $room || blank($get('check_in_date')) || blank($get('check_out_date'))) {
+            return 'اتاق و تاریخ‌ها را انتخاب کنید.';
+        }
+
+        try {
+            $checkIn = Carbon::parse($get('check_in_date'));
+            $checkOut = Carbon::parse($get('check_out_date'));
+            $promo = filled($get('promo_code')) ? BookingPromoCode::resolve($get('promo_code'), self::nights($get)) : null;
+            $quote = app(StayPricing::class)->quote($room->roomType, $checkIn, $checkOut, max(1, (int) $get('adults_count')), (int) $get('children_count'), $promo);
+        } catch (InvalidPromoCodeException $exception) {
+            return $exception->getMessage();
+        } catch (\Throwable) {
+            return '—';
+        }
+
+        $parts = [self::money($quote['total']).' برای '.Number::toPersian($quote['nights']).' شب'];
+
+        if ($quote['extra_guests_total'] > 0) {
+            $parts[] = 'شامل '.self::money($quote['extra_guests_total']).' نفر اضافه';
+        }
+
+        if ($quote['stay_discount'] > 0) {
+            $parts[] = 'تخفیف اقامت طولانی '.self::money($quote['stay_discount']);
+        }
+
+        if ($quote['promo_discount'] > 0) {
+            $parts[] = 'کد تخفیف '.self::money($quote['promo_discount']);
+        }
+
+        if ($quote['nights'] < $quote['minimum_nights']) {
+            $parts[] = 'هشدار: حداقل اقامت '.Number::toPersian($quote['minimum_nights']).' شب است';
+        }
+
+        return implode(' — ', $parts);
     }
 
     private static function money(int $amount): string

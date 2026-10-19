@@ -2,8 +2,11 @@
 
 namespace App\Http\Controllers\Api\V1\External;
 
+use App\Domain\Hospitality\StayPricing;
 use App\Enums\BookingStatus;
+use App\Exceptions\InvalidPromoCodeException;
 use App\Http\Controllers\Controller;
+use App\Models\BookingPromoCode;
 use App\Models\ChannelAllotment;
 use App\Models\ExternalApiClient;
 use App\Models\Room;
@@ -33,6 +36,9 @@ class RoomAvailabilityController extends Controller
             'check_out' => ['required', 'date', 'after:check_in'],
             'room_type_id' => ['nullable', 'integer'],
             'sales_channel_id' => ['nullable', 'integer'],
+            'adults' => ['nullable', 'integer', 'min:1'],
+            'children' => ['nullable', 'integer', 'min:0'],
+            'promo_code' => ['nullable', 'string', 'max:40'],
         ]);
 
         $rooms = Room::query()
@@ -51,20 +57,45 @@ class RoomAvailabilityController extends Controller
                 fn (Room $room) => ChannelAllotment::hasRoomFor((int) $channelId, $room->room_type_id, Carbon::parse($data['check_in']), Carbon::parse($data['check_out'])),
             )->values());
 
+        $checkIn = Carbon::parse($data['check_in']);
+        $checkOut = Carbon::parse($data['check_out']);
+        $nights = max(1, (int) $checkIn->copy()->startOfDay()->diffInDays($checkOut->copy()->startOfDay()));
+
+        try {
+            $promo = filled($data['promo_code'] ?? null) ? BookingPromoCode::resolve($data['promo_code'], $nights) : null;
+        } catch (InvalidPromoCodeException $exception) {
+            return $this->error('INVALID_PROMO_CODE', $exception->getMessage(), 422);
+        }
+
+        $pricing = app(StayPricing::class);
+
+        // A stay shorter than the room type (or a price rule) demands cannot
+        // be booked, so the room is not offered.
+        $rooms = $rooms->filter(fn (Room $room) => $nights >= $room->roomType->minimumNightsFor($checkIn, $checkOut))->values();
+
         return response()->json([
-            'data' => $rooms->map(fn (Room $room) => [
-                'room_id' => $room->id,
-                'name' => $room->name,
-                'room_type' => [
-                    'id' => $room->roomType->id,
-                    'name' => $room->roomType->name,
-                    'capacity' => $room->roomType->capacity,
-                ],
-                'price_for_stay' => $room->roomType->effectivePriceForRange(
-                    Carbon::parse($data['check_in']),
-                    Carbon::parse($data['check_out']),
-                ),
-            ]),
+            'data' => $rooms->map(function (Room $room) use ($pricing, $checkIn, $checkOut, $data, $promo) {
+                $quote = $pricing->quote($room->roomType, $checkIn, $checkOut, (int) ($data['adults'] ?? 1), (int) ($data['children'] ?? 0), $promo);
+
+                return [
+                    'room_id' => $room->id,
+                    'name' => $room->name,
+                    'room_type' => [
+                        'id' => $room->roomType->id,
+                        'name' => $room->roomType->name,
+                        'capacity' => $room->roomType->capacity,
+                    ],
+                    'price_for_stay' => $quote['room_total'],
+                    'quote' => [
+                        'nights' => $quote['nights'],
+                        'room_total' => $quote['room_total'],
+                        'extra_guests_total' => $quote['extra_guests_total'],
+                        'stay_discount' => $quote['stay_discount'],
+                        'promo_discount' => $quote['promo_discount'],
+                        'total' => $quote['total'],
+                    ],
+                ];
+            }),
         ]);
     }
 

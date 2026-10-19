@@ -53,6 +53,21 @@ class RoomTypeResource extends Resource
                     ->numeric()
                     ->required()
                     ->hintAction(FieldHelp::make('room-types.base_price')),
+                TextInput::make('min_nights')
+                    ->label('حداقل مدت اقامت (شب)')
+                    ->numeric()->minValue(1)->maxValue(60)->default(1)->required()
+                    ->helperText('رزرو کوتاه‌تر از این رد می‌شود. برای فصل‌های شلوغ می‌توانید در «قیمت‌گذاری پویا» حداقل شب بیشتری بگذارید.'),
+                TextInput::make('base_occupancy')
+                    ->label('بزرگسالِ شاملِ نرخ پایه')
+                    ->numeric()->minValue(1)->maxValue(50)
+                    ->helperText('خالی = هزینه‌ی نفر اضافه گرفته نمی‌شود. اگر پر شود، هر بزرگسال بیشتر از این عدد در هر شب «هزینه‌ی بزرگسال اضافه» می‌دهد.'),
+                TextInput::make('extra_adult_fee')
+                    ->label('هزینه‌ی هر بزرگسال اضافه (تومان در شب)')
+                    ->numeric()->minValue(0)->default(0),
+                TextInput::make('extra_child_fee')
+                    ->label('هزینه‌ی هر کودک (تومان در شب)')
+                    ->numeric()->minValue(0)->default(0)
+                    ->helperText('صفر = کودک رایگان است.'),
                 Textarea::make('description')
                     ->label('توضیحات')
                     ->columnSpanFull()
