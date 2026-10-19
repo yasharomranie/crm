@@ -53,7 +53,8 @@ class ChannelAllotmentResource extends Resource
                     ->numeric()
                     ->default(0)
                     ->required()
-                    ->helperText('حداکثر تعداد واحدی که برای این کانال از این نوع اتاق کنار گذاشته می‌شود.')
+                    ->minValue(0)
+                    ->helperText('حداکثر واحدِ هم‌زمان در یک شب. رزرو بیشتر از این برای این کانال ثبت نمی‌شود؛ صفر یعنی فروش بسته است.')
                     ->hintAction(FieldHelp::make('channel-allotments.allotment_count')),
             ]);
     }

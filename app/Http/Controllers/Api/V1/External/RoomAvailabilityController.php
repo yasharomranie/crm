@@ -4,6 +4,7 @@ namespace App\Http\Controllers\Api\V1\External;
 
 use App\Enums\BookingStatus;
 use App\Http\Controllers\Controller;
+use App\Models\ChannelAllotment;
 use App\Models\ExternalApiClient;
 use App\Models\Room;
 use Illuminate\Http\JsonResponse;
@@ -31,6 +32,7 @@ class RoomAvailabilityController extends Controller
             'check_in' => ['required', 'date'],
             'check_out' => ['required', 'date', 'after:check_in'],
             'room_type_id' => ['nullable', 'integer'],
+            'sales_channel_id' => ['nullable', 'integer'],
         ]);
 
         $rooms = Room::query()
@@ -42,7 +44,12 @@ class RoomAvailabilityController extends Controller
                     ->where('check_out_date', '>', $data['check_in']);
             })
             ->with('roomType')
-            ->get();
+            ->get()
+            // A channel that has used up its allotment of a room type cannot
+            // book it, so that type is not offered to it (see ChannelAllotment).
+            ->when($data['sales_channel_id'] ?? null, fn ($rooms, $channelId) => $rooms->filter(
+                fn (Room $room) => ChannelAllotment::hasRoomFor((int) $channelId, $room->room_type_id, Carbon::parse($data['check_in']), Carbon::parse($data['check_out'])),
+            )->values());
 
         return response()->json([
             'data' => $rooms->map(fn (Room $room) => [

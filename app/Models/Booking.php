@@ -11,6 +11,7 @@ use App\Enums\RoomStatus;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
+use App\Exceptions\ChannelAllotmentExceededException;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Exceptions\RoomNotAvailableException;
 use App\Jobs\SendBookingMessageJob;
@@ -85,6 +86,15 @@ class Booking extends Model
                 $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
                 $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
             );
+
+            if ($booking->status !== BookingStatus::Cancelled) {
+                static::assertChannelAllotment(
+                    Room::findOrFail($booking->room_id),
+                    $booking->sales_channel_id,
+                    $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
+                    $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+                );
+            }
         });
 
         static::updating(function (self $booking) {
@@ -112,7 +122,7 @@ class Booking extends Model
             // Only worth checking when something that affects room
             // availability actually changed (dates, room, or a status
             // change that re-activates a previously cancelled booking).
-            if (! $booking->isDirty(['room_id', 'check_in_date', 'check_out_date', 'status'])) {
+            if (! $booking->isDirty(['room_id', 'check_in_date', 'check_out_date', 'status', 'sales_channel_id'])) {
                 return;
             }
 
@@ -126,6 +136,21 @@ class Booking extends Model
                 $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
                 $booking->id,
             );
+
+            // A status change such as check-in must never be blocked by an
+            // allotment lowered after the booking was made; only moving the
+            // booking (room, dates, channel) or reviving a cancelled one
+            // counts against the allotment again.
+            if ($booking->isDirty(['room_id', 'check_in_date', 'check_out_date', 'sales_channel_id'])
+                || $booking->getOriginal('status') === BookingStatus::Cancelled) {
+                static::assertChannelAllotment(
+                    Room::findOrFail($booking->room_id),
+                    $booking->sales_channel_id,
+                    $booking->check_in_date instanceof Carbon ? $booking->check_in_date : Carbon::parse($booking->check_in_date),
+                    $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
+                    $booking->id,
+                );
+            }
         });
 
         static::updated(function (self $booking) {
@@ -166,6 +191,37 @@ class Booking extends Model
 
         if ($overlaps) {
             throw RoomNotAvailableException::forOverlap($room->name);
+        }
+    }
+
+    /**
+     * A channel may sell only as many units of a room type per night as its
+     * allotment says (ChannelAllotment). The allotment row is locked while
+     * checking, so two bookings made at the same moment through the same
+     * channel cannot both take the last unit.
+     */
+    public static function assertChannelAllotment(Room $room, ?int $channelId, Carbon $checkIn, Carbon $checkOut, ?int $excludeBookingId = null): void
+    {
+        if (! $channelId) {
+            return;
+        }
+
+        $allotment = ChannelAllotment::query()
+            ->where('sales_channel_id', $channelId)
+            ->where('room_type_id', $room->room_type_id)
+            ->lockForUpdate()
+            ->first();
+
+        if (! $allotment) {
+            return;
+        }
+
+        if (ChannelAllotment::peakUsage($channelId, $room->room_type_id, $checkIn, $checkOut, $excludeBookingId) >= $allotment->allotment_count) {
+            throw ChannelAllotmentExceededException::forChannel(
+                (string) SalesChannel::find($channelId)?->name,
+                (string) $room->roomType?->name,
+                $allotment->allotment_count,
+            );
         }
     }
 
