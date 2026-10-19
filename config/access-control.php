@@ -44,6 +44,7 @@ use App\Models\AiScheduledReport;
 use App\Models\AttendanceRecord;
 use App\Models\Attraction;
 use App\Models\Booking;
+use App\Models\CancellationPolicy;
 use App\Models\ChannelAllotment;
 use App\Models\Company;
 use App\Models\Contract;
@@ -131,6 +132,7 @@ return [
         'sales-channels' => ['model' => SalesChannel::class, 'label' => 'کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'channel-allotments' => ['model' => ChannelAllotment::class, 'label' => 'سهمیه‌بندی کانال‌ها', 'group' => 'اقامتی و هتلداری'],
         'price-rules' => ['model' => PriceRule::class, 'label' => 'قیمت‌گذاری پویا', 'group' => 'اقامتی و هتلداری'],
+        'cancellation-policies' => ['model' => CancellationPolicy::class, 'label' => 'سیاست‌های لغو', 'group' => 'اقامتی و هتلداری'],
 
         'guests' => ['model' => Guest::class, 'label' => 'مهمانان', 'group' => 'CRM و مشتریان'],
         'deals' => ['model' => Deal::class, 'label' => 'معاملات فروش', 'group' => 'CRM و مشتریان'],

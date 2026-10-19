@@ -154,6 +154,9 @@ class BookingController extends Controller
             'paid_amount' => $booking->paidAmount(),
             'balance_due' => $booking->balanceDue(),
             'payment_status' => $booking->paymentStatus()->value,
+            'cancellation_terms' => $booking->cancellation_terms,
+            'cancelled_at' => $booking->cancelled_at?->toIso8601String(),
+            'cancellation_fee' => $booking->status === BookingStatus::Cancelled ? (int) $booking->cancellation_fee : null,
         ];
     }
 
