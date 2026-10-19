@@ -58,18 +58,37 @@ class SystemGuideTest extends TestCase
             ->assertSee('گزارش بدهی کیف پول');
     }
 
-    public function test_the_guide_covers_the_wordpress_connector(): void
+    public function test_the_seo_chapter_is_a_complete_handbook_from_project_to_report(): void
+    {
+        $response = $this->actingAs(User::factory()->create())
+            ->get(route('system-guide'))
+            ->assertOk()
+            ->assertSee('مرکز سئو — جزوه‌ی کامل')
+            ->assertSee('تعریف پروژه')
+            ->assertSee('اتصال Search Console')
+            ->assertSee('اتصال وردپرس (پلاگین)')
+            ->assertSee('اتصال Google Analytics')
+            ->assertSee('وضعیت سایت‌های وردپرسی')
+            ->assertSee('خلأ پوشش محتوا')
+            ->assertSee('راه‌اندازی هشدار تلگرام')
+            ->assertSee('پایش آنلاین‌بودن و SSL')
+            ->assertSee('برنامه‌ی کار پیشنهادی')
+            ->assertSee('عیب‌یابی: علامت، علت، راه‌حل')
+            ->assertSee('محدودیت‌ها و چک‌لیست پایانی');
+
+        foreach (range(0, 19) as $part) {
+            $response->assertSee('href="#seo-'.$part.'"', false)->assertSee('id="seo-'.$part.'"', false);
+        }
+    }
+
+    public function test_the_wordpress_connector_lives_inside_the_seo_chapter(): void
     {
         $this->actingAs(User::factory()->create())
             ->get(route('system-guide'))
             ->assertOk()
-            ->assertSee('اتصال وردپرس و محتوای سایت')
-            ->assertSee('وضعیت سایت‌های وردپرسی')
-            ->assertSee('خلأ پوشش محتوا')
-            ->assertSee('بریف محتوا')
-            ->assertSee('پایش آنلاین‌بودن و SSL')
-            ->assertSee('هشدار در تلگرام')
-            ->assertSee('Google Analytics (GA4)')
-            ->assertSee('سلامت و جزئیات هر سایت');
+            ->assertSee('دانلود پلاگین وردپرس')
+            ->assertSee('XXXX-XXXX-XXXX', false)
+            ->assertSee('اتصال مجدد برای Google Analytics')
+            ->assertDontSee('id="ch-17"', false);
     }
 }
