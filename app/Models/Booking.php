@@ -19,6 +19,7 @@ use App\Exceptions\RoomNotAvailableException;
 use App\Jobs\SendBookingMessageJob;
 use App\Models\Concerns\HasTags;
 use Carbon\Carbon;
+use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -567,6 +568,162 @@ class Booking extends Model
             'cancellation_reason' => $reason,
             'cancellation_fee' => $waiveFee ? 0 : $this->cancellationFeeFor($noShow),
         ]);
+    }
+
+    /**
+     * The statuses in which a stay can still be changed (not cancelled or over).
+     *
+     * @return list<BookingStatus>
+     */
+    private static function changeableStatuses(): array
+    {
+        return [BookingStatus::Pending, BookingStatus::Confirmed, BookingStatus::CheckedIn];
+    }
+
+    /**
+     * What staying until $newCheckOut instead would add to the folio: the extra
+     * nights at their nightly rates plus the extra guests' fees for them. The
+     * long-stay discount and promo codes are not re-applied to an extension.
+     */
+    public function extensionPrice(CarbonInterface $newCheckOut): int
+    {
+        $quote = app(StayPricing::class)->quote(
+            $this->room->roomType,
+            $this->check_out_date,
+            $newCheckOut,
+            max(1, (int) $this->adults_count),
+            (int) $this->children_count,
+        );
+
+        return $quote['room_total'] + $quote['extra_guests_total'];
+    }
+
+    /**
+     * Extends the stay to a later check-out date, adding the extra nights to
+     * the folio. The room must be free for them and any channel allotment must
+     * still hold; both are enforced by the same checks as a new booking.
+     *
+     * @throws InvalidArgumentException
+     * @throws RoomNotAvailableException
+     */
+    public function extendStay(CarbonInterface $newCheckOut, ?int $userId = null): void
+    {
+        if (! in_array($this->status, self::changeableStatuses(), true)) {
+            throw new InvalidArgumentException('فقط اقامت رزرو «در انتظار»، «قطعی» یا «مقیم» را می‌توان تمدید کرد.');
+        }
+
+        if (! $newCheckOut->copy()->startOfDay()->gt($this->check_out_date)) {
+            throw new InvalidArgumentException('تاریخ خروج تازه باید بعد از تاریخ خروج فعلی ('.$this->check_out_date->toDateString().') باشد.');
+        }
+
+        try {
+            $this->extendStayInTransaction($newCheckOut, $userId);
+        } catch (\Throwable $exception) {
+            // A refused change must not leave the unsaved new date on this instance.
+            $this->refresh();
+
+            throw $exception;
+        }
+    }
+
+    private function extendStayInTransaction(CarbonInterface $newCheckOut, ?int $userId): void
+    {
+        DB::transaction(function () use ($newCheckOut, $userId) {
+            Room::query()->lockForUpdate()->findOrFail($this->room_id);
+
+            $price = $this->extensionPrice($newCheckOut);
+            $oldCheckOut = $this->check_out_date->copy();
+
+            // The updating hook re-checks the room and the channel allotment for the new range.
+            $this->update(['check_out_date' => $newCheckOut->copy()->startOfDay()]);
+
+            $extraNights = (int) $oldCheckOut->diffInDays($this->check_out_date);
+
+            $this->charges()->create([
+                'title' => "تمدید اقامت {$extraNights} شب (تا ".$this->check_out_date->toJalali('Y/m/d').')',
+                'quantity' => 1,
+                'unit_amount' => $price,
+            ]);
+
+            activity('bookings')->performedOn($this)->causedBy($userId ? User::find($userId) : null)
+                ->log("تمدید اقامت {$this->reference_code} از {$oldCheckOut->toDateString()} تا {$this->check_out_date->toDateString()}");
+        });
+    }
+
+    /**
+     * The folio difference of moving the stay to another room type: the new
+     * type's room nights minus the old type's, for the whole stay (positive =
+     * the guest pays more). Zero for a room of the same type.
+     */
+    public function roomChangeDifference(Room $newRoom): int
+    {
+        if ((int) $newRoom->room_type_id === (int) $this->room->room_type_id) {
+            return 0;
+        }
+
+        $pricing = app(StayPricing::class);
+        $old = $pricing->quote($this->room->roomType, $this->check_in_date, $this->check_out_date);
+        $new = $pricing->quote($newRoom->roomType, $this->check_in_date, $this->check_out_date);
+
+        return $new['room_total'] - $old['room_total'];
+    }
+
+    /**
+     * Moves the whole booking to another room that is free for all its nights.
+     * With $chargeDifference a different room type adds (or subtracts) the
+     * price difference as its own folio line; otherwise the guest keeps the
+     * agreed price (a free upgrade). A guest already in the house also flips
+     * the two rooms' statuses (old: needs cleaning, new: occupied).
+     *
+     * @throws InvalidArgumentException
+     * @throws RoomNotAvailableException
+     */
+    public function changeRoom(Room $newRoom, bool $chargeDifference = true, ?int $userId = null): void
+    {
+        if (! in_array($this->status, self::changeableStatuses(), true)) {
+            throw new InvalidArgumentException('فقط اتاق رزرو «در انتظار»، «قطعی» یا «مقیم» را می‌توان عوض کرد.');
+        }
+
+        if ((int) $newRoom->getKey() === (int) $this->room_id) {
+            throw new InvalidArgumentException('اتاق انتخاب‌شده همان اتاق فعلی است.');
+        }
+
+        try {
+            $this->changeRoomInTransaction($newRoom, $chargeDifference, $userId);
+        } catch (\Throwable $exception) {
+            $this->refresh();
+
+            throw $exception;
+        }
+    }
+
+    private function changeRoomInTransaction(Room $newRoom, bool $chargeDifference, ?int $userId): void
+    {
+        DB::transaction(function () use ($newRoom, $chargeDifference, $userId) {
+            $newRoom = Room::query()->lockForUpdate()->with('roomType')->findOrFail($newRoom->getKey());
+            $oldRoom = $this->room;
+            $difference = $chargeDifference ? $this->roomChangeDifference($newRoom) : 0;
+
+            // The updating hook checks that the new room is free for the whole stay.
+            $this->update(['room_id' => $newRoom->id]);
+            $this->unsetRelation('room');
+
+            if ($difference !== 0) {
+                $this->charges()->create([
+                    'title' => "تغییر اتاق از «{$oldRoom->name}» به «{$newRoom->name}»".($difference > 0 ? ' (مابه‌التفاوت)' : ' (کاهش نرخ)'),
+                    'quantity' => 1,
+                    'unit_amount' => $difference,
+                ]);
+            }
+
+            if ($this->status === BookingStatus::CheckedIn) {
+                $oldRoom->update(['status' => RoomStatus::NeedsCleaning]);
+                $newRoom->update(['status' => RoomStatus::Occupied]);
+            }
+
+            activity('bookings')->performedOn($this)->causedBy($userId ? User::find($userId) : null)
+                ->log("تغییر اتاق {$this->reference_code} از {$oldRoom->name} به {$newRoom->name}");
+        });
     }
 
     public function cancellationKindLabel(): ?string
