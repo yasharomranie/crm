@@ -6,6 +6,7 @@ use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Filament\Support\FieldHelp;
 use App\Models\Booking;
+use App\Models\CancellationPolicy;
 use App\Models\Guest;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -87,6 +88,19 @@ class BookingForm
                     ->preload()
                     ->helperText('در صورت ورود از طریق سایت واسط (OTA)، کانال را انتخاب کنید تا کمیسیون آن هنگام تسویه محاسبه شود.')
                     ->hintAction(FieldHelp::make('bookings.sales_channel_id')),
+                Select::make('cancellation_policy_id')
+                    ->label('سیاست لغو')
+                    ->relationship('cancellationPolicy', 'name', fn ($query) => $query->where('is_active', true))
+                    ->searchable()
+                    ->preload()
+                    ->placeholder('سیاست پیش‌فرض')
+                    ->helperText('شرایط سیاست در لحظه‌ی ثبت رزرو روی همین رزرو ذخیره می‌شود؛ تغییر بعدیِ سیاست روی این رزرو اثری ندارد.')
+                    ->visible(fn (?Booking $record) => $record === null),
+                Placeholder::make('cancellation_terms_summary')
+                    ->label('شرایط لغو این رزرو')
+                    ->content(fn (?Booking $record) => $record?->cancellation_terms ? CancellationPolicy::describe($record->cancellation_terms) : 'بدون سیاست لغو (جریمه‌ای اعمال نمی‌شود)')
+                    ->columnSpanFull()
+                    ->visible(fn (?Booking $record) => $record !== null),
                 Textarea::make('notes')
                     ->label('یادداشت')
                     ->columnSpanFull()

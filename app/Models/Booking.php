@@ -31,7 +31,12 @@ class Booking extends Model
         'reference_code', 'room_id', 'guest_id', 'check_in_date', 'check_out_date',
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
+        'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
     ];
+
+    public const CANCELLED_BY_GUEST = 'guest';
+
+    public const CANCELLED_NO_SHOW = 'no_show';
 
     protected function casts(): array
     {
@@ -44,6 +49,9 @@ class Booking extends Model
             'source' => BookingSource::class,
             'commission_amount' => 'decimal:0',
             'wallet_paid_amount' => 'decimal:0',
+            'cancellation_terms' => 'array',
+            'cancelled_at' => 'datetime',
+            'cancellation_fee' => 'integer',
         ];
     }
 
@@ -51,6 +59,17 @@ class Booking extends Model
     {
         static::creating(function (self $booking) {
             $booking->reference_code ??= static::generateReferenceCode();
+
+            // The cancellation terms are copied now, so a later change of the
+            // policy never changes what this guest was promised.
+            if (blank($booking->cancellation_terms)) {
+                $policy = $booking->cancellation_policy_id
+                    ? CancellationPolicy::find($booking->cancellation_policy_id)
+                    : CancellationPolicy::defaultPolicy();
+
+                $booking->cancellation_terms = $policy?->terms();
+                $booking->cancellation_policy_id ??= $policy?->id;
+            }
 
             // Best-effort guard for direct ::create() calls (tinker, relation
             // managers, seeders). The authoritative, concurrency-safe check
@@ -64,6 +83,21 @@ class Booking extends Model
         });
 
         static::updating(function (self $booking) {
+            if ($booking->isDirty('status')) {
+                if ($booking->status === BookingStatus::Cancelled && $booking->cancelled_at === null) {
+                    // Cancelled by editing the status (not through cancel()):
+                    // the policy's fee for today applies.
+                    $booking->cancelled_at = now();
+                    $booking->cancellation_kind ??= self::CANCELLED_BY_GUEST;
+                    $booking->cancellation_fee = $booking->cancellationFeeFor($booking->cancellation_kind === self::CANCELLED_NO_SHOW);
+                } elseif ($booking->status !== BookingStatus::Cancelled && $booking->getOriginal('status') === BookingStatus::Cancelled) {
+                    $booking->cancelled_at = null;
+                    $booking->cancellation_kind = null;
+                    $booking->cancellation_reason = null;
+                    $booking->cancellation_fee = 0;
+                }
+            }
+
             // A booking being cancelled frees the room, so it can never
             // conflict with anything - skip the check entirely.
             if ($booking->status === BookingStatus::Cancelled) {
@@ -87,6 +121,12 @@ class Booking extends Model
                 $booking->check_out_date instanceof Carbon ? $booking->check_out_date : Carbon::parse($booking->check_out_date),
                 $booking->id,
             );
+        });
+
+        static::updated(function (self $booking) {
+            if ($booking->wasChanged('status') && $booking->status === BookingStatus::Cancelled) {
+                $booking->returnWalletMoneyAfterCancellation();
+            }
         });
 
         static::created(function (self $booking) {
@@ -156,6 +196,11 @@ class Booking extends Model
         return $this->hasMany(BookingCharge::class);
     }
 
+    public function cancellationPolicy(): BelongsTo
+    {
+        return $this->belongsTo(CancellationPolicy::class);
+    }
+
     public function payments(): HasMany
     {
         return $this->hasMany(BookingPayment::class);
@@ -199,12 +244,31 @@ class Booking extends Model
      */
     public function balanceDue(): int
     {
-        return max(0, $this->totalAmount() - $this->paidAmount());
+        return max(0, $this->amountOwed() - $this->paidAmount());
+    }
+
+    /**
+     * What the guest owes: the whole folio, or - once the booking is
+     * cancelled - only the cancellation fee.
+     */
+    public function amountOwed(): int
+    {
+        return $this->status === BookingStatus::Cancelled ? (int) $this->cancellation_fee : $this->totalAmount();
+    }
+
+    /**
+     * Cash the hotel has to hand back after a cancellation: what was received
+     * at the desk or online beyond the cancellation fee. (The fee is taken
+     * from that money first; wallet money is returned to the wallet.)
+     */
+    public function refundableAmount(): int
+    {
+        return $this->status === BookingStatus::Cancelled ? max(0, $this->receivedAmount() - (int) $this->cancellation_fee) : 0;
     }
 
     public function paymentStatus(): BookingPaymentStatus
     {
-        $total = $this->totalAmount();
+        $total = $this->amountOwed();
         $paid = $this->paidAmount();
 
         return match (true) {
@@ -226,8 +290,8 @@ class Booking extends Model
 
     /**
      * Writes one line of the money ledger. A payment or advance can never
-     * exceed what is still unpaid, nor be recorded on a cancelled booking;
-     * a refund can never exceed the money actually received (wallet
+     * exceed what is still unpaid (on a cancelled booking that is only the
+     * cancellation fee); a refund can never exceed the money actually received (wallet
      * payments are not refunded this way). The check and the write share a
      * transaction with a row lock, so two clerks cannot both overpay.
      *
@@ -253,10 +317,6 @@ class Booking extends Model
                     throw new InvalidArgumentException('مبلغ استرداد از پولِ دریافت‌شده (نقد، کارت، حواله، آنلاین) بیشتر است؛ پرداخت از کیف پول از این راه برگردانده نمی‌شود.');
                 }
             } else {
-                if ($locked->status === BookingStatus::Cancelled) {
-                    throw new InvalidArgumentException('برای رزرو لغوشده پرداخت ثبت نمی‌شود.');
-                }
-
                 if ($amount > $locked->balanceDue()) {
                     throw new InvalidArgumentException('مبلغ از مانده‌ی صورت‌حساب ('.number_format($locked->balanceDue()).' تومان) بیشتر است.');
                 }
@@ -306,6 +366,101 @@ class Booking extends Model
             $this->syncOriginalAttribute('wallet_paid_amount');
 
             return $transaction;
+        });
+    }
+
+    /**
+     * The share of the stay the guest pays if the booking ends now: from the
+     * terms kept on the booking - the step for how many days are left before
+     * check-in, or the "late" percentage after the last step. A no-show has
+     * its own percentage. No terms means no penalty.
+     */
+    public function cancellationPenaltyPercent(bool $noShow = false): int
+    {
+        $terms = $this->cancellation_terms;
+
+        if (blank($terms)) {
+            return 0;
+        }
+
+        if ($noShow) {
+            return (int) ($terms['no_show_percent'] ?? 0);
+        }
+
+        $daysLeft = (int) round(now()->startOfDay()->diffInDays($this->check_in_date->copy()->startOfDay(), false));
+        $steps = collect($terms['rules'] ?? [])->sortByDesc('days');
+
+        foreach ($steps as $step) {
+            if ($daysLeft >= (int) $step['days']) {
+                return (int) $step['percent'];
+            }
+        }
+
+        return (int) ($terms['late_percent'] ?? 0);
+    }
+
+    public function cancellationFeeFor(bool $noShow = false): int
+    {
+        return (int) round($this->totalAmount() * $this->cancellationPenaltyPercent($noShow) / 100);
+    }
+
+    /**
+     * Cancels a booking that has not started (or marks a no-show), charging
+     * the fee its terms ask for unless it is waived. The wallet money that
+     * is not needed for the fee goes back to the guest's wallet; cash that
+     * was paid is handed back with a refund line (see refundableAmount()).
+     *
+     * @throws InvalidArgumentException
+     */
+    public function cancel(?string $reason = null, bool $noShow = false, bool $waiveFee = false): void
+    {
+        if (! in_array($this->status, [BookingStatus::Pending, BookingStatus::Confirmed], true)) {
+            throw new InvalidArgumentException('فقط رزرو «در انتظار تأیید» یا «قطعی» را می‌توان لغو کرد.');
+        }
+
+        $this->update([
+            'status' => BookingStatus::Cancelled,
+            'cancelled_at' => now(),
+            'cancellation_kind' => $noShow ? self::CANCELLED_NO_SHOW : self::CANCELLED_BY_GUEST,
+            'cancellation_reason' => $reason,
+            'cancellation_fee' => $waiveFee ? 0 : $this->cancellationFeeFor($noShow),
+        ]);
+    }
+
+    public function cancellationKindLabel(): ?string
+    {
+        return match ($this->cancellation_kind) {
+            self::CANCELLED_NO_SHOW => 'عدم حضور',
+            self::CANCELLED_BY_GUEST => 'لغو',
+            default => null,
+        };
+    }
+
+    /**
+     * The cancellation fee is taken from the money received at the desk
+     * first, then from what the wallet paid; whatever wallet money is left
+     * over goes back into the wallet.
+     */
+    private function returnWalletMoneyAfterCancellation(): void
+    {
+        $walletPaid = (int) $this->wallet_paid_amount;
+
+        if ($walletPaid <= 0) {
+            return;
+        }
+
+        $this->load('payments');
+
+        $feeLeftAfterReceived = max(0, (int) $this->cancellation_fee - $this->receivedAmount());
+        $back = $walletPaid - min($walletPaid, $feeLeftAfterReceived);
+
+        if ($back <= 0) {
+            return;
+        }
+
+        DB::transaction(function () use ($back) {
+            $this->guest->creditWallet($back, "بازگشت پرداخت رزرو لغوشده {$this->reference_code}", $this);
+            $this->updateQuietly(['wallet_paid_amount' => (int) $this->wallet_paid_amount - $back]);
         });
     }
 
