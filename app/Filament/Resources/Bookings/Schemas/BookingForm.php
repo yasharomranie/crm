@@ -5,12 +5,16 @@ namespace App\Filament\Resources\Bookings\Schemas;
 use App\Enums\BookingSource;
 use App\Enums\BookingStatus;
 use App\Filament\Support\FieldHelp;
+use App\Models\Booking;
 use App\Models\Guest;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\Placeholder;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Section;
 use Filament\Schemas\Schema;
+use Illuminate\Support\Number;
 
 class BookingForm
 {
@@ -87,6 +91,29 @@ class BookingForm
                     ->label('یادداشت')
                     ->columnSpanFull()
                     ->hintAction(FieldHelp::make('bookings.notes')),
+                Section::make('خلاصه‌ی صورت‌حساب')
+                    ->visible(fn (?Booking $record) => $record !== null)
+                    ->columns(4)
+                    ->columnSpanFull()
+                    ->schema([
+                        Placeholder::make('folio_total')
+                            ->label('کل صورت‌حساب')
+                            ->content(fn (?Booking $record) => self::money($record?->totalAmount() ?? 0)),
+                        Placeholder::make('folio_paid')
+                            ->label('پرداخت‌شده (کیف پول + دریافتی)')
+                            ->content(fn (?Booking $record) => self::money($record?->paidAmount() ?? 0)),
+                        Placeholder::make('folio_balance')
+                            ->label('مانده')
+                            ->content(fn (?Booking $record) => self::money($record?->balanceDue() ?? 0)),
+                        Placeholder::make('folio_status')
+                            ->label('وضعیت پرداخت')
+                            ->content(fn (?Booking $record) => $record?->paymentStatus()->getLabel() ?? '—'),
+                    ]),
             ]);
+    }
+
+    private static function money(int $amount): string
+    {
+        return Number::toPersian(number_format($amount)).' تومان';
     }
 }

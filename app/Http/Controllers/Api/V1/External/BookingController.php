@@ -151,6 +151,9 @@ class BookingController extends Controller
             'check_out_date' => $booking->check_out_date->toDateString(),
             'nights' => $booking->nights(),
             'total_amount' => $booking->totalAmount(),
+            'paid_amount' => $booking->paidAmount(),
+            'balance_due' => $booking->balanceDue(),
+            'payment_status' => $booking->paymentStatus()->value,
         ];
     }
 
