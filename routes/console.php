@@ -11,6 +11,7 @@ use App\Domain\Crm\WalletExpiryService;
 use App\Domain\Ticketing\GateAnomalyDetector;
 use App\Domain\TripPlanner\TripPlanFollowUp;
 use App\Jobs\AnalyzeWpSiteJob;
+use App\Models\Booking;
 use App\Models\SeoWpSite;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
@@ -263,4 +264,11 @@ Schedule::call(fn () => app(BookingMessenger::class)->sendDueArrivalReminders())
     ->name('booking-arrival-reminders')
     ->dailyAt('09:30')
     ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Releases pending bookings whose hold (set when the booking was made)
+// has run out with no money received, so held rooms go back on sale.
+Schedule::call(fn () => Booking::releaseExpiredHolds())
+    ->name('booking-release-expired-holds')
+    ->everyTenMinutes()
     ->withoutOverlapping();

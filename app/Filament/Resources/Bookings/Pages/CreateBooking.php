@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Bookings\Pages;
 
+use App\Enums\BookingStatus;
 use App\Exceptions\RoomNotAvailableException;
 use App\Filament\Resources\Bookings\BookingResource;
 use App\Models\Booking;
@@ -37,7 +38,15 @@ class CreateBooking extends CreateRecord
     protected function handleRecordCreation(array $data): Model
     {
         $promoCode = $data['promo_code'] ?? null;
-        unset($data['promo_code']);
+        $holdHours = (int) ($data['hold_hours'] ?? 0);
+        unset($data['promo_code'], $data['hold_hours']);
+
+        $status = $data['status'] ?? null;
+        $status = $status instanceof BookingStatus ? $status : BookingStatus::tryFrom((string) $status);
+
+        if ($holdHours > 0 && $status === BookingStatus::Pending) {
+            $data['hold_expires_at'] = now()->addHours($holdHours);
+        }
 
         try {
             return DB::transaction(function () use ($data, $promoCode) {

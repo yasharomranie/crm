@@ -4,6 +4,8 @@ use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\AssistantConversationPrintController;
 use App\Http\Controllers\AssistantRunController;
+use App\Http\Controllers\BookingInvoiceController;
+use App\Http\Controllers\BookingPaymentController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
@@ -38,6 +40,8 @@ Route::middleware('auth')->group(function () {
         ->name('documents.download');
     Route::get('/document-versions/{version}/download', [DocumentDownloadController::class, 'version'])
         ->name('document-versions.download');
+    Route::get('/bookings/{booking}/invoice', [BookingInvoiceController::class, 'show'])
+        ->name('bookings.invoice');
     Route::get('/contracts/{contract}/print', [ContractPrintController::class, 'show'])
         ->name('contracts.print');
     Route::get('/contracts/{contract}/export-word', [ContractPrintController::class, 'exportWord'])
@@ -149,6 +153,13 @@ Route::prefix('app/auth')->name('customer-app.auth.')->group(function () {
 Route::match(['get', 'post'], '/feedback/{feedback}', [GuestFeedbackController::class, 'show'])
     ->middleware(['signed', 'throttle:30,1'])
     ->name('guest-feedback.show');
+
+// Online payment of a booking from the link the front desk sent. The
+// callback must be declared before the {token} routes so "callback" is not
+// read as a token.
+Route::get('/pay/callback', [BookingPaymentController::class, 'callback'])->name('booking-pay.callback');
+Route::get('/pay/{token}', [BookingPaymentController::class, 'show'])->name('booking-pay.show');
+Route::post('/pay/{token}', [BookingPaymentController::class, 'start'])->middleware('throttle:20,1')->name('booking-pay.start');
 
 // Read-only page behind a trip plan's share link.
 Route::get('/trip/{token}', [PublicTripPlanController::class, 'show'])->name('trip-plan.public');

@@ -36,7 +36,7 @@ class Booking extends Model
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
         'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
-        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id',
+        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id', 'hold_expires_at',
     ];
 
     public const CANCELLED_BY_GUEST = 'guest';
@@ -60,6 +60,7 @@ class Booking extends Model
             'confirmation_sent_at' => 'datetime',
             'arrival_reminder_sent_at' => 'datetime',
             'feedback_sent_at' => 'datetime',
+            'hold_expires_at' => 'datetime',
         ];
     }
 
@@ -105,6 +106,11 @@ class Booking extends Model
         });
 
         static::updating(function (self $booking) {
+            // A hold only makes sense while the booking waits for money.
+            if ($booking->isDirty('status') && $booking->status !== BookingStatus::Pending) {
+                $booking->hold_expires_at = null;
+            }
+
             if ($booking->isDirty('status')) {
                 if ($booking->status === BookingStatus::Cancelled && $booking->cancelled_at === null) {
                     // Cancelled by editing the status (not through cancel()):
@@ -307,6 +313,39 @@ class Booking extends Model
     public function payments(): HasMany
     {
         return $this->hasMany(BookingPayment::class);
+    }
+
+    public function paymentLinks(): HasMany
+    {
+        return $this->hasMany(BookingPaymentLink::class);
+    }
+
+    /**
+     * Cancels every pending booking whose hold has run out and that has not
+     * received any money; returns how many were released. A booking that got
+     * a payment (or wallet money) keeps its place - staff decide about it.
+     */
+    public static function releaseExpiredHolds(): int
+    {
+        $released = 0;
+
+        static::query()
+            ->with(['payments'])
+            ->where('status', BookingStatus::Pending)
+            ->whereNotNull('hold_expires_at')
+            ->where('hold_expires_at', '<=', now())
+            ->each(function (self $booking) use (&$released) {
+                if ($booking->paidAmount() > 0) {
+                    $booking->update(['hold_expires_at' => null]);
+
+                    return;
+                }
+
+                $booking->cancel('مهلت نگه‌داشتن رزرو بدون پرداخت تمام شد', false, true);
+                $released++;
+            });
+
+        return $released;
     }
 
     public function housekeepingTasks(): MorphMany
