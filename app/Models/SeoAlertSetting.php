@@ -18,7 +18,9 @@ class SeoAlertSetting extends Model
     /** @use HasFactory<SeoAlertSettingFactory> */
     use HasFactory;
 
-    protected $fillable = ['is_enabled', 'rank_drop_threshold', 'notify_email', 'notify_sms', 'notify_push', 'recipient_user_ids'];
+    protected $fillable = ['is_enabled', 'rank_drop_threshold', 'notify_email', 'notify_sms', 'notify_push', 'notify_telegram', 'telegram_bot_token', 'telegram_chat_id', 'telegram_api_base', 'recipient_user_ids'];
+
+    protected $hidden = ['telegram_bot_token'];
 
     protected function casts(): array
     {
@@ -28,6 +30,8 @@ class SeoAlertSetting extends Model
             'notify_email' => 'boolean',
             'notify_sms' => 'boolean',
             'notify_push' => 'boolean',
+            'notify_telegram' => 'boolean',
+            'telegram_bot_token' => 'encrypted',
             'recipient_user_ids' => 'array',
         ];
     }
@@ -52,6 +56,11 @@ class SeoAlertSetting extends Model
             'notify_sms' => false,
             'notify_push' => true,
         ]);
+    }
+
+    public function telegramIsUsable(): bool
+    {
+        return $this->notify_telegram && filled($this->telegram_bot_token) && filled($this->telegram_chat_id);
     }
 
     /**

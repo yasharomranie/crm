@@ -2,6 +2,7 @@
 
 namespace App\Domain\Seo\WpConnector;
 
+use App\Domain\Seo\GoogleAutocompleteClient;
 use App\Models\SeoKeywordProfile;
 use App\Models\SeoProject;
 use App\Models\SeoWpPost;
@@ -14,7 +15,8 @@ use Illuminate\Support\Str;
  * internal links of the new article), the other searches Google already
  * shows the site for on the same subject (secondary keywords), and, when an
  * existing page is to be rewritten, that page's own weak points.
- * Nothing here calls an AI - it is plain facts from the plugin and Search Console.
+ * Nothing here calls an AI - it is plain facts from the plugin, Search Console
+ * and the suggestions Google's own search box gives.
  */
 class WpContentBrief
 {
@@ -23,6 +25,8 @@ class WpContentBrief
     private const MAX_LINKS = 6;
 
     private const MAX_RELATED_SEARCHES = 6;
+
+    public function __construct(private readonly GoogleAutocompleteClient $autocomplete) {}
 
     public function build(SeoProject $project, string $query, ?SeoWpPost $target = null): string
     {
@@ -52,6 +56,13 @@ class WpContentBrief
         if ($searches->isNotEmpty()) {
             $lines[] = '';
             $lines[] = 'عبارت‌های هم‌خانواده که گوگل همین‌حالا به سایت نشان می‌دهد (در متن بیاورید): '.$searches->implode('، ');
+        }
+
+        $typed = $this->autocomplete->suggestionsFor($query);
+
+        if ($typed !== []) {
+            $lines[] = '';
+            $lines[] = 'آنچه مردم در گوگل برای این موضوع تایپ می‌کنند (سؤال‌ها و بخش‌های مقاله): '.implode('، ', $typed);
         }
 
         return implode("\n", array_filter($lines, fn ($line) => $line !== null));

@@ -56,6 +56,11 @@ class SeoProject extends Model
         return $this->hasOne(SeoWpSite::class);
     }
 
+    public function siteCheck(): HasOne
+    {
+        return $this->hasOne(SeoSiteCheck::class);
+    }
+
     public function googleConnection(): HasOne
     {
         return $this->hasOne(SeoGoogleConnection::class);

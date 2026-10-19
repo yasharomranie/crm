@@ -184,6 +184,13 @@ Schedule::call($artisan('seo:generate-periodic-reports'))
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
+// هر ربع ساعت می‌پرسد سایت‌ها بالا هستند یا نه و تاریخ SSL را می‌خواند؛
+// فقط تغییرِ تازه (قطع‌شدن، وصل‌شدن، نزدیک‌شدن انقضا) هشدار می‌دهد.
+Schedule::call($artisan('seo:check-site-health'))
+    ->name('seo:check-site-health')
+    ->everyFifteenMinutes()
+    ->withoutOverlapping();
+
 // sitemap.xml معمولاً چند بار در روز هم تغییر نمی‌کند، پس یک بار در روز
 // برای تشخیص صفحات تازه‌اضافه‌شده/ویرایش‌شده کافی است - سحرگاه، مثل
 // همگام‌سازی هفتگیِ آدیت تکنیکال، تا کمترین بار را روی سایت مشتری بگذارد.

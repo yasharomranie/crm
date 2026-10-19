@@ -43,6 +43,9 @@
                                 </td>
                                 <td class="px-3 py-2">
                                     <x-filament::badge :color="$row['state_color']">{{ $row['state_label'] }}</x-filament::badge>
+                                    @if ($row['ssl_days_left'] !== null && $row['ssl_days_left'] <= \App\Domain\Seo\SiteHealth\SiteHealthMonitor::SSL_ALERT_DAYS[0])
+                                        <div class="mt-1 text-xs text-warning-600 dark:text-warning-400">{{ $row['ssl_days_left'] >= 0 ? 'SSL: '.$row['ssl_days_left'].' روز تا انقضا' : 'SSL منقضی شده' }}</div>
+                                    @endif
                                     @if ($row['last_error'])
                                         <div class="mt-1 max-w-xs text-xs text-danger-600 dark:text-danger-400">{{ \Illuminate\Support\Str::limit($row['last_error'], 120) }}</div>
                                     @endif
