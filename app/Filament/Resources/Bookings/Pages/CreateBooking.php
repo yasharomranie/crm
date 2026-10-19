@@ -18,6 +18,22 @@ class CreateBooking extends CreateRecord
 {
     protected static string $resource = BookingResource::class;
 
+    /**
+     * A free night clicked in the occupancy calendar opens this form with the
+     * room and dates already filled in.
+     */
+    protected function fillForm(): void
+    {
+        $this->callHook('beforeFill');
+
+        $this->form->fill(array_filter(
+            request()->only(['room_id', 'check_in_date', 'check_out_date']),
+            fn ($value) => filled($value),
+        ));
+
+        $this->callHook('afterFill');
+    }
+
     protected function mutateFormDataBeforeCreate(array $data): array
     {
         $data['created_by'] = auth()->id();
