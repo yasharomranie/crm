@@ -15,6 +15,7 @@ use App\Filament\Pages\CustomerValueReportPage;
 use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Pages\GateScanner;
+use App\Filament\Pages\HotelReports;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
 use App\Filament\Pages\PaymentGatewaySettings;
@@ -205,6 +206,7 @@ return [
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'booking-message-settings' => ['page' => BookingMessageSettings::class, 'label' => 'پیام‌های رزرو', 'group' => 'اقامتی و هتلداری'],
         'today-arrivals' => ['page' => TodayArrivals::class, 'label' => 'ورود و خروج امروز', 'group' => 'اقامتی و هتلداری'],
+        'hotel-reports' => ['page' => HotelReports::class, 'label' => 'گزارش‌های هتلداری', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'customer-value-report' => ['page' => CustomerValueReportPage::class, 'label' => 'ارزش و ریزش مشتری', 'group' => 'CRM و مشتریان'],
         'communication-inbox' => ['page' => CommunicationInbox::class, 'label' => 'صندوق پیام', 'group' => 'CRM و مشتریان'],
