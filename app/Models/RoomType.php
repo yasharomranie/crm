@@ -11,7 +11,7 @@ class RoomType extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'capacity', 'base_price', 'description', 'is_active', 'base_occupancy', 'extra_adult_fee', 'extra_child_fee', 'min_nights'];
+    protected $fillable = ['name', 'capacity', 'base_price', 'description', 'is_active', 'base_occupancy', 'extra_adult_fee', 'extra_child_fee', 'min_nights', 'check_in_time', 'check_out_time'];
 
     protected function casts(): array
     {
