@@ -63,9 +63,13 @@ class GuestFlagsTest extends TestCase
         $guest = Guest::factory()->create(['reception_alert' => 'مهمان ویژه - هدیه خوش‌آمد']);
         $booking = $this->bookingFor($guest);
 
-        Livewire::actingAs($this->admin())
+        $component = Livewire::actingAs($this->admin())
             ->test(ListBookings::class)
-            ->mountTableAction('checkIn', $booking)
-            ->assertSee('مهمان ویژه - هدیه خوش‌آمد');
+            ->mountTableAction('checkIn', $booking);
+
+        $this->assertStringContainsString(
+            'مهمان ویژه - هدیه خوش‌آمد',
+            (string) $component->instance()->getMountedTableAction()->getModalDescription(),
+        );
     }
 }
