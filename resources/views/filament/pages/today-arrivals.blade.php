@@ -30,6 +30,18 @@
                             @if ($booking->guest->mobile) · {{ \Illuminate\Support\Number::toPersian($booking->guest->mobile) }} @endif
                             @if ($booking->channel) · {{ $booking->channel->name }} @endif
                         </div>
+                        @if ($booking->precheckin?->isCompleted())
+                            <div class="text-sm text-success-700 dark:text-success-400">
+                                پیش‌ثبت‌نام انجام شده
+                                @if ($booking->precheckin->arrival_time) · رسیدن حدود {{ \Illuminate\Support\Number::toPersian($booking->precheckin->arrival_time) }} @endif
+                                @if (count($booking->precheckin->companions ?? [])) · {{ \Illuminate\Support\Number::toPersian(count($booking->precheckin->companions)) }} همراه @endif
+                            </div>
+                            @if ($booking->precheckin->requests)
+                                <div class="text-sm text-gray-600 dark:text-gray-300">درخواست مهمان: {{ $booking->precheckin->requests }}</div>
+                            @endif
+                        @elseif ($section['action'] === 'checkIn')
+                            <div class="text-xs text-gray-400">پیش‌ثبت‌نام انجام نشده</div>
+                        @endif
                         @if ($booking->notes)
                             <div class="text-sm text-gray-600 dark:text-gray-300">{{ $booking->notes }}</div>
                         @endif

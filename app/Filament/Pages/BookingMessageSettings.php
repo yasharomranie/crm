@@ -62,7 +62,7 @@ class BookingMessageSettings extends Page implements HasForms
 
     public function form(Schema $schema): Schema
     {
-        $placeholders = 'متغیرها: '.implode('  ', BookingMessageSetting::PLACEHOLDERS).' (برای نظرسنجی {link} لینک صفحه‌ی نظر است).';
+        $placeholders = 'متغیرها: '.implode('  ', BookingMessageSetting::PLACEHOLDERS).' ({link} لینک نظرسنجی و {precheckin_link} لینک پیش‌ثبت‌نام آنلاین مهمان است).';
 
         return $schema
             ->statePath('data')

@@ -728,6 +728,11 @@ class Booking extends Model
         });
     }
 
+    public function precheckin(): HasOne
+    {
+        return $this->hasOne(BookingPrecheckin::class);
+    }
+
     public function damageDeposit(): HasOne
     {
         return $this->hasOne(DamageDeposit::class);

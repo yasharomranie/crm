@@ -6,6 +6,7 @@ use App\Enums\BookingStatus;
 use App\Enums\MessageDeliveryStatus;
 use App\Models\Booking;
 use App\Models\BookingMessageSetting;
+use App\Models\BookingPrecheckin;
 use App\Models\CustomerMessage;
 use App\Models\GuestFeedback;
 use Illuminate\Support\Facades\URL;
@@ -104,6 +105,7 @@ class BookingMessenger
             '{check_out}' => $booking->check_out_date->toJalali('Y/m/d'),
             '{nights}' => (string) max(1, (int) $booking->check_in_date->diffInDays($booking->check_out_date)),
             '{link}' => (string) $link,
+            '{precheckin_link}' => str_contains($template, '{precheckin_link}') ? BookingPrecheckin::forBooking($booking)->url() : '',
         ]);
     }
 

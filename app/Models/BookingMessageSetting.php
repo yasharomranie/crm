@@ -19,7 +19,7 @@ class BookingMessageSetting extends Model
     public const DEFAULT_FEEDBACK = '{guest} عزیز، از اقامت شما سپاسگزاریم. لطفاً نظرتان را در یک دقیقه با ما در میان بگذارید: {link}';
 
     /** @var list<string> */
-    public const PLACEHOLDERS = ['{guest}', '{code}', '{room}', '{check_in}', '{check_out}', '{nights}', '{link}'];
+    public const PLACEHOLDERS = ['{guest}', '{code}', '{room}', '{check_in}', '{check_out}', '{nights}', '{link}', '{precheckin_link}'];
 
     protected $fillable = [
         'confirmation_enabled', 'reminder_enabled', 'reminder_days_before', 'feedback_enabled',
