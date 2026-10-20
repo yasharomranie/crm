@@ -266,6 +266,14 @@ Schedule::call(fn () => app(BookingMessenger::class)->sendDueArrivalReminders())
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
+// Asks confirmed guests who still owe money to settle before they arrive
+// (only when enabled in «پیام‌های رزرو»); each booking is asked once.
+Schedule::call(fn () => app(BookingMessenger::class)->sendDueBalanceReminders())
+    ->name('booking-balance-reminders')
+    ->dailyAt('09:45')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 // Releases pending bookings whose hold (set when the booking was made)
 // has run out with no money received, so held rooms go back on sale.
 Schedule::call(fn () => Booking::releaseExpiredHolds())

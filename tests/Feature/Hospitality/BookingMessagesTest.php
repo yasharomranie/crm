@@ -104,6 +104,40 @@ class BookingMessagesTest extends TestCase
         $this->assertSame('ورود 15:30 خروج 11:00', app(BookingMessenger::class)->render('ورود {check_in_time} خروج {check_out_time}', $booking->fresh()));
     }
 
+    public function test_guests_who_owe_money_get_one_balance_reminder_before_arrival(): void
+    {
+        $this->smsReady();
+        $this->setting(['balance_reminder_enabled' => true, 'balance_reminder_days_before' => 3]);
+
+        $owing = $this->booking(['check_in_date' => today()->addDays(2)->toDateString(), 'check_out_date' => today()->addDays(4)->toDateString()]);
+        $owing->charges()->create(['title' => 'اقامت', 'quantity' => 1, 'unit_amount' => 1000000]);
+        $settled = $this->booking(['check_in_date' => today()->addDays(2)->toDateString(), 'check_out_date' => today()->addDays(4)->toDateString()]);
+        $settled->recordPayment($settled->fresh()->balanceDue(), BookingPaymentMethod::Cash);
+        $tooFar = $this->booking(['check_in_date' => today()->addDays(10)->toDateString(), 'check_out_date' => today()->addDays(12)->toDateString()]);
+        CustomerMessage::query()->delete();
+
+        $this->assertSame(0, $settled->fresh()->balanceDue());
+        $this->assertSame(1, app(BookingMessenger::class)->sendDueBalanceReminders());
+
+        $message = CustomerMessage::sole();
+        $this->assertStringContainsString(number_format($owing->fresh()->balanceDue()), $message->body);
+        $this->assertNotNull($owing->fresh()->balance_reminder_sent_at);
+        $this->assertNull($settled->fresh()->balance_reminder_sent_at);
+        $this->assertNull($tooFar->fresh()->balance_reminder_sent_at);
+
+        $this->assertSame(0, app(BookingMessenger::class)->sendDueBalanceReminders());
+    }
+
+    public function test_nothing_is_sent_until_the_balance_reminder_is_turned_on(): void
+    {
+        $this->smsReady();
+        $this->booking(['check_in_date' => today()->addDay()->toDateString(), 'check_out_date' => today()->addDays(3)->toDateString()]);
+        CustomerMessage::query()->delete();
+
+        $this->assertSame(0, app(BookingMessenger::class)->sendDueBalanceReminders());
+        $this->assertSame(0, CustomerMessage::count());
+    }
+
     public function test_a_pending_booking_is_texted_when_it_becomes_confirmed(): void
     {
         $this->smsReady();

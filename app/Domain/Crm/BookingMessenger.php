@@ -46,6 +46,56 @@ class BookingMessenger
         return $this->send($booking, $setting->reminderText(), 'arrival_reminder_sent_at');
     }
 
+    /**
+     * Asks a confirmed guest who still owes money to settle before arriving.
+     * Nothing is sent when the balance is already zero.
+     */
+    public function sendBalanceReminder(Booking $booking, bool $force = false): ?CustomerMessage
+    {
+        $setting = BookingMessageSetting::current();
+
+        if (! $force && (! $setting->balance_reminder_enabled || $booking->balance_reminder_sent_at || $booking->status !== BookingStatus::Confirmed)) {
+            return null;
+        }
+
+        if ($booking->balanceDue() <= 0) {
+            return null;
+        }
+
+        return $this->send($booking, $setting->balanceText(), 'balance_reminder_sent_at');
+    }
+
+    /**
+     * Texts every confirmed guest with an unpaid balance who arrives within
+     * the configured number of days and has not been asked yet.
+     *
+     * @return int number of reminders actually sent
+     */
+    public function sendDueBalanceReminders(): int
+    {
+        $setting = BookingMessageSetting::current();
+
+        if (! $setting->balance_reminder_enabled) {
+            return 0;
+        }
+
+        $sent = 0;
+
+        Booking::query()
+            ->with(['guest', 'room', 'charges', 'payments'])
+            ->where('status', BookingStatus::Confirmed)
+            ->whereNull('balance_reminder_sent_at')
+            ->whereDate('check_in_date', '>=', today())
+            ->whereDate('check_in_date', '<=', today()->addDays($setting->balance_reminder_days_before))
+            ->each(function (Booking $booking) use (&$sent) {
+                if ($this->sendBalanceReminder($booking)?->status === MessageDeliveryStatus::Sent) {
+                    $sent++;
+                }
+            });
+
+        return $sent;
+    }
+
     public function sendFeedbackRequest(Booking $booking, GuestFeedback $feedback, bool $force = false): ?CustomerMessage
     {
         $setting = BookingMessageSetting::current();
@@ -106,6 +156,7 @@ class BookingMessenger
             '{nights}' => (string) max(1, (int) $booking->check_in_date->diffInDays($booking->check_out_date)),
             '{check_in_time}' => (string) ($booking->room?->roomType?->check_in_time ?? '14:00'),
             '{check_out_time}' => (string) ($booking->room?->roomType?->check_out_time ?? '12:00'),
+            '{balance}' => number_format($booking->balanceDue()),
             '{link}' => (string) $link,
             '{precheckin_link}' => str_contains($template, '{precheckin_link}') ? BookingPrecheckin::forBooking($booking)->url() : '',
         ]);

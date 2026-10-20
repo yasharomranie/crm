@@ -18,12 +18,15 @@ class BookingMessageSetting extends Model
 
     public const DEFAULT_FEEDBACK = '{guest} عزیز، از اقامت شما سپاسگزاریم. لطفاً نظرتان را در یک دقیقه با ما در میان بگذارید: {link}';
 
+    public const DEFAULT_BALANCE = '{guest} عزیز، مانده‌ی حساب رزرو {code} شما {balance} تومان است. لطفاً پیش از ورود ({check_in}) تسویه کنید.';
+
     /** @var list<string> */
-    public const PLACEHOLDERS = ['{guest}', '{code}', '{room}', '{check_in}', '{check_out}', '{nights}', '{check_in_time}', '{check_out_time}', '{link}', '{precheckin_link}'];
+    public const PLACEHOLDERS = ['{guest}', '{code}', '{room}', '{check_in}', '{check_out}', '{nights}', '{check_in_time}', '{check_out_time}', '{balance}', '{link}', '{precheckin_link}'];
 
     protected $fillable = [
         'confirmation_enabled', 'reminder_enabled', 'reminder_days_before', 'feedback_enabled',
         'confirmation_template', 'reminder_template', 'feedback_template',
+        'balance_reminder_enabled', 'balance_reminder_days_before', 'balance_reminder_template',
     ];
 
     protected function casts(): array
@@ -33,6 +36,8 @@ class BookingMessageSetting extends Model
             'reminder_enabled' => 'boolean',
             'reminder_days_before' => 'integer',
             'feedback_enabled' => 'boolean',
+            'balance_reminder_enabled' => 'boolean',
+            'balance_reminder_days_before' => 'integer',
         ];
     }
 
@@ -59,5 +64,10 @@ class BookingMessageSetting extends Model
     public function feedbackText(): string
     {
         return filled($this->feedback_template) ? $this->feedback_template : self::DEFAULT_FEEDBACK;
+    }
+
+    public function balanceText(): string
+    {
+        return filled($this->balance_reminder_template) ? $this->balance_reminder_template : self::DEFAULT_BALANCE;
     }
 }

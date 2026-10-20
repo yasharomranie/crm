@@ -39,7 +39,7 @@ class Booking extends Model
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
         'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
-        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id', 'hold_expires_at', 'booking_group_id', 'rate_plan_id',
+        'confirmation_sent_at', 'arrival_reminder_sent_at', 'balance_reminder_sent_at', 'feedback_sent_at', 'promo_code_id', 'hold_expires_at', 'booking_group_id', 'rate_plan_id',
     ];
 
     public const CANCELLED_BY_GUEST = 'guest';
@@ -62,6 +62,7 @@ class Booking extends Model
             'cancellation_fee' => 'integer',
             'confirmation_sent_at' => 'datetime',
             'arrival_reminder_sent_at' => 'datetime',
+            'balance_reminder_sent_at' => 'datetime',
             'feedback_sent_at' => 'datetime',
             'hold_expires_at' => 'datetime',
         ];
