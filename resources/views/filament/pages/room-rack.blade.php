@@ -83,7 +83,7 @@
                     <span class="absolute inline-flex h-full w-full animate-ping rounded-full bg-success-500 opacity-60 motion-reduce:animate-none"></span>
                     <span class="relative inline-flex h-2 w-2 rounded-full bg-success-500"></span>
                 </span>
-                زنده · هر ۳۰ ثانیه تازه می‌شود · آخرین به‌روزرسانی {{ $number(now()->toJalali()->format('H:i')) }}
+                زنده · هر ۳۰ ثانیه تازه می‌شود · آخرین به‌روزرسانی {{ $number(now()->toJalali('H:i')) }}
             </div>
         </div>
 
