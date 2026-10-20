@@ -73,7 +73,6 @@ class ChargeCatalogTest extends TestCase
     public function test_the_bookings_list_action_adds_an_active_item_and_hides_for_finished_stays(): void
     {
         $item = ChargeItem::factory()->create(['name' => 'لباسشویی', 'unit_amount' => 80_000]);
-        $inactive = ChargeItem::factory()->create(['name' => 'غیرفعال', 'is_active' => false]);
         $booking = $this->booking();
         $cancelled = $this->booking(BookingStatus::Cancelled);
 
@@ -85,7 +84,6 @@ class ChargeCatalogTest extends TestCase
             ->assertNotified('به صورت‌حساب اضافه شد');
 
         $this->assertSame(1_160_000, $booking->fresh()->totalAmount());
-        $this->assertNotNull($inactive->id);
     }
 
     public function test_the_action_is_hidden_when_nothing_is_in_the_catalog(): void
@@ -97,14 +95,16 @@ class ChargeCatalogTest extends TestCase
             ->assertTableActionHidden('addCatalogCharge', $booking);
     }
 
-    public function test_an_item_switched_off_meanwhile_is_not_added(): void
+    public function test_an_inactive_item_cannot_be_chosen(): void
     {
-        $item = ChargeItem::factory()->create(['is_active' => false]);
+        ChargeItem::factory()->create(['name' => 'فعال']);
+        $inactive = ChargeItem::factory()->create(['name' => 'خاموش', 'is_active' => false]);
         $booking = $this->booking();
 
         Livewire::actingAs($this->admin())
             ->test(ListBookings::class)
-            ->callTableAction('addCatalogCharge', $booking, data: ['charge_item_id' => $item->id, 'quantity' => 1]);
+            ->callTableAction('addCatalogCharge', $booking, data: ['charge_item_id' => $inactive->id, 'quantity' => 1])
+            ->assertHasTableActionErrors(['charge_item_id']);
 
         $this->assertSame(1, $booking->fresh()->charges()->count());
     }
