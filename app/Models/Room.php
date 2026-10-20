@@ -25,6 +25,35 @@ class Room extends Model
         ];
     }
 
+    protected static function booted(): void
+    {
+        // «خارج از سرویس» is one thing: the room's status and its block never disagree.
+        static::saved(function (Room $room): void {
+            // wasChanged() is empty right after an insert, so a new room counts as changed.
+            if (! $room->wasRecentlyCreated && ! $room->wasChanged('status')) {
+                return;
+            }
+
+            if ($room->status === RoomStatus::OutOfService) {
+                if (! $room->blocks()->whereNull('ends_on')->exists()) {
+                    $room->blocks()->create([
+                        'starts_on' => today(),
+                        'ends_on' => null,
+                        'reason' => 'خارج از سرویس (از وضعیت اتاق)',
+                        'source' => RoomBlock::SOURCE_STATUS,
+                    ]);
+                }
+
+                return;
+            }
+
+            if ($room->getOriginal('status') === RoomStatus::OutOfService) {
+                $room->blocks()->whereNull('ends_on')->where('source', RoomBlock::SOURCE_STATUS)->get()
+                    ->each(fn (RoomBlock $block) => $block->starts_on->gte(today()) ? $block->delete() : $block->update(['ends_on' => today()]));
+            }
+        });
+    }
+
     public function roomType(): BelongsTo
     {
         return $this->belongsTo(RoomType::class);

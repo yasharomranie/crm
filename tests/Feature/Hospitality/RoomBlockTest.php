@@ -87,7 +87,7 @@ class RoomBlockTest extends TestCase
                 'ends_on' => now()->addDays(6)->toDateString(),
                 'reason' => 'رنگ‌آمیزی',
             ])
-            ->assertHasActionErrors(['ends_on']);
+            ->assertHasActionErrors(['starts_on']);
 
         $this->assertSame(0, RoomBlock::query()->count());
     }
