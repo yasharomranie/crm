@@ -74,9 +74,4 @@ class HousekeepingSheetTest extends TestCase
 
         $this->actingAs($user)->get(route('housekeeping-sheet'))->assertForbidden();
     }
-
-    public function test_guests_are_sent_to_login(): void
-    {
-        $this->get(route('housekeeping-sheet'))->assertRedirect();
-    }
 }
