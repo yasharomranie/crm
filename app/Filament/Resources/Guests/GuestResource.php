@@ -21,6 +21,7 @@ use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Forms\Components\Toggle;
 use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -75,6 +76,14 @@ class GuestResource extends Resource
                     ->label('یادداشت')
                     ->columnSpanFull()
                     ->hintAction(FieldHelp::make('guests.notes')),
+                TextInput::make('reception_alert')
+                    ->label('هشدار برای پذیرش')
+                    ->maxLength(500)
+                    ->helperText('هنگام چک‌این این مهمان نشان داده می‌شود؛ مثلاً «مهمان ویژه - هدیه‌ی خوش‌آمد» یا «سابقه‌ی مشکل در پرداخت».')
+                    ->columnSpanFull(),
+                Toggle::make('is_blocked')
+                    ->label('مسدود برای رزرو')
+                    ->helperText('رزرو جدید برای این مهمان از هیچ مسیری (پنل، اپ مشتری، کانال‌ها) ثبت نمی‌شود. رزروهای قبلی تغییری نمی‌کنند.'),
             ]);
     }
 

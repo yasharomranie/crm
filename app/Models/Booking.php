@@ -13,6 +13,7 @@ use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
 use App\Exceptions\ChannelAllotmentExceededException;
+use App\Exceptions\GuestBlockedException;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Exceptions\MinimumStayException;
 use App\Exceptions\RoomNotAvailableException;
@@ -70,6 +71,14 @@ class Booking extends Model
     {
         static::creating(function (self $booking) {
             $booking->reference_code ??= static::generateReferenceCode();
+
+            if ($booking->status !== BookingStatus::Cancelled) {
+                $guest = Guest::find($booking->guest_id);
+
+                if ($guest?->is_blocked) {
+                    throw GuestBlockedException::forGuest($guest->name);
+                }
+            }
 
             // The cancellation terms are copied now, so a later change of the
             // policy never changes what this guest was promised.

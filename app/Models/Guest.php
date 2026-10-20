@@ -32,7 +32,7 @@ class Guest extends Authenticatable
 {
     use HasFactory, HasFollowUpTasks, HasTags, LogsActivity;
 
-    protected $fillable = ['name', 'national_code', 'mobile', 'email', 'password', 'google_id', 'mobile_verified_at', 'notes', 'wallet_balance'];
+    protected $fillable = ['name', 'national_code', 'mobile', 'email', 'password', 'google_id', 'mobile_verified_at', 'notes', 'is_blocked', 'reception_alert', 'wallet_balance'];
 
     protected $hidden = ['password', 'remember_token'];
 
@@ -40,6 +40,7 @@ class Guest extends Authenticatable
     {
         return [
             'wallet_balance' => 'decimal:0',
+            'is_blocked' => 'boolean',
             'password' => 'hashed',
             'mobile_verified_at' => 'datetime',
         ];

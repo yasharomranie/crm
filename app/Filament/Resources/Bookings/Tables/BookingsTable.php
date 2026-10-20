@@ -85,6 +85,7 @@ class BookingsTable
                     ->color('info')
                     ->visible(fn (Booking $record) => in_array($record->status, [BookingStatus::Pending, BookingStatus::Confirmed]))
                     ->requiresConfirmation()
+                    ->modalDescription(fn (Booking $record) => filled($record->guest?->reception_alert) ? 'هشدار پذیرش: '.$record->guest->reception_alert : null)
                     ->action(function (Booking $record) {
                         $record->checkIn();
 
