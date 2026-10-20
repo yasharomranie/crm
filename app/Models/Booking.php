@@ -756,7 +756,7 @@ class Booking extends Model
             }
 
             if ($this->status === BookingStatus::CheckedIn) {
-                $oldRoom->update(['status' => RoomStatus::NeedsCleaning]);
+                $this->requestCleaning($oldRoom, $oldRoom);
                 $newRoom->update(['status' => RoomStatus::Occupied]);
             }
 
@@ -938,20 +938,37 @@ class Booking extends Model
             'actual_check_out_at' => now(),
         ]);
 
-        $this->room->update(['status' => RoomStatus::NeedsCleaning]);
+        $task = $this->requestCleaning($this->room, $this);
+
+        $this->creditCashback();
+        $this->calculateCommission();
+        $this->requestPostCheckoutFeedback();
+
+        return $task;
+    }
+
+    /**
+     * Puts the room in «نیازمند نظافت» and gives housekeeping its task (with
+     * the department's checklist). $source is what the task points at: the
+     * booking after a check-out, the room itself when a guest was moved out
+     * of it (the booking no longer lives there).
+     */
+    private function requestCleaning(Room $room, Model $source): Task
+    {
+        $room->update(['status' => RoomStatus::NeedsCleaning]);
 
         $task = Task::create([
-            'title' => "نظافت اتاق {$this->room->name}",
+            'title' => "نظافت اتاق {$room->name}",
             'task_type' => TaskType::FromBooking,
-            'source_id' => $this->id,
-            'source_type' => self::class,
-            'department_id' => $this->room->department_id,
+            'source_id' => $source->getKey(),
+            'source_type' => $source::class,
+            'department_id' => $room->department_id,
             'priority' => TaskPriority::UrgentImportant,
             'status' => TaskStatus::Todo,
         ]);
 
         $template = TaskChecklistTemplate::query()
-            ->where('department_id', $this->room->department_id)
+            ->where('department_id', $room->department_id)
             ->where('is_active', true)
             ->with('items')
             ->first();
@@ -962,10 +979,6 @@ class Booking extends Model
                 'label' => $item->label,
             ]);
         }
-
-        $this->creditCashback();
-        $this->calculateCommission();
-        $this->requestPostCheckoutFeedback();
 
         return $task;
     }

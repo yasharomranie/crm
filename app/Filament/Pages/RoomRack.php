@@ -73,7 +73,7 @@ class RoomRack extends Page
             return;
         }
 
-        $room->update(['status' => RoomStatus::Available]);
+        $room->markCleaned();
         $this->tilesCache = null;
 
         Notification::make()->title("«{$room->name}» آماده‌ی پذیرش شد.")->success()->send();

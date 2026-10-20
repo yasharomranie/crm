@@ -4,6 +4,8 @@ namespace App\Models;
 
 use App\Enums\BookingStatus;
 use App\Enums\RoomStatus;
+use App\Enums\TaskStatus;
+use App\Enums\TaskType;
 use Carbon\CarbonInterface;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -52,6 +54,26 @@ class Room extends Model
                     ->each(fn (RoomBlock $block) => $block->starts_on->gte(today()) ? $block->delete() : $block->update(['ends_on' => today()]));
             }
         });
+    }
+
+    /**
+     * Housekeeping is done: the unit goes back on sale and every open cleaning
+     * task for it is closed, so the task list and the rack never disagree.
+     */
+    public function markCleaned(): void
+    {
+        if ($this->status === RoomStatus::NeedsCleaning) {
+            $this->update(['status' => RoomStatus::Available]);
+        }
+
+        Task::query()
+            ->where('task_type', TaskType::FromBooking)
+            ->whereNotIn('status', [TaskStatus::Done, TaskStatus::Cancelled])
+            ->where(fn ($tasks) => $tasks
+                ->where(fn ($own) => $own->where('source_type', self::class)->where('source_id', $this->id))
+                ->orWhere(fn ($booked) => $booked->where('source_type', Booking::class)->whereIn('source_id', $this->bookings()->select('id'))))
+            ->get()
+            ->each(fn (Task $task) => $task->update(['status' => TaskStatus::Done, 'completed_at' => now()]));
     }
 
     public function roomType(): BelongsTo

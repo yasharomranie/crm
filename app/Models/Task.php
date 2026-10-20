@@ -96,8 +96,18 @@ class Task extends Model
             // Closing the loop: a housekeeping task spawned by a checkout
             // (see Booking::checkOut()) frees the room back to "available"
             // once it's actually done.
-            if ($task->task_type === TaskType::FromBooking && $task->source instanceof Booking) {
-                $task->source->room->update(['status' => RoomStatus::Available]);
+            if ($task->task_type === TaskType::FromBooking) {
+                $room = match (true) {
+                    $task->source instanceof Booking => $task->source->room,
+                    $task->source instanceof Room => $task->source,
+                    default => null,
+                };
+
+                // Only a unit still waiting for housekeeping is freed - never one
+                // that has a guest again, or is out of service.
+                if ($room?->status === RoomStatus::NeedsCleaning) {
+                    $room->update(['status' => RoomStatus::Available]);
+                }
             }
         });
     }
