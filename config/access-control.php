@@ -72,6 +72,7 @@ use App\Models\Guest;
 use App\Models\GuestFeedback;
 use App\Models\GuestSegment;
 use App\Models\GuestTicket;
+use App\Models\HandoverNote;
 use App\Models\LeadCaptureForm;
 use App\Models\LostItem;
 use App\Models\Order;
@@ -150,6 +151,7 @@ return [
         'booking-promo-codes' => ['model' => BookingPromoCode::class, 'label' => 'کدهای تخفیف رزرو', 'group' => 'اقامتی و هتلداری'],
         'charge-items' => ['model' => ChargeItem::class, 'label' => 'خدمات و هزینه‌های جانبی', 'group' => 'اقامتی و هتلداری'],
         'rate-plans' => ['model' => RatePlan::class, 'label' => 'نرخ‌های فروش', 'group' => 'اقامتی و هتلداری'],
+        'handover-notes' => ['model' => HandoverNote::class, 'label' => 'دفتر تحویل شیفت', 'group' => 'اقامتی و هتلداری'],
         'room-blocks' => ['model' => RoomBlock::class, 'label' => 'اتاق‌های خارج از سرویس', 'group' => 'اقامتی و هتلداری'],
         'lost-items' => ['model' => LostItem::class, 'label' => 'اشیای جامانده', 'group' => 'اقامتی و هتلداری'],
         'waitlist-entries' => ['model' => WaitlistEntry::class, 'label' => 'لیست انتظار اتاق', 'group' => 'اقامتی و هتلداری'],
