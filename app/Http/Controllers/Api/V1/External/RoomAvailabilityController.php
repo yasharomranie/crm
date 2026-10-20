@@ -9,6 +9,7 @@ use App\Http\Controllers\Controller;
 use App\Models\BookingPromoCode;
 use App\Models\ChannelAllotment;
 use App\Models\ExternalApiClient;
+use App\Models\RatePlan;
 use App\Models\Room;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -39,6 +40,7 @@ class RoomAvailabilityController extends Controller
             'adults' => ['nullable', 'integer', 'min:1'],
             'children' => ['nullable', 'integer', 'min:0'],
             'promo_code' => ['nullable', 'string', 'max:40'],
+            'rate_plan_id' => ['nullable', 'integer'],
         ]);
 
         $rooms = Room::query()
@@ -68,14 +70,15 @@ class RoomAvailabilityController extends Controller
         }
 
         $pricing = app(StayPricing::class);
+        $ratePlan = filled($data['rate_plan_id'] ?? null) ? RatePlan::query()->where('is_active', true)->find($data['rate_plan_id']) : null;
 
         // A stay shorter than the room type (or a price rule) demands cannot
         // be booked, so the room is not offered.
         $rooms = $rooms->filter(fn (Room $room) => $nights >= $room->roomType->minimumNightsFor($checkIn, $checkOut))->values();
 
         return response()->json([
-            'data' => $rooms->map(function (Room $room) use ($pricing, $checkIn, $checkOut, $data, $promo) {
-                $quote = $pricing->quote($room->roomType, $checkIn, $checkOut, (int) ($data['adults'] ?? 1), (int) ($data['children'] ?? 0), $promo);
+            'data' => $rooms->map(function (Room $room) use ($pricing, $checkIn, $checkOut, $data, $promo, $ratePlan) {
+                $quote = $pricing->quote($room->roomType, $checkIn, $checkOut, (int) ($data['adults'] ?? 1), (int) ($data['children'] ?? 0), $promo, $ratePlan);
 
                 return [
                     'room_id' => $room->id,

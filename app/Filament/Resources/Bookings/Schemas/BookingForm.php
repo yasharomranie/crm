@@ -11,6 +11,7 @@ use App\Models\Booking;
 use App\Models\BookingPromoCode;
 use App\Models\CancellationPolicy;
 use App\Models\Guest;
+use App\Models\RatePlan;
 use App\Models\Room;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Placeholder;
@@ -107,6 +108,15 @@ class BookingForm
                     ->label('برآورد قیمت')
                     ->content(fn (Get $get) => self::estimate($get))
                     ->columnSpanFull()
+                    ->visible(fn (?Booking $record) => $record === null),
+                Select::make('rate_plan_id')
+                    ->label('نرخ فروش')
+                    ->relationship('ratePlan', 'name', fn ($query) => $query->where('is_active', true)->orderBy('sort_order'))
+                    ->searchable()
+                    ->preload()
+                    ->placeholder('نرخ معمول')
+                    ->live()
+                    ->helperText('مثلاً «با صبحانه» یا «غیرقابل بازگشت»؛ قیمت هر شب و (در صورت تعریف) سیاست لغو از آن می‌آید.')
                     ->visible(fn (?Booking $record) => $record === null),
                 Select::make('status')
                     ->label('وضعیت رزرو')
@@ -213,7 +223,8 @@ class BookingForm
             $checkIn = Carbon::parse($get('check_in_date'));
             $checkOut = Carbon::parse($get('check_out_date'));
             $promo = filled($get('promo_code')) ? BookingPromoCode::resolve($get('promo_code'), self::nights($get)) : null;
-            $quote = app(StayPricing::class)->quote($room->roomType, $checkIn, $checkOut, max(1, (int) $get('adults_count')), (int) $get('children_count'), $promo);
+            $ratePlan = filled($get('rate_plan_id')) ? RatePlan::query()->find($get('rate_plan_id')) : null;
+            $quote = app(StayPricing::class)->quote($room->roomType, $checkIn, $checkOut, max(1, (int) $get('adults_count')), (int) $get('children_count'), $promo, $ratePlan);
         } catch (InvalidPromoCodeException $exception) {
             return $exception->getMessage();
         } catch (\Throwable) {

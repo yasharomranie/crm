@@ -19,6 +19,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Validation\Rule;
 
 class BookingController extends Controller
 {
@@ -43,6 +44,7 @@ class BookingController extends Controller
             'children_count' => ['sometimes', 'integer', 'min:0'],
             'sales_channel_id' => ['nullable', 'integer'],
             'promo_code' => ['nullable', 'string', 'max:40'],
+            'rate_plan_id' => ['nullable', 'integer', Rule::exists('rate_plans', 'id')->where('is_active', true)],
             'notes' => ['nullable', 'string', 'max:1000'],
             'guest' => ['required', 'array'],
             'guest.name' => ['required', 'string', 'max:255'],
@@ -125,6 +127,7 @@ class BookingController extends Controller
                     'status' => BookingStatus::Confirmed,
                     'sales_channel_id' => $data['sales_channel_id'] ?? null,
                     'promo_code_id' => $promo?->id,
+                    'rate_plan_id' => $data['rate_plan_id'] ?? null,
                     'external_api_client_id' => $client->id,
                     'source' => ($data['sales_channel_id'] ?? null) ? BookingSource::Ota : BookingSource::Online,
                     'notes' => $data['notes'] ?? null,
@@ -162,6 +165,7 @@ class BookingController extends Controller
             'nights' => $booking->nights(),
             'total_amount' => $booking->totalAmount(),
             'promo_code' => $booking->promoCode?->code,
+            'rate_plan' => $booking->ratePlan?->name,
             'damage_deposit' => $booking->damageDeposit ? [
                 'held' => $booking->damageDeposit->held_amount,
                 'deducted' => $booking->damageDeposit->deducted_amount,

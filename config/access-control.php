@@ -77,6 +77,7 @@ use App\Models\Order;
 use App\Models\PriceRule;
 use App\Models\Product;
 use App\Models\Project;
+use App\Models\RatePlan;
 use App\Models\Room;
 use App\Models\RoomType;
 use App\Models\SalesChannel;
@@ -145,6 +146,7 @@ return [
         'stay-discounts' => ['model' => StayDiscount::class, 'label' => 'تخفیف اقامت طولانی', 'group' => 'اقامتی و هتلداری'],
         'booking-promo-codes' => ['model' => BookingPromoCode::class, 'label' => 'کدهای تخفیف رزرو', 'group' => 'اقامتی و هتلداری'],
         'charge-items' => ['model' => ChargeItem::class, 'label' => 'خدمات و هزینه‌های جانبی', 'group' => 'اقامتی و هتلداری'],
+        'rate-plans' => ['model' => RatePlan::class, 'label' => 'نرخ‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'cancellation-policies' => ['model' => CancellationPolicy::class, 'label' => 'سیاست‌های لغو', 'group' => 'اقامتی و هتلداری'],
 
         'guests' => ['model' => Guest::class, 'label' => 'مهمانان', 'group' => 'CRM و مشتریان'],
