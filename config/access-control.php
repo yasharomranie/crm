@@ -18,6 +18,7 @@ use App\Filament\Pages\GateScanner;
 use App\Filament\Pages\HotelReports;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
+use App\Filament\Pages\NightAuditPage;
 use App\Filament\Pages\OccupancyCalendarPage;
 use App\Filament\Pages\PaymentGatewaySettings;
 use App\Filament\Pages\PeriodicFormReport;
@@ -213,6 +214,7 @@ return [
         'today-arrivals' => ['page' => TodayArrivals::class, 'label' => 'ورود و خروج امروز', 'group' => 'اقامتی و هتلداری'],
         'hotel-reports' => ['page' => HotelReports::class, 'label' => 'گزارش‌های هتلداری', 'group' => 'اقامتی و هتلداری'],
         'occupancy-calendar' => ['page' => OccupancyCalendarPage::class, 'label' => 'تقویم اشغال', 'group' => 'اقامتی و هتلداری'],
+        'night-audit' => ['page' => NightAuditPage::class, 'label' => 'بستن روز', 'group' => 'اقامتی و هتلداری'],
         'room-rack' => ['page' => RoomRack::class, 'label' => 'رک اتاق (وضعیت زنده)', 'group' => 'اقامتی و هتلداری'],
         'customer-value-report' => ['page' => CustomerValueReportPage::class, 'label' => 'ارزش و ریزش مشتری', 'group' => 'CRM و مشتریان'],
         'communication-inbox' => ['page' => CommunicationInbox::class, 'label' => 'صندوق پیام', 'group' => 'CRM و مشتریان'],
