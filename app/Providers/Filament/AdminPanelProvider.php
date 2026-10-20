@@ -191,6 +191,12 @@ class AdminPanelProvider extends PanelProvider
                     </script>
                     HTML),
             )
+            // «راهنمای ساده‌ی این صفحه»: a collapsed help card on top of every screen
+            // that has copy in lang/fa/page_help.php (see App\Filament\Support\PageHelp).
+            ->renderHook(
+                PanelsRenderHook::CONTENT_START,
+                fn () => view('filament.partials.page-help'),
+            )
             // The floating AI assistant mascot - see AiAssistantWidget for
             // why this has to be mounted panel-wide via a render hook
             // rather than as a normal page: it needs to follow the user
