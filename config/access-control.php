@@ -96,6 +96,7 @@ use App\Models\Task;
 use App\Models\TaskChecklistTemplate;
 use App\Models\TicketVariant;
 use App\Models\User;
+use App\Models\WaitlistEntry;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkShift;
 use Spatie\Permission\Models\Role;
@@ -147,6 +148,7 @@ return [
         'booking-promo-codes' => ['model' => BookingPromoCode::class, 'label' => 'کدهای تخفیف رزرو', 'group' => 'اقامتی و هتلداری'],
         'charge-items' => ['model' => ChargeItem::class, 'label' => 'خدمات و هزینه‌های جانبی', 'group' => 'اقامتی و هتلداری'],
         'rate-plans' => ['model' => RatePlan::class, 'label' => 'نرخ‌های فروش', 'group' => 'اقامتی و هتلداری'],
+        'waitlist-entries' => ['model' => WaitlistEntry::class, 'label' => 'لیست انتظار اتاق', 'group' => 'اقامتی و هتلداری'],
         'cancellation-policies' => ['model' => CancellationPolicy::class, 'label' => 'سیاست‌های لغو', 'group' => 'اقامتی و هتلداری'],
 
         'guests' => ['model' => Guest::class, 'label' => 'مهمانان', 'group' => 'CRM و مشتریان'],

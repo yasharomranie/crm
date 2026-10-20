@@ -5,9 +5,11 @@ namespace App\Observers;
 use App\Domain\Webhooks\WebhookDispatcher;
 use App\Enums\BookingStatus;
 use App\Enums\WebhookEventType;
+use App\Jobs\NotifyWaitlistJob;
 use App\Jobs\SendBookingMessageJob;
 use App\Models\Booking;
 use App\Models\BookingMessageSetting;
+use App\Models\WaitlistEntry;
 
 /**
  * Reacts to a booking's life: notifies the owning external client's
@@ -46,6 +48,10 @@ class BookingObserver
 
         if ($booking->status === BookingStatus::Confirmed) {
             $this->queueConfirmation($booking);
+        }
+
+        if ($booking->status === BookingStatus::Cancelled && WaitlistEntry::query()->waiting()->exists()) {
+            NotifyWaitlistJob::dispatch($booking->id);
         }
     }
 
