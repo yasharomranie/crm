@@ -21,12 +21,14 @@ use Illuminate\Support\Collection;
  * A booking counts as sold when it is confirmed, checked in or checked out
  * (a pending booking is only a hope, a cancelled one sold nothing). A booking's
  * folio is spread evenly over its nights, so a stay across the end of the
- * period is counted only for the nights inside it. Every active room counts as
- * available on every night.
+ * period is counted only for the nights inside it. A room counts as available
+ * on every night it is not out of service (see RoomInventory).
  */
 class HotelReport
 {
     public const FORECAST_DAYS = 30;
+
+    public function __construct(private RoomInventory $inventory) {}
 
     private const SOLD = [BookingStatus::Confirmed, BookingStatus::CheckedIn, BookingStatus::CheckedOut];
 
@@ -37,9 +39,8 @@ class HotelReport
     {
         $from = $from->copy()->startOfDay();
         $to = $to->copy()->startOfDay();
-        $nightsInPeriod = (int) $from->diffInDays($to) + 1;
         $rooms = Room::query()->where('is_active', true)->count();
-        $available = $rooms * $nightsInPeriod;
+        $available = $this->inventory->sellableRoomNights($from, $to);
 
         $sold = $this->bookingsOverlapping($from, $to, self::SOLD);
 
@@ -72,20 +73,21 @@ class HotelReport
             'cancellation_fees' => (int) $cancelled->sum('cancellation_fee'),
             'by_channel' => $this->breakdown($sold, $rows, fn (Booking $booking) => $booking->channel?->name ?? 'فروش مستقیم'),
             'by_source' => $this->breakdown($sold, $rows, fn (Booking $booking) => $booking->source->getLabel()),
-            'forecast' => $this->forecast($rooms),
+            'forecast' => $this->forecast(),
         ];
     }
 
     /**
      * Nights already booked for the next FORECAST_DAYS days: sold (firm) and
-     * pending (not yet confirmed), against the active rooms.
+     * pending (not yet confirmed), against the units that can be sold that night.
      *
      * @return list<array{date: string, sold: int, pending: int, available: int, occupancy_percent: ?float}>
      */
-    public function forecast(int $rooms): array
+    public function forecast(): array
     {
         $start = today();
         $end = today()->addDays(self::FORECAST_DAYS - 1);
+        $sellable = $this->inventory->sellablePerNight($start, $end);
 
         $firm = $this->bookingsOverlapping($start, $end, self::SOLD);
         $pending = $this->bookingsOverlapping($start, $end, [BookingStatus::Pending]);
@@ -94,6 +96,7 @@ class HotelReport
 
         for ($day = $start->copy(); $day->lte($end); $day->addDay()) {
             $sold = $firm->filter(fn (Booking $booking) => $this->staysOn($booking, $day))->count();
+            $rooms = $sellable[$day->toDateString()];
 
             $days[] = [
                 'date' => $day->toDateString(),

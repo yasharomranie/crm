@@ -9,6 +9,7 @@ use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AiToolRouter;
 use App\Domain\Ai\AssistantUsage;
 use App\Domain\Ai\MarkdownTables;
+use App\Domain\Hospitality\RoomInventory;
 use App\Domain\Ticketing\TicketingReport;
 use App\Domain\TripPlanner\TripPlannerReport;
 use App\Enums\AiMessageRole;
@@ -22,7 +23,6 @@ use App\Enums\FormFieldType;
 use App\Enums\FormSubmissionStatus;
 use App\Enums\LoyaltyTier;
 use App\Enums\ProjectStatus;
-use App\Enums\RoomStatus;
 use App\Enums\SeoBusinessValue;
 use App\Enums\SeoCannibalizationRisk;
 use App\Enums\SeoContentItemStatus;
@@ -2101,10 +2101,11 @@ trait HasAiAssistantEngine
 
     private function accommodationSummary(): array
     {
-        $totalRooms = Room::where('is_active', true)->count();
-        $occupied = Room::where('is_active', true)->where('status', RoomStatus::Occupied)->count();
-        $available = Room::where('is_active', true)->where('status', RoomStatus::Available)->count();
-        $needsCleaning = Room::where('is_active', true)->where('status', RoomStatus::NeedsCleaning)->count();
+        $inventory = app(RoomInventory::class)->summary();
+        $totalRooms = $inventory['total'];
+        $occupied = $inventory['occupied'];
+        $available = $inventory['available'];
+        $needsCleaning = $inventory['needs_cleaning'];
 
         $checkInsToday = Booking::whereDate('check_in_date', today())
             ->whereIn('status', [BookingStatus::Pending, BookingStatus::Confirmed])
@@ -2125,7 +2126,8 @@ trait HasAiAssistantEngine
             'occupied' => $occupied,
             'available' => $available,
             'needs_cleaning' => $needsCleaning,
-            'occupancy_rate_percent' => $totalRooms > 0 ? round($occupied / $totalRooms * 100, 1) : 0,
+            'out_of_service' => $inventory['out_of_service'],
+            'occupancy_rate_percent' => $inventory['occupancy_percent'] ?? 0,
             'check_ins_today' => $checkInsToday,
             'check_outs_today' => $checkOutsToday,
             'revenue_this_month_toman' => $revenueThisMonth,
@@ -2138,6 +2140,7 @@ trait HasAiAssistantEngine
     private function occupancyForecastTool(array $arguments): array
     {
         $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+        $sellable = app(RoomInventory::class)->sellablePerNight(today(), today()->addDays($days - 1));
         $totalRooms = Room::where('is_active', true)->count();
 
         $forecast = [];
@@ -2170,8 +2173,8 @@ trait HasAiAssistantEngine
                 'date' => $date->toDateString(),
                 'jalali_date' => Jalalian::fromCarbon($date)->format('%d %B'),
                 'occupied' => $occupied,
-                'available' => max(0, $totalRooms - $occupied),
-                'occupancy_rate_percent' => $totalRooms > 0 ? round($occupied / $totalRooms * 100, 1) : 0,
+                'available' => max(0, $sellable[$date->toDateString()] - $occupied),
+                'occupancy_rate_percent' => $sellable[$date->toDateString()] > 0 ? round($occupied / $sellable[$date->toDateString()] * 100, 1) : 0,
                 'arrivals' => $arrivals,
                 'departures' => $departures,
             ];
@@ -5604,12 +5607,10 @@ trait HasAiAssistantEngine
             $alerts[] = ['severity' => 'warning', 'module' => 'attendance-records', 'message' => Number::toPersian("{$chronicallyLateCount} نفر بیش از ۳ بار در این ماه با تأخیر حضور یافته‌اند.")];
         }
 
-        $totalRooms = Room::where('is_active', true)->count();
+        $inventory = app(RoomInventory::class)->summary();
 
-        if ($totalRooms > 0) {
-            $occupied = Room::where('is_active', true)->where('status', RoomStatus::Occupied)->count();
-
-            if (($occupied / $totalRooms) < 0.3) {
+        if ($inventory['sellable'] > 0) {
+            if (($inventory['occupied'] / $inventory['sellable']) < 0.3) {
                 $alerts[] = ['severity' => 'info', 'module' => 'bookings', 'message' => 'نرخ اشغال اقامتگاه‌ها زیر ۳۰٪ است.'];
             }
         }

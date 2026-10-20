@@ -39,6 +39,7 @@
             @foreach (['pending' => 'در انتظار تأیید', 'confirmed' => 'قطعی', 'checked_in' => 'مقیم', 'checked_out' => 'خارج‌شده'] as $key => $label)
                 <span class="inline-flex items-center gap-1"><span style="display:inline-block;width:.8rem;height:.8rem;border-radius:.2rem;background:{{ $palette[$key][0] }}"></span>{{ $label }}</span>
             @endforeach
+            <span class="inline-flex items-center gap-1"><span style="display:inline-block;width:.8rem;height:.8rem;border-radius:.2rem;background-image:repeating-linear-gradient(135deg, rgba(220,38,38,.5) 0 3px, transparent 3px 6px);border:1px solid rgba(220,38,38,.5)"></span>خارج از سرویس</span>
             <span>ستون پررنگ‌تر = امروز · خانه‌ی خالی را بزنید تا رزرو تازه با همان اتاق و تاریخ شروع شود.</span>
         </div>
 
@@ -70,6 +71,8 @@
                                                style="display:block;height:100%;width:100%" title="رزرو تازه از {{ $cell['date']->toJalali('Y/m/d') }}" aria-label="رزرو تازه {{ $row['room']->name }} {{ $cell['date']->toJalali('Y/m/d') }}"></a>
                                         @endif
                                     </td>
+                                @elseif ($cell['type'] === 'blocked')
+                                    <td style="height: 2.6rem; border-right: 1px solid rgba(128,128,128,.15); background-image: repeating-linear-gradient(135deg, rgba(220,38,38,.18) 0 4px, transparent 4px 8px);" title="خارج از سرویس: {{ $cell['reason'] }}" aria-label="خارج از سرویس: {{ $cell['reason'] }}"></td>
                                 @else
                                     @php
                                         $booking = $cell['booking'];
@@ -95,7 +98,7 @@
                         <tr style="border-top: 2px solid rgba(128,128,128,.4);">
                             <th style="position: sticky; right: 0;" class="bg-gray-50 p-2 text-right dark:bg-gray-800">پر / کل</th>
                             @foreach ($calendar['days'] as $day)
-                                <td style="text-align:center" class="p-1 {{ $day['occupied'] >= $calendar['rooms'] ? 'font-bold text-danger-600' : '' }}">{{ $number($day['occupied']) }}/{{ $number($calendar['rooms']) }}</td>
+                                <td style="text-align:center" class="p-1 {{ $day['sellable'] > 0 && $day['occupied'] >= $day['sellable'] ? 'font-bold text-danger-600' : '' }}">{{ $number($day['occupied']) }}/{{ $number($day['sellable']) }}</td>
                             @endforeach
                         </tr>
                     </tfoot>

@@ -5,6 +5,7 @@ namespace App\Domain\Hospitality;
 use App\Enums\BookingStatus;
 use App\Models\Booking;
 use App\Models\Room;
+use App\Models\RoomBlock;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 
@@ -22,7 +23,7 @@ class OccupancyCalendar
     private const SHOWN = [BookingStatus::Pending, BookingStatus::Confirmed, BookingStatus::CheckedIn, BookingStatus::CheckedOut];
 
     /**
-     * @return array{days: list<array{date: CarbonInterface, occupied: int, is_today: bool}>, rows: list<array{room: Room, cells: list<array<string, mixed>>}>, rooms: int}
+     * @return array{days: list<array{date: CarbonInterface, occupied: int, blocked: int, sellable: int, is_today: bool}>, rows: list<array{room: Room, cells: list<array<string, mixed>>}>, rooms: int}
      */
     public function build(CarbonInterface $start, int $days = 14, ?int $roomTypeId = null): array
     {
@@ -47,16 +48,22 @@ class OccupancyCalendar
             ->get()
             ->groupBy('room_id');
 
+        $blocks = RoomBlock::query()
+            ->whereIn('room_id', $rooms->modelKeys())
+            ->overlapping($start, $end)
+            ->get()
+            ->groupBy('room_id');
+
         $columns = [];
 
         for ($i = 0; $i < $days; $i++) {
-            $columns[] = ['date' => $start->copy()->addDays($i), 'occupied' => 0, 'is_today' => $start->copy()->addDays($i)->isToday()];
+            $columns[] = ['date' => $start->copy()->addDays($i), 'occupied' => 0, 'blocked' => 0, 'sellable' => $rooms->count(), 'is_today' => $start->copy()->addDays($i)->isToday()];
         }
 
         $rows = [];
 
         foreach ($rooms as $room) {
-            $rows[] = ['room' => $room, 'cells' => $this->cellsFor($bookings->get($room->id, collect()), $start, $days, $columns)];
+            $rows[] = ['room' => $room, 'cells' => $this->cellsFor($bookings->get($room->id, collect()), $blocks->get($room->id, collect()), $start, $days, $columns)];
         }
 
         return ['days' => $columns, 'rows' => $rows, 'rooms' => $rooms->count()];
@@ -64,10 +71,11 @@ class OccupancyCalendar
 
     /**
      * @param  Collection<int, Booking>  $bookings
-     * @param  list<array{date: CarbonInterface, occupied: int, is_today: bool}>  $columns
+     * @param  Collection<int, RoomBlock>  $blocks
+     * @param  list<array{date: CarbonInterface, occupied: int, blocked: int, sellable: int, is_today: bool}>  $columns
      * @return list<array<string, mixed>>
      */
-    private function cellsFor(Collection $bookings, CarbonInterface $start, int $days, array &$columns): array
+    private function cellsFor(Collection $bookings, Collection $blocks, CarbonInterface $start, int $days, array &$columns): array
     {
         $cells = [];
         $i = 0;
@@ -77,7 +85,16 @@ class OccupancyCalendar
             $booking = $bookings->first(fn (Booking $booking) => $booking->check_in_date->lte($date) && $booking->check_out_date->gt($date));
 
             if (! $booking) {
-                $cells[] = ['type' => 'free', 'date' => $date];
+                $block = $blocks->first(fn (RoomBlock $block) => $block->starts_on->lte($date) && ($block->ends_on === null || $block->ends_on->gt($date)));
+
+                if ($block) {
+                    $columns[$i]['blocked']++;
+                    $columns[$i]['sellable']--;
+                    $cells[] = ['type' => 'blocked', 'date' => $date, 'reason' => $block->reason];
+                } else {
+                    $cells[] = ['type' => 'free', 'date' => $date];
+                }
+
                 $i++;
 
                 continue;

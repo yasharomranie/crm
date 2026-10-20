@@ -43,12 +43,7 @@ class BookingController extends Controller
             $checkOut = Carbon::parse($data['check_out_date']);
 
             $availableRooms = Room::query()
-                ->where('is_active', true)
-                ->whereDoesntHave('bookings', function ($query) use ($checkIn, $checkOut) {
-                    $query->where('status', '!=', BookingStatus::Cancelled)
-                        ->where('check_in_date', '<', $checkOut)
-                        ->where('check_out_date', '>', $checkIn);
-                })
+                ->freeBetween($checkIn, $checkOut)
                 ->with('roomType')
                 ->get()
                 ->map(fn (Room $room) => [

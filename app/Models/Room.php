@@ -89,8 +89,8 @@ class Room extends Model
             ->whereDoesntHave('bookings', fn ($bookings) => $bookings
                 ->where('status', '!=', BookingStatus::Cancelled)
                 ->when($exceptBookingId, fn ($query) => $query->whereKeyNot($exceptBookingId))
-                ->where('check_in_date', '<', $checkOut->toDateString())
-                ->where('check_out_date', '>', $checkIn->toDateString()));
+                ->whereDate('check_in_date', '<', $checkOut->toDateString())
+                ->whereDate('check_out_date', '>', $checkIn->toDateString()));
     }
 
     /**

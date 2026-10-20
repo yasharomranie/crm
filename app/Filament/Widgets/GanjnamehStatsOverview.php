@@ -2,11 +2,11 @@
 
 namespace App\Filament\Widgets;
 
+use App\Domain\Hospitality\RoomInventory;
 use App\Enums\AttendanceStatus;
 use App\Enums\BookingStatus;
 use App\Enums\DealStage;
 use App\Enums\FormSubmissionStatus;
-use App\Enums\RoomStatus;
 use App\Enums\TaskStatus;
 use App\Enums\WorkflowInstanceStatus;
 use App\Models\AttendanceRecord;
@@ -14,7 +14,6 @@ use App\Models\Booking;
 use App\Models\BookingCharge;
 use App\Models\Deal;
 use App\Models\FormSubmission;
-use App\Models\Room;
 use App\Models\Task;
 use App\Models\WorkflowInstance;
 use Filament\Support\Icons\Heroicon;
@@ -49,8 +48,9 @@ class GanjnamehStatsOverview extends StatsOverviewWidget
 
     private function occupancyStat(): Stat
     {
-        $totalRooms = Room::where('is_active', true)->count();
-        $occupied = Room::where('is_active', true)->where('status', RoomStatus::Occupied)->count();
+        $inventory = app(RoomInventory::class)->summary();
+        $totalRooms = $inventory['sellable'];
+        $occupied = $inventory['occupied'];
         $rate = $totalRooms > 0 ? (int) round($occupied / $totalRooms * 100) : 0;
 
         $trend = collect(range(6, 0))->map(function (int $daysAgo) use ($totalRooms) {

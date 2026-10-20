@@ -49,6 +49,12 @@
                         @elseif ($section['action'] === 'checkIn')
                             <div class="text-xs text-gray-400">پیش‌ثبت‌نام انجام نشده</div>
                         @endif
+                        @if ($booking->guest->is_blocked)
+                            <div class="text-sm font-medium text-danger-600 dark:text-danger-400">مهمان مسدود است؛ پیش از چک‌این با مدیر هماهنگ کنید.</div>
+                        @endif
+                        @if (filled($booking->guest->reception_alert))
+                            <div class="text-sm text-warning-700 dark:text-warning-400">هشدار پذیرش: {{ $booking->guest->reception_alert }}</div>
+                        @endif
                         @if ($booking->notes)
                             <div class="text-sm text-gray-600 dark:text-gray-300">{{ $booking->notes }}</div>
                         @endif
