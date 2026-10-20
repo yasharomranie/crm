@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\Bookings\RelationManagers;
 
+use App\Filament\Resources\Bookings\Actions\AddChargeAction;
 use App\Models\BookingCharge;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\CreateAction;
@@ -63,6 +64,7 @@ class ChargesRelationManager extends RelationManager
                 //
             ])
             ->headerActions([
+                AddChargeAction::make()->record(fn () => $this->getOwnerRecord()),
                 CreateAction::make(),
             ])
             ->recordActions([

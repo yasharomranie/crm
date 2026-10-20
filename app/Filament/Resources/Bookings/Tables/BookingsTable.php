@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 
 use App\Enums\BookingStatus;
 use App\Exceptions\InsufficientWalletBalanceException;
+use App\Filament\Resources\Bookings\Actions\AddChargeAction;
 use App\Filament\Resources\Bookings\Actions\ChangeRoomAction;
 use App\Filament\Resources\Bookings\Actions\DamageDepositActions;
 use App\Filament\Resources\Bookings\Actions\ExtendStayAction;
@@ -108,6 +109,7 @@ class BookingsTable
                             ->success()
                             ->send();
                     }),
+                AddChargeAction::make(),
                 ExtendStayAction::make(),
                 ChangeRoomAction::make(),
                 RecordPaymentAction::make(),

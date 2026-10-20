@@ -52,6 +52,7 @@ use App\Models\BookingGroup;
 use App\Models\BookingPromoCode;
 use App\Models\CancellationPolicy;
 use App\Models\ChannelAllotment;
+use App\Models\ChargeItem;
 use App\Models\Company;
 use App\Models\Contract;
 use App\Models\ContractCategory;
@@ -142,6 +143,7 @@ return [
         'price-rules' => ['model' => PriceRule::class, 'label' => 'قیمت‌گذاری پویا', 'group' => 'اقامتی و هتلداری'],
         'stay-discounts' => ['model' => StayDiscount::class, 'label' => 'تخفیف اقامت طولانی', 'group' => 'اقامتی و هتلداری'],
         'booking-promo-codes' => ['model' => BookingPromoCode::class, 'label' => 'کدهای تخفیف رزرو', 'group' => 'اقامتی و هتلداری'],
+        'charge-items' => ['model' => ChargeItem::class, 'label' => 'خدمات و هزینه‌های جانبی', 'group' => 'اقامتی و هتلداری'],
         'cancellation-policies' => ['model' => CancellationPolicy::class, 'label' => 'سیاست‌های لغو', 'group' => 'اقامتی و هتلداری'],
 
         'guests' => ['model' => Guest::class, 'label' => 'مهمانان', 'group' => 'CRM و مشتریان'],
