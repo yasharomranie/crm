@@ -94,7 +94,7 @@ class BookingsTable
                     ->suffix(' تومان')
                     ->color(fn (Booking $record) => $record->balanceDue() > 0 ? 'danger' : 'success'),
             ])
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments', 'damageDeposit', 'precheckin']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['guest', 'charges', 'payments', 'damageDeposit', 'precheckin']))
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
