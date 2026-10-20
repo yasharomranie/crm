@@ -52,6 +52,11 @@
                         @if ($booking->notes)
                             <div class="text-sm text-gray-600 dark:text-gray-300">{{ $booking->notes }}</div>
                         @endif
+                        @if ($section['action'] === 'checkOut' && $booking->check_out_date->isToday())
+                            <div class="text-sm {{ $booking->isPastCheckOutTime() ? 'text-danger-600 dark:text-danger-400' : 'text-gray-500 dark:text-gray-400' }}">
+                                ساعت خروج {{ \Illuminate\Support\Number::toPersian($booking->checkOutDeadline()->format('H:i')) }}@if ($booking->isPastCheckOutTime()) · از ساعت خروج گذشته است @endif
+                            </div>
+                        @endif
                         @if ($section['action'] === 'checkOut' && $booking->check_out_date->lt(today()))
                             <div class="text-sm text-danger-600 dark:text-danger-400">خروج {{ $booking->check_out_date->toJalali('Y/m/d') }} بوده و هنوز ثبت نشده است.</div>
                         @endif
