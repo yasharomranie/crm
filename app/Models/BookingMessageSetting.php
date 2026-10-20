@@ -48,6 +48,8 @@ class BookingMessageSetting extends Model
             'reminder_enabled' => false,
             'reminder_days_before' => 1,
             'feedback_enabled' => false,
+            'balance_reminder_enabled' => false,
+            'balance_reminder_days_before' => 3,
         ]);
     }
 
