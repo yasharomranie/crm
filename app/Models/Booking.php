@@ -38,7 +38,7 @@ class Booking extends Model
         'actual_check_in_at', 'actual_check_out_at', 'adults_count', 'children_count',
         'status', 'source', 'sales_channel_id', 'external_api_client_id', 'commission_amount', 'wallet_paid_amount', 'notes', 'created_by',
         'cancellation_policy_id', 'cancellation_terms', 'cancelled_at', 'cancellation_kind', 'cancellation_reason', 'cancellation_fee',
-        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id', 'hold_expires_at', 'booking_group_id',
+        'confirmation_sent_at', 'arrival_reminder_sent_at', 'feedback_sent_at', 'promo_code_id', 'hold_expires_at', 'booking_group_id', 'rate_plan_id',
     ];
 
     public const CANCELLED_BY_GUEST = 'guest';
@@ -74,9 +74,10 @@ class Booking extends Model
             // The cancellation terms are copied now, so a later change of the
             // policy never changes what this guest was promised.
             if (blank($booking->cancellation_terms)) {
-                $policy = $booking->cancellation_policy_id
-                    ? CancellationPolicy::find($booking->cancellation_policy_id)
-                    : CancellationPolicy::defaultPolicy();
+                // An explicit choice wins, then the rate plan's own policy, then the default.
+                $planPolicyId = $booking->rate_plan_id ? RatePlan::find($booking->rate_plan_id)?->cancellation_policy_id : null;
+                $policyId = $booking->cancellation_policy_id ?? $planPolicyId;
+                $policy = $policyId ? CancellationPolicy::find($policyId) : CancellationPolicy::defaultPolicy();
 
                 $booking->cancellation_terms = $policy?->terms();
                 $booking->cancellation_policy_id ??= $policy?->id;
@@ -186,11 +187,12 @@ class Booking extends Model
 
         static::created(function (self $booking) {
             $promo = $booking->promo_code_id ? BookingPromoCode::query()->find($booking->promo_code_id) : null;
+            $ratePlan = $booking->rate_plan_id ? RatePlan::query()->find($booking->rate_plan_id) : null;
             $adults = max(1, (int) $booking->adults_count);
             $children = (int) $booking->children_count;
 
             $pricing = app(StayPricing::class);
-            $quote = $pricing->quote($booking->room->roomType, $booking->check_in_date, $booking->check_out_date, $adults, $children, $promo);
+            $quote = $pricing->quote($booking->room->roomType, $booking->check_in_date, $booking->check_out_date, $adults, $children, $promo, $ratePlan);
 
             foreach ($pricing->folioLines($quote, $adults, $children) as $line) {
                 $booking->charges()->create([
@@ -595,6 +597,8 @@ class Booking extends Model
             $newCheckOut,
             max(1, (int) $this->adults_count),
             (int) $this->children_count,
+            null,
+            $this->ratePlan,
         );
 
         return $quote['room_total'] + $quote['extra_guests_total'];
@@ -664,8 +668,8 @@ class Booking extends Model
         }
 
         $pricing = app(StayPricing::class);
-        $old = $pricing->quote($this->room->roomType, $this->check_in_date, $this->check_out_date);
-        $new = $pricing->quote($newRoom->roomType, $this->check_in_date, $this->check_out_date);
+        $old = $pricing->quote($this->room->roomType, $this->check_in_date, $this->check_out_date, ratePlan: $this->ratePlan);
+        $new = $pricing->quote($newRoom->roomType, $this->check_in_date, $this->check_out_date, ratePlan: $this->ratePlan);
 
         return $new['room_total'] - $old['room_total'];
     }
@@ -726,6 +730,11 @@ class Booking extends Model
             activity('bookings')->performedOn($this)->causedBy($userId ? User::find($userId) : null)
                 ->log("تغییر اتاق {$this->reference_code} از {$oldRoom->name} به {$newRoom->name}");
         });
+    }
+
+    public function ratePlan(): BelongsTo
+    {
+        return $this->belongsTo(RatePlan::class);
     }
 
     public function bookingGroup(): BelongsTo

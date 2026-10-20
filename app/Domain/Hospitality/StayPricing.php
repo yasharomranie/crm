@@ -3,6 +3,7 @@
 namespace App\Domain\Hospitality;
 
 use App\Models\BookingPromoCode;
+use App\Models\RatePlan;
 use App\Models\RoomType;
 use App\Models\StayDiscount;
 use Carbon\CarbonInterface;
@@ -18,9 +19,9 @@ use Carbon\CarbonInterface;
 class StayPricing
 {
     /**
-     * @return array{nights: int, night_rates: list<array{date: string, rate: int}>, room_total: int, extra_guests_total: int, stay_discount_percent: float, stay_discount: int, promo_code: ?BookingPromoCode, promo_discount: int, total: int, minimum_nights: int}
+     * @return array{nights: int, night_rates: list<array{date: string, rate: int}>, room_total: int, extra_guests_total: int, stay_discount_percent: float, stay_discount: int, promo_code: ?BookingPromoCode, rate_plan: ?RatePlan, promo_discount: int, total: int, minimum_nights: int}
      */
-    public function quote(RoomType $roomType, CarbonInterface $checkIn, CarbonInterface $checkOut, int $adults = 1, int $children = 0, ?BookingPromoCode $promo = null): array
+    public function quote(RoomType $roomType, CarbonInterface $checkIn, CarbonInterface $checkOut, int $adults = 1, int $children = 0, ?BookingPromoCode $promo = null, ?RatePlan $ratePlan = null): array
     {
         $nights = max(1, (int) $checkIn->copy()->startOfDay()->diffInDays($checkOut->copy()->startOfDay()));
 
@@ -28,7 +29,7 @@ class StayPricing
 
         for ($i = 0; $i < $nights; $i++) {
             $date = $checkIn->copy()->startOfDay()->addDays($i);
-            $rates[] = ['date' => $date->toDateString(), 'rate' => $roomType->effectivePriceForDate($date)];
+            $rates[] = ['date' => $date->toDateString(), 'rate' => $this->nightRate($roomType, $date, $ratePlan)];
         }
 
         $roomTotal = array_sum(array_column($rates, 'rate'));
@@ -47,6 +48,7 @@ class StayPricing
             'stay_discount_percent' => $tier ? (float) $tier->percent : 0.0,
             'stay_discount' => $stayDiscount,
             'promo_code' => $promo,
+            'rate_plan' => $ratePlan,
             'promo_discount' => $promoDiscount,
             'total' => $roomTotal + $extraGuests - $stayDiscount - $promoDiscount,
             'minimum_nights' => $roomType->minimumNightsFor($checkIn, $checkOut),
@@ -62,7 +64,7 @@ class StayPricing
      */
     public function folioLines(array $quote, int $adults, int $children): array
     {
-        $lines = [['title' => "اقامت {$quote['nights']} شب", 'amount' => $quote['room_total']]];
+        $lines = [['title' => "اقامت {$quote['nights']} شب".($quote['rate_plan'] ? " ({$quote['rate_plan']->name})" : ''), 'amount' => $quote['room_total']]];
 
         if ($quote['extra_guests_total'] > 0) {
             $lines[] = ['title' => "هزینه‌ی نفرات اضافه ({$adults} بزرگسال، {$children} کودک)", 'amount' => $quote['extra_guests_total']];
@@ -77,6 +79,16 @@ class StayPricing
         }
 
         return $lines;
+    }
+
+    /**
+     * The night's normal rate, moved by the rate plan when the stay has one.
+     */
+    private function nightRate(RoomType $roomType, CarbonInterface $date, ?RatePlan $ratePlan): int
+    {
+        $rate = $roomType->effectivePriceForDate($date);
+
+        return $ratePlan ? $ratePlan->adjust($rate) : $rate;
     }
 
     private function extraGuestsTotal(RoomType $roomType, int $nights, int $adults, int $children): int
