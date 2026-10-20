@@ -371,6 +371,25 @@ class Booking extends Model
         return $this->morphMany(Task::class, 'source');
     }
 
+    /**
+     * When this stay's room must be vacated: the check-out day at the room
+     * type's check-out time.
+     */
+    public function checkOutDeadline(): Carbon
+    {
+        [$hour, $minute] = array_map('intval', explode(':', $this->room?->roomType?->check_out_time ?? '12:00'));
+
+        return $this->check_out_date->copy()->setTime($hour, $minute);
+    }
+
+    /**
+     * A guest still in the house after their check-out time.
+     */
+    public function isPastCheckOutTime(): bool
+    {
+        return $this->status === BookingStatus::CheckedIn && now()->greaterThan($this->checkOutDeadline());
+    }
+
     public function nights(): int
     {
         return max(1, $this->check_in_date->diffInDays($this->check_out_date));
