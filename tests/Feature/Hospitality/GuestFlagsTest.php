@@ -72,4 +72,15 @@ class GuestFlagsTest extends TestCase
             (string) $component->instance()->getMountedTableAction()->getModalDescription(),
         );
     }
+
+    public function test_the_bookings_list_marks_guests_with_an_alert_or_a_block(): void
+    {
+        $alerted = $this->bookingFor(Guest::factory()->create(['reception_alert' => 'مهمان ویژه']));
+        $plain = $this->bookingFor(Guest::factory()->create());
+
+        Livewire::actingAs($this->admin())
+            ->test(ListBookings::class)
+            ->assertTableColumnStateSet('guest_flag', true, $alerted)
+            ->assertTableColumnStateSet('guest_flag', false, $plain);
+    }
 }

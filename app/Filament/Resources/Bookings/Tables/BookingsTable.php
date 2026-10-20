@@ -27,6 +27,7 @@ use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
+use Filament\Tables\Columns\IconColumn;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\SelectFilter;
@@ -62,6 +63,15 @@ class BookingsTable
             ->columns([
                 TextColumn::make('reference_code')->label('کد رزرو')->fontFamily('mono')->searchable(),
                 TextColumn::make('room.name')->label('اتاق/ویلا')->searchable(),
+                IconColumn::make('guest_flag')
+                    ->label('هشدار')
+                    ->state(fn (Booking $record): bool => filled($record->guest?->reception_alert) || (bool) $record->guest?->is_blocked)
+                    ->icon(fn (bool $state) => $state ? Heroicon::OutlinedExclamationTriangle : null)
+                    ->color('warning')
+                    ->tooltip(fn (Booking $record): ?string => collect([
+                        $record->guest?->is_blocked ? 'مهمان مسدود است' : null,
+                        $record->guest?->reception_alert,
+                    ])->filter()->implode(' · ') ?: null),
                 TextColumn::make('guest.name')
                     ->label('مهمان')
                     ->searchable(query: fn (Builder $query, string $search): Builder => static::searchGuest($query, $search)),
@@ -84,7 +94,7 @@ class BookingsTable
                     ->suffix(' تومان')
                     ->color(fn (Booking $record) => $record->balanceDue() > 0 ? 'danger' : 'success'),
             ])
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments', 'damageDeposit', 'precheckin']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['guest', 'charges', 'payments', 'damageDeposit', 'precheckin']))
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
