@@ -8,6 +8,7 @@ use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
+use App\Domain\Hospitality\MorningDigest;
 use App\Domain\Ticketing\GateAnomalyDetector;
 use App\Domain\TripPlanner\TripPlanFollowUp;
 use App\Jobs\AnalyzeWpSiteJob;
@@ -111,6 +112,15 @@ Schedule::call(fn () => app(AssistantRetention::class)->pruneToolOutput())
 Schedule::call(fn () => app(AssistantAlertDigestService::class)->notifyDailyDigest())
     ->name('assistant-alert-digest')
     ->dailyAt('08:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// One morning push to the front desk: today's arrivals, departures, guests in
+// the house, rooms out of service and open handover notes. A day with nothing
+// in the house and nothing arriving sends nothing.
+Schedule::call(fn () => app(MorningDigest::class)->notifyStaff())
+    ->name('hotel-morning-digest')
+    ->dailyAt('08:00')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
