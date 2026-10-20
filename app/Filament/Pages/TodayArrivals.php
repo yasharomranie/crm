@@ -4,7 +4,13 @@ namespace App\Filament\Pages;
 
 use App\Enums\BookingStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Filament\Resources\HandoverNotes\HandoverNoteResource;
+use App\Filament\Resources\LostItems\LostItemResource;
+use App\Filament\Resources\RoomBlocks\RoomBlockResource;
 use App\Models\Booking;
+use App\Models\HandoverNote;
+use App\Models\LostItem;
+use App\Models\RoomBlock;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -62,6 +68,32 @@ class TodayArrivals extends Page
     public function getInHouseCount(): int
     {
         return Booking::query()->where('status', BookingStatus::CheckedIn)->count();
+    }
+
+    /**
+     * What else the front desk should have in mind today - open handover
+     * notes, rooms out of service tonight and unclaimed lost items - each
+     * only for users who may open the list behind it.
+     *
+     * @return list<array{label: string, count: int, url: string}>
+     */
+    public function getDeskReminders(): array
+    {
+        $reminders = [];
+
+        if (HandoverNoteResource::canViewAny()) {
+            $reminders[] = ['label' => 'یادداشت باز تحویل شیفت', 'count' => HandoverNote::query()->open()->count(), 'url' => HandoverNoteResource::getUrl('index')];
+        }
+
+        if (RoomBlockResource::canViewAny()) {
+            $reminders[] = ['label' => 'اتاق خارج از سرویس امشب', 'count' => RoomBlock::query()->overlapping(today(), today()->addDay())->count(), 'url' => RoomBlockResource::getUrl('index')];
+        }
+
+        if (LostItemResource::canViewAny()) {
+            $reminders[] = ['label' => 'شیء جامانده‌ی بدون تحویل', 'count' => LostItem::query()->whereIn('status', [LostItem::STATUS_FOUND, LostItem::STATUS_CONTACTED])->count(), 'url' => LostItemResource::getUrl('index')];
+        }
+
+        return array_values(array_filter($reminders, fn (array $reminder) => $reminder['count'] > 0));
     }
 
     public function checkIn(int $bookingId): void

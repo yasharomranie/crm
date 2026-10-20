@@ -11,6 +11,13 @@
         الان {{ \Illuminate\Support\Number::toPersian($this->getInHouseCount()) }} رزرو مقیم است.
     </div>
 
+    @foreach ($this->getDeskReminders() as $reminder)
+        <a href="{{ $reminder['url'] }}" class="flex items-center justify-between rounded-lg border border-warning-200 bg-warning-50 px-4 py-3 text-sm text-warning-800 dark:border-warning-400/30 dark:bg-warning-400/10 dark:text-warning-300" wire:key="reminder-{{ $loop->index }}">
+            <span>{{ $reminder['label'] }}</span>
+            <span class="font-semibold">{{ \Illuminate\Support\Number::toPersian($reminder['count']) }}</span>
+        </a>
+    @endforeach
+
     @foreach ($sections as $section)
         <section class="space-y-3">
             <h3 class="text-base font-semibold text-gray-950 dark:text-white">
