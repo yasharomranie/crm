@@ -10,6 +10,7 @@ use App\Filament\Resources\Bookings\Actions\DamageDepositActions;
 use App\Filament\Resources\Bookings\Actions\ExtendStayAction;
 use App\Filament\Resources\Bookings\Actions\PaymentLinkAction;
 use App\Filament\Resources\Bookings\Actions\PrecheckinLinkAction;
+use App\Filament\Resources\Bookings\Actions\RecordLostItemAction;
 use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
 use App\Filament\Resources\Bookings\Actions\SendBookingSmsAction;
 use App\Filament\Support\TableExports;
@@ -118,6 +119,7 @@ class BookingsTable
                 SendBookingSmsAction::make(),
                 PaymentLinkAction::make(),
                 PrecheckinLinkAction::make(),
+                RecordLostItemAction::make(),
                 Action::make('printInvoice')
                     ->label('چاپ صورت‌حساب')
                     ->icon(Heroicon::OutlinedPrinter)
