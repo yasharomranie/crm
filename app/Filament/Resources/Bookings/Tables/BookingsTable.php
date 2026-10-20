@@ -45,6 +45,7 @@ class BookingsTable
                 TextColumn::make('check_out_date')->label('خروج')->jalaliDate('Y/m/d'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
                 TextColumn::make('source')->label('منبع'),
+                TextColumn::make('bookingGroup.code')->label('گروه')->fontFamily('mono')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('hold_expires_at')->label('نگه‌داری تا')->jalaliDateTime('Y/m/d H:i')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('folio_total')
                     ->label('صورت‌حساب')
