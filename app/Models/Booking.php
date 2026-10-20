@@ -225,6 +225,10 @@ class Booking extends Model
         if ($overlaps) {
             throw RoomNotAvailableException::forOverlap($room->name);
         }
+
+        if ($room->blocks()->overlapping($checkIn, $checkOut)->exists()) {
+            throw RoomNotAvailableException::forBlock($room->name);
+        }
     }
 
     /**

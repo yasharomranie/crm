@@ -46,6 +46,9 @@ class RoomAvailabilityController extends Controller
         $rooms = Room::query()
             ->where('is_active', true)
             ->when($data['room_type_id'] ?? null, fn ($query, $roomTypeId) => $query->where('room_type_id', $roomTypeId))
+            ->whereDoesntHave('blocks', fn ($query) => $query
+                ->whereDate('starts_on', '<', Carbon::parse($data['check_out'])->toDateString())
+                ->whereDate('ends_on', '>', Carbon::parse($data['check_in'])->toDateString()))
             ->whereDoesntHave('bookings', function ($query) use ($data) {
                 $query->where('status', '!=', BookingStatus::Cancelled)
                     ->where('check_in_date', '<', $data['check_out'])
