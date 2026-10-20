@@ -8,6 +8,7 @@ use App\Filament\Resources\Bookings\Actions\ChangeRoomAction;
 use App\Filament\Resources\Bookings\Actions\DamageDepositActions;
 use App\Filament\Resources\Bookings\Actions\ExtendStayAction;
 use App\Filament\Resources\Bookings\Actions\PaymentLinkAction;
+use App\Filament\Resources\Bookings\Actions\PrecheckinLinkAction;
 use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
 use App\Filament\Resources\Bookings\Actions\SendBookingSmsAction;
 use App\Filament\Support\TableExports;
@@ -58,7 +59,7 @@ class BookingsTable
                     ->suffix(' تومان')
                     ->color(fn (Booking $record) => $record->balanceDue() > 0 ? 'danger' : 'success'),
             ])
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments', 'damageDeposit']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments', 'damageDeposit', 'precheckin']))
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
@@ -113,6 +114,7 @@ class BookingsTable
                 DamageDepositActions::settle(),
                 SendBookingSmsAction::make(),
                 PaymentLinkAction::make(),
+                PrecheckinLinkAction::make(),
                 Action::make('printInvoice')
                     ->label('چاپ صورت‌حساب')
                     ->icon(Heroicon::OutlinedPrinter)

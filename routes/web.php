@@ -6,6 +6,7 @@ use App\Http\Controllers\AssistantConversationPrintController;
 use App\Http\Controllers\AssistantRunController;
 use App\Http\Controllers\BookingInvoiceController;
 use App\Http\Controllers\BookingPaymentController;
+use App\Http\Controllers\BookingPrecheckinController;
 use App\Http\Controllers\ContractPrintController;
 use App\Http\Controllers\CustomerApp\AuthController as CustomerAppAuthController;
 use App\Http\Controllers\CustomerApp\BookingController as CustomerAppBookingController;
@@ -160,6 +161,10 @@ Route::match(['get', 'post'], '/feedback/{feedback}', [GuestFeedbackController::
 Route::get('/pay/callback', [BookingPaymentController::class, 'callback'])->name('booking-pay.callback');
 Route::get('/pay/{token}', [BookingPaymentController::class, 'show'])->name('booking-pay.show');
 Route::post('/pay/{token}', [BookingPaymentController::class, 'start'])->middleware('throttle:20,1')->name('booking-pay.start');
+
+// Online pre-registration from the link sent with the booking.
+Route::get('/checkin/{token}', [BookingPrecheckinController::class, 'show'])->name('booking-precheckin.show');
+Route::post('/checkin/{token}', [BookingPrecheckinController::class, 'store'])->middleware('throttle:20,1')->name('booking-precheckin.store');
 
 // Read-only page behind a trip plan's share link.
 Route::get('/trip/{token}', [PublicTripPlanController::class, 'show'])->name('trip-plan.public');

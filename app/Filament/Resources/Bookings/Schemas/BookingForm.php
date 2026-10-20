@@ -141,6 +141,24 @@ class BookingForm
                     ->content(fn (?Booking $record) => $record?->cancellation_terms ? CancellationPolicy::describe($record->cancellation_terms) : 'بدون سیاست لغو (جریمه‌ای اعمال نمی‌شود)')
                     ->columnSpanFull()
                     ->visible(fn (?Booking $record) => $record !== null),
+                Placeholder::make('precheckin_summary')
+                    ->label('پیش‌ثبت‌نام آنلاین مهمان')
+                    ->content(function (?Booking $record) {
+                        $precheckin = $record?->precheckin;
+
+                        if (! $precheckin?->isCompleted()) {
+                            return 'هنوز انجام نشده';
+                        }
+
+                        return collect([
+                            'کد ملی: '.$precheckin->national_code,
+                            $precheckin->arrival_time ? 'ساعت رسیدن: '.$precheckin->arrival_time : null,
+                            count($precheckin->companions ?? []) ? 'همراهان: '.collect($precheckin->companions)->map(fn (array $row) => $row['name'].($row['national_code'] ? " ({$row['national_code']})" : ''))->implode('، ') : null,
+                            $precheckin->requests ? 'درخواست: '.$precheckin->requests : null,
+                        ])->filter()->implode(' - ');
+                    })
+                    ->columnSpanFull()
+                    ->visible(fn (?Booking $record) => $record !== null),
                 Textarea::make('notes')
                     ->label('یادداشت')
                     ->columnSpanFull()
