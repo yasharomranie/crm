@@ -29,6 +29,7 @@ class LostItemService
             'description' => $description,
             'location' => $location,
             'found_on' => today()->toDateString(),
+            'status' => LostItem::STATUS_FOUND,
             'created_by' => $userId,
         ]);
     }
