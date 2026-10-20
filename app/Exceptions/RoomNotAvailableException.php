@@ -15,4 +15,9 @@ class RoomNotAvailableException extends RuntimeException
     {
         return new self("اتاق «{$roomName}» برای این بازه تاریخ قبلاً رزرو شده است.");
     }
+
+    public static function forBlock(string $roomName): self
+    {
+        return new self("اتاق «{$roomName}» در این بازه خارج از سرویس است (تعمیر یا بسته‌شده).");
+    }
 }

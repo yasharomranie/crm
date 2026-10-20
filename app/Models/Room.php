@@ -40,9 +40,14 @@ class Room extends Model
         return $this->hasMany(Booking::class);
     }
 
+    public function blocks(): HasMany
+    {
+        return $this->hasMany(RoomBlock::class);
+    }
+
     /**
-     * Active rooms with no live booking overlapping [$checkIn, $checkOut)
-     * (the booking $exceptBookingId, if given, is ignored).
+     * Active rooms with no live booking and no out-of-service block
+     * overlapping [$checkIn, $checkOut) (the booking $exceptBookingId, if given, is ignored).
      *
      * @param  Builder<Room>  $query
      * @return Builder<Room>
@@ -51,6 +56,7 @@ class Room extends Model
     {
         return $query
             ->where('is_active', true)
+            ->whereDoesntHave('blocks', fn ($blocks) => $blocks->overlapping($checkIn, $checkOut))
             ->whereDoesntHave('bookings', fn ($bookings) => $bookings
                 ->where('status', '!=', BookingStatus::Cancelled)
                 ->when($exceptBookingId, fn ($query) => $query->whereKeyNot($exceptBookingId))
