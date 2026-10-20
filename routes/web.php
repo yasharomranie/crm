@@ -24,6 +24,7 @@ use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
 use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\GuestFeedbackController;
+use App\Http\Controllers\HousekeepingSheetController;
 use App\Http\Controllers\LeadCaptureController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
@@ -44,6 +45,8 @@ Route::middleware('auth')->group(function () {
         ->name('document-versions.download');
     Route::get('/bookings/{booking}/invoice', [BookingInvoiceController::class, 'show'])
         ->name('bookings.invoice');
+    Route::get('/housekeeping-sheet', [HousekeepingSheetController::class, 'show'])
+        ->name('housekeeping-sheet');
     Route::get('/booking-groups/{group}/invoice', [BookingGroupInvoiceController::class, 'show'])
         ->name('booking-groups.invoice');
     Route::get('/contracts/{contract}/print', [ContractPrintController::class, 'show'])
