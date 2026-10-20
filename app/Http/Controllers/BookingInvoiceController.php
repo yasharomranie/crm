@@ -16,7 +16,7 @@ class BookingInvoiceController extends Controller
     {
         abort_unless($request->user()?->can('view', $booking), 403, 'شما مجاز به دیدن صورت‌حساب رزرو نیستید.');
 
-        $booking->load(['guest', 'room.roomType', 'charges', 'payments']);
+        $booking->load(['guest', 'room.roomType', 'charges', 'payments', 'damageDeposit']);
 
         return view('booking-invoice', ['booking' => $booking]);
     }

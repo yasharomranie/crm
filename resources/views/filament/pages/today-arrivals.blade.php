@@ -45,6 +45,10 @@
                             <span class="whitespace-nowrap rounded-lg bg-success-50 px-3 py-1 text-sm text-success-700 dark:bg-success-500/10 dark:text-success-400">تسویه</span>
                         @endif
 
+                        @if ($booking->damageDeposit?->outstandingAmount())
+                            <span class="whitespace-nowrap rounded-lg bg-info-50 px-3 py-1 text-sm text-info-700 dark:bg-info-500/10 dark:text-info-400">ودیعه: {{ $toman($booking->damageDeposit->outstandingAmount()) }}</span>
+                        @endif
+
                         <x-filament::button size="sm" wire:click="{{ $section['action'] }}({{ $booking->id }})" wire:loading.attr="disabled">
                             {{ $section['button'] }}
                         </x-filament::button>

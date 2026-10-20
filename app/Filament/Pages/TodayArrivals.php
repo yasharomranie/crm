@@ -96,6 +96,6 @@ class TodayArrivals extends Page
 
     private function bookings()
     {
-        return Booking::query()->with(['guest', 'room.roomType', 'channel', 'charges', 'payments']);
+        return Booking::query()->with(['guest', 'room.roomType', 'channel', 'charges', 'payments', 'damageDeposit']);
     }
 }
