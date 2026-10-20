@@ -57,6 +57,20 @@ class RoomTypeResource extends Resource
                     ->label('حداقل مدت اقامت (شب)')
                     ->numeric()->minValue(1)->maxValue(60)->default(1)->required()
                     ->helperText('رزرو کوتاه‌تر از این رد می‌شود. برای فصل‌های شلوغ می‌توانید در «قیمت‌گذاری پویا» حداقل شب بیشتری بگذارید.'),
+                TextInput::make('check_in_time')
+                    ->label('ساعت ورود')
+                    ->default('14:00')
+                    ->regex('/^([01]\d|2[0-3]):[0-5]\d$/')
+                    ->validationMessages(['regex' => 'ساعت را به شکل ۱۴:۰۰ بنویسید (۲۴ ساعته).'])
+                    ->required()
+                    ->helperText('در پیامک رزرو با {check_in_time} می‌آید.'),
+                TextInput::make('check_out_time')
+                    ->label('ساعت خروج')
+                    ->default('12:00')
+                    ->regex('/^([01]\d|2[0-3]):[0-5]\d$/')
+                    ->validationMessages(['regex' => 'ساعت را به شکل ۱۲:۰۰ بنویسید (۲۴ ساعته).'])
+                    ->required()
+                    ->helperText('در پیامک رزرو با {check_out_time} می‌آید.'),
                 TextInput::make('base_occupancy')
                     ->label('بزرگسالِ شاملِ نرخ پایه')
                     ->numeric()->minValue(1)->maxValue(50)

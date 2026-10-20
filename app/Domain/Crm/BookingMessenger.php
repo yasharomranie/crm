@@ -104,6 +104,8 @@ class BookingMessenger
             '{check_in}' => $booking->check_in_date->toJalali('Y/m/d'),
             '{check_out}' => $booking->check_out_date->toJalali('Y/m/d'),
             '{nights}' => (string) max(1, (int) $booking->check_in_date->diffInDays($booking->check_out_date)),
+            '{check_in_time}' => (string) ($booking->room?->roomType?->check_in_time ?? '14:00'),
+            '{check_out_time}' => (string) ($booking->room?->roomType?->check_out_time ?? '12:00'),
             '{link}' => (string) $link,
             '{precheckin_link}' => str_contains($template, '{precheckin_link}') ? BookingPrecheckin::forBooking($booking)->url() : '',
         ]);

@@ -93,6 +93,17 @@ class BookingMessagesTest extends TestCase
         $this->assertSame(1, CustomerMessage::count());
     }
 
+    public function test_the_room_types_check_in_and_out_times_fill_the_template(): void
+    {
+        $this->smsReady();
+        $this->setting(['confirmation_enabled' => true, 'confirmation_template' => 'ورود {check_in_time} خروج {check_out_time}']);
+
+        $booking = $this->booking();
+        $booking->room->roomType->update(['check_in_time' => '15:30', 'check_out_time' => '11:00']);
+
+        $this->assertSame('ورود 15:30 خروج 11:00', app(BookingMessenger::class)->render('ورود {check_in_time} خروج {check_out_time}', $booking->fresh()));
+    }
+
     public function test_a_pending_booking_is_texted_when_it_becomes_confirmed(): void
     {
         $this->smsReady();
