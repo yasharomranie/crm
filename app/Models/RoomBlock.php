@@ -42,8 +42,8 @@ class RoomBlock extends Model
     public function scopeOverlapping(Builder $query, CarbonInterface $from, CarbonInterface $to): Builder
     {
         return $query
-            ->where('starts_on', '<', $to->toDateString())
-            ->where('ends_on', '>', $from->toDateString());
+            ->whereDate('starts_on', '<', $to->toDateString())
+            ->whereDate('ends_on', '>', $from->toDateString());
     }
 
     /**
@@ -55,8 +55,8 @@ class RoomBlock extends Model
         return Booking::query()
             ->where('room_id', $roomId)
             ->where('status', '!=', BookingStatus::Cancelled)
-            ->where('check_in_date', '<', $to->toDateString())
-            ->where('check_out_date', '>', $from->toDateString())
+            ->whereDate('check_in_date', '<', $to->toDateString())
+            ->whereDate('check_out_date', '>', $from->toDateString())
             ->count();
     }
 }
