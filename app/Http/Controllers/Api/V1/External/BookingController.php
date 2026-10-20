@@ -73,7 +73,7 @@ class BookingController extends Controller
             return $this->error('FORBIDDEN', 'این اکانت مجاز به مشاهده‌ی رزرو نیست.', 403);
         }
 
-        $booking = Booking::with(['room.roomType', 'guest'])
+        $booking = Booking::with(['room.roomType', 'guest', 'damageDeposit'])
             ->where('reference_code', $referenceCode)
             ->first();
 
@@ -131,7 +131,7 @@ class BookingController extends Controller
                 ]);
             });
 
-            return [201, $this->transformBooking($booking->load(['room.roomType', 'guest']))];
+            return [201, $this->transformBooking($booking->load(['room.roomType', 'guest', 'damageDeposit']))];
         } catch (RoomNotAvailableException $exception) {
             return [409, ['error' => ['code' => 'CONFLICT', 'message' => $exception->getMessage()]]];
         } catch (InvalidPromoCodeException $exception) {
@@ -162,6 +162,12 @@ class BookingController extends Controller
             'nights' => $booking->nights(),
             'total_amount' => $booking->totalAmount(),
             'promo_code' => $booking->promoCode?->code,
+            'damage_deposit' => $booking->damageDeposit ? [
+                'held' => $booking->damageDeposit->held_amount,
+                'deducted' => $booking->damageDeposit->deducted_amount,
+                'refunded' => $booking->damageDeposit->refunded_amount,
+                'settled' => $booking->damageDeposit->isSettled(),
+            ] : null,
             'paid_amount' => $booking->paidAmount(),
             'balance_due' => $booking->balanceDue(),
             'payment_status' => $booking->paymentStatus()->value,

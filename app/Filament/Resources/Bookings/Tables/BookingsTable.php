@@ -5,6 +5,7 @@ namespace App\Filament\Resources\Bookings\Tables;
 use App\Enums\BookingStatus;
 use App\Exceptions\InsufficientWalletBalanceException;
 use App\Filament\Resources\Bookings\Actions\ChangeRoomAction;
+use App\Filament\Resources\Bookings\Actions\DamageDepositActions;
 use App\Filament\Resources\Bookings\Actions\ExtendStayAction;
 use App\Filament\Resources\Bookings\Actions\PaymentLinkAction;
 use App\Filament\Resources\Bookings\Actions\RecordPaymentAction;
@@ -57,7 +58,7 @@ class BookingsTable
                     ->suffix(' تومان')
                     ->color(fn (Booking $record) => $record->balanceDue() > 0 ? 'danger' : 'success'),
             ])
-            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments']))
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['charges', 'payments', 'damageDeposit']))
             ->defaultSort('check_in_date', 'desc')
             ->filters([
                 SelectFilter::make('status')->label('وضعیت')->options(BookingStatus::class),
@@ -95,7 +96,8 @@ class BookingsTable
                     ->visible(fn (Booking $record) => $record->status === BookingStatus::CheckedIn)
                     ->requiresConfirmation()
                     ->modalDescription(fn (Booking $record) => 'اتاق به «نیازمند نظافت» تغییر می‌کند و یک تسک نظافت خودکار برای دپارتمان مربوطه ساخته می‌شود.'
-                        .($record->balanceDue() > 0 ? ' توجه: '.Number::toPersian(number_format($record->balanceDue())).' تومان از صورت‌حساب هنوز پرداخت نشده است.' : ''))
+                        .($record->balanceDue() > 0 ? ' توجه: '.Number::toPersian(number_format($record->balanceDue())).' تومان از صورت‌حساب هنوز پرداخت نشده است.' : '')
+                        .($record->damageDeposit?->outstandingAmount() ? ' توجه: ودیعه‌ی '.Number::toPersian(number_format($record->damageDeposit->outstandingAmount())).' تومانی هنوز تسویه نشده است («تسویه ودیعه»).' : ''))
                     ->action(function (Booking $record) {
                         $record->checkOut();
 
@@ -107,6 +109,8 @@ class BookingsTable
                 ExtendStayAction::make(),
                 ChangeRoomAction::make(),
                 RecordPaymentAction::make(),
+                DamageDepositActions::receive(),
+                DamageDepositActions::settle(),
                 SendBookingSmsAction::make(),
                 PaymentLinkAction::make(),
                 Action::make('printInvoice')

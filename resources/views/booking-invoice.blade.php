@@ -79,6 +79,21 @@
             <tr class="total"><td colspan="3">مانده‌ی قابل پرداخت</td><td class="num">{{ $money($booking->balanceDue()) }}</td></tr>
         </tbody>
     </table>
+
+    @if ($booking->damageDeposit && $booking->damageDeposit->held_amount > 0)
+        <h2>ودیعه‌ی خسارت (جدا از صورت‌حساب)</h2>
+        <table>
+            <tbody>
+                <tr><td>دریافت‌شده</td><td class="num">{{ $money($booking->damageDeposit->held_amount) }}</td></tr>
+                @if ($booking->damageDeposit->isSettled())
+                    <tr><td>کسر بابت خسارت{{ $booking->damageDeposit->settlement_note ? ' - '.$booking->damageDeposit->settlement_note : '' }}</td><td class="num">{{ $money($booking->damageDeposit->deducted_amount) }}</td></tr>
+                    <tr class="total"><td>برگشت‌داده‌شده به مهمان</td><td class="num">{{ $money($booking->damageDeposit->refunded_amount) }}</td></tr>
+                @else
+                    <tr class="total"><td>وضعیت</td><td class="num">{{ $booking->damageDeposit->statusLabel() }}</td></tr>
+                @endif
+            </tbody>
+        </table>
+    @endif
 </div>
 </body>
 </html>

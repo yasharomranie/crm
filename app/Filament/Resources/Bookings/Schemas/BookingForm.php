@@ -147,7 +147,7 @@ class BookingForm
                     ->hintAction(FieldHelp::make('bookings.notes')),
                 Section::make('خلاصه‌ی صورت‌حساب')
                     ->visible(fn (?Booking $record) => $record !== null)
-                    ->columns(4)
+                    ->columns(5)
                     ->columnSpanFull()
                     ->schema([
                         Placeholder::make('folio_total')
@@ -162,6 +162,11 @@ class BookingForm
                         Placeholder::make('folio_status')
                             ->label('وضعیت پرداخت')
                             ->content(fn (?Booking $record) => $record?->paymentStatus()->getLabel() ?? '—'),
+                        Placeholder::make('damage_deposit')
+                            ->label('ودیعه‌ی خسارت (جدا از صورت‌حساب)')
+                            ->content(fn (?Booking $record) => $record?->damageDeposit?->held_amount
+                                ? self::money($record->damageDeposit->held_amount).' - '.$record->damageDeposit->statusLabel()
+                                : '—'),
                     ]),
             ]);
     }

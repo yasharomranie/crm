@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
+use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Database\Eloquent\Relations\MorphMany;
 use Illuminate\Support\Facades\DB;
 use InvalidArgumentException;
@@ -179,6 +180,7 @@ class Booking extends Model
         static::updated(function (self $booking) {
             if ($booking->wasChanged('status') && $booking->status === BookingStatus::Cancelled) {
                 $booking->returnWalletMoneyAfterCancellation();
+                $booking->refundDamageDepositAfterCancellation();
             }
         });
 
@@ -726,6 +728,88 @@ class Booking extends Model
         });
     }
 
+    public function damageDeposit(): HasOne
+    {
+        return $this->hasOne(DamageDeposit::class);
+    }
+
+    /**
+     * Takes (more of) the guest's damage deposit. It never touches the folio
+     * or the payment ledger: the deposit is held for the guest, not earned.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function receiveDamageDeposit(int $amount, BookingPaymentMethod $method, ?int $userId = null): DamageDeposit
+    {
+        if ($amount <= 0) {
+            throw new InvalidArgumentException('مبلغ ودیعه باید بیشتر از صفر باشد.');
+        }
+
+        if (! in_array($this->status, self::changeableStatuses(), true)) {
+            throw new InvalidArgumentException('برای این رزرو نمی‌توان ودیعه گرفت.');
+        }
+
+        return DB::transaction(function () use ($amount, $method, $userId) {
+            $deposit = DamageDeposit::query()->lockForUpdate()->firstOrCreate(['booking_id' => $this->id], ['created_by' => $userId]);
+
+            if ($deposit->isSettled()) {
+                throw new InvalidArgumentException('ودیعه‌ی این رزرو قبلاً تسویه شده است.');
+            }
+
+            $deposit->update([
+                'held_amount' => $deposit->held_amount + $amount,
+                'method' => $method,
+                'received_at' => now(),
+            ]);
+
+            activity('bookings')->performedOn($this)->causedBy($userId ? User::find($userId) : null)
+                ->log("دریافت ودیعه‌ی خسارت {$amount} تومان برای {$this->reference_code}");
+
+            $this->unsetRelation('damageDeposit');
+
+            return $deposit;
+        });
+    }
+
+    /**
+     * Ends the deposit once: $deduct toman are kept for damage, the rest is
+     * given back to the guest.
+     *
+     * @throws InvalidArgumentException
+     */
+    public function settleDamageDeposit(int $deduct = 0, ?string $note = null, ?int $userId = null): DamageDeposit
+    {
+        return DB::transaction(function () use ($deduct, $note, $userId) {
+            $deposit = DamageDeposit::query()->lockForUpdate()->where('booking_id', $this->id)->first();
+
+            if (! $deposit || $deposit->held_amount <= 0) {
+                throw new InvalidArgumentException('ودیعه‌ای برای این رزرو دریافت نشده است.');
+            }
+
+            if ($deposit->isSettled()) {
+                throw new InvalidArgumentException('ودیعه‌ی این رزرو قبلاً تسویه شده است.');
+            }
+
+            if ($deduct < 0 || $deduct > $deposit->held_amount) {
+                throw new InvalidArgumentException('مبلغ کسر باید بین ۰ و '.number_format($deposit->held_amount).' تومان باشد.');
+            }
+
+            $deposit->update([
+                'deducted_amount' => $deduct,
+                'refunded_amount' => $deposit->held_amount - $deduct,
+                'settlement_note' => $note,
+                'settled_at' => now(),
+            ]);
+
+            activity('bookings')->performedOn($this)->causedBy($userId ? User::find($userId) : null)
+                ->log("تسویه‌ی ودیعه‌ی {$this->reference_code}: {$deduct} تومان کسر، ".($deposit->held_amount - $deduct).' تومان برگشت');
+
+            $this->unsetRelation('damageDeposit');
+
+            return $deposit;
+        });
+    }
+
     public function cancellationKindLabel(): ?string
     {
         return match ($this->cancellation_kind) {
@@ -740,6 +824,18 @@ class Booking extends Model
      * first, then from what the wallet paid; whatever wallet money is left
      * over goes back into the wallet.
      */
+    /**
+     * A cancelled stay has no damage: whatever deposit was taken is given back in full.
+     */
+    private function refundDamageDepositAfterCancellation(): void
+    {
+        $deposit = $this->damageDeposit()->first();
+
+        if ($deposit && $deposit->held_amount > 0 && ! $deposit->isSettled()) {
+            $this->settleDamageDeposit(0, 'رزرو لغو شد؛ ودیعه کامل برگشت داده می‌شود.');
+        }
+    }
+
     private function returnWalletMoneyAfterCancellation(): void
     {
         $walletPaid = (int) $this->wallet_paid_amount;
