@@ -58,6 +58,26 @@ class SystemGuideTest extends TestCase
             ->assertSee('گزارش بدهی کیف پول');
     }
 
+    public function test_the_hospitality_chapter_has_the_simple_day_scenario_and_every_link_resolves(): void
+    {
+        $html = $this->actingAs(User::factory()->create())
+            ->get(route('system-guide'))
+            ->assertOk()
+            ->assertSee('id="ch-02-simple-day"', false)
+            ->assertSee('سناریوی ساده: یک روز کاری پذیرش')
+            ->assertSee('نقشه‌ی فصل: هر کار را کجا پیدا کنم؟')
+            ->assertSee('ساده‌ترین قاعده')
+            ->getContent();
+
+        preg_match_all('/href="#(ch-02-[a-z-]+)"/', $html, $links);
+
+        $this->assertNotEmpty($links[1]);
+
+        foreach (array_unique($links[1]) as $anchor) {
+            $this->assertStringContainsString('id="'.$anchor.'"', $html, "Chapter 2 links to a missing section: {$anchor}");
+        }
+    }
+
     public function test_the_seo_chapter_is_a_complete_handbook_from_project_to_report(): void
     {
         $response = $this->actingAs(User::factory()->create())
