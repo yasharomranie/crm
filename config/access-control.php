@@ -48,6 +48,7 @@ use App\Models\AiScheduledReport;
 use App\Models\AttendanceRecord;
 use App\Models\Attraction;
 use App\Models\Booking;
+use App\Models\BookingGroup;
 use App\Models\BookingPromoCode;
 use App\Models\CancellationPolicy;
 use App\Models\ChannelAllotment;
@@ -134,6 +135,7 @@ return [
 
         'rooms' => ['model' => Room::class, 'label' => 'اتاق‌ها و ویلاها', 'group' => 'اقامتی و هتلداری'],
         'room-types' => ['model' => RoomType::class, 'label' => 'انواع اتاق/ویلا', 'group' => 'اقامتی و هتلداری'],
+        'booking-groups' => ['model' => BookingGroup::class, 'label' => 'رزروهای گروهی', 'group' => 'اقامتی و هتلداری'],
         'bookings' => ['model' => Booking::class, 'label' => 'رزروها', 'group' => 'اقامتی و هتلداری'],
         'sales-channels' => ['model' => SalesChannel::class, 'label' => 'کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],
         'channel-allotments' => ['model' => ChannelAllotment::class, 'label' => 'سهمیه‌بندی کانال‌ها', 'group' => 'اقامتی و هتلداری'],

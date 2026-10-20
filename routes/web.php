@@ -4,6 +4,7 @@ use App\Domain\Seo\WpConnector\WpPluginPackage;
 use App\Http\Controllers\AdmissionTicketPrintController;
 use App\Http\Controllers\AssistantConversationPrintController;
 use App\Http\Controllers\AssistantRunController;
+use App\Http\Controllers\BookingGroupInvoiceController;
 use App\Http\Controllers\BookingInvoiceController;
 use App\Http\Controllers\BookingPaymentController;
 use App\Http\Controllers\BookingPrecheckinController;
@@ -43,6 +44,8 @@ Route::middleware('auth')->group(function () {
         ->name('document-versions.download');
     Route::get('/bookings/{booking}/invoice', [BookingInvoiceController::class, 'show'])
         ->name('bookings.invoice');
+    Route::get('/booking-groups/{group}/invoice', [BookingGroupInvoiceController::class, 'show'])
+        ->name('booking-groups.invoice');
     Route::get('/contracts/{contract}/print', [ContractPrintController::class, 'show'])
         ->name('contracts.print');
     Route::get('/contracts/{contract}/export-word', [ContractPrintController::class, 'exportWord'])
