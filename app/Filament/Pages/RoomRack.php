@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Hospitality\RoomInventory;
 use App\Enums\BookingStatus;
 use App\Enums\RoomStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
@@ -122,7 +123,7 @@ class RoomRack extends Page
 
             $nights = $stay?->nights();
             $nightIndex = $stay ? min($nights, max(1, (int) $stay->check_in_date->diffInDays($today) + 1)) : null;
-            $effective = ($block && ! $stay) ? RoomStatus::OutOfService : $room->status;
+            $effective = RoomInventory::effectiveStatus($room, $stay, $block);
 
             return [
                 'room' => $room,

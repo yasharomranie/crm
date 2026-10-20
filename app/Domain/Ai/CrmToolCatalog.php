@@ -118,16 +118,11 @@ class CrmToolCatalog
         }
 
         $rooms = Room::query()
-            ->where('is_active', true)
+            ->freeBetween($checkInDate, $checkOutDate)
             ->when($roomTypeName !== '', fn ($query) => $query->whereHas(
                 'roomType',
                 fn ($q) => $q->where('name', 'like', "%{$roomTypeName}%"),
             ))
-            ->whereDoesntHave('bookings', function ($query) use ($checkInDate, $checkOutDate) {
-                $query->where('status', '!=', BookingStatus::Cancelled)
-                    ->where('check_in_date', '<', $checkOutDate)
-                    ->where('check_out_date', '>', $checkInDate);
-            })
             ->with('roomType')
             ->get();
 

@@ -3,7 +3,6 @@
 namespace App\Http\Controllers\Api\V1\External;
 
 use App\Domain\Hospitality\StayPricing;
-use App\Enums\BookingStatus;
 use App\Exceptions\InvalidPromoCodeException;
 use App\Http\Controllers\Controller;
 use App\Models\BookingPromoCode;
@@ -44,14 +43,8 @@ class RoomAvailabilityController extends Controller
         ]);
 
         $rooms = Room::query()
-            ->where('is_active', true)
+            ->freeBetween(Carbon::parse($data['check_in']), Carbon::parse($data['check_out']))
             ->when($data['room_type_id'] ?? null, fn ($query, $roomTypeId) => $query->where('room_type_id', $roomTypeId))
-            ->whereDoesntHave('blocks', fn ($query) => $query->overlapping(Carbon::parse($data['check_in']), Carbon::parse($data['check_out'])))
-            ->whereDoesntHave('bookings', function ($query) use ($data) {
-                $query->where('status', '!=', BookingStatus::Cancelled)
-                    ->where('check_in_date', '<', $data['check_out'])
-                    ->where('check_out_date', '>', $data['check_in']);
-            })
             ->with('roomType')
             ->get()
             // A channel that has used up its allotment of a room type cannot

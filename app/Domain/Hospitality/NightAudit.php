@@ -28,6 +28,8 @@ use InvalidArgumentException;
  */
 class NightAudit
 {
+    public function __construct(private RoomInventory $inventory) {}
+
     /** How far back a finished stay's unpaid balance is still chased. */
     private const UNPAID_LOOKBACK_DAYS = 30;
 
@@ -47,7 +49,7 @@ class NightAudit
             'room_mismatches' => $this->roomMismatches(),
         ];
 
-        $rooms = Room::query()->where('is_active', true)->count();
+        $rooms = $this->inventory->sellableOn($date);
         $inHouse = Booking::query()->where('status', BookingStatus::CheckedIn)->count();
 
         return [
