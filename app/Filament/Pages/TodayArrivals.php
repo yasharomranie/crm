@@ -12,6 +12,7 @@ use App\Models\HandoverNote;
 use App\Models\LostItem;
 use App\Models\RoomBlock;
 use BackedEnum;
+use Filament\Actions\Action;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
@@ -39,6 +40,17 @@ class TodayArrivals extends Page
     public static function accessControlPermission(): string
     {
         return 'today-arrivals.access';
+    }
+
+    protected function getHeaderActions(): array
+    {
+        return [
+            Action::make('housekeepingSheet')
+                ->label('برگه‌ی نظافت امروز')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->color('gray')
+                ->url(route('housekeeping-sheet'), shouldOpenInNewTab: true),
+        ];
     }
 
     /**
