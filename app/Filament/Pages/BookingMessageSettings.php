@@ -57,6 +57,9 @@ class BookingMessageSettings extends Page implements HasForms
             'confirmation_template' => $setting->confirmationText(),
             'reminder_template' => $setting->reminderText(),
             'feedback_template' => $setting->feedbackText(),
+            'balance_reminder_enabled' => $setting->balance_reminder_enabled,
+            'balance_reminder_days_before' => $setting->balance_reminder_days_before,
+            'balance_reminder_template' => $setting->balanceText(),
         ]);
     }
 
@@ -78,6 +81,13 @@ class BookingMessageSettings extends Page implements HasForms
                     ->label('چند روز قبل از ورود؟')
                     ->numeric()->minValue(0)->maxValue(14)->required(),
                 Textarea::make('reminder_template')->label('متن پیامک یادآوری')->rows(3)->maxLength(500)->helperText($placeholders),
+                Toggle::make('balance_reminder_enabled')
+                    ->label('پیش از ورود، پیامک مانده‌ی حساب بفرست')
+                    ->helperText('فقط برای رزروهای قطعی که هنوز بدهکارند؛ هر رزرو یک بار. هر صبح ساعت ۹:۴۵.'),
+                TextInput::make('balance_reminder_days_before')
+                    ->label('چند روز قبل از ورود؟')
+                    ->numeric()->minValue(0)->maxValue(30)->required(),
+                Textarea::make('balance_reminder_template')->label('متن پیامک مانده‌ی حساب')->rows(3)->maxLength(500)->helperText($placeholders.' {balance} مانده‌ی حساب به تومان است.'),
                 Toggle::make('feedback_enabled')
                     ->label('بعد از چک‌اوت، لینک نظرسنجی بفرست')
                     ->helperText('مهمان با یک امتیاز ۰ تا ۱۰ و یک نظر کوتاه جواب می‌دهد و پاسخ در «بازخورد مهمانان» می‌آید.'),
