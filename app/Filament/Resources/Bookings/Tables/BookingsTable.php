@@ -16,6 +16,7 @@ use App\Filament\Resources\Bookings\Actions\SendBookingSmsAction;
 use App\Filament\Support\TableExports;
 use App\Models\Booking;
 use App\Models\CancellationPolicy;
+use App\Support\MobileNumber;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
@@ -36,13 +37,34 @@ use InvalidArgumentException;
 
 class BookingsTable
 {
+    /**
+     * The desk finds a booking by what the guest says on the phone: their
+     * name, their mobile in any spelling (0912..., +98912..., Persian digits)
+     * or their national code.
+     *
+     * @param  Builder<Booking>  $query
+     * @return Builder<Booking>
+     */
+    public static function searchGuest(Builder $query, string $search): Builder
+    {
+        $search = trim($search);
+        $mobile = MobileNumber::normalize($search);
+
+        return $query->whereHas('guest', fn (Builder $guests) => $guests->where(fn (Builder $match) => $match
+            ->where('name', 'like', "%{$search}%")
+            ->orWhere('mobile', 'like', '%'.($mobile ?? MobileNumber::canonical($search) ?? $search).'%')
+            ->orWhere('national_code', 'like', "%{$search}%")));
+    }
+
     public static function configure(Table $table): Table
     {
         return $table
             ->columns([
                 TextColumn::make('reference_code')->label('کد رزرو')->fontFamily('mono')->searchable(),
-                TextColumn::make('room.name')->label('اتاق/ویلا'),
-                TextColumn::make('guest.name')->label('مهمان')->searchable(),
+                TextColumn::make('room.name')->label('اتاق/ویلا')->searchable(),
+                TextColumn::make('guest.name')
+                    ->label('مهمان')
+                    ->searchable(query: fn (Builder $query, string $search): Builder => static::searchGuest($query, $search)),
                 TextColumn::make('check_in_date')->label('ورود')->jalaliDate('Y/m/d'),
                 TextColumn::make('check_out_date')->label('خروج')->jalaliDate('Y/m/d'),
                 TextColumn::make('status')->label('وضعیت')->badge(),
