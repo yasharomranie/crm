@@ -214,4 +214,50 @@ class AssistantConsultationServiceTest extends TestCase
 
         Http::assertSent(fn ($request) => ! array_key_exists('tools', $request->data()));
     }
+
+    public function test_the_consulted_assistant_can_ask_a_third_one_but_that_one_asks_nobody(): void
+    {
+        $admin = $this->asAdmin();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $admin->id, 'consultable' => true]);
+        $middle = AiAssistantProfile::factory()->create(['created_by' => $admin->id, 'consultable' => true]);
+        $last = AiAssistantProfile::factory()->create(['created_by' => $admin->id, 'consultable' => true]);
+
+        Http::fake(['*/chat/completions' => Http::sequence()
+            ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => [[
+                'id' => 'call_1', 'type' => 'function',
+                'function' => ['name' => 'consult_assistant', 'arguments' => json_encode(['target_profile_id' => $last->id, 'question' => 'بخش مالی؟'])],
+            ]]]]]])
+            ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'مالی: تأیید است.']]]])
+            ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'جمع‌بندی نهایی.']]]]),
+        ]);
+
+        $result = app(AssistantConsultationService::class)->consult($requester, $middle, 'سؤال ترکیبی؟');
+
+        $this->assertSame('جمع‌بندی نهایی.', $result['answer']);
+        $this->assertSame([$last->displayName()], $result['nested']);
+
+        $requests = Http::recorded();
+        $this->assertCount(3, $requests);
+
+        $middleTool = collect($requests[0][0]->data()['tools'])->firstWhere('function.name', 'consult_assistant');
+        $this->assertSame([$last->id], $middleTool['function']['parameters']['properties']['target_profile_id']['enum']);
+        $this->assertArrayNotHasKey('tools', $requests[1][0]->data());
+
+        $this->assertSame(1, AiAssistantConsultation::where('consulting_ai_assistant_profile_id', $middle->id)->where('consulted_ai_assistant_profile_id', $last->id)->count());
+        $this->assertSame(1, AiAssistantConsultation::where('consulting_ai_assistant_profile_id', $requester->id)->where('consulted_ai_assistant_profile_id', $middle->id)->count());
+    }
+
+    public function test_a_nested_consultation_cannot_loop_back_to_someone_in_the_chain(): void
+    {
+        $admin = $this->asAdmin();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $admin->id, 'consultable' => true]);
+        $middle = AiAssistantProfile::factory()->create(['created_by' => $admin->id, 'consultable' => true]);
+        $this->fakeAnswers('پاسخ.');
+
+        app(AssistantConsultationService::class)->consult($requester, $middle, 'سؤال؟');
+
+        Http::assertSent(fn ($request) => ! array_key_exists('tools', $request->data()));
+    }
 }

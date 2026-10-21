@@ -932,7 +932,7 @@ trait HasCustomAssistantChatEngine
      * so the chat can show it under that assistant's name instead of only the
      * asking assistant's paraphrase. Null for anything else, or for a failed call.
      *
-     * @return array{name: string, answer: string}|null
+     * @return array{name: string, answer: string, nested: list<string>}|null
      */
     public function consultationAnswer(AiMessage $message): ?array
     {
@@ -946,7 +946,7 @@ trait HasCustomAssistantChatEngine
             return null;
         }
 
-        return ['name' => (string) $result['consulted'], 'answer' => (string) $result['answer']];
+        return ['name' => (string) $result['consulted'], 'answer' => (string) $result['answer'], 'nested' => array_values(array_filter((array) ($result['nested'] ?? []), 'is_string'))];
     }
 
     /**

@@ -7,6 +7,7 @@ use App\Domain\Ai\AiPageContextResolver;
 use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AiToolRouter;
+use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\AssistantUsage;
 use App\Domain\Ai\MarkdownTables;
 use App\Domain\Hospitality\RoomInventory;
@@ -588,6 +589,8 @@ trait HasAiAssistantEngine
             اگر ابزاری error برگرداند، همان را کلمه‌به‌کلمه تکرار نکن: به فارسی ساده بگو چه مشکلی پیش آمد و کاربر چه کاری می‌تواند بکند (مثلاً نام را دقیق‌تر بنویسد، بازه را تغییر بدهد یا از مدیر سیستم دسترسی بخواهد).
             برای گزارش‌هایی که فقط «این ماه/ماه قبل» پشتیبانی می‌کنند، اگر کاربر بازهٔ دیگری خواست از from_date و to_date (تاریخ شمسی Y/m/d) استفاده کن.
 
+            اگر ابزار consult_custom_assistant در دسترس است، دستیارهای تخصصی خود کاربر را نشان می‌دهد: برای سؤالی که در حوزهٔ یکی از آن‌هاست از او بپرس و پاسخش را با نام همان دستیار به کاربر ارائه کن (مثلاً «به گفتهٔ دستیار «X»: …»)؛ آن را یافتهٔ خودت جا نزن. این ابزار فقط می‌خواند و هیچ اقدامی انجام نمی‌دهد.
+
             دربارهٔ جست‌وجوی سراسری (search_everything):
             - وقتی کاربر چیزی را با یک نام/عبارت کلی می‌خواهد (مثل نام یک مشتری، پروژه، قرارداد، یا هر کلیدواژه‌ای) بدون این‌که بگوید دقیقاً مال کدام بخش سیستم است، اول search_everything را با همان عبارت صدا بزن - هیچ‌وقت مستقیم حدس نزن کدوم ابزار تخصصی مناسبه و هیچ‌وقت فقط به این دلیل که یک ابزار تخصصی‌تر چیزی پیدا نکرد، بگو «پیدا نشد»؛ همیشه اول با این ابزار در کل سیستم بگرد.
             - این ابزار هم‌زمان وظایف، پروژه‌ها، معاملات، قراردادها، اسناد، تیکت‌های پشتیبانی، شرکت‌ها، و مقادیر واقعی ثبت‌شده داخل همهٔ فرم‌ها (نه فقط اسم فرم‌ها) را می‌گردد و نتایج را بر اساس شباهت به عبارت جست‌وجو مرتب می‌کند - نتیجهٔ اول لزوماً تطابق کامل نیست، بهترین تطابق نسبیه.
@@ -785,6 +788,7 @@ trait HasAiAssistantEngine
 
         return match ($name) {
             'search_everything' => $this->globalSearchTool($arguments),
+            'consult_custom_assistant' => $this->consultCustomAssistantTool($arguments),
             'get_accommodation_summary' => $this->accommodationSummary(),
             'get_occupancy_forecast' => $this->occupancyForecastTool($arguments),
             'search_bookings' => $this->searchBookingsTool($arguments),
@@ -880,6 +884,19 @@ trait HasAiAssistantEngine
                 ],
                 'required' => ['query'],
             ]);
+            $consultants = app(AssistantConsultationService::class)->consultantsForManager($user);
+
+            if ($consultants->isNotEmpty()) {
+                $tools[] = $this->toolSchema('consult_custom_assistant', 'Ask one of the user\'s own specialist assistants a question and get its answer (it uses its own knowledge base and read-only lookups). Use when the question falls in a specialist\'s field: '.$consultants->map(fn ($profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.$profile->specialties.')' : ''))->implode('; ').'. Then present the answer to the user under that assistant\'s name; never present it as your own finding.', [
+                    'type' => 'object',
+                    'properties' => [
+                        'assistant_id' => ['type' => 'integer', 'enum' => $consultants->pluck('id')->all(), 'description' => 'Which specialist to ask.'],
+                        'question' => ['type' => 'string', 'description' => 'A complete, self-contained question - the specialist cannot see this chat.'],
+                    ],
+                    'required' => ['assistant_id', 'question'],
+                ]);
+            }
+
             $tools[] = $this->toolSchema('get_accommodation_summary', 'Get current room occupancy, today\'s check-ins/outs, and this month\'s accommodation revenue.', $noParams);
             $tools[] = $this->toolSchema('get_occupancy_forecast', 'Get a day-by-day room occupancy forecast for the upcoming days: occupied/available room counts, occupancy rate percent, and arrival/departure counts per day - use for planning questions like "چند روز آینده چقدر اتاق خالی داریم".', [
                 'type' => 'object',
@@ -1878,6 +1895,28 @@ trait HasAiAssistantEngine
      *
      * @param  array<string, mixed>  $arguments
      */
+    /**
+     * Read-only: the specialist answers a question (its own knowledge and
+     * granted lookups, narrowed by this user's permissions) and cannot
+     * change anything or call anyone else.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function consultCustomAssistantTool(array $arguments): array
+    {
+        $question = trim((string) ($arguments['question'] ?? ''));
+        $target = app(AssistantConsultationService::class)
+            ->consultantsForManager(Auth::user())
+            ->firstWhere('id', (int) ($arguments['assistant_id'] ?? 0));
+
+        if ($question === '' || ! $target) {
+            return ['error' => 'دستیار انتخاب‌شده در دسترس نیست یا سؤال خالی است.'];
+        }
+
+        return app(AssistantConsultationService::class)->consult(null, $target, $question, user: Auth::user());
+    }
+
     private function globalSearchTool(array $arguments): array
     {
         $query = trim((string) ($arguments['query'] ?? ''));
