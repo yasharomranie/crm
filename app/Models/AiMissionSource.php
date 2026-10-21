@@ -9,6 +9,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
+use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
  * A file (strategy, policy, report, spreadsheet) in a user's library of
@@ -39,6 +40,11 @@ class AiMissionSource extends Model
     public function owner(): BelongsTo
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function chunks(): HasMany
+    {
+        return $this->hasMany(AiMissionSourceChunk::class)->orderBy('position');
     }
 
     public function missions(): BelongsToMany

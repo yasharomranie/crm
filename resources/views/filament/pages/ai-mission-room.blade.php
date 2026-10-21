@@ -447,6 +447,32 @@
 
                         @include('filament.pages.partials.ai-mission-source-upload')
 
+                        @if ($mission->sources->count() > 1 && $mission->roles->isNotEmpty())
+                            <div class="mr-stack" style="gap: 0.5rem; border-top: 1px solid var(--mr-line); padding-top: 0.8rem;">
+                                <div>
+                                    <strong style="font-size: 0.9rem;">هر عضو کدام فایل‌ها را ببیند؟</strong>
+                                    <p class="mr-sub">پیش‌فرض همه (✓). با زدن روی یک فایل برای یک عضو آن را کنار بگذارید؛ مثلاً فایل مالی فقط پیش متخصص مالی بماند. خلاصهٔ استراتژی همیشه به همه می‌رسد.</p>
+                                </div>
+                                @foreach ($mission->roles as $memberRole)
+                                    @php $allowed = $memberRole->sources->pluck('id')->all() ?: $attachedIds; @endphp
+                                    <div class="mr-item" wire:key="role-sources-{{ $memberRole->id }}">
+                                        <div class="mr-member" style="background: transparent; padding: 0;">
+                                            @if ($memberRole->profile)
+                                                <x-ai-assistant-avatar :shape="$memberRole->profile->avatar_shape" :color="$memberRole->profile->avatar_color" :size="32" :animated="false" />
+                                            @endif
+                                            <span style="min-width: 0; font-size: 0.82rem; font-weight: 700;">{{ $memberRole->profile?->displayName() ?? 'دستیار' }} <span class="mr-sub">({{ $memberRole->role->getLabel() }})</span></span>
+                                        </div>
+                                        <div class="mr-actions">
+                                            @foreach ($mission->sources as $attachedSource)
+                                                @php $sees = in_array($attachedSource->id, $allowed, true); @endphp
+                                                <button type="button" @class(['mr-mini']) style="{{ $sees ? '' : 'opacity: 0.55; text-decoration: line-through;' }}" wire:click="toggleRoleSource({{ $memberRole->id }}, {{ $attachedSource->id }})" aria-pressed="{{ $sees ? 'true' : 'false' }}" @disabled($isRunning)>{{ $sees ? '✓' : '✕' }} {{ \Illuminate\Support\Str::limit($attachedSource->title, 28) }}</button>
+                                            @endforeach
+                                        </div>
+                                    </div>
+                                @endforeach
+                            </div>
+                        @endif
+
                         @if ($mission->sources->isNotEmpty())
                             <div class="mr-row" style="gap: 0.5rem; justify-content: flex-start; flex-wrap: wrap;">
                                 <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; font-size: 0.85rem;" wire:click="buildBrief" wire:loading.attr="disabled" wire:target="buildBrief" @disabled($isRunning || $briefStatus === \App\Enums\AiMissionBriefStatus::Building)>{{ $hasBrief ? 'ساخت دوبارهٔ خلاصه' : 'ساخت خلاصهٔ استراتژی' }}</button>
@@ -673,6 +699,12 @@
                                                     <span class="mr-pill bad" style="justify-self: start;">بدون منبع</span>
                                                 @elseif ($card->source)
                                                     <span class="mr-sub">منبع: {{ $card->source }}</span>
+                                                @endif
+                                                @if ($card->sourceChunk)
+                                                    <details class="mr-sub" style="background: var(--mr-soft); border-radius: 0.6rem; padding: 0.4rem 0.7rem;">
+                                                        <summary style="cursor: pointer; font-weight: 600;">📄 متن همین بخش از فایل را ببین</summary>
+                                                        <p style="margin: 0.4rem 0 0; white-space: pre-line; line-height: 1.9;">{{ \Illuminate\Support\Str::limit($card->sourceChunk->content, 900, '…') }}</p>
+                                                    </details>
                                                 @endif
                                                 @if ($card->status !== \App\Enums\AiMissionCardStatus::Rejected)
                                                     @foreach ($mission->cards->where('target_card_id', $card->id) as $critique)
