@@ -2,13 +2,11 @@
 
 namespace Tests\Feature;
 
-use App\Domain\Ai\Missions\MissionBrief;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSourceChunker;
 use App\Domain\Ai\Missions\MissionSourceDigester;
 use App\Domain\Ai\Missions\MissionSourceSearch;
 use App\Domain\Ai\Missions\MissionSourceTools;
-use App\Enums\AiMissionBriefStatus;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionRoleType;
 use App\Filament\Pages\AiMissionRoom;
@@ -75,16 +73,6 @@ class AiMissionSourceSearchTest extends TestCase
         ]);
 
         return compact('mission', 'specialist', 'coordinator');
-    }
-
-    private function approveBriefFor(AiMission $mission): void
-    {
-        $mission->update([
-            'brief' => ['summary' => 'خلاصه', 'goals' => ['اشغال بیشتر']],
-            'brief_status' => AiMissionBriefStatus::Approved,
-            'brief_sources_hash' => MissionBrief::sourcesHash($mission),
-            'brief_approved_at' => now(),
-        ]);
     }
 
     public function test_the_chunker_keeps_headings_repeats_sheet_headers_and_splits_long_text(): void
@@ -163,7 +151,6 @@ class AiMissionSourceSearchTest extends TestCase
         ['mission' => $mission] = $this->missionWithTeam();
         $chunk = $this->sourceWithChunk('برنامهٔ راهبردی', 'هدف سال آینده رسیدن به نرخ اشغال ۷۵ درصد است.', null, $mission);
         $citation = $chunk->load('source')->citation();
-        $this->approveBriefFor($mission);
 
         $toolResults = [];
         Http::fake(['*/chat/completions' => function (Request $request) use ($citation, &$toolResults) {
@@ -198,7 +185,6 @@ class AiMissionSourceSearchTest extends TestCase
         $allowed = $this->sourceWithChunk('مجاز', 'نرخ اشغال', null, $mission);
         $secret = $this->sourceWithChunk('محرمانه', 'درآمد ماهانه ۹۰۰ میلیون', null, $mission);
         $specialist->sources()->attach($allowed->ai_mission_source_id);
-        $this->approveBriefFor($mission);
 
         $toolResults = [];
         Http::fake(['*/chat/completions' => function (Request $request) use (&$toolResults) {

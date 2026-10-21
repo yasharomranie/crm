@@ -324,7 +324,7 @@ class AiMissionRoom extends Page
         $this->missionId = $mission->id;
         $this->showCreate = false;
         Notification::make()
-            ->title($mission->sources()->exists() ? 'مأموریت ساخته شد؛ فایل‌ها در کتابخانهٔ آن هستند. برای اجرا اول «خلاصهٔ استراتژی» را بسازید و تأیید کنید.' : 'مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')
+            ->title($mission->sources()->exists() ? 'مأموریت ساخته شد؛ فایل‌ها در کتابخانهٔ آن هستند و وقتی «آماده» شدند تیم از آن‌ها استفاده می‌کند.' : 'مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')
             ->success()
             ->send();
     }

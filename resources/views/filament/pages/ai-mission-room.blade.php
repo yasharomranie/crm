@@ -429,9 +429,9 @@
                         <div class="mr-row">
                             <div>
                                 <h2 class="mr-h">📚 کتابخانهٔ این مأموریت</h2>
-                                <p class="mr-sub">فایل‌های استراتژی، سیاست‌ها و گزارش‌های همین مأموریت را بگذارید (برای هر مأموریت کتابخانهٔ جدا)؛ از آن‌ها یک «خلاصهٔ استراتژی» ساخته می‌شود که شما می‌خوانید و تأیید می‌کنید و بعد همهٔ اعضا با آن کار می‌کنند. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود؛ فایل بسیار محرمانه نگذارید.</p>
+                                <p class="mr-sub">فایل‌های استراتژی، سیاست‌ها و گزارش‌های همین مأموریت را بگذارید (برای هر مأموریت کتابخانهٔ جدا). فایل‌ها به‌محض «آماده» شدن قابل استفاده‌اند: اعضای تیم خودشان در آن‌ها جست‌وجو می‌کنند و برای هر یافته می‌نویسند از کدام فایل و کدام بخش آمده. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود؛ فایل بسیار محرمانه نگذارید.</p>
                             </div>
-                            @if ($mission->sources->isNotEmpty())
+                            @if ($mission->sources->isNotEmpty() && $hasBrief)
                                 <span @class(['mr-pill', 'good' => $briefStatus === \App\Enums\AiMissionBriefStatus::Approved && ! $briefStale, 'warn' => $briefStale || $briefStatus === \App\Enums\AiMissionBriefStatus::Review || $briefStatus === \App\Enums\AiMissionBriefStatus::None, 'bad' => $briefStatus === \App\Enums\AiMissionBriefStatus::Failed, 'accent' => $briefStatus === \App\Enums\AiMissionBriefStatus::Building])>خلاصه: {{ $briefStale ? 'منابع تغییر کرده' : $briefStatus->getLabel() }}</span>
                             @endif
                         </div>
@@ -464,6 +464,14 @@
                             <p class="mr-sub">هنوز فایلی برای این مأموریت نگذاشته‌اید.</p>
                         @endforelse
 
+                        @if ($mission->sources->isNotEmpty())
+                            @if ($mission->sources->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending))
+                                <p class="mr-sub" style="color: var(--mr-accent);">در حال خواندن فایل‌ها… وقتی همه «آماده» شدند می‌توانید مأموریت را اجرا کنید.</p>
+                            @elseif ($mission->sources->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Ready))
+                                <p class="mr-sub" style="color: var(--mr-good);">✓ فایل‌ها آماده‌اند؛ تیم هنگام اجرا در آن‌ها جست‌وجو می‌کند.</p>
+                            @endif
+                        @endif
+
                         @include('filament.pages.partials.ai-mission-source-upload')
 
                         @if ($mission->sources->count() > 1 && $mission->roles->isNotEmpty())
@@ -494,22 +502,22 @@
 
                         @if ($mission->sources->isNotEmpty())
                             <div class="mr-row" style="gap: 0.5rem; justify-content: flex-start; flex-wrap: wrap;">
-                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; font-size: 0.85rem;" wire:click="buildBrief" wire:loading.attr="disabled" wire:target="buildBrief" @disabled($isRunning || $briefStatus === \App\Enums\AiMissionBriefStatus::Building)>{{ $hasBrief ? 'ساخت دوبارهٔ خلاصه' : 'ساخت خلاصهٔ استراتژی' }}</button>
+                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; font-size: 0.85rem;" wire:click="buildBrief" wire:loading.attr="disabled" wire:target="buildBrief" @disabled($isRunning || $briefStatus === \App\Enums\AiMissionBriefStatus::Building)>{{ $hasBrief ? 'ساخت دوبارهٔ خلاصه' : 'ساخت خلاصهٔ استراتژی (اختیاری)' }}</button>
                                 @if ($briefStatus === \App\Enums\AiMissionBriefStatus::Building)
                                     <span class="mr-sub">در حال ساخت خلاصه… (چند لحظه)</span>
                                 @elseif ($briefStatus === \App\Enums\AiMissionBriefStatus::Failed)
                                     <span class="mr-sub" style="color: var(--mr-bad);">{{ $mission->brief_error }}</span>
                                 @elseif (! $hasBrief)
-                                    <span class="mr-sub">تا خلاصه ساخته و تأیید نشود، این مأموریت اجرا نمی‌شود.</span>
+                                    <span class="mr-sub">اختیاری: اگر می‌خواهید تیم همیشه چند هدف و «خط قرمز» ثابت را به یاد داشته باشد، خلاصه بسازید و تأیید کنید.</span>
                                 @endif
                             </div>
                         @endif
 
                         @if ($mission->sources->isNotEmpty() && $hasBrief && $briefStatus !== \App\Enums\AiMissionBriefStatus::Building)
                             <div class="mr-stack" style="gap: 0.6rem; border-top: 1px solid var(--mr-line); padding-top: 0.8rem;">
-                                <strong style="font-size: 0.9rem;">خلاصهٔ استراتژی (بخوانید، ویرایش کنید و تأیید بزنید؛ هر مورد یک خط)</strong>
+                                <strong style="font-size: 0.9rem;">خلاصهٔ استراتژی (اختیاری؛ فقط بعد از تأیید شما به تیم داده می‌شود؛ هر مورد یک خط)</strong>
                                 @if ($briefStale)
-                                    <p class="mr-sub" style="color: var(--mr-warn);">فایل‌های مأموریت بعد از تأیید عوض شده‌اند؛ خلاصه را دوباره بسازید یا همین را دوباره تأیید کنید.</p>
+                                    <p class="mr-sub" style="color: var(--mr-warn);">فایل‌های مأموریت بعد از تأیید عوض شده‌اند؛ تا خلاصه را دوباره نسازید یا همین را دوباره تأیید نکنید، به تیم داده نمی‌شود.</p>
                                 @endif
                                 <div>
                                     <label class="mr-sub" for="brief-summary">چکیده</label>

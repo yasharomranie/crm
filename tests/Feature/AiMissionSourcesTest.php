@@ -214,26 +214,41 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame(AiMissionBriefStatus::None, $mission->fresh()->brief_status);
     }
 
-    public function test_a_mission_with_sources_does_not_run_until_the_brief_is_approved_and_current(): void
+    public function test_files_are_usable_without_any_brief(): void
     {
         $mission = $this->missionWithTeam();
-        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
+
+        $this->assertSame(AiMissionBriefStatus::None, $mission->fresh()->brief_status);
+        $this->assertTrue(app(MissionRunner::class)->start($mission, $this->admin)['ok']);
+    }
+
+    public function test_a_mission_waits_while_a_file_is_still_being_read(): void
+    {
+        $mission = $this->missionWithTeam();
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'status' => AiMissionSourceStatus::Pending, 'digest' => null]);
 
         $result = app(MissionRunner::class)->start($mission, $this->admin);
+
         $this->assertFalse($result['ok']);
-        $this->assertStringContainsString('خلاصهٔ استراتژی', $result['error']);
+        $this->assertStringContainsString('در حال خواندن', $result['error']);
         $this->assertSame(AiMissionStatus::Draft, $mission->fresh()->status);
+    }
 
-        $page = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief')->call('approveBrief');
-        $this->assertSame(AiMissionBriefStatus::Approved, $mission->fresh()->brief_status);
-        $this->assertTrue(app(MissionRunner::class)->start($mission->fresh(), $this->admin)['ok']);
+    public function test_only_a_current_approved_brief_reaches_the_team(): void
+    {
+        $mission = $this->mission();
+        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
+        $this->assertSame('', MissionBrief::promptBlock($mission->fresh()));
 
-        $mission->refresh()->update(['status' => AiMissionStatus::Draft]);
+        $page = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief');
+        $this->assertSame('', MissionBrief::promptBlock($mission->fresh()), 'a draft nobody approved is not given to the team');
+
+        $page->call('approveBrief');
+        $this->assertStringContainsString('هیچ‌وقت زیر قیمت تمام‌شده نفروش', MissionBrief::promptBlock($mission->fresh()));
+
         $source->update(['kind' => AiMissionSourceKind::Evidence]);
-        $blocked = app(MissionRunner::class)->start($mission->fresh(), $this->admin);
-        $this->assertFalse($blocked['ok']);
-        $this->assertStringContainsString('تغییر کرده', $blocked['error']);
-        $this->assertNotNull($page);
+        $this->assertSame('', MissionBrief::promptBlock($mission->fresh()), 'a brief approved for other files is not given to the team');
     }
 
     public function test_a_mission_without_sources_runs_as_before(): void
@@ -282,7 +297,7 @@ class AiMissionSourcesTest extends TestCase
         $mission->refresh();
         $this->assertSame(AiMissionBriefStatus::Review, $mission->brief_status);
         $this->assertSame(['خط اول', 'خط دوم'], $mission->brief['red_lines']);
-        $this->assertNotNull(MissionBrief::blocksRun($mission));
+        $this->assertSame('', MissionBrief::promptBlock($mission), 'an edited brief waits for approval again');
     }
 
     public function test_only_the_owner_can_see_change_or_delete_a_file(): void
