@@ -14,6 +14,7 @@
                     shown: { assistants: 0, consultations: 0, handoffs: 0, live: 0 },
                     timers: [],
                     fullscreen: false,
+                    fullscreenOk: !!document.fullscreenEnabled,
                     missionPick: initialMission,
                     bubbles: (() => { try { return localStorage.getItem('aiTeamMapBubbles') !== 'off'; } catch (e) { return true; } })(),
                     style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'cartoon' ? 'cartoon' : 'robot'; } catch (e) { return 'robot'; } })(),
@@ -89,7 +90,7 @@
     @endassets
 
     <style>
-        .wr-stage { --wr-bg: #0b1220; --wr-panel: rgb(7 16 32 / 0.72); --wr-line: rgb(56 189 248 / 0.28); --wr-cyan: #38bdf8; --wr-amber: #fbbf24; --wr-text: #e2e8f0; --wr-dim: #8193ad; position: relative; height: 44rem; overflow: hidden; border-radius: 1rem; border: 1px solid var(--wr-line); background: var(--wr-bg); color: var(--wr-text); isolation: isolate; }
+        .wr-stage, .wr-below { --wr-bg: #0b1220; --wr-panel: rgb(7 16 32 / 0.72); --wr-line: rgb(56 189 248 / 0.28); --wr-cyan: #38bdf8; --wr-amber: #fbbf24; --wr-text: #e2e8f0; --wr-dim: #8193ad; position: relative; height: 44rem; overflow: hidden; border-radius: 1rem; border: 1px solid var(--wr-line); background: var(--wr-bg); color: var(--wr-text); isolation: isolate; }
         .wr-stage:fullscreen { height: 100vh; border-radius: 0; }
         .wr-scene { position: absolute; inset: 0; }
         .wr-panel { position: absolute; background: var(--wr-panel); border: 1px solid var(--wr-line); border-radius: 0.5rem; }
@@ -110,16 +111,48 @@
         .wr-row { display: flex; width: 100%; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 0.375rem; text-align: start; cursor: pointer; background: transparent; border: 0; color: inherit; }
         .wr-row:hover, .wr-row.sel { background: rgb(56 189 248 / 0.12); }
         .wr-row:focus-visible { outline: 2px solid var(--wr-cyan); }
-        @media (max-width: 1023px) { .wr-side { display: none; } .wr-stage { height: 36rem; } }
+        .wr-main { position: absolute; inset: 0; z-index: 1; pointer-events: none; }
+        .wr-main > * { pointer-events: auto; }
+        .wr-top, .wr-bottom { z-index: 2; }
+        .wr-top { top: 0.75rem; inset-inline: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.9rem; }
+        .wr-title { display: flex; align-items: center; gap: 0.75rem; min-width: 0; }
+        .wr-controls { display: flex; align-items: center; gap: 0.75rem; }
+        .wr-roster { top: 5rem; bottom: 6.5rem; inset-inline-start: 0.75rem; width: 15rem; display: flex; flex-direction: column; padding: 0.6rem; }
+        .wr-feed { top: 5rem; bottom: 6.5rem; inset-inline-end: 0.75rem; width: 17rem; display: flex; flex-direction: column; padding: 0.6rem; }
+        .wr-selected { bottom: 6.5rem; inset-inline: 0; margin-inline: auto; width: min(24rem, calc(100% - 1.5rem)); padding: 0.7rem 0.9rem; }
+        .wr-bottom { bottom: 0.75rem; inset-inline: 0.75rem; padding: 0.55rem 0.9rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.5rem; }
+        .wr-counters { display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem; }
+        .wr-legend { display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem; }
+        .wr-chips, .wr-below { display: none; }
+        .wr-chip { display: inline-flex; align-items: center; gap: 0.4rem; flex: none; height: 2.25rem; padding-inline: 0.7rem; border-radius: 9999px; border: 1px solid var(--wr-line); background: rgb(7 16 32 / 0.8); color: var(--wr-text); font-size: 0.75rem; cursor: pointer; white-space: nowrap; }
+        .wr-chip.sel { background: rgb(56 189 248 / 0.22); }
+        .wr-chip:focus-visible { outline: 2px solid var(--wr-cyan); outline-offset: 2px; }
+        @media (max-width: 1023px) {
+            .wr-side, .wr-hint { display: none; }
+            .wr-stage { height: 40rem; height: min(88svh, 46rem); display: flex; flex-direction: column; gap: 0.5rem; padding: 0.5rem; }
+            .wr-stage:fullscreen { height: 100svh; }
+            .wr-panel { position: relative; }
+            .wr-main { position: relative; inset: auto; flex: 1 1 auto; min-height: 14rem; border-radius: 0.5rem; overflow: hidden; }
+            .wr-top { inset-inline: auto; top: auto; flex-direction: column; align-items: stretch; gap: 0.5rem; padding: 0.5rem 0.7rem; }
+            .wr-controls { flex-wrap: wrap; gap: 0.35rem; }
+            .wr-controls select { flex: 1 1 100%; max-width: none !important; height: 2.5rem; }
+            .wr-controls .wr-btn, .wr-seg button { height: 2.25rem; }
+            .wr-chips { display: flex; gap: 0.4rem; overflow-x: auto; padding-bottom: 0.15rem; flex: none; scrollbar-width: none; }
+            .wr-chips::-webkit-scrollbar { display: none; }
+            .wr-selected { position: absolute; top: auto; bottom: 0.5rem; inset-inline: 0.5rem; margin-inline: 0; width: auto; max-height: 60%; overflow-y: auto; }
+            .wr-bottom { inset-inline: auto; bottom: auto; padding: 0.5rem 0.7rem; flex: none; }
+            .wr-counters { display: grid; grid-template-columns: repeat(4, 1fr); width: 100%; gap: 0.3rem; text-align: center; }
+            .wr-counters .wr-label { display: block; }
+            .wr-legend { width: 100%; justify-content: center; }
+            .wr-below { display: block; margin-top: 0.75rem; padding: 0.75rem 0.9rem; border-radius: 0.75rem; border: 1px solid var(--wr-line); background: var(--wr-bg); color: var(--wr-text); }
+        }
     </style>
 
     <div x-data="aiTeamMap(@js($this->mapData()), @js($this->missionId))">
         <div x-ref="stage" class="wr-stage" dir="rtl">
-            <div wire:ignore x-ref="scene" class="wr-scene"></div>
-
             {{-- top bar --}}
-            <div class="wr-panel" style="top: 0.75rem; inset-inline: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.9rem;">
-                <div style="display: flex; align-items: center; gap: 0.75rem; min-width: 0;">
+            <div class="wr-panel wr-top">
+                <div class="wr-title">
                     <span class="wr-led on"></span>
                     <div style="min-width: 0;">
                         <div style="font-size: 0.95rem; font-weight: 700; white-space: nowrap;">اتاق فرماندهی دستیاران</div>
@@ -127,7 +160,7 @@
                         <div class="wr-label" x-show="data.mission" x-text="data.mission ? 'مأموریت: ' + data.mission.title + ' · ' + data.mission.status : ''"></div>
                     </div>
                 </div>
-                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="wr-controls">
                     <div style="text-align: end;" class="wr-side">
                         <div class="wr-num" style="font-size: 1rem; color: var(--wr-cyan);" x-text="clock"></div>
                         <div class="wr-label" x-text="day"></div>
@@ -144,12 +177,25 @@
                     </div>
                     <button type="button" class="wr-btn" :aria-pressed="bubbles" :style="bubbles ? 'background: rgb(56 189 248 / 0.22);' : ''" x-on:click="toggleBubbles()">نظرها</button>
                     <button type="button" class="wr-btn" x-on:click="reset()">نمای کلی</button>
-                    <button type="button" class="wr-btn" x-on:click="toggleFullscreen()" x-text="fullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'"></button>
+                    <button type="button" class="wr-btn" x-show="fullscreenOk" x-on:click="toggleFullscreen()" x-text="fullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'"></button>
                 </div>
             </div>
 
+            {{-- team chips (small screens) --}}
+            <div class="wr-chips" role="group" aria-label="اعضای تیم">
+                <template x-for="node in data.nodes" :key="node.id">
+                    <button type="button" class="wr-chip" :class="selected && selected.id === node.id ? 'sel' : ''" :aria-pressed="!!selected && selected.id === node.id" x-on:click="select(node.id)">
+                        <span class="wr-led" :class="node.live ? 'on' : ''"></span>
+                        <span x-text="node.label"></span>
+                    </button>
+                </template>
+            </div>
+
+            <div class="wr-main">
+            <div wire:ignore x-ref="scene" class="wr-scene"></div>
+
             {{-- roster --}}
-            <div class="wr-panel wr-side" style="top: 5rem; bottom: 6.5rem; inset-inline-start: 0.75rem; width: 15rem; display: flex; flex-direction: column; padding: 0.6rem;">
+            <div class="wr-panel wr-side wr-roster">
                 <div class="wr-label" style="margin-bottom: 0.4rem;">اعضای تیم</div>
                 <div style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.15rem;">
                     <template x-for="node in data.nodes" :key="node.id">
@@ -168,7 +214,7 @@
             </div>
 
             {{-- transmissions --}}
-            <div class="wr-panel wr-side" style="top: 5rem; bottom: 6.5rem; inset-inline-end: 0.75rem; width: 17rem; display: flex; flex-direction: column; padding: 0.6rem;">
+            <div class="wr-panel wr-side wr-feed">
                 <div class="wr-label" style="margin-bottom: 0.4rem;">مخابرات اخیر</div>
                 <ul style="overflow-y: auto; flex: 1; display: flex; flex-direction: column; gap: 0.55rem; list-style: none; margin: 0; padding: 0;">
                     <template x-for="(item, index) in data.feed" :key="index">
@@ -187,7 +233,7 @@
 
             {{-- selected --}}
             <template x-if="selected">
-                <div class="wr-panel" style="bottom: 6.5rem; inset-inline: 0; margin-inline: auto; width: min(24rem, calc(100% - 1.5rem)); padding: 0.7rem 0.9rem;">
+                <div class="wr-panel wr-selected">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span style="width: 0.65rem; height: 0.65rem; border-radius: 9999px;" :style="'background:' + selected.color"></span>
                         <strong style="font-size: 0.85rem;" x-text="selected.label"></strong>
@@ -208,9 +254,11 @@
                 </div>
             </template>
 
+            </div>
+
             {{-- bottom strip --}}
-            <div class="wr-panel" style="bottom: 0.75rem; inset-inline: 0.75rem; padding: 0.55rem 0.9rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.5rem;">
-                <div style="display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;">
+            <div class="wr-panel wr-bottom">
+                <div class="wr-counters">
                     <template x-for="tile in [
                         { label: data.labels[0], key: 'assistants' },
                         { label: data.labels[1], key: 'consultations' },
@@ -220,13 +268,28 @@
                         <div><span class="wr-num" style="font-size: 1.3rem; color: var(--wr-cyan);" x-text="num(shown[tile.key])"></span> <span class="wr-label" x-text="tile.label"></span></div>
                     </template>
                 </div>
-                <div style="display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem;" class="wr-label">
+                <div class="wr-label wr-legend">
                     <template x-for="item in data.legend" :key="item.label">
                         <span><span style="display: inline-block; width: 1.1rem; height: 2px; vertical-align: middle;" :style="'background:' + item.color"></span> <span x-text="item.label"></span></span>
                     </template>
-                    <span>ذرهٔ نوری = پیام در جریان · حلقه دور دستیار = فعال در ۵ دقیقهٔ اخیر</span>
+                    <span class="wr-hint">ذرهٔ نوری = پیام در جریان · حلقه دور دستیار = فعال در ۵ دقیقهٔ اخیر</span>
                 </div>
             </div>
+        </div>
+        <div class="wr-below" dir="rtl">
+            <div class="wr-label" style="margin-bottom: 0.5rem;">مخابرات اخیر</div>
+            <ul style="display: flex; flex-direction: column; gap: 0.6rem; list-style: none; margin: 0; padding: 0;">
+                <template x-for="(item, index) in data.feed" :key="index">
+                    <li style="display: flex; gap: 0.5rem; font-size: 0.8rem; line-height: 1.7;">
+                        <span style="margin-top: 0.5rem; width: 0.45rem; height: 0.45rem; border-radius: 9999px; flex: none;" :style="'background:' + (item.kind === 'handoff' ? 'var(--wr-amber)' : 'var(--wr-cyan)')"></span>
+                        <span style="min-width: 0;">
+                            <span x-text="item.text"></span>
+                            <span class="wr-label" x-text="' · ' + item.at"></span>
+                        </span>
+                    </li>
+                </template>
+                <li x-show="data.feed.length === 0" class="wr-label">هنوز چیزی ثبت نشده.</li>
+            </ul>
         </div>
         <p class="mt-2 text-xs text-gray-500 dark:text-gray-400">بکشید تا بچرخد، اسکرول کنید تا زوم شود، روی یک دستیار بزنید تا دوربین به سمتش برود. این نما فقط دستیارهای خودتان و اشتراکی‌ها را نشان می‌دهد.</p>
     </div>
