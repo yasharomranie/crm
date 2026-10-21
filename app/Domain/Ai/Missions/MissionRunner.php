@@ -12,7 +12,9 @@ use App\Enums\AiMissionStatus;
 use App\Models\AiMission;
 use App\Models\AiMissionCard;
 use App\Models\AiMissionRole;
+use App\Models\AiMissionRun;
 use App\Models\User;
+use App\Notifications\MissionAttentionNotification;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
 use Throwable;
@@ -38,7 +40,7 @@ class MissionRunner
      *
      * @return array{ok: bool, round?: int, steps?: int, error?: string}
      */
-    public function start(AiMission $mission, User $user): array
+    public function start(AiMission $mission, User $user, string $trigger = 'manual'): array
     {
         $mission->loadMissing('roles.profile');
 
@@ -73,6 +75,8 @@ class MissionRunner
             'current_profile_id' => null,
             'step_index' => 0,
             'step_total' => count($steps),
+            'run_trigger' => $trigger,
+            'budget_alerted' => false,
         ]);
 
         return ['ok' => true, 'round' => $mission->rounds_run + 1, 'steps' => count($steps)];
@@ -139,6 +143,9 @@ class MissionRunner
 
         if ($done) {
             $mission->update(['current_step' => null, 'current_profile_id' => null, 'cancel_requested' => false]);
+            $this->recordRun($mission, $round);
+        } else {
+            $this->warnAboutBudget($mission);
         }
 
         return ['ok' => true, 'done' => $done];
@@ -203,7 +210,61 @@ class MissionRunner
             'cancel_requested' => false,
         ]);
 
+        if ($status === AiMissionStatus::Failed) {
+            $this->alert($mission, 'failed', $mission->last_error);
+        }
+
         return ['ok' => false, 'error' => $mission->last_error];
+    }
+
+    /**
+     * Tells the owner something about the mission needs a look. A failing
+     * notification must never break a run, so errors are only reported.
+     */
+    public function alert(AiMission $mission, string $kind, string $message): void
+    {
+        try {
+            $mission->loadMissing('creator');
+            $mission->creator?->notify(new MissionAttentionNotification($mission, $kind, $message));
+        } catch (Throwable $exception) {
+            report($exception);
+        }
+    }
+
+    /**
+     * Keeps the finished round's report (a recurring mission clears its board
+     * each cycle) and tells the owner it is ready to read.
+     */
+    private function recordRun(AiMission $mission, int $round): void
+    {
+        $mission->refresh();
+        $decisions = count($mission->report['decisions'] ?? []);
+
+        AiMissionRun::create([
+            'ai_mission_id' => $mission->id,
+            'trigger' => $mission->run_trigger,
+            'round' => $round,
+            'status' => $mission->status,
+            'summary' => $mission->report['summary'] ?? null,
+            'report' => $mission->report,
+            'tokens_used' => $mission->tokens_used,
+            'finished_at' => now(),
+        ]);
+
+        $this->alert($mission, $decisions > 0 ? 'ready' : 'done', $decisions > 0
+            ? "پیش‌نویس تصمیم آماده است ({$decisions} پیشنهاد)؛ منتظر نظر شماست."
+            : 'اجرا تمام شد و تصمیمی پیشنهاد نشد.');
+    }
+
+    /** One warning per run when 80% of the token budget is gone. */
+    private function warnAboutBudget(AiMission $mission): void
+    {
+        if (! $mission->token_budget || $mission->budget_alerted || $mission->tokens_used < $mission->token_budget * 0.8) {
+            return;
+        }
+
+        $mission->update(['budget_alerted' => true]);
+        $this->alert($mission, 'budget_warning', 'بیش از ۸۰٪ سقف توکن مصرف شده است ('.number_format($mission->tokens_used).' از '.number_format($mission->token_budget).').');
     }
 
     /**

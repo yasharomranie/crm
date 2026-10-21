@@ -402,6 +402,52 @@
                         </div>
                     @endif
 
+                    {{-- recurrence --}}
+                    <div class="mr-card mr-stack" style="gap: 0.7rem;">
+                        <div class="mr-row">
+                            <div>
+                                <h2 class="mr-h">🔁 تکرار خودکار</h2>
+                                <p class="mr-sub">تیم سر وقت خودش یک دور تازه را شروع می‌کند و وقتی پیش‌نویس تصمیم آماده شد به شما خبر می‌دهد. هر بار تخته پاک و از نو پر می‌شود؛ نتیجهٔ دورهای قبل در «اجراهای قبلی» می‌ماند.</p>
+                            </div>
+                            @if ($mission->schedule && $mission->next_run_at)
+                                <span class="mr-pill accent">اجرای بعدی: {{ $fa($mission->next_run_at->copy()->timezone(\App\Domain\Ai\Missions\MissionSchedule::TIMEZONE)->toJalali('Y/m/d H:i')) }}</span>
+                            @else
+                                <span class="mr-pill">خاموش</span>
+                            @endif
+                        </div>
+                        <div style="display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: flex-end;">
+                            <label class="mr-label" style="min-width: 9rem;">هر چند وقت؟
+                                <select id="schedule-frequency" class="mr-input" wire:model.live="scheduleFrequency">
+                                    <option value="">تکرار نشود</option>
+                                    @foreach (\App\Domain\Ai\Missions\MissionSchedule::FREQUENCIES as $value => $label)
+                                        <option value="{{ $value }}">{{ $label }}</option>
+                                    @endforeach
+                                </select>
+                            </label>
+                            @if ($scheduleFrequency === 'weekly')
+                                <label class="mr-label" style="min-width: 9rem;">چه روزی؟
+                                    <select id="schedule-weekday" class="mr-input" wire:model="scheduleWeekday">
+                                        @foreach (\App\Domain\Ai\Missions\MissionSchedule::WEEKDAYS as $value => $label)
+                                            <option value="{{ $value }}">{{ $label }}</option>
+                                        @endforeach
+                                    </select>
+                                </label>
+                            @elseif ($scheduleFrequency === 'monthly')
+                                <label class="mr-label" style="min-width: 7rem;">روز ماه
+                                    <input id="schedule-day" type="number" min="1" max="28" class="mr-input" wire:model="scheduleDay" />
+                                </label>
+                            @endif
+                            @if ($scheduleFrequency !== '')
+                                <label class="mr-label" style="min-width: 7rem;">ساعت
+                                    <input id="schedule-time" type="time" class="mr-input" wire:model="scheduleTime" />
+                                </label>
+                            @endif
+                            <button type="button" class="mr-btn" wire:click="saveSchedule">ذخیره</button>
+                        </div>
+                        @error('scheduleTime') <span class="mr-err">{{ $message }}</span> @enderror
+                        <p class="mr-sub">ساعت به وقت تهران است. هر اجرای زمان‌بندی‌شده فقط یک دور می‌دهد و سقف توکن همان مأموریت را رعایت می‌کند.</p>
+                    </div>
+
                     {{-- board --}}
                     <div class="mr-stack">
                         <h2 class="mr-h" style="font-size: 1.1rem;">🗂 تختهٔ تیم</h2>
@@ -480,6 +526,41 @@
                             </div>
                         @endif
                     </div>
+
+                    {{-- history --}}
+                    @if ($mission->runs->isNotEmpty())
+                        <div class="mr-card mr-stack" style="gap: 0.6rem;">
+                            <h2 class="mr-h">🕘 اجراهای قبلی</h2>
+                            @foreach ($mission->runs->take(10) as $run)
+                                <details class="mr-role" wire:key="run-{{ $run->id }}">
+                                    <summary style="cursor: pointer; display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; font-size: 0.85rem;">
+                                        <strong>{{ $fa($run->finished_at->copy()->timezone(\App\Domain\Ai\Missions\MissionSchedule::TIMEZONE)->toJalali('Y/m/d H:i')) }}</strong>
+                                        <span class="mr-pill {{ $run->trigger === 'scheduled' ? 'accent' : '' }}">{{ $run->trigger === 'scheduled' ? 'زمان‌بندی‌شده' : 'دستی' }}</span>
+                                        <span class="mr-pill">دور {{ $fa($run->round) }}</span>
+                                        <span class="mr-pill {{ count($run->report['decisions'] ?? []) > 0 ? 'warn' : '' }}">{{ $fa(count($run->report['decisions'] ?? [])) }} پیشنهاد</span>
+                                        <span class="mr-sub">{{ \Illuminate\Support\Str::limit($run->summary, 90) }}</span>
+                                    </summary>
+                                    <div class="mr-stack" style="gap: 0.5rem; margin-top: 0.6rem;">
+                                        <p style="font-size: 0.85rem; line-height: 2; margin: 0;">{{ $run->report['summary'] ?? '' }}</p>
+                                        @foreach ($run->report['decisions'] ?? [] as $index => $decision)
+                                            <div class="mr-decision">
+                                                <span class="mr-num">{{ $fa($index + 1) }}</span>
+                                                <div><strong style="font-size: 0.88rem;">{{ $decision['title'] }}</strong>
+                                                    @if (filled($decision['detail'] ?? null))<p class="mr-sub">{{ $decision['detail'] }}</p>@endif
+                                                </div>
+                                            </div>
+                                        @endforeach
+                                        @if (! empty($run->report['uncertain']))
+                                            <ul style="margin: 0; padding-inline-start: 1.2rem; font-size: 0.78rem; line-height: 1.9;">
+                                                @foreach ($run->report['uncertain'] as $line)<li>{{ $line }}</li>@endforeach
+                                            </ul>
+                                        @endif
+                                        <span class="mr-sub">مصرف: {{ $fa(number_format($run->tokens_used)) }} توکن</span>
+                                    </div>
+                                </details>
+                            @endforeach
+                        </div>
+                    @endif
                 @else
                     <div class="mr-card mr-empty">
                         <div style="font-size: 2.2rem;">🚩</div>
