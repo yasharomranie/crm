@@ -69,9 +69,19 @@ function shapePath(ctx, shape, cx, cy, r) {
     }
 }
 
-/** The assistant's own avatar (its shape and colour) drawn as a glossy badge. */
-function avatarTexture(shape, color) {
-    const key = `${shape}|${color}`;
+const mix = (hex, target, amount) => {
+    const from = new THREE.Color(hex);
+    const to = new THREE.Color(target);
+
+    return `#${from.lerp(to, amount).getHexString()}`;
+};
+
+/**
+ * The assistant's own avatar: its shape and colour, softly shaded like a ball,
+ * with a face. `state` is the expression: idle, blink or talk.
+ */
+function avatarTexture(shape, color, state, isManager) {
+    const key = `${shape}|${color}|${state}`;
     if (avatarCache.has(key)) {
         return avatarCache.get(key);
     }
@@ -81,15 +91,87 @@ function avatarTexture(shape, color) {
     canvas.width = canvas.height = size;
     const ctx = canvas.getContext('2d');
     const c = size / 2;
-    const r = size * 0.4;
+    const r = size * 0.36;
+    const faceY = shape === 'triangle' ? r * 0.28 : shape === 'teardrop' ? r * 0.12 : 0;
 
+    if (isManager) {
+        ctx.strokeStyle = '#0b1220';
+        ctx.lineWidth = 7;
+        ctx.beginPath();
+        ctx.moveTo(c, c - r * 0.95);
+        ctx.lineTo(c, c - r * 1.22);
+        ctx.stroke();
+        ctx.fillStyle = color;
+        ctx.beginPath();
+        ctx.arc(c, c - r * 1.28, 9, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.stroke();
+    }
+
+    ctx.save();
+    ctx.shadowColor = 'rgba(0,0,0,0.5)';
+    ctx.shadowBlur = 14;
+    ctx.shadowOffsetY = 9;
     shapePath(ctx, shape, c, c, r);
     ctx.fillStyle = color;
     ctx.fill();
-    ctx.lineWidth = 8;
+    ctx.restore();
+
+    shapePath(ctx, shape, c, c, r);
+    const body = ctx.createRadialGradient(c - r * 0.35, c - r * 0.4, r * 0.1, c, c, r * 1.15);
+    body.addColorStop(0, mix(color, '#ffffff', 0.28));
+    body.addColorStop(0.55, color);
+    body.addColorStop(1, mix(color, '#0b1220', 0.4));
+    ctx.fillStyle = body;
+    ctx.fill();
+    ctx.lineWidth = 7;
     ctx.lineJoin = 'round';
     ctx.strokeStyle = '#0b1220';
     ctx.stroke();
+
+    const ink = '#0b1220';
+    const eyeX = r * 0.34;
+    const eyeY = c - r * 0.12 + faceY;
+    [-1, 1].forEach((side) => {
+        const x = c + side * eyeX;
+        if (state === 'blink') {
+            ctx.strokeStyle = ink;
+            ctx.lineWidth = 6;
+            ctx.lineCap = 'round';
+            ctx.beginPath();
+            ctx.moveTo(x - r * 0.15, eyeY);
+            ctx.lineTo(x + r * 0.15, eyeY);
+            ctx.stroke();
+
+            return;
+        }
+        ctx.fillStyle = '#ffffff';
+        ctx.beginPath();
+        ctx.ellipse(x, eyeY, r * 0.17, r * 0.21, 0, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = ink;
+        ctx.stroke();
+        ctx.fillStyle = ink;
+        ctx.beginPath();
+        ctx.arc(x + r * 0.03, eyeY + r * 0.03, r * 0.085, 0, 2 * Math.PI);
+        ctx.fill();
+    });
+
+    const mouthY = c + r * 0.34 + faceY;
+    ctx.strokeStyle = ink;
+    ctx.lineCap = 'round';
+    if (state === 'talk') {
+        ctx.fillStyle = ink;
+        ctx.beginPath();
+        ctx.ellipse(c, mouthY + r * 0.03, r * 0.17, r * 0.13, 0, 0, 2 * Math.PI);
+        ctx.fill();
+    } else {
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.arc(c, mouthY - r * 0.12, r * 0.24, Math.PI * 0.2, Math.PI * 0.8);
+        ctx.stroke();
+    }
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -102,10 +184,10 @@ function buildNode(node, ringMap) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
     const isManager = node.id === 'manager';
-    const radius = isManager ? 12 : 8;
-    const base = radius * 3;
+    const radius = isManager ? 13 : 10;
+    const base = radius * 3.4;
 
-    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color), transparent: true, depthWrite: false }));
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color, 'idle', isManager), transparent: true, depthWrite: false }));
     core.scale.set(base, base, 1);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringMap, color, transparent: true, opacity: node.live ? 1 : 0, depthWrite: false }));
     halo.scale.set(base * 1.35, base * 1.35, 1);
@@ -126,7 +208,7 @@ function buildNode(node, ringMap) {
     label.position.y = -(radius * 1.6 + 4);
     group.add(label);
 
-    group.userData = { ...group.userData, core, halo, base, live: node.live };
+    group.userData = { ...group.userData, core, halo, base, live: node.live, shape: node.shape, color: node.color, isManager };
 
     return group;
 }
@@ -208,10 +290,18 @@ export function mount(element, { onSelect }) {
                 if (data.ring) {
                     data.ring.rotation.z += 0.012;
                 }
+                const now = performance.now() / 1000;
+                const blinking = (now + node.index * 1.7) % 4.2 < 0.14;
+                const talking = data.live && Math.floor(now * 3 + node.index) % 2 === 0;
+                const state = blinking ? 'blink' : talking ? 'talk' : 'idle';
+                if (data.state !== state) {
+                    data.state = state;
+                    data.core.material.map = avatarTexture(data.shape, data.color, state, data.isManager);
+                }
+                data.core.position.y = Math.sin(now * 1.4 + node.index * 2) * 1.6;
                 if (data.live) {
-                    const pulse = 1 + 0.12 * Math.sin(tick + node.index);
-                    data.core.scale.set(data.base * pulse, data.base * pulse, 1);
-                    data.halo.scale.set(data.base * (1.3 + 0.08 * Math.sin(tick * 1.3 + node.index)), data.base * (1.3 + 0.08 * Math.sin(tick * 1.3 + node.index)), 1);
+                    const scale = data.base * (1.3 + 0.08 * Math.sin(tick * 1.3 + node.index));
+                    data.halo.scale.set(scale, scale, 1);
                 }
             });
         }
