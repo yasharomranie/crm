@@ -110,18 +110,12 @@ function limb(ctx, color, from, to, width, end) {
 }
 
 /**
- * The assistant's own avatar: its shape and colour as a soft, round little
- * character with arms, legs and a face. `state` is the expression (idle,
- * blink, talk), `pose` the arm position (0 resting, 1 waving) and `style`
- * 'cartoon' (round eyes, blush, a smile) or 'robot' (antenna, ear bolts, a
- * screen face with LED eyes and a speaker grille).
+ * The robot look: the assistant's shape and colour as a little robot with
+ * arms, legs, an antenna, ear bolts and a screen face (LED eyes, a speaker
+ * grille). `state` is the expression (idle, blink, talk), `pose` the arm
+ * position (0 resting, 1 waving).
  */
-function avatarTexture(shape, color, state, isManager, style, pose) {
-    const key = `${style}|${shape}|${color}|${state}|${pose}`;
-    if (avatarCache.has(key)) {
-        return avatarCache.get(key);
-    }
-
+function robotTexture(shape, color, state, isManager, pose) {
     const size = 256;
     const canvas = document.createElement('canvas');
     canvas.width = canvas.height = size;
@@ -129,7 +123,6 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
     const c = size / 2;
     const r = 70;
     const cy = c - 14;
-    const robot = style === 'robot';
     const limbColor = mix(color, INK, 0.12);
     const faceY = shape === 'triangle' ? r * 0.28 : shape === 'teardrop' ? r * 0.12 : 0;
     const narrow = shape === 'triangle' || shape === 'diamond';
@@ -156,7 +149,7 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
         ctx.stroke();
     });
 
-    if (robot) {
+    {
         const earX = narrow ? r * 0.62 : r * 0.95;
         ctx.fillStyle = mix(color, INK, 0.35);
         ctx.strokeStyle = INK;
@@ -169,7 +162,7 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
         });
     }
 
-    if (robot || isManager) {
+    {
         ctx.strokeStyle = INK;
         ctx.lineWidth = 6;
         ctx.beginPath();
@@ -197,7 +190,7 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
 
     const lit = mix(color, '#ffffff', 0.75);
 
-    if (robot) {
+    {
         const sw = r * 1.32;
         const sh = r * 0.86;
         const sy = cy - r * 0.04 + faceY;
@@ -231,65 +224,103 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
             ctx.roundRect(c + (index - 2) * r * 0.2 - 4, my - bar / 2, 8, bar, 3);
             ctx.fill();
         });
-    } else {
-        const eyeX = r * 0.34;
-        const eyeY = cy - r * 0.1 + faceY;
-        [-1, 1].forEach((side) => {
-            const x = c + side * eyeX;
-            if (state === 'blink') {
-                ctx.strokeStyle = INK;
-                ctx.lineWidth = 6;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                ctx.arc(x, eyeY + 4, r * 0.15, Math.PI * 1.1, Math.PI * 1.9);
-                ctx.stroke();
-
-                return;
-            }
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.ellipse(x, eyeY, r * 0.2, r * 0.25, 0, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.lineWidth = 4;
-            ctx.strokeStyle = INK;
-            ctx.stroke();
-            ctx.fillStyle = INK;
-            ctx.beginPath();
-            ctx.arc(x + r * 0.02, eyeY + r * 0.04, r * 0.13, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.arc(x - r * 0.03, eyeY - r * 0.02, r * 0.05, 0, 2 * Math.PI);
-            ctx.fill();
-        });
-
-        ctx.fillStyle = 'rgba(244,114,182,0.55)';
-        [-1, 1].forEach((side) => {
-            ctx.beginPath();
-            ctx.ellipse(c + side * r * 0.58, eyeY + r * 0.36, r * 0.13, r * 0.08, 0, 0, 2 * Math.PI);
-            ctx.fill();
-        });
-
-        const mouthY = cy + r * 0.32 + faceY;
-        ctx.strokeStyle = INK;
-        ctx.lineCap = 'round';
-        if (state === 'talk') {
-            ctx.fillStyle = INK;
-            ctx.beginPath();
-            ctx.ellipse(c, mouthY + r * 0.03, r * 0.17, r * 0.14, 0, 0, 2 * Math.PI);
-            ctx.fill();
-            ctx.fillStyle = '#f472b6';
-            ctx.beginPath();
-            ctx.ellipse(c, mouthY + r * 0.1, r * 0.09, r * 0.05, 0, 0, 2 * Math.PI);
-            ctx.fill();
-        } else {
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.arc(c, mouthY - r * 0.12, r * 0.22, Math.PI * 0.2, Math.PI * 0.8);
-            ctx.stroke();
-        }
     }
 
+    return canvas;
+}
+
+const ORANGE_BODY = '#f26f2a';
+
+/**
+ * The soft clay look: a matte, rounded, brightly coloured blob with two dark
+ * pill eyes and no outline, arms or mouth - lit from the top left. The
+ * manager wears a graduation cap. `state` blinks (thin eyes) or talks
+ * (slightly taller eyes).
+ */
+function clayTexture(shape, color, state, isManager) {
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const c = size / 2;
+    const r = 80;
+    const cy = c - 6;
+
+    ctx.save();
+    ctx.translate(c, 236);
+    ctx.scale(1, 0.16);
+    const ground = ctx.createRadialGradient(0, 0, 0, 0, 0, 78);
+    ground.addColorStop(0, 'rgba(0,0,0,0.38)');
+    ground.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = ground;
+    ctx.beginPath();
+    ctx.arc(0, 0, 78, 0, 2 * Math.PI);
+    ctx.fill();
+    ctx.restore();
+
+    shapePath(ctx, shape, c, cy, r);
+    const body = ctx.createRadialGradient(c - r * 0.38, cy - r * 0.45, r * 0.05, c - r * 0.1, cy - r * 0.1, r * 1.4);
+    body.addColorStop(0, mix(color, '#ffffff', 0.2));
+    body.addColorStop(0.55, color);
+    body.addColorStop(1, mix(color, '#000000', 0.16));
+    ctx.fillStyle = body;
+    ctx.fill();
+
+    const eyeOffset = { triangle: 0.24, teardrop: 0.14, cloud: 0.05, pentagon: 0.04 }[shape] ?? -0.08;
+    const eyeY = cy + r * eyeOffset;
+    const tilt = (color === ORANGE_BODY ? 16 : shape === 'pentagon' ? -14 : 0) * (Math.PI / 180);
+    const width = r * 0.2;
+    const height = state === 'blink' ? 6 : r * (state === 'talk' ? 0.54 : 0.48);
+
+    ctx.fillStyle = '#1c1626';
+    [-1, 1].forEach((side) => {
+        ctx.save();
+        ctx.translate(c + side * r * 0.26, eyeY);
+        ctx.rotate(tilt * side);
+        ctx.beginPath();
+        ctx.roundRect(-width / 2, -height / 2, width, height, width / 2);
+        ctx.fill();
+        ctx.restore();
+    });
+
+    if (isManager) {
+        const top = cy - r * 0.86;
+        ctx.fillStyle = '#2a2438';
+        ctx.beginPath();
+        ctx.roundRect(c - r * 0.34, top, r * 0.68, r * 0.34, r * 0.1);
+        ctx.fill();
+        ctx.fillStyle = '#3b3350';
+        ctx.beginPath();
+        ctx.moveTo(c, top - r * 0.38);
+        ctx.lineTo(c + r * 0.72, top - r * 0.08);
+        ctx.lineTo(c, top + r * 0.2);
+        ctx.lineTo(c - r * 0.72, top - r * 0.08);
+        ctx.closePath();
+        ctx.fill();
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 4;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(c + r * 0.5, top - r * 0.04);
+        ctx.lineTo(c + r * 0.5, top + r * 0.34);
+        ctx.stroke();
+        ctx.fillStyle = '#fbbf24';
+        ctx.beginPath();
+        ctx.arc(c + r * 0.5, top + r * 0.38, 6, 0, 2 * Math.PI);
+        ctx.fill();
+    }
+
+    return canvas;
+}
+
+/** The sprite texture for one avatar frame; `style` is 'robot' or the default clay look. */
+function avatarTexture(shape, color, state, isManager, style, pose) {
+    const key = `${style}|${shape}|${color}|${state}|${style === 'robot' ? pose : 0}`;
+    if (avatarCache.has(key)) {
+        return avatarCache.get(key);
+    }
+
+    const canvas = style === 'robot' ? robotTexture(shape, color, state, isManager, pose) : clayTexture(shape, color, state, isManager);
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
     avatarCache.set(key, texture);
@@ -469,7 +500,7 @@ function buildNode(node, ringMap, style, bubblesOn) {
     return group;
 }
 
-export function mount(element, { onSelect, initialStyle = 'robot', initialBubbles = true }) {
+export function mount(element, { onSelect, initialStyle = 'cartoon', initialBubbles = true }) {
     const ringMap = ringTexture();
     const motion = !reducedMotion();
     let spinning = motion;

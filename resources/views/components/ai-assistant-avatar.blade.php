@@ -10,23 +10,33 @@
     use Illuminate\Support\Str;
 
     $shape = AiAssistantAvatar::isValidShape($shape) ? $shape : 'circle';
-    $colorKey = AiAssistantAvatar::isValidColor($color) ? $color : 'Amber';
+    $colorKey = AiAssistantAvatar::isValidColor($color) ? $color : 'Blue';
     $uid = 'ai-avatar-'.Str::random(8);
 
-    // Same glossy, gradient-shaded "mascot" look as public/images/mascot-
-    // avatar.svg (the existing floating-widget character) - a light-to-
-    // dark sweep of the SAME color token, never a flat silhouette, so a
-    // blob reads as a soft 3D character rather than an icon.
-    $light = AiAssistantAvatar::shade($colorKey, 300);
-    $base = AiAssistantAvatar::shade($colorKey, 500);
-    $dark = AiAssistantAvatar::shade($colorKey, 600);
-    $ink = AiAssistantAvatar::shade($colorKey, 950);
+    // Soft "clay" body: one matte colour with a gentle light-to-shade
+    // sweep (lit from the top left), no outline and no gloss. The sweep is
+    // in user space so shapes made of several circles (cloud, clover) get
+    // one continuous shading instead of one per circle.
+    $base = AiAssistantAvatar::hex($colorKey);
+    $light = AiAssistantAvatar::mix($base, '#ffffff', 0.2);
+    $dark = AiAssistantAvatar::mix($base, '#000000', 0.16);
+    $ink = AiAssistantAvatar::INK;
+
+    // Two vertical pill eyes, no mouth. Where they sit and how they lean
+    // depends on the shape (and a few colours lean inward, like the
+    // reference characters).
+    $eyeY = ['triangle' => 63, 'teardrop' => 62, 'cloud' => 56, 'rounded-square' => 49, 'pentagon' => 54, 'diamond' => 50][$shape] ?? 48;
+    $tilt = match (true) {
+        $colorKey === 'Orange' => 16,
+        $shape === 'pentagon' => -14,
+        default => 0,
+    };
 @endphp
 
 @once
     <style>
         .ai-avatar-blob {
-            filter: drop-shadow(0 6px 14px rgb(0 0 0 / .18));
+            filter: drop-shadow(0 5px 8px rgb(0 0 0 / .22));
             transition: transform .25s ease, filter .25s ease;
         }
 
@@ -60,35 +70,37 @@
 >
     <svg viewBox="0 0 100 100" width="100%" height="100%" xmlns="http://www.w3.org/2000/svg">
         <defs>
-            <linearGradient id="{{ $uid }}" x1="20" y1="8" x2="80" y2="95" gradientUnits="userSpaceOnUse">
+            <radialGradient id="{{ $uid }}" cx="36" cy="28" r="84" gradientUnits="userSpaceOnUse">
                 <stop offset="0%" stop-color="{{ $light }}" />
                 <stop offset="55%" stop-color="{{ $base }}" />
                 <stop offset="100%" stop-color="{{ $dark }}" />
-            </linearGradient>
+            </radialGradient>
         </defs>
 
         @switch($shape)
             @case('rounded-square')
-                <rect x="10" y="10" width="80" height="80" rx="24" fill="url(#{{ $uid }})" />
+                <rect x="10" y="10" width="80" height="80" rx="28" fill="url(#{{ $uid }})" />
                 @break
 
             @case('hexagon')
-                <polygon points="94,50 72,88.1 28,88.1 6,50 28,11.9 72,11.9" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="12" stroke-linejoin="round" />
+                <polygon points="87,50 68.5,82 31.5,82 13,50 31.5,18 68.5,18" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="12" stroke-linejoin="round" />
                 @break
 
             @case('triangle')
-                <polygon points="50,6 88.1,72 11.9,72" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="14" stroke-linejoin="round" />
+                <polygon points="50,12 86,74 14,74" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="20" stroke-linejoin="round" />
                 @break
 
             @case('teardrop')
-                <path d="M50,6 C58,22 82,46 82,64 C82,82 68,94 50,94 C32,94 18,82 18,64 C18,46 42,22 50,6 Z" fill="url(#{{ $uid }})" />
+                <path d="M54,12 C62,26 82,46 82,64 C82,82 68,92 50,92 C32,92 18,82 18,64 C18,48 38,34 54,12 Z" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="6" stroke-linejoin="round" />
                 @break
 
             @case('cloud')
-                <circle cx="35" cy="60" r="22" fill="url(#{{ $uid }})" />
-                <circle cx="60" cy="55" r="26" fill="url(#{{ $uid }})" />
-                <circle cx="78" cy="65" r="18" fill="url(#{{ $uid }})" />
-                <circle cx="50" cy="74" r="24" fill="url(#{{ $uid }})" />
+                <circle cx="28" cy="56" r="22" fill="url(#{{ $uid }})" />
+                <circle cx="50" cy="34" r="24" fill="url(#{{ $uid }})" />
+                <circle cx="73" cy="55" r="22" fill="url(#{{ $uid }})" />
+                <circle cx="35" cy="73" r="21" fill="url(#{{ $uid }})" />
+                <circle cx="66" cy="73" r="21" fill="url(#{{ $uid }})" />
+                <circle cx="50" cy="58" r="28" fill="url(#{{ $uid }})" />
                 @break
 
             @case('flower')
@@ -96,37 +108,24 @@
                 <circle cx="50" cy="72" r="24" fill="url(#{{ $uid }})" />
                 <circle cx="28" cy="50" r="24" fill="url(#{{ $uid }})" />
                 <circle cx="72" cy="50" r="24" fill="url(#{{ $uid }})" />
-                <circle cx="50" cy="50" r="18" fill="url(#{{ $uid }})" />
+                <circle cx="50" cy="50" r="22" fill="url(#{{ $uid }})" />
                 @break
 
             @case('diamond')
-                <polygon points="50,6 94,50 50,94 6,50" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="12" stroke-linejoin="round" />
+                <polygon points="50,8 92,50 50,92 8,50" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="14" stroke-linejoin="round" />
                 @break
 
             @case('pentagon')
-                <polygon points="50,6 91.86,36.4 75.86,85.6 24.14,85.6 8.14,36.4" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="12" stroke-linejoin="round" />
+                <polygon points="50,10 90,39 75,84 25,84 10,39" fill="url(#{{ $uid }})" stroke="url(#{{ $uid }})" stroke-width="14" stroke-linejoin="round" />
                 @break
 
             @default
                 <circle cx="50" cy="50" r="42" fill="url(#{{ $uid }})" />
         @endswitch
 
-        {{-- A simple face (eyes + a soft smile) - what the user actually
-            asked for: without it these read as flat geometric icons, not
-            "characters". Coordinates are centered on this viewBox's own
-            visual middle (~50,60), which comfortably sits inside every
-            shape above, matching public/images/mascot-avatar.svg's own
-            eye/mouth placement. --}}
-        <ellipse cx="22" cy="63" rx="5.5" ry="3.5" fill="#ffffff" opacity=".22" />
-        <ellipse cx="78" cy="63" rx="5.5" ry="3.5" fill="#ffffff" opacity=".22" />
-
         <g class="ai-avatar-eyes">
-            <circle cx="39" cy="58" r="4.2" fill="{{ $ink }}" />
-            <circle cx="61" cy="58" r="4.2" fill="{{ $ink }}" />
-            <circle cx="40.6" cy="56.4" r="1.3" fill="#ffffff" />
-            <circle cx="62.6" cy="56.4" r="1.3" fill="#ffffff" />
+            <rect x="{{ 50 - 11 - 4.3 }}" y="{{ $eyeY - 10.5 }}" width="8.6" height="21" rx="4.3" fill="{{ $ink }}" transform="rotate({{ $tilt }} {{ 50 - 11 }} {{ $eyeY }})" />
+            <rect x="{{ 50 + 11 - 4.3 }}" y="{{ $eyeY - 10.5 }}" width="8.6" height="21" rx="4.3" fill="{{ $ink }}" transform="rotate({{ -$tilt }} {{ 50 + 11 }} {{ $eyeY }})" />
         </g>
-
-        <path d="M41,70 Q50,76.5 59,70" stroke="{{ $ink }}" stroke-width="2.6" fill="none" stroke-linecap="round" opacity=".55" />
     </svg>
 </span>
