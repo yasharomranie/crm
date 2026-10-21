@@ -195,7 +195,7 @@ class AiMissionSourcesTest extends TestCase
         Http::fake(['*/chat/completions' => function (Request $request) use (&$seen) {
             $seen = $request->data()['messages'][1]['content'];
 
-            return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => json_encode($this->digest() + ['conflicts' => ['اشغال هدف با گزارش نمی‌خواند']], JSON_UNESCAPED_UNICODE)]]]]);
+            return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => json_encode(array_merge($this->digest(), ['conflicts' => ['اشغال هدف با گزارش نمی‌خواند']]), JSON_UNESCAPED_UNICODE)]]]]);
         }]);
 
         Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief');
@@ -230,7 +230,7 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame(AiMissionBriefStatus::Approved, $mission->fresh()->brief_status);
         $this->assertTrue(app(MissionRunner::class)->start($mission->fresh(), $this->admin)['ok']);
 
-        $mission->update(['status' => AiMissionStatus::Draft]);
+        $mission->refresh()->update(['status' => AiMissionStatus::Draft]);
         $source->update(['kind' => AiMissionSourceKind::Evidence]);
         $blocked = app(MissionRunner::class)->start($mission->fresh(), $this->admin);
         $this->assertFalse($blocked['ok']);
