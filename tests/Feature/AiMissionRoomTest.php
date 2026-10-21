@@ -226,28 +226,93 @@ class AiMissionRoomTest extends TestCase
             ->call('startCreate')
             ->set('missionTitle', 'مأموریت آزمایشی')
             ->set('missionGoal', 'یک هدف')
-            ->set('roleRows', [
-                ['profile_id' => $specialist->id, 'role' => 'specialist', 'directive' => ''],
-                ['profile_id' => $coordinator->id, 'role' => 'specialist', 'directive' => ''],
-            ])
+            ->set('specialists', [['profile_id' => $specialist->id, 'directive' => '']])
             ->call('createMission');
 
-        $this->assertSame(0, AiMission::count());
+        $this->assertSame(0, AiMission::count(), 'a coordinator is required');
 
         Livewire::test(AiMissionRoom::class)
             ->call('startCreate')
             ->set('missionTitle', 'مأموریت آزمایشی')
             ->set('missionGoal', 'یک هدف')
-            ->set('roleRows', [
-                ['profile_id' => $coordinator->id, 'role' => 'coordinator', 'directive' => ''],
-                ['profile_id' => $specialist->id, 'role' => 'specialist', 'directive' => 'اتاق‌ها'],
-            ])
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists', [['profile_id' => $specialist->id, 'directive' => 'اتاق‌ها']])
             ->call('createMission')
             ->assertSet('showCreate', false);
 
         $mission = AiMission::sole();
         $this->assertSame($this->admin->id, $mission->created_by);
         $this->assertCount(2, $mission->roles);
+    }
+
+    public function test_an_empty_slot_or_a_repeated_assistant_blocks_creation(): void
+    {
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+
+        $component = Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->set('missionTitle', 'مأموریت')
+            ->set('missionGoal', 'هدف')
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists', [['profile_id' => null, 'directive' => '']])
+            ->call('createMission');
+
+        $this->assertSame(0, AiMission::count(), 'a slot without an assistant');
+
+        $component->set('specialists', [['profile_id' => $coordinator->id, 'directive' => '']])->call('createMission');
+
+        $this->assertSame(0, AiMission::count(), 'the same assistant in two roles');
+    }
+
+    public function test_the_picker_assigns_an_assistant_to_the_slot_it_was_opened_for(): void
+    {
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id, 'name' => 'دستیار انتخابی']);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $private = AiAssistantProfile::factory()->create(['created_by' => User::factory()->create()->id, 'is_shared' => false]);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->call('openPicker', 'coordinator')
+            ->assertSee('دستیار انتخابی')
+            ->call('pickProfile', $coordinator->id)
+            ->assertSet('coordinatorId', $coordinator->id)
+            ->assertSet('pickingFor', null)
+            ->call('openPicker', 'specialist:0')
+            ->call('pickProfile', $private->id)
+            ->assertSet('specialists.0.profile_id', null)
+            ->call('pickProfile', $specialist->id)
+            ->assertSet('specialists.0.profile_id', $specialist->id);
+    }
+
+    public function test_specialists_can_be_added_up_to_four_and_the_critic_is_optional(): void
+    {
+        $critic = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+
+        $component = Livewire::test(AiMissionRoom::class)->call('startCreate');
+
+        foreach (range(1, 5) as $unused) {
+            $component->call('addSpecialist');
+        }
+
+        $this->assertCount(4, $component->get('specialists'));
+
+        $component->call('toggleCritic')->assertSet('withCritic', true)
+            ->set('criticId', $critic->id)
+            ->call('toggleCritic')->assertSet('withCritic', false)->assertSet('criticId', null);
+    }
+
+    public function test_the_template_fills_the_goal_and_directives_but_keeps_chosen_assistants(): void
+    {
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->set('specialists', [['profile_id' => $specialist->id, 'directive' => '']])
+            ->call('applyTemplate')
+            ->assertSet('missionTitle', 'وضعیت رزرو و پشتیبانی هفتهٔ آینده')
+            ->assertSet('withCritic', true)
+            ->assertSet('specialists.0.profile_id', $specialist->id)
+            ->assertSet('specialists.1.profile_id', null);
     }
 
     public function test_a_team_member_that_is_someone_elses_private_assistant_is_refused(): void
@@ -259,10 +324,8 @@ class AiMissionRoomTest extends TestCase
             ->call('startCreate')
             ->set('missionTitle', 'مأموریت')
             ->set('missionGoal', 'هدف')
-            ->set('roleRows', [
-                ['profile_id' => $mine->id, 'role' => 'coordinator', 'directive' => ''],
-                ['profile_id' => $private->id, 'role' => 'specialist', 'directive' => ''],
-            ])
+            ->set('coordinatorId', $mine->id)
+            ->set('specialists', [['profile_id' => $private->id, 'directive' => '']])
             ->call('createMission');
 
         $this->assertSame(0, AiMission::count());
@@ -283,7 +346,8 @@ class AiMissionRoomTest extends TestCase
             ->assertSee('پنجشنبه پر است.')
             ->assertSee('پیش‌نویس تصمیم')
             ->assertSee('نرخ پنجشنبه را بررسی کن')
-            ->assertSee('هیچ اقدامی انجام نشده');
+            ->assertSee('هیچ اقدامی انجام نشده')
+            ->assertSee('متخصص رزرو');
     }
 
     public function test_a_user_cannot_open_someone_elses_mission(): void
