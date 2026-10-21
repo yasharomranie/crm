@@ -3,6 +3,7 @@
 namespace Database\Factories;
 
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionConfidence;
 use App\Enums\AiMissionRoleType;
 use App\Models\AiAssistantProfile;
@@ -29,6 +30,7 @@ class AiMissionCardFactory extends Factory
             'source' => 'check_room_availability',
             'confidence' => AiMissionConfidence::Medium,
             'unsourced' => false,
+            'status' => AiMissionCardStatus::Open,
         ];
     }
 }

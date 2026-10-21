@@ -3,6 +3,8 @@
 namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionRunner;
+use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
@@ -297,6 +299,65 @@ class AiMissionRoom extends Page
             $mission->update(['token_budget' => $tokens]);
             Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
         }
+    }
+
+    public string $noteText = '';
+
+    /**
+     * A message to the team ("focus on the north villas"): every step that has
+     * not started yet reads it, so it also steers a run that is already going.
+     */
+    public function addNote(): void
+    {
+        $mission = $this->getSelectedMission();
+        $text = trim($this->noteText);
+
+        if (! $mission || $text === '' || mb_strlen($text) > 500) {
+            Notification::make()->title('پیام را بنویسید (حداکثر ۵۰۰ نویسه).')->danger()->send();
+
+            return;
+        }
+
+        $notes = $mission->notes ?? [];
+
+        if (count($notes) >= 10) {
+            Notification::make()->title('حداکثر ۱۰ پیام برای هر مأموریت؛ یکی از پیام‌های قبلی را پاک کنید.')->danger()->send();
+
+            return;
+        }
+
+        $notes[] = ['text' => $text, 'at' => now()->toIso8601String()];
+        $mission->update(['notes' => $notes]);
+        $this->noteText = '';
+
+        Notification::make()->title($mission->status === AiMissionStatus::Running ? 'پیام ثبت شد؛ از مرحلهٔ بعدی اعمال می‌شود.' : 'پیام ثبت شد؛ از دور بعدی اعمال می‌شود.')->success()->send();
+    }
+
+    public function removeNote(int $index): void
+    {
+        $mission = $this->getSelectedMission();
+        $notes = $mission?->notes ?? [];
+
+        if ($mission && isset($notes[$index])) {
+            unset($notes[$index]);
+            $mission->update(['notes' => array_values($notes)]);
+        }
+    }
+
+    /**
+     * Rejecting a finding keeps it out of what the team reads next and out of
+     * the report; locking confirms it as trusted; reopening undoes either.
+     */
+    public function setCardStatus(int $cardId, string $status): void
+    {
+        $mission = $this->getSelectedMission();
+        $newStatus = AiMissionCardStatus::tryFrom($status);
+
+        if (! $mission || ! $newStatus || $mission->status === AiMissionStatus::Running) {
+            return;
+        }
+
+        $mission->cards()->whereKey($cardId)->where('kind', AiMissionCardKind::Finding->value)->update(['status' => $newStatus->value]);
     }
 
     public function deleteMission(int $id): void

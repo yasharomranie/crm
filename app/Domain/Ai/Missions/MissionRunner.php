@@ -5,6 +5,7 @@ namespace App\Domain\Ai\Missions;
 use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\AssistantUsage;
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionConfidence;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
@@ -276,7 +277,7 @@ class MissionRunner
             return $this->failRound($mission, $role, $result['error']);
         }
 
-        $validIds = $mission->cards()->where('kind', AiMissionCardKind::Finding)->pluck('id')->all();
+        $validIds = $mission->cards()->where('kind', AiMissionCardKind::Finding)->where('status', '!=', AiMissionCardStatus::Rejected->value)->pluck('id')->all();
 
         foreach (array_slice($this->parseList($result['answer'], 'critiques'), 0, 8) as $critique) {
             $objection = trim((string) ($critique['objection'] ?? ''));
@@ -319,9 +320,10 @@ class MissionRunner
 
         // Whatever the team could not source or the critic doubted is always
         // listed, even if the coordinator forgot to mention it.
-        $cards = $mission->cards()->where('round', $round)->get();
-        $doubted = $cards->where('unsourced', true)->map(fn (AiMissionCard $card) => 'بدون منبع: '.Str::limit($card->claim, 160, ''))
-            ->concat($cards->where('kind', AiMissionCardKind::Critique)->map(fn (AiMissionCard $critique) => 'مورد نقد: '.Str::limit((string) $cards->firstWhere('id', $critique->target_card_id)?->claim, 120, '').' — '.Str::limit($critique->claim, 160, '')));
+        $cards = $mission->cards()->where('round', $round)->where('status', '!=', AiMissionCardStatus::Rejected->value)->get();
+        $rejectedTargets = $mission->cards()->where('status', AiMissionCardStatus::Rejected->value)->pluck('id');
+        $doubted = $cards->where('unsourced', true)->where('status', AiMissionCardStatus::Open)->map(fn (AiMissionCard $card) => 'بدون منبع: '.Str::limit($card->claim, 160, ''))
+            ->concat($cards->where('kind', AiMissionCardKind::Critique)->reject(fn (AiMissionCard $critique) => $rejectedTargets->contains($critique->target_card_id))->map(fn (AiMissionCard $critique) => 'مورد نقد: '.Str::limit((string) $cards->firstWhere('id', $critique->target_card_id)?->claim, 120, '').' — '.Str::limit($critique->claim, 160, '')));
         foreach ($doubted as $line) {
             if (! in_array($line, $uncertain, true) && count($uncertain) < 12) {
                 $uncertain[] = $line;
@@ -363,7 +365,7 @@ class MissionRunner
         ]);
 
         // depth 1 rules out asking further assistants: a mission member answers alone.
-        $result = $this->consultations->consult(null, $role->profile, $question, null, $user, depth: 1, instructions: $instructions);
+        $result = $this->consultations->consult(null, $role->profile, $question.$this->notesBlock($mission), null, $user, depth: 1, instructions: $instructions);
 
         if (($result['tokens'] ?? 0) > 0) {
             $mission->increment('tokens_used', $result['tokens']);
@@ -382,18 +384,31 @@ class MissionRunner
 
     /**
      * The board as text: findings of earlier rounds and this one, with the
-     * critiques that point at them. Rejected cards never exist in phase 1.
+     * critiques that point at them. Cards the manager rejected are left out and
+     * the ones the manager locked are marked as confirmed.
      */
     private function board(AiMission $mission, int $round): string
     {
-        $cards = $mission->cards()->with('profile')->where('round', '<=', $round)->get();
+        $cards = $mission->cards()->with('profile')->where('round', '<=', $round)->where('status', '!=', AiMissionCardStatus::Rejected->value)->get();
 
         return $cards->where('kind', AiMissionCardKind::Finding)->map(function (AiMissionCard $card) use ($cards) {
-            $line = "#{$card->id} [{$card->profile?->displayName()}] {$card->claim} (منبع: ".($card->source ?? 'نامعلوم').", {$card->confidence->getLabel()})";
+            $confirmed = $card->status === AiMissionCardStatus::Locked ? ' [تأییدشدهٔ مدیر]' : '';
+            $line = "#{$card->id} [{$card->profile?->displayName()}] {$card->claim} (منبع: ".($card->source ?? 'نامعلوم').", {$card->confidence->getLabel()}){$confirmed}";
             $critiques = $cards->where('target_card_id', $card->id)->map(fn (AiMissionCard $critique) => "  ↳ نقد: {$critique->claim}")->implode("\n");
 
             return $critiques === '' ? $line : "{$line}\n{$critiques}";
         })->implode("\n");
+    }
+
+    /**
+     * What the manager told the team along the way, oldest first; every step
+     * reads the current list, so a note sent mid-run reaches the later steps.
+     */
+    private function notesBlock(AiMission $mission): string
+    {
+        $notes = collect($mission->notes ?? [])->pluck('text')->filter()->values();
+
+        return $notes->isEmpty() ? '' : "\n\nدستورهای مدیر در حین کار (به‌ترتیب زمان؛ رعایتشان اجباری است):\n".$notes->map(fn (string $text) => "- {$text}")->implode("\n");
     }
 
     private function failRound(AiMission $mission, AiMissionRole $role, string $error): bool

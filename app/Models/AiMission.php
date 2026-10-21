@@ -20,7 +20,7 @@ class AiMission extends Model
 
     protected $fillable = [
         'created_by', 'title', 'goal', 'end_condition', 'status', 'max_rounds', 'rounds_run',
-        'report', 'last_error', 'started_at', 'finished_at', 'cancel_requested', 'current_step', 'current_profile_id',
+        'report', 'notes', 'last_error', 'started_at', 'finished_at', 'cancel_requested', 'current_step', 'current_profile_id',
         'step_index', 'step_total', 'tokens_used', 'token_budget',
     ];
 
@@ -29,6 +29,7 @@ class AiMission extends Model
         return [
             'status' => AiMissionStatus::class,
             'report' => 'array',
+            'notes' => 'array',
             'cancel_requested' => 'boolean',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',

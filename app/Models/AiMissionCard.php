@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionConfidence;
 use App\Enums\AiMissionRoleType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -19,7 +20,7 @@ class AiMissionCard extends Model
 
     protected $fillable = [
         'ai_mission_id', 'ai_assistant_profile_id', 'role', 'round', 'kind', 'target_card_id',
-        'claim', 'source', 'confidence', 'unsourced',
+        'claim', 'source', 'confidence', 'unsourced', 'status',
     ];
 
     protected function casts(): array
@@ -29,6 +30,7 @@ class AiMissionCard extends Model
             'kind' => AiMissionCardKind::class,
             'confidence' => AiMissionConfidence::class,
             'unsourced' => 'boolean',
+            'status' => AiMissionCardStatus::class,
         ];
     }
 
