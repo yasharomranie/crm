@@ -856,7 +856,9 @@ class AiAssistantsHubTest extends TestCase
         Livewire::test(AiAssistantsHub::class)
             ->call('openProfile', $requester->id)
             ->set('body', 'این بند قراردادی معتبره؟')
-            ->call('sendToProfile');
+            ->call('sendToProfile')
+            ->assertSee('پاسخ دستیار «'.$target->displayName().'»')
+            ->assertSee('طبق قانون، این بند معتبر است.');
 
         $consultation = AiAssistantConsultation::sole();
         $this->assertSame($requester->id, $consultation->consulting_ai_assistant_profile_id);

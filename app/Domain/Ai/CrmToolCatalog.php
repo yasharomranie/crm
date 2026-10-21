@@ -4,9 +4,11 @@ namespace App\Domain\Ai;
 
 use App\Enums\BookingStatus;
 use App\Enums\TicketStatus;
+use App\Models\AiAssistantProfile;
 use App\Models\Guest;
 use App\Models\GuestTicket;
 use App\Models\Room;
+use App\Models\User;
 use App\Support\MobileNumber;
 use Illuminate\Support\Carbon;
 
@@ -66,6 +68,29 @@ class CrmToolCatalog
                 ],
             ],
         ];
+    }
+
+    /**
+     * The tools this profile's owner granted it (AiAssistantProfile::$allowed_tools),
+     * narrowed to ones that still exist and that $user may use: the same
+     * "ai-assistant.report" gate and per-module permission as the built-in
+     * assistant. Granting a tool on a profile only ever narrows access - it can
+     * never give a viewer a permission they do not already have.
+     *
+     * @return array<string, array{description: string, parameters: array<string, mixed>}>
+     */
+    public function grantedTo(AiAssistantProfile $profile, ?User $user): array
+    {
+        if (! $user?->can('ai-assistant.report')) {
+            return [];
+        }
+
+        $catalog = $this->definitions();
+
+        return collect($profile->allowed_tools ?? [])
+            ->filter(fn (string $toolName) => isset($catalog[$toolName]) && AiToolAccess::allowsTool($user, $toolName))
+            ->mapWithKeys(fn (string $toolName) => [$toolName => $catalog[$toolName]])
+            ->all();
     }
 
     public function label(string $toolName): ?string

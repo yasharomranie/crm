@@ -118,6 +118,22 @@ class AiAssistantProfile extends Model
     }
 
     /**
+     * The persona plus the approved knowledge notes - what the assistant is
+     * told about itself, in its own chat and when another assistant consults it.
+     */
+    public function basePrompt(): string
+    {
+        $prompt = $this->description ?: 'شما یک دستیار هوشمند کمکی هستید.';
+        $knowledge = $this->approvedKnowledgeForPrompt();
+
+        if ($knowledge !== []) {
+            $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
+        }
+
+        return $prompt;
+    }
+
+    /**
      * Profiles a given user is allowed to see/chat with: their own, plus
      * anyone else's shared (public) ones.
      */

@@ -9,6 +9,7 @@ use App\Models\AiConversation;
 use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
+use Illuminate\Support\Facades\Auth;
 
 /**
  * The inter-agent half of the knowledge-base work (alongside
@@ -19,15 +20,18 @@ use Illuminate\Database\Eloquent\Collection;
  * user-driven, one-way copy of a whole conversation.
  *
  * Depth is capped at exactly one level by construction, not by tracking
- * a call chain: consult() below gives the consulted profile's own
- * chatCompletion call no tools at all, so it is structurally unable to
- * consult anyone itself - no cycle or runaway chain of AI calls can ever
- * occur, and no indirect tool-execution side effect can happen either
- * (a lightweight profile consulting a powerful one never grants it that
- * power by proxy).
+ * a call chain: consult() below only ever offers the consulted profile
+ * its owner-granted, read-only CRM lookups - never consult_assistant,
+ * save_knowledge_entry or fetch_url - so it is structurally unable to
+ * consult anyone itself and no cycle or runaway chain of AI calls can
+ * occur. Those lookups run with the ASKING user's permissions, so a
+ * lightweight profile consulting a powerful one never grants anyone
+ * anything they could not already read.
  */
 class AssistantConsultationService
 {
+    private const MAX_TOOL_ROUNDS = 3;
+
     /**
      * Profiles $user can see (own or shared) that have opted into being
      * consulted, excluding $profile itself - the live "directory" both
@@ -46,9 +50,15 @@ class AssistantConsultationService
     }
 
     /**
-     * @return array{answer: string, consulted: string}|array{error: string}
+     * Asks $target one question. The consulted assistant answers with its own
+     * persona AND its own knowledge notes, and may use the read-only CRM
+     * lookups its owner granted it (CrmToolCatalog::grantedTo, narrowed by the
+     * asking user's permissions) for a couple of rounds. It is still offered
+     * nothing else, so it cannot consult anyone, save knowledge or fetch pages.
+     *
+     * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>}|array{error: string}
      */
-    public function consult(AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null): array
+    public function consult(AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null): array
     {
         $provider = AiProvider::active();
 
@@ -56,16 +66,47 @@ class AssistantConsultationService
             return ['error' => AiProviderException::noActiveProvider()->getMessage()];
         }
 
+        $catalog = app(CrmToolCatalog::class);
+        $granted = $catalog->grantedTo($target, $user ?? Auth::user());
+        $tools = collect($granted)
+            ->map(fn (array $definition, string $name) => ['type' => 'function', 'function' => ['name' => $name, 'description' => $definition['description'], 'parameters' => $definition['parameters']]])
+            ->values()
+            ->all();
+
         $messages = [
-            ['role' => 'system', 'content' => $target->description ?: 'شما یک دستیار هوشمند کمکی هستید.'],
+            ['role' => 'system', 'content' => $target->basePrompt()."\n\nدستیار دیگری از تو مشورت می‌خواهد. کوتاه، دقیق و کامل جواب بده."],
             ['role' => 'user', 'content' => $question],
         ];
+        $toolsUsed = [];
 
         try {
-            // No tools offered here - see the class docblock: this is what
-            // makes the one-level depth cap structural rather than a
-            // counter that could be bypassed by a bug elsewhere.
-            $response = $provider->chatCompletion($messages, [], $target->model);
+            $response = ['content' => null];
+
+            for ($round = 0; $round < self::MAX_TOOL_ROUNDS; $round++) {
+                $response = $provider->chatCompletion($messages, $tools, $target->model);
+                $calls = $response['tool_calls'] ?? null;
+
+                if (! $calls || $tools === []) {
+                    break;
+                }
+
+                $messages[] = $response;
+
+                foreach ($calls as $call) {
+                    $name = $call['function']['name'] ?? '';
+                    $result = isset($granted[$name])
+                        ? $catalog->execute($name, json_decode($call['function']['arguments'] ?? '{}', true) ?: [])
+                        : ['error' => 'این ابزار برای این دستیار مجاز نیست.'];
+                    $toolsUsed[] = $name;
+
+                    $messages[] = ['role' => 'tool', 'tool_call_id' => $call['id'], 'content' => json_encode($result, JSON_UNESCAPED_UNICODE)];
+                }
+
+                // Out of rounds with calls still pending: ask once more for a plain answer.
+                if ($round === self::MAX_TOOL_ROUNDS - 1) {
+                    $response = $provider->chatCompletion($messages, [], $target->model);
+                }
+            }
         } catch (AiProviderException $exception) {
             return ['error' => $exception->getMessage()];
         }
@@ -80,6 +121,6 @@ class AssistantConsultationService
             'answer' => $answer,
         ]);
 
-        return ['answer' => $answer, 'consulted' => $target->displayName()];
+        return ['answer' => $answer, 'consulted' => $target->displayName(), 'consulted_profile_id' => $target->id, 'tools_used' => array_values(array_unique($toolsUsed))];
     }
 }
