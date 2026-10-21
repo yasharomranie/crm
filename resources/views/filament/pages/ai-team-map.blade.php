@@ -70,12 +70,10 @@
     @endassets
 
     <style>
-        .wr-stage { --wr-bg: #040a14; --wr-panel: rgb(7 16 32 / 0.72); --wr-line: rgb(56 189 248 / 0.28); --wr-cyan: #38bdf8; --wr-amber: #fbbf24; --wr-text: #e2e8f0; --wr-dim: #8193ad; position: relative; height: 44rem; overflow: hidden; border-radius: 1rem; border: 1px solid var(--wr-line); background: radial-gradient(ellipse at 50% 45%, #0b1d36 0%, var(--wr-bg) 68%); color: var(--wr-text); isolation: isolate; }
+        .wr-stage { --wr-bg: #0b1220; --wr-panel: rgb(7 16 32 / 0.72); --wr-line: rgb(56 189 248 / 0.28); --wr-cyan: #38bdf8; --wr-amber: #fbbf24; --wr-text: #e2e8f0; --wr-dim: #8193ad; position: relative; height: 44rem; overflow: hidden; border-radius: 1rem; border: 1px solid var(--wr-line); background: var(--wr-bg); color: var(--wr-text); isolation: isolate; }
         .wr-stage:fullscreen { height: 100vh; border-radius: 0; }
         .wr-scene { position: absolute; inset: 0; }
-        .wr-scan { position: absolute; inset: 0; pointer-events: none; background: repeating-linear-gradient(to bottom, transparent 0, transparent 3px, rgb(56 189 248 / 0.035) 3px, rgb(56 189 248 / 0.035) 4px); mix-blend-mode: screen; }
-        .wr-vignette { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 140px 30px rgb(2 6 14 / 0.85); }
-        .wr-panel { position: absolute; background: var(--wr-panel); border: 1px solid var(--wr-line); backdrop-filter: blur(6px); border-radius: 0.5rem; }
+        .wr-panel { position: absolute; background: var(--wr-panel); border: 1px solid var(--wr-line); border-radius: 0.5rem; }
         .wr-panel::before, .wr-panel::after { content: ''; position: absolute; width: 10px; height: 10px; border: 2px solid var(--wr-cyan); pointer-events: none; }
         .wr-panel::before { top: -1px; inset-inline-start: -1px; border-inline-end: 0; border-bottom: 0; }
         .wr-panel::after { bottom: -1px; inset-inline-end: -1px; border-inline-start: 0; border-top: 0; }
@@ -85,20 +83,16 @@
         .wr-btn:hover { background: rgb(14 32 60 / 0.9); }
         .wr-btn:focus-visible { outline: 2px solid var(--wr-cyan); outline-offset: 2px; }
         .wr-led { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: #475569; flex: none; }
-        .wr-led.on { background: #34d399; box-shadow: 0 0 8px 1px #34d399; animation: wr-blink 1.4s ease-in-out infinite; }
-        @keyframes wr-blink { 50% { opacity: 0.35; } }
+        .wr-led.on { background: #34d399; }
         .wr-row { display: flex; width: 100%; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 0.375rem; text-align: start; cursor: pointer; background: transparent; border: 0; color: inherit; }
         .wr-row:hover, .wr-row.sel { background: rgb(56 189 248 / 0.12); }
         .wr-row:focus-visible { outline: 2px solid var(--wr-cyan); }
-        @media (prefers-reduced-motion: reduce) { .wr-led.on { animation: none; } }
         @media (max-width: 1023px) { .wr-side { display: none; } .wr-stage { height: 36rem; } }
     </style>
 
     <div x-data="aiTeamMap(@js($this->mapData()))">
         <div x-ref="stage" class="wr-stage" dir="rtl">
             <div wire:ignore x-ref="scene" class="wr-scene"></div>
-            <div class="wr-scan"></div>
-            <div class="wr-vignette"></div>
 
             {{-- top bar --}}
             <div class="wr-panel" style="top: 0.75rem; inset-inline: 0.75rem; display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.5rem 0.9rem;">
@@ -160,7 +154,7 @@
             <template x-if="selected">
                 <div class="wr-panel" style="bottom: 6.5rem; inset-inline: 0; margin-inline: auto; width: min(24rem, calc(100% - 1.5rem)); padding: 0.7rem 0.9rem;">
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <span style="width: 0.65rem; height: 0.65rem; border-radius: 9999px;" :style="'background:' + selected.color + '; box-shadow: 0 0 10px ' + selected.color"></span>
+                        <span style="width: 0.65rem; height: 0.65rem; border-radius: 9999px;" :style="'background:' + selected.color"></span>
                         <strong style="font-size: 0.85rem;" x-text="selected.label"></strong>
                         <span x-show="selected.live" style="font-size: 0.65rem; color: #34d399;">● فعال</span>
                         <button type="button" class="wr-btn" style="margin-inline-start: auto; height: 1.6rem;" x-on:click="reset()">بستن</button>
@@ -189,7 +183,7 @@
                 <div style="display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem;" class="wr-label">
                     <span><span style="display: inline-block; width: 1.1rem; height: 2px; background: var(--wr-cyan); vertical-align: middle;"></span> مشورت</span>
                     <span><span style="display: inline-block; width: 1.1rem; height: 2px; background: var(--wr-amber); vertical-align: middle;"></span> تحویل گفتگو</span>
-                    <span>ذرهٔ نوری = پیام در جریان · درخشش = فعال در ۵ دقیقهٔ اخیر</span>
+                    <span>ذرهٔ نوری = پیام در جریان · حلقه دور دستیار = فعال در ۵ دقیقهٔ اخیر</span>
                 </div>
             </div>
         </div>

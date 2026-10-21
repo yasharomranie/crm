@@ -1,11 +1,10 @@
 import ForceGraph3D from '3d-force-graph';
 import SpriteText from 'three-spritetext';
 import * as THREE from 'three';
-import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 
 /**
- * The 3D "command room" behind the AI team map: assistants as glowing cores
- * in a dark volume, consultations and hand-overs as light pulses travelling
+ * The 3D "command room" behind the AI team map: assistants as flat avatar
+ * badges in a dark volume, consultations and hand-overs as dots travelling
  * along the links. Mounted by resources/views/filament/pages/ai-team-map.blade.php
  * and bundled on its own (npm run build:war-room) into public/vendor/war-room.
  */
@@ -14,16 +13,15 @@ const KIND_COLORS = { consult: '#38bdf8', handoff: '#fbbf24' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
-function glowTexture() {
+function ringTexture() {
     const canvas = document.createElement('canvas');
-    canvas.width = canvas.height = 128;
+    canvas.width = canvas.height = 256;
     const ctx = canvas.getContext('2d');
-    const gradient = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
-    gradient.addColorStop(0, 'rgba(255,255,255,0.9)');
-    gradient.addColorStop(0.25, 'rgba(255,255,255,0.35)');
-    gradient.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 128, 128);
+    ctx.lineWidth = 10;
+    ctx.strokeStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(128, 128, 116, 0, 2 * Math.PI);
+    ctx.stroke();
 
     return new THREE.CanvasTexture(canvas);
 }
@@ -86,23 +84,12 @@ function avatarTexture(shape, color) {
     const r = size * 0.4;
 
     shapePath(ctx, shape, c, c, r);
-    const fill = ctx.createLinearGradient(c - r, c - r, c + r, c + r);
-    fill.addColorStop(0, '#ffffff');
-    fill.addColorStop(0.35, color);
-    fill.addColorStop(1, '#0b1220');
-    ctx.fillStyle = fill;
+    ctx.fillStyle = color;
     ctx.fill();
-
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.lineWidth = 8;
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = '#0b1220';
     ctx.stroke();
-
-    ctx.save();
-    shapePath(ctx, shape, c, c, r * 0.78);
-    ctx.lineWidth = 2;
-    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
-    ctx.stroke();
-    ctx.restore();
 
     const texture = new THREE.CanvasTexture(canvas);
     texture.colorSpace = THREE.SRGBColorSpace;
@@ -111,17 +98,17 @@ function avatarTexture(shape, color) {
     return texture;
 }
 
-function buildNode(node, glow) {
+function buildNode(node, ringMap) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
     const isManager = node.id === 'manager';
-    const radius = isManager ? 10 : 6.5;
+    const radius = isManager ? 12 : 8;
     const base = radius * 3;
 
     const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color), transparent: true, depthWrite: false }));
     core.scale.set(base, base, 1);
-    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, opacity: node.live ? 0.9 : 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
-    halo.scale.set(radius * 5, radius * 5, 1);
+    const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringMap, color, transparent: true, opacity: node.live ? 1 : 0, depthWrite: false }));
+    halo.scale.set(base * 1.35, base * 1.35, 1);
 
     group.add(halo, core);
 
@@ -145,7 +132,7 @@ function buildNode(node, glow) {
 }
 
 export function mount(element, { onSelect }) {
-    const glow = glowTexture();
+    const ringMap = ringTexture();
     const motion = !reducedMotion();
     let spinning = motion;
     let autoFit = true;
@@ -154,7 +141,7 @@ export function mount(element, { onSelect }) {
         .backgroundColor('rgba(0,0,0,0)')
         .showNavInfo(false)
         .nodeLabel(() => '')
-        .nodeThreeObject((node) => buildNode(node, glow))
+        .nodeThreeObject((node) => buildNode(node, ringMap))
         .nodeThreeObjectExtend(false)
         .linkColor((link) => KIND_COLORS[link.kind] ?? '#64748b')
         .linkOpacity(0.55)
@@ -169,7 +156,7 @@ export function mount(element, { onSelect }) {
         .cooldownTicks(120)
         .onEngineStop(() => {
             if (autoFit) {
-                graph.zoomToFit(900, 190);
+                graph.zoomToFit(900, 120);
             }
         })
         .onNodeClick((node) => {
@@ -188,24 +175,12 @@ export function mount(element, { onSelect }) {
     graph.d3Force('charge').strength(-260);
     graph.d3Force('link').distance(70);
 
-    const bloom = new UnrealBloomPass(new THREE.Vector2(element.clientWidth, element.clientHeight), 0.55, 0.5, 0.3);
-    graph.postProcessingComposer().addPass(bloom);
-
     const scene = graph.scene();
-    const floor = new THREE.GridHelper(520, 26, 0x1e3a5f, 0x12263f);
+    const floor = new THREE.GridHelper(520, 26, 0x23344d, 0x1a2638);
     floor.position.y = -120;
     floor.material.transparent = true;
     floor.material.opacity = 0.55;
     scene.add(floor);
-
-    const stars = new THREE.BufferGeometry();
-    const positions = new Float32Array(900 * 3);
-    for (let i = 0; i < positions.length; i++) {
-        positions[i] = (Math.random() - 0.5) * 1400;
-    }
-    stars.setAttribute('position', new THREE.BufferAttribute(positions, 3));
-    const dust = new THREE.Points(stars, new THREE.PointsMaterial({ color: 0x7dd3fc, size: 1.4, transparent: true, opacity: 0.45, depthWrite: false }));
-    scene.add(dust);
 
     const controls = graph.controls();
     controls.enableDamping = true;
@@ -225,7 +200,6 @@ export function mount(element, { onSelect }) {
             graph.cameraPosition({ x: radius * Math.sin(theta), z: radius * Math.cos(theta) });
         }
         if (motion) {
-            dust.rotation.y += 0.0004;
             graph.graphData().nodes.forEach((node) => {
                 const data = node.__threeObj?.userData;
                 if (!data) {
@@ -237,7 +211,7 @@ export function mount(element, { onSelect }) {
                 if (data.live) {
                     const pulse = 1 + 0.12 * Math.sin(tick + node.index);
                     data.core.scale.set(data.base * pulse, data.base * pulse, 1);
-                    data.halo.material.opacity = 0.65 + 0.25 * Math.sin(tick * 1.3 + node.index);
+                    data.halo.scale.set(data.base * (1.3 + 0.08 * Math.sin(tick * 1.3 + node.index)), data.base * (1.3 + 0.08 * Math.sin(tick * 1.3 + node.index)), 1);
                 }
             });
         }
@@ -247,7 +221,6 @@ export function mount(element, { onSelect }) {
 
     const resize = new ResizeObserver(() => {
         graph.width(element.clientWidth).height(element.clientHeight);
-        bloom.setSize(element.clientWidth, element.clientHeight);
     });
     resize.observe(element);
     graph.width(element.clientWidth).height(element.clientHeight);
@@ -266,7 +239,7 @@ export function mount(element, { onSelect }) {
     return {
         update(data) {
             graph.graphData(toGraph(data));
-            [700, 2200].forEach((delay) => setTimeout(() => autoFit && graph.zoomToFit(600, 190), delay));
+            [700, 2200].forEach((delay) => setTimeout(() => autoFit && graph.zoomToFit(600, 120), delay));
             graph.cooldownTicks(120);
             graph.d3ReheatSimulation();
         },
@@ -283,7 +256,7 @@ export function mount(element, { onSelect }) {
         reset() {
             spinning = motion;
             autoFit = true;
-            graph.zoomToFit(900, 190);
+            graph.zoomToFit(900, 120);
         },
         destroy() {
             cancelAnimationFrame(frame);
