@@ -54,7 +54,7 @@ class AiAssistantFormWorkflowToolsTest extends TestCase
             'workflow-definitions.create', 'workflow-definitions.update',
         ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['name' => 'مدیر آزمایشی']);
         $user->assignRole($role);
         $this->actingAs($user);
 

@@ -2,8 +2,10 @@
 
 namespace App\Domain\Ai\Missions;
 
+use App\Enums\AiMissionActionStatus;
 use App\Enums\AiMissionStatus;
 use App\Models\AiMission;
+use App\Models\AiMissionAction;
 use App\Models\AiMissionRun;
 use App\Models\User;
 use Illuminate\Support\Str;
@@ -28,6 +30,7 @@ class MissionDashboard
             'tiles' => [
                 'running' => $missions->where('status', AiMissionStatus::Running)->count(),
                 'waiting' => $missions->where('status', AiMissionStatus::WaitingApproval)->count(),
+                'actions' => AiMissionAction::query()->whereIn('ai_mission_id', $missions->pluck('id'))->where('status', AiMissionActionStatus::Pending->value)->count(),
                 'problems' => $missions->whereIn('status', [AiMissionStatus::Failed, AiMissionStatus::Stopped])->count(),
                 'recurring' => $missions->whereNotNull('schedule')->count(),
                 'tokens_month' => (int) $runs->filter(fn (AiMissionRun $run) => $run->finished_at && $run->finished_at->gte($monthStart))->sum('tokens_used')

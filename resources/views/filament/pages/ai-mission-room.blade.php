@@ -407,7 +407,7 @@
                         <div class="mr-card mr-stack" style="border-color: var(--mr-warn);">
                             <div class="mr-row">
                                 <h2 class="mr-h" style="font-size: 1.1rem;">📋 نتیجه: پیش‌نویس تصمیم</h2>
-                                <span class="mr-pill warn">فقط پیشنهاد است؛ هیچ اقدامی انجام نشده</span>
+                                <span class="mr-pill warn">تا تأیید شما هیچ اقدامی انجام نمی‌شود</span>
                             </div>
                             <p style="font-size: 0.9rem; line-height: 2; margin: 0;">{{ $mission->report['summary'] ?? '' }}</p>
 
@@ -438,6 +438,36 @@
                                     </ul>
                                 </div>
                             @endif
+                        </div>
+                    @endif
+
+                    {{-- proposed actions --}}
+                    @if ($mission->actions->isNotEmpty())
+                        <div class="mr-card mr-stack" style="gap: 0.7rem;">
+                            <div class="mr-row">
+                                <h2 class="mr-h" style="font-size: 1.05rem;">✅ اقدام‌های پیشنهادی تیم</h2>
+                                <span class="mr-sub">هر اقدام فقط بعد از تأیید شما انجام می‌شود</span>
+                            </div>
+                            @foreach ($mission->actions as $action)
+                                <div class="mr-item" wire:key="action-{{ $action->id }}">
+                                    <div style="min-width: 0; flex: 1;">
+                                        <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+                                            <strong style="font-size: 0.88rem;">{{ $action->summary }}</strong>
+                                            <span @class(['mr-pill', 'warn' => $action->status === \App\Enums\AiMissionActionStatus::Pending, 'good' => $action->status === \App\Enums\AiMissionActionStatus::Executed, 'bad' => $action->status === \App\Enums\AiMissionActionStatus::Failed])>{{ $action->status->getLabel() }}</span>
+                                        </div>
+                                        <span class="mr-sub">پیشنهاد «{{ $action->profile?->displayName() ?? 'تیم' }}»@if (filled($action->reason)) · {{ $action->reason }}@endif</span>
+                                        @if (filled($action->error))
+                                            <span class="mr-sub" style="color: var(--mr-bad);">{{ $action->error }}</span>
+                                        @endif
+                                    </div>
+                                    @if ($action->status === \App\Enums\AiMissionActionStatus::Pending)
+                                        <div class="mr-row" style="gap: 0.4rem;">
+                                            <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
+                                            <button type="button" class="mr-btn" wire:click="rejectAction({{ $action->id }})">رد</button>
+                                        </div>
+                                    @endif
+                                </div>
+                            @endforeach
                         </div>
                     @endif
 
@@ -601,7 +631,10 @@
                         </div>
                     @endif
                 @else
-                    @php $dashboard = $this->getDashboard(); @endphp
+                    @php
+                        $dashboard = $this->getDashboard();
+                        $pendingActions = $this->getPendingActions();
+                    @endphp
                     @if ($missions->isEmpty())
                         <div class="mr-card mr-empty">
                             <div style="font-size: 2.2rem;">🚩</div>
@@ -615,11 +648,34 @@
                         <div class="mr-stack" @if ($dashboard['running'] !== []) wire:poll.5s @endif>
                             <div class="mr-tiles">
                                 <div @class(['mr-tile-stat', 'warn' => $dashboard['tiles']['waiting'] > 0])><strong>{{ $fa($dashboard['tiles']['waiting']) }}</strong><span class="mr-sub">منتظر نظر شما</span></div>
+                                <div @class(['mr-tile-stat', 'warn' => $dashboard['tiles']['actions'] > 0])><strong>{{ $fa($dashboard['tiles']['actions']) }}</strong><span class="mr-sub">اقدام منتظر تأیید</span></div>
                                 <div @class(['mr-tile-stat', 'bad' => $dashboard['tiles']['problems'] > 0])><strong>{{ $fa($dashboard['tiles']['problems']) }}</strong><span class="mr-sub">ناموفق یا متوقف</span></div>
                                 <div class="mr-tile-stat"><strong>{{ $fa($dashboard['tiles']['running']) }}</strong><span class="mr-sub">در حال اجرا</span></div>
                                 <div class="mr-tile-stat"><strong>{{ $fa($dashboard['tiles']['recurring']) }}</strong><span class="mr-sub">تکرارشونده</span></div>
                                 <div class="mr-tile-stat"><strong>{{ $fa(number_format($dashboard['tiles']['tokens_month'])) }}</strong><span class="mr-sub">توکن مصرف‌شده در این ماه</span></div>
                             </div>
+
+                            @if ($pendingActions->isNotEmpty())
+                                <div class="mr-card mr-stack" style="gap: 0.6rem; border-color: var(--mr-warn);">
+                                    <div class="mr-row">
+                                        <h2 class="mr-h">✅ صف تأیید اقدام‌ها</h2>
+                                        <span class="mr-sub">تیم فقط پیشنهاد داده؛ تا تأیید نکنید چیزی تغییر نمی‌کند</span>
+                                    </div>
+                                    @foreach ($pendingActions as $action)
+                                        <div class="mr-item" wire:key="queue-{{ $action->id }}">
+                                            <div style="min-width: 0; flex: 1;">
+                                                <strong style="font-size: 0.88rem;">{{ $action->summary }}</strong>
+                                                <span class="mr-sub">مأموریت «{{ $action->mission->title }}» · پیشنهاد «{{ $action->profile?->displayName() ?? 'تیم' }}»@if (filled($action->reason)) · {{ $action->reason }}@endif</span>
+                                            </div>
+                                            <div class="mr-row" style="gap: 0.4rem;">
+                                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
+                                                <button type="button" class="mr-btn" wire:click="rejectAction({{ $action->id }})">رد</button>
+                                                <button type="button" class="mr-btn mr-btn-quiet" wire:click="openMission({{ $action->ai_mission_id }})">مأموریت</button>
+                                            </div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
 
                             <div class="mr-card mr-stack" style="gap: 0.6rem;">
                                 <h2 class="mr-h">🔔 نیاز به شما</h2>

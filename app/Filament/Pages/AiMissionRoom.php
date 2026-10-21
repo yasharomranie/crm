@@ -2,10 +2,12 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Ai\Missions\MissionActionExecutor;
 use App\Domain\Ai\Missions\MissionDashboard;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
 use App\Domain\Ai\Missions\MissionTemplates;
+use App\Enums\AiMissionActionStatus;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
@@ -14,6 +16,7 @@ use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
+use App\Models\AiMissionAction;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -104,7 +107,7 @@ class AiMissionRoom extends Page
     public function getSelectedMission(): ?AiMission
     {
         return $this->missionId
-            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs'])->find($this->missionId)
+            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs', 'actions.profile'])->find($this->missionId)
             : null;
     }
 
@@ -467,6 +470,57 @@ class AiMissionRoom extends Page
         }
 
         $mission->cards()->whereKey($cardId)->where('kind', AiMissionCardKind::Finding->value)->update(['status' => $newStatus->value]);
+    }
+
+    /**
+     * Every action still waiting for the user's decision, across all their
+     * missions - the central approval queue.
+     *
+     * @return Collection<int, AiMissionAction>
+     */
+    public function getPendingActions(): Collection
+    {
+        return AiMissionAction::query()
+            ->whereHas('mission', fn ($query) => $query->ownedBy(Auth::user()))
+            ->where('status', AiMissionActionStatus::Pending->value)
+            ->with(['mission', 'profile'])
+            ->oldest('id')
+            ->get();
+    }
+
+    public function approveAction(int $actionId): void
+    {
+        $action = $this->ownedPendingAction($actionId);
+
+        if (! $action) {
+            return;
+        }
+
+        $action = app(MissionActionExecutor::class)->approve($action, Auth::user());
+        $failed = $action->status === AiMissionActionStatus::Failed;
+        $notification = Notification::make()
+            ->title($failed ? 'اقدام انجام نشد' : 'اقدام انجام شد')
+            ->body($failed ? (string) $action->error : $action->summary);
+        $failed ? $notification->danger()->send() : $notification->success()->send();
+    }
+
+    public function rejectAction(int $actionId): void
+    {
+        $action = $this->ownedPendingAction($actionId);
+
+        if ($action) {
+            app(MissionActionExecutor::class)->reject($action, Auth::user());
+        }
+    }
+
+    /** Only the mission's owner can decide on its actions. */
+    private function ownedPendingAction(int $actionId): ?AiMissionAction
+    {
+        return AiMissionAction::query()
+            ->whereKey($actionId)
+            ->where('status', AiMissionActionStatus::Pending->value)
+            ->whereHas('mission', fn ($query) => $query->ownedBy(Auth::user()))
+            ->first();
     }
 
     public function deleteMission(int $id): void
