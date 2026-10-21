@@ -55,6 +55,11 @@ class AiMission extends Model
         return $this->hasMany(AiMissionRun::class)->latest('finished_at')->latest('id');
     }
 
+    public function actions(): HasMany
+    {
+        return $this->hasMany(AiMissionAction::class)->orderBy('id');
+    }
+
     public function cards(): HasMany
     {
         return $this->hasMany(AiMissionCard::class)->orderBy('round')->orderBy('id');
