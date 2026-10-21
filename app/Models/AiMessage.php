@@ -12,7 +12,7 @@ class AiMessage extends Model
     use HasFactory;
 
     protected $fillable = [
-        'ai_conversation_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'chart', 'feedback',
+        'ai_conversation_id', 'ai_assistant_profile_id', 'role', 'content', 'tool_calls', 'tool_call_id', 'tool_name', 'chart', 'feedback',
         'prompt_tokens', 'completion_tokens', 'latency_ms',
     ];
 
@@ -23,6 +23,15 @@ class AiMessage extends Model
             'tool_calls' => 'array',
             'chart' => 'array',
         ];
+    }
+
+    /**
+     * The custom assistant that wrote this message - several can take turns in
+     * one conversation once a chat has been handed over (handoff_to_assistant).
+     */
+    public function author(): BelongsTo
+    {
+        return $this->belongsTo(AiAssistantProfile::class, 'ai_assistant_profile_id');
     }
 
     public function conversation(): BelongsTo

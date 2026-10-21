@@ -1573,4 +1573,93 @@ class AiAssistantsHubTest extends TestCase
         Http::assertNothingSent();
         $this->assertSame(1, $ownersConversation->refresh()->messages()->count());
     }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function toolCallReply(string $name, array $arguments): array
+    {
+        return ['choices' => [['message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => [[
+            'id' => 'call_'.$name,
+            'type' => 'function',
+            'function' => ['name' => $name, 'arguments' => json_encode($arguments)],
+        ]]]]]];
+    }
+
+    public function test_a_profile_can_hand_the_chat_over_and_the_target_answers_in_the_same_request(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'دستیار فروش']);
+        $target = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'description' => 'دستیار حقوقی', 'specialties' => ['حقوقی']]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push($this->toolCallReply('handoff_to_assistant', ['target_profile_id' => $target->id, 'summary' => 'کاربر درباره‌ی فسخ قرارداد می‌پرسد.']))
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام، من دستیار حقوقی‌ام؛ فسخ تا هفت روز ممکن است.']]]]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'می‌خواهم قرارداد را فسخ کنم')
+            ->call('sendToProfile')
+            ->assertSet('activeProfileId', $target->id)
+            ->assertSee('گفتگو را به «'.$target->displayName().'» سپرد')
+            ->assertSee('فسخ تا هفت روز ممکن است.');
+
+        $conversation = AiConversation::sole();
+        $this->assertSame($target->id, $conversation->ai_assistant_profile_id);
+
+        $reply = $conversation->messages()->where('role', AiMessageRole::Assistant)->whereNotNull('content')->sole();
+        $this->assertSame($target->id, $reply->ai_assistant_profile_id);
+        $this->assertSame('handoff_to_assistant', $conversation->messages()->where('role', AiMessageRole::Tool)->sole()->tool_name);
+
+        $requests = Http::recorded();
+        $this->assertCount(2, $requests);
+
+        $secondTools = collect($requests[1][0]->data()['tools'] ?? [])->pluck('function.name')->all();
+        $this->assertNotContains('handoff_to_assistant', $secondTools);
+        $this->assertStringContainsString('کاربر درباره‌ی فسخ قرارداد می‌پرسد.', $requests[1][0]->data()['messages'][0]['content']);
+        $this->assertStringContainsString('دستیار حقوقی', $requests[1][0]->data()['messages'][0]['content']);
+    }
+
+    public function test_handing_over_to_a_profile_that_is_not_available_is_refused_and_nothing_moves(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $requester = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $stranger = AiAssistantProfile::factory()->create(['is_shared' => false]);
+
+        Http::fake([
+            '*/chat/completions' => Http::sequence()
+                ->push($this->toolCallReply('handoff_to_assistant', ['target_profile_id' => $stranger->id, 'summary' => 'x']))
+                ->push(['choices' => [['message' => ['role' => 'assistant', 'content' => 'خودم جواب می‌دهم.']]]]),
+        ]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $requester->id)
+            ->set('body', 'سؤال')
+            ->call('sendToProfile')
+            ->assertSet('activeProfileId', $requester->id);
+
+        $this->assertSame($requester->id, AiConversation::sole()->ai_assistant_profile_id);
+    }
+
+    public function test_normal_replies_record_which_assistant_wrote_them(): void
+    {
+        $user = $this->actingAsHubUser();
+        AiProvider::factory()->active()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        Http::fake(['*/chat/completions' => Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => 'سلام!']]]])]);
+
+        Livewire::test(AiAssistantsHub::class)
+            ->call('openProfile', $profile->id)
+            ->set('body', 'سلام')
+            ->call('sendToProfile');
+
+        $this->assertSame($profile->id, AiConversation::sole()->messages()->where('role', AiMessageRole::Assistant)->sole()->ai_assistant_profile_id);
+    }
 }

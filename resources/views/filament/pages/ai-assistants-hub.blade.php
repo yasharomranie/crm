@@ -245,6 +245,7 @@
             $visibleMessages = $this->getProfileMessages()->filter(fn ($message) => $message->role === \App\Enums\AiMessageRole::User
                 || ($message->role === \App\Enums\AiMessageRole::Assistant && filled($message->content))
                 || ($message->role === \App\Enums\AiMessageRole::Tool && $this->describeToolActivity($message) !== null));
+            $hasHandoff = $visibleMessages->contains(fn ($message) => $message->tool_name === 'handoff_to_assistant');
             $forwardTargets = $this->getForwardTargets();
             $lastAssistantMessageId = optional($visibleMessages->filter(fn ($message) => $message->role === \App\Enums\AiMessageRole::Assistant)->last())->id;
         @endphp
@@ -789,7 +790,7 @@
                                 @php $consulted = $this->consultationAnswer($message); @endphp
                                 <div class="flex flex-col items-center gap-2">
                                     <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[11px] text-gray-500 dark:bg-white/5 dark:text-gray-400">
-                                        {{ $message->tool_name === 'consult_assistant' ? '🔄' : '🌐' }}
+                                        {{ match ($message->tool_name) { 'consult_assistant' => '🔄', 'handoff_to_assistant' => '🤝', default => '🌐' } }}
                                         {{ $this->describeToolActivity($message) }}
                                     </span>
                                     @if ($consulted)
@@ -803,6 +804,9 @@
                                 @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
                                 <div class="flex {{ $isUser ? 'justify-start' : 'justify-end' }}">
                                     <div class="flex max-w-[85%] flex-col gap-1 {{ $isUser ? 'items-start' : 'items-end' }}">
+                                        @if (! $isUser && $hasHandoff && $message->author)
+                                            <span class="px-1 text-[11px] font-medium text-primary-700 dark:text-primary-300">{{ $message->author->displayName() }}</span>
+                                        @endif
                                         <div @class([
                                             'rounded-2xl px-4 py-2.5 text-sm',
                                             'rounded-bl-md bg-primary-600 text-white' => $isUser,
