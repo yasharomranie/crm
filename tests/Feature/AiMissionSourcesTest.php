@@ -146,7 +146,12 @@ class AiMissionSourcesTest extends TestCase
 
     public function test_a_provider_failure_marks_the_file_failed_but_keeps_its_text_for_a_retry(): void
     {
-        Http::fake(['*/chat/completions' => Http::response(['error' => ['message' => 'quota exceeded']], 429)]);
+        $failing = true;
+        Http::fake(['*/chat/completions' => function () use (&$failing) {
+            return $failing
+                ? Http::response(['error' => ['message' => 'quota exceeded']], 429)
+                : Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => json_encode($this->digest(), JSON_UNESCAPED_UNICODE)]]]]);
+        }]);
 
         $component = Livewire::test(AiMissionRoom::class)
             ->set('sourceUploads', [UploadedFile::fake()->createWithContent('plan.csv', "ماه;اشغال\nمهر;۷۸\n")])
@@ -157,7 +162,7 @@ class AiMissionSourcesTest extends TestCase
         $this->assertStringContainsString('quota exceeded', $source->error);
         $this->assertSame("ماه | اشغال\nمهر | ۷۸", $source->content);
 
-        $this->fakeJson($this->digest());
+        $failing = false;
         $component->call('retrySource', $source->id);
 
         $this->assertSame(AiMissionSourceStatus::Ready, $source->fresh()->status);

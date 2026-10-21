@@ -25,6 +25,7 @@ class AiMission extends Model
         'report', 'notes', 'last_error', 'started_at', 'finished_at', 'cancel_requested', 'current_step', 'current_profile_id',
         'step_index', 'step_total', 'tokens_used', 'token_budget', 'schedule', 'schedule_time', 'schedule_weekday',
         'schedule_day', 'next_run_at', 'last_scheduled_at', 'run_trigger', 'budget_alerted',
+        'brief', 'brief_status', 'brief_sources_hash', 'brief_error', 'brief_approved_at',
     ];
 
     protected function casts(): array
