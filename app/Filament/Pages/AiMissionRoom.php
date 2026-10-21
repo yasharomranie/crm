@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Ai\Missions\MissionDashboard;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
 use App\Domain\Ai\Missions\MissionTemplates;
@@ -90,6 +91,14 @@ class AiMissionRoom extends Page
     public function getMissions(): Collection
     {
         return AiMission::query()->ownedBy(Auth::user())->with('roles.profile')->latest('id')->limit(30)->get();
+    }
+
+    /**
+     * @return array{tiles: array<string, int>, attention: list<array<string, mixed>>, running: list<array<string, mixed>>, recurring: list<array<string, mixed>>, recent: list<array<string, mixed>>}
+     */
+    public function getDashboard(): array
+    {
+        return app(MissionDashboard::class)->build(Auth::user());
     }
 
     public function getSelectedMission(): ?AiMission

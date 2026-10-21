@@ -68,6 +68,12 @@
         .mr-template:hover { border-color: var(--mr-accent); }
         .mr-template.on { border-color: var(--mr-accent); background: var(--mr-accent-soft); }
         .mr-template:focus-visible { outline: 2px solid var(--mr-accent); outline-offset: 2px; }
+        .mr-tiles { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fit, minmax(9.5rem, 1fr)); }
+        .mr-tile-stat { padding: 0.9rem 1rem; border-radius: 0.9rem; background: var(--mr-soft); border: 1px solid var(--mr-line); display: grid; gap: 0.15rem; }
+        .mr-tile-stat strong { font-size: 1.6rem; line-height: 1.2; font-variant-numeric: tabular-nums; }
+        .mr-tile-stat.warn { background: var(--mr-warn-soft); border-color: var(--mr-warn); }
+        .mr-tile-stat.bad { background: var(--mr-bad-soft); border-color: var(--mr-bad); }
+        .mr-item { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 0.8rem; background: var(--mr-soft); }
         .mr-finding.rejected { opacity: 0.55; }
         .mr-finding.rejected .mr-claim { text-decoration: line-through; }
         .mr-finding.locked { border-color: var(--mr-good); }
@@ -595,14 +601,95 @@
                         </div>
                     @endif
                 @else
-                    <div class="mr-card mr-empty">
-                        <div style="font-size: 2.2rem;">🚩</div>
-                        <div>
-                            <strong style="font-size: 1rem;">اتاق عملیات</strong>
-                            <p class="mr-sub">یک هدف را به تیمی از دستیارهایتان بسپارید؛ آنها داده را بررسی می‌کنند، همدیگر را نقد می‌کنند و یک پیشنهاد تصمیم می‌نویسند. تصمیم و اجرا همیشه با خود شماست.</p>
+                    @php $dashboard = $this->getDashboard(); @endphp
+                    @if ($missions->isEmpty())
+                        <div class="mr-card mr-empty">
+                            <div style="font-size: 2.2rem;">🚩</div>
+                            <div>
+                                <strong style="font-size: 1rem;">اتاق عملیات</strong>
+                                <p class="mr-sub">یک هدف را به تیمی از دستیارهایتان بسپارید؛ آنها داده را بررسی می‌کنند، همدیگر را نقد می‌کنند و یک پیشنهاد تصمیم می‌نویسند. تصمیم و اجرا همیشه با خود شماست.</p>
+                            </div>
+                            <button type="button" class="mr-btn mr-btn-primary" wire:click="startCreate">＋ ساخت اولین مأموریت</button>
                         </div>
-                        <button type="button" class="mr-btn mr-btn-primary" wire:click="startCreate">＋ ساخت اولین مأموریت</button>
-                    </div>
+                    @else
+                        <div class="mr-stack" @if ($dashboard['running'] !== []) wire:poll.5s @endif>
+                            <div class="mr-tiles">
+                                <div @class(['mr-tile-stat', 'warn' => $dashboard['tiles']['waiting'] > 0])><strong>{{ $fa($dashboard['tiles']['waiting']) }}</strong><span class="mr-sub">منتظر نظر شما</span></div>
+                                <div @class(['mr-tile-stat', 'bad' => $dashboard['tiles']['problems'] > 0])><strong>{{ $fa($dashboard['tiles']['problems']) }}</strong><span class="mr-sub">ناموفق یا متوقف</span></div>
+                                <div class="mr-tile-stat"><strong>{{ $fa($dashboard['tiles']['running']) }}</strong><span class="mr-sub">در حال اجرا</span></div>
+                                <div class="mr-tile-stat"><strong>{{ $fa($dashboard['tiles']['recurring']) }}</strong><span class="mr-sub">تکرارشونده</span></div>
+                                <div class="mr-tile-stat"><strong>{{ $fa(number_format($dashboard['tiles']['tokens_month'])) }}</strong><span class="mr-sub">توکن مصرف‌شده در این ماه</span></div>
+                            </div>
+
+                            <div class="mr-card mr-stack" style="gap: 0.6rem;">
+                                <h2 class="mr-h">🔔 نیاز به شما</h2>
+                                @forelse ($dashboard['attention'] as $item)
+                                    <div class="mr-item" wire:key="attention-{{ $item['id'] }}">
+                                        <div style="min-width: 0;">
+                                            <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+                                                <strong style="font-size: 0.88rem;">{{ $item['title'] }}</strong>
+                                                <span class="mr-pill {{ $item['tone'] }}">{{ $item['status'] }}</span>
+                                            </div>
+                                            <span class="mr-sub">{{ $item['detail'] }} · {{ $item['at'] }}</span>
+                                        </div>
+                                        <button type="button" class="mr-btn" wire:click="openMission({{ $item['id'] }})">باز کردن</button>
+                                    </div>
+                                @empty
+                                    <p class="mr-sub">✓ چیزی منتظر شما نیست.</p>
+                                @endforelse
+                            </div>
+
+                            @if ($dashboard['running'] !== [])
+                                <div class="mr-card mr-stack" style="gap: 0.6rem;">
+                                    <h2 class="mr-h">⏳ در حال اجرا</h2>
+                                    @foreach ($dashboard['running'] as $item)
+                                        <div class="mr-item" wire:key="running-{{ $item['id'] }}" style="display: grid;">
+                                            <div class="mr-row">
+                                                <strong style="font-size: 0.88rem;">{{ $item['title'] }}</strong>
+                                                <button type="button" class="mr-btn" wire:click="openMission({{ $item['id'] }})">باز کردن</button>
+                                            </div>
+                                            <span class="mr-sub">{{ $item['step'] }}</span>
+                                            <div style="height: 0.35rem; border-radius: 9999px; background: var(--mr-line); overflow: hidden;"><div style="height: 100%; width: {{ $item['percent'] }}%; background: var(--mr-accent);"></div></div>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if ($dashboard['recurring'] !== [])
+                                <div class="mr-card mr-stack" style="gap: 0.6rem;">
+                                    <h2 class="mr-h">🔁 تکرارشونده‌ها</h2>
+                                    @foreach ($dashboard['recurring'] as $item)
+                                        <div class="mr-item" wire:key="recurring-{{ $item['id'] }}">
+                                            <div>
+                                                <strong style="font-size: 0.88rem;">{{ $item['title'] }}</strong>
+                                                <div class="mr-sub">{{ $item['every'] }}@if ($item['next']) · اجرای بعدی: {{ $fa($item['next']) }}@endif @if ($item['last']) · آخرین اجرا: {{ $item['last'] }}@endif</div>
+                                            </div>
+                                            <button type="button" class="mr-btn" wire:click="openMission({{ $item['id'] }})">باز کردن</button>
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            <div class="mr-card mr-stack" style="gap: 0.6rem;">
+                                <h2 class="mr-h">🕘 آخرین نتیجه‌ها</h2>
+                                @forelse ($dashboard['recent'] as $index => $item)
+                                    <div class="mr-item" wire:key="recent-{{ $index }}">
+                                        <div style="min-width: 0;">
+                                            <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+                                                <strong style="font-size: 0.88rem;">{{ $item['title'] }}</strong>
+                                                <span class="mr-pill {{ $item['scheduled'] ? 'accent' : '' }}">{{ $item['scheduled'] ? 'زمان‌بندی‌شده' : 'دستی' }}</span>
+                                                <span class="mr-pill {{ $item['decisions'] > 0 ? 'warn' : '' }}">{{ $fa($item['decisions']) }} پیشنهاد</span>
+                                            </div>
+                                            <span class="mr-sub">{{ $fa($item['when']) }} · {{ $item['summary'] }}</span>
+                                        </div>
+                                        <button type="button" class="mr-btn" wire:click="openMission({{ $item['mission_id'] }})">باز کردن</button>
+                                    </div>
+                                @empty
+                                    <p class="mr-sub">هنوز دوری تمام نشده است.</p>
+                                @endforelse
+                            </div>
+                        </div>
+                    @endif
                 @endif
             </main>
         </div>
