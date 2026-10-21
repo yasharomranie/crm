@@ -50,7 +50,7 @@ class AiAssistantTest extends TestCase
             'workflow-definitions.create', 'form-templates.create',
         ])->orWhere('name', 'like', '%.view_any')->orWhere('name', 'tasks.create')->get());
 
-        $user = User::factory()->create();
+        $user = User::factory()->create(['name' => 'مدیر آزمایشی']);
         $user->assignRole($role);
 
         $this->actingAs($user);
