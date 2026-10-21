@@ -31,9 +31,13 @@ class MissionRunner
     public function __construct(private readonly AssistantConsultationService $consultations) {}
 
     /**
-     * @return array{ok: bool, error?: string}
+     * Checks a round may start and marks the mission as running; the steps
+     * themselves are then run one by one with runStep() (as queued jobs, so no
+     * single request has to last for minutes).
+     *
+     * @return array{ok: bool, round?: int, steps?: int, error?: string}
      */
-    public function runRound(AiMission $mission, User $user): array
+    public function start(AiMission $mission, User $user): array
     {
         $mission->loadMissing('roles.profile');
 
@@ -49,52 +53,156 @@ class MissionRunner
             return ['ok' => false, 'error' => 'سقف مصرف دستیارها پر شده است.'];
         }
 
-        $specialists = $this->rolesOf($mission, AiMissionRoleType::Specialist, $user);
-        $coordinator = $this->rolesOf($mission, AiMissionRoleType::Coordinator, $user)->first();
+        if ($mission->token_budget && $mission->tokens_used >= $mission->token_budget) {
+            return ['ok' => false, 'error' => 'سقف توکن این مأموریت پر شده است؛ سقف را بالاتر ببرید.'];
+        }
 
-        if ($specialists->isEmpty() || ! $coordinator) {
+        $steps = $this->steps($mission, $user);
+
+        if (collect($steps)->where('type', AiMissionRoleType::Specialist)->isEmpty() || collect($steps)->where('type', AiMissionRoleType::Coordinator)->isEmpty()) {
             return ['ok' => false, 'error' => 'مأموریت دست‌کم یک متخصص و یک هماهنگ‌کننده می‌خواهد (و دستیارها باید برای شما در دسترس باشند).'];
         }
 
-        @set_time_limit(280);
-        $round = $mission->rounds_run + 1;
-        $mission->update(['status' => AiMissionStatus::Running, 'started_at' => $mission->started_at ?? now(), 'last_error' => null]);
+        $mission->update([
+            'status' => AiMissionStatus::Running,
+            'started_at' => $mission->started_at ?? now(),
+            'last_error' => null,
+            'cancel_requested' => false,
+            'current_step' => 'در صف اجرا…',
+            'current_profile_id' => null,
+            'step_index' => 0,
+            'step_total' => count($steps),
+        ]);
+
+        return ['ok' => true, 'round' => $mission->rounds_run + 1, 'steps' => count($steps)];
+    }
+
+    /**
+     * Runs one step of the round (a specialist, the critic or the coordinator).
+     * A failed, stopped or over-budget step abandons the round; the last step
+     * writes the report and ends the run.
+     *
+     * @return array{ok: bool, done?: bool, error?: string}
+     */
+    public function runStep(AiMission $mission, int $index, int $round, User $user): array
+    {
+        $mission->refresh()->loadMissing('roles.profile');
+
+        if ($mission->status !== AiMissionStatus::Running) {
+            return ['ok' => false, 'error' => 'مأموریت دیگر در حال اجرا نیست.'];
+        }
+
+        if ($mission->cancel_requested) {
+            return $this->abandonRound($mission, $round, 'متوقف شد؛ دورِ نیمه‌کاره کنار گذاشته شد و می‌توانید دوباره اجرایش کنید.', AiMissionStatus::Stopped);
+        }
+
+        if ($mission->token_budget && $mission->tokens_used >= $mission->token_budget) {
+            return $this->abandonRound($mission, $round, 'سقف توکن مأموریت پر شد؛ سقف را بالاتر ببرید و دور را دوباره اجرا کنید.');
+        }
+
+        $steps = $this->steps($mission, $user);
+        $step = $steps[$index] ?? null;
+
+        if (! $step) {
+            return $this->abandonRound($mission, $round, 'مراحل مأموریت پیدا نشد.');
+        }
+
+        /** @var AiMissionRole $role */
+        $role = $step['role'];
+        $verb = match ($step['type']) {
+            AiMissionRoleType::Specialist => 'در حال بررسی',
+            AiMissionRoleType::Critic => 'در حال نقد یافته‌ها',
+            AiMissionRoleType::Coordinator => 'در حال جمع‌بندی',
+        };
+        $mission->update(['current_step' => "«{$role->profile->displayName()}» {$verb}…", 'current_profile_id' => $role->ai_assistant_profile_id, 'step_index' => $index, 'step_total' => count($steps)]);
+
+        @set_time_limit(240);
 
         try {
-            $steps = [
-                ...$specialists->map(fn (AiMissionRole $role) => fn () => $this->runSpecialist($mission, $role, $round, $user))->all(),
-                ...$this->rolesOf($mission, AiMissionRoleType::Critic, $user)->map(fn (AiMissionRole $role) => fn () => $this->runCritic($mission, $role, $round, $user))->all(),
-                fn () => $this->runCoordinator($mission, $coordinator, $round, $user),
-            ];
-
-            foreach ($steps as $step) {
-                if (! $step()) {
-                    return $this->abandonRound($mission, $round);
-                }
-            }
+            $ok = match ($step['type']) {
+                AiMissionRoleType::Specialist => $this->runSpecialist($mission, $role, $round, $user),
+                AiMissionRoleType::Critic => $this->runCritic($mission, $role, $round, $user),
+                AiMissionRoleType::Coordinator => $this->runCoordinator($mission, $role, $round, $user),
+            };
         } catch (Throwable $exception) {
             report($exception);
             $mission->update(['last_error' => 'اجرای مأموریت با خطای غیرمنتظره متوقف شد.']);
+            $ok = false;
+        }
 
+        if (! $ok) {
             return $this->abandonRound($mission, $round);
+        }
+
+        $done = $index === count($steps) - 1;
+
+        if ($done) {
+            $mission->update(['current_step' => null, 'current_profile_id' => null, 'cancel_requested' => false]);
+        }
+
+        return ['ok' => true, 'done' => $done];
+    }
+
+    /**
+     * The whole round in one go (used where there is no queue worker).
+     *
+     * @return array{ok: bool, error?: string}
+     */
+    public function runRound(AiMission $mission, User $user): array
+    {
+        $started = $this->start($mission, $user);
+
+        if (! $started['ok']) {
+            return $started;
+        }
+
+        for ($index = 0; $index < $started['steps']; $index++) {
+            $result = $this->runStep($mission, $index, $started['round'], $user);
+
+            if (! $result['ok']) {
+                return $result;
+            }
         }
 
         return ['ok' => true];
     }
 
     /**
-     * A failed round leaves nothing half-written: its cards go, the mission is
-     * marked failed with the reason, and the same round can simply be run again.
+     * Specialists first, then critics, then the coordinator.
+     *
+     * @return list<array{role: AiMissionRole, type: AiMissionRoleType}>
+     */
+    private function steps(AiMission $mission, User $user): array
+    {
+        $mission->loadMissing('roles.profile');
+        $coordinator = $this->rolesOf($mission, AiMissionRoleType::Coordinator, $user)->first();
+
+        return [
+            ...$this->rolesOf($mission, AiMissionRoleType::Specialist, $user)->map(fn (AiMissionRole $role) => ['role' => $role, 'type' => AiMissionRoleType::Specialist])->all(),
+            ...$this->rolesOf($mission, AiMissionRoleType::Critic, $user)->map(fn (AiMissionRole $role) => ['role' => $role, 'type' => AiMissionRoleType::Critic])->all(),
+            ...($coordinator ? [['role' => $coordinator, 'type' => AiMissionRoleType::Coordinator]] : []),
+        ];
+    }
+
+    /**
+     * A failed or stopped round leaves nothing half-written: its cards go, the
+     * mission is marked with the reason, and the same round can be run again.
      *
      * @return array{ok: bool, error: string}
      */
-    private function abandonRound(AiMission $mission, int $round): array
+    public function abandonRound(AiMission $mission, int $round, ?string $reason = null, AiMissionStatus $status = AiMissionStatus::Failed): array
     {
         $mission->cards()->where('round', $round)->delete();
         $mission->refresh();
-        $mission->update(['status' => AiMissionStatus::Failed]);
+        $mission->update([
+            'status' => $status,
+            'last_error' => $reason ?? $mission->last_error ?? 'اجرای مأموریت ناموفق بود.',
+            'current_step' => null,
+            'current_profile_id' => null,
+            'cancel_requested' => false,
+        ]);
 
-        return ['ok' => false, 'error' => $mission->last_error ?? 'اجرای مأموریت ناموفق بود.'];
+        return ['ok' => false, 'error' => $mission->last_error];
     }
 
     /**
@@ -255,7 +363,13 @@ class MissionRunner
         ]);
 
         // depth 1 rules out asking further assistants: a mission member answers alone.
-        return $this->consultations->consult(null, $role->profile, $question, null, $user, depth: 1, instructions: $instructions);
+        $result = $this->consultations->consult(null, $role->profile, $question, null, $user, depth: 1, instructions: $instructions);
+
+        if (($result['tokens'] ?? 0) > 0) {
+            $mission->increment('tokens_used', $result['tokens']);
+        }
+
+        return $result;
     }
 
     private function specialistQuestion(AiMission $mission, AiMissionRole $role, int $round): string

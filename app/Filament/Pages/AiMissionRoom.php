@@ -6,6 +6,7 @@ use App\Domain\Ai\Missions\MissionRunner;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use BackedEnum;
@@ -54,6 +55,8 @@ class AiMissionRoom extends Page
     public string $missionEnd = '';
 
     public int $maxRounds = 2;
+
+    public int $tokenBudget = 60000;
 
     public ?int $coordinatorId = null;
 
@@ -106,6 +109,7 @@ class AiMissionRoom extends Page
     {
         $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor']);
         $this->maxRounds = 2;
+        $this->tokenBudget = 60000;
         $this->specialists = [['profile_id' => null, 'directive' => '']];
         $this->showCreate = true;
         $this->missionId = null;
@@ -188,6 +192,7 @@ class AiMissionRoom extends Page
             'missionGoal' => ['required', 'string', 'max:1500'],
             'missionEnd' => ['nullable', 'string', 'max:500'],
             'maxRounds' => ['required', 'integer', 'min:1', 'max:5'],
+            'tokenBudget' => ['required', 'integer', 'min:1000', 'max:2000000'],
             'coordinatorDirective' => ['nullable', 'string', 'max:500'],
             'criticDirective' => ['nullable', 'string', 'max:500'],
             'specialists.*.directive' => ['nullable', 'string', 'max:500'],
@@ -222,6 +227,7 @@ class AiMissionRoom extends Page
                 'goal' => $this->missionGoal,
                 'end_condition' => filled($this->missionEnd) ? $this->missionEnd : null,
                 'max_rounds' => $this->maxRounds,
+                'token_budget' => $this->tokenBudget,
             ]);
 
             foreach ($rows->values() as $sort => $row) {
@@ -244,11 +250,53 @@ class AiMissionRoom extends Page
             return;
         }
 
-        $result = app(MissionRunner::class)->runRound($mission, Auth::user());
+        $started = app(MissionRunner::class)->start($mission, Auth::user());
 
-        $notification = Notification::make()->title($result['ok'] ? 'دور اجرا شد؛ تخته و گزارش را ببینید.' : ($result['error'] ?? 'اجرا ناموفق بود.'));
-        $result['ok'] ? $notification->success() : $notification->danger();
-        $notification->send();
+        if (! $started['ok']) {
+            Notification::make()->title($started['error'] ?? 'اجرا ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        RunMissionStepJob::dispatch($mission->id, Auth::id(), $started['round'], 0);
+
+        $mission->refresh();
+
+        match ($mission->status) {
+            AiMissionStatus::Running => Notification::make()->title('تیم شروع به کار کرد؛ می‌توانید صفحه را ببندید، نتیجه در همین‌جا می‌ماند.')->success()->send(),
+            AiMissionStatus::Failed, AiMissionStatus::Stopped => Notification::make()->title($mission->last_error ?? 'اجرا ناموفق بود.')->danger()->send(),
+            default => Notification::make()->title('دور اجرا شد؛ تخته و گزارش را ببینید.')->success()->send(),
+        };
+    }
+
+    public function stopMission(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission || $mission->status !== AiMissionStatus::Running) {
+            return;
+        }
+
+        // A run whose worker died (nothing touched it for a few minutes) is released at once.
+        if ($mission->updated_at->lt(now()->subMinutes(3))) {
+            app(MissionRunner::class)->abandonRound($mission, $mission->rounds_run + 1, 'متوقف شد.', AiMissionStatus::Stopped);
+            Notification::make()->title('مأموریت متوقف شد.')->success()->send();
+
+            return;
+        }
+
+        $mission->update(['cancel_requested' => true, 'current_step' => 'در حال توقف… (بعد از پایان کار فعلی)']);
+        Notification::make()->title('درخواست توقف ثبت شد؛ بعد از پایان مرحلهٔ فعلی می‌ایستد.')->success()->send();
+    }
+
+    public function saveBudget(int $tokens): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if ($mission && $tokens >= 1000 && $tokens <= 2000000) {
+            $mission->update(['token_budget' => $tokens]);
+            Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
+        }
     }
 
     public function deleteMission(int $id): void

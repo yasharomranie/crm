@@ -216,6 +216,11 @@
                                     <label class="mr-label">حداکثر چند دور
                                         <input id="mission-rounds" type="number" min="1" max="5" class="mr-input" wire:model="maxRounds" />
                                     </label>
+                                    <label class="mr-label">سقف مصرف (توکن)
+                                        <input id="mission-budget" type="number" min="1000" step="1000" class="mr-input" wire:model="tokenBudget" />
+                                        <span class="mr-sub">اگر مصرف به این عدد برسد، تیم خودش می‌ایستد.</span>
+                                        @error('tokenBudget') <span class="mr-err">{{ $message }}</span> @enderror
+                                    </label>
                                 </div>
                                 <p class="mr-sub">تیم فقط می‌خواند و گزارش می‌دهد؛ هیچ داده‌ای را تغییر نمی‌دهد و هر عضو فقط ابزارهای خواندنیِ همان دستیار را دارد، به اندازهٔ مجوزهای خود شما.</p>
                             </div>
@@ -234,7 +239,7 @@
                     @endphp
 
                     {{-- hero --}}
-                    <div class="mr-card mr-stack">
+                    <div class="mr-card mr-stack" @if ($mission->status === \App\Enums\AiMissionStatus::Running) wire:poll.3s @endif>
                         <div class="mr-row" style="align-items: flex-start;">
                             <div style="min-width: 0;">
                                 <h2 class="mr-h" style="font-size: 1.2rem;">{{ $mission->title }}</h2>
@@ -283,22 +288,52 @@
                             </div>
                         </div>
 
-                        @if ($mission->last_error && $mission->status === \App\Enums\AiMissionStatus::Failed)
-                            <div class="mr-critique">اجرا ناموفق بود: {{ $mission->last_error }} — می‌توانید همین دور را دوباره اجرا کنید.</div>
+                        @if ($mission->last_error && in_array($mission->status, [\App\Enums\AiMissionStatus::Failed, \App\Enums\AiMissionStatus::Stopped], true))
+                            <div class="mr-critique">{{ $mission->status === \App\Enums\AiMissionStatus::Failed ? 'اجرا ناموفق بود: ' : '' }}{{ $mission->last_error }}{{ $mission->status === \App\Enums\AiMissionStatus::Failed ? ' — می‌توانید همین دور را دوباره اجرا کنید.' : '' }}</div>
+                        @endif
+
+                        @if ($mission->status === \App\Enums\AiMissionStatus::Running)
+                            <div class="mr-role" style="border-color: var(--mr-accent);">
+                                <div class="mr-row">
+                                    <span style="display: inline-flex; align-items: center; gap: 0.6rem; font-size: 0.9rem; font-weight: 600;">
+                                        <span class="mr-spinner" style="border-color: var(--mr-accent-soft); border-top-color: var(--mr-accent);"></span>
+                                        {{ $mission->current_step ?? 'در حال کار…' }}
+                                    </span>
+                                    <button type="button" class="mr-btn" wire:click="stopMission" wire:confirm="تیم متوقف شود؟ دورِ نیمه‌کاره کنار گذاشته می‌شود.">⏹ توقف</button>
+                                </div>
+                                <div style="height: 0.4rem; border-radius: 9999px; background: var(--mr-line); overflow: hidden;">
+                                    <div style="height: 100%; background: var(--mr-accent); width: {{ $mission->step_total > 0 ? min(100, (int) round((($mission->step_index) / $mission->step_total) * 100)) : 0 }}%;"></div>
+                                </div>
+                                <p class="mr-sub">مرحلهٔ {{ $fa($mission->step_index + 1) }} از {{ $fa($mission->step_total) }} · لازم نیست صفحه باز بماند؛ تیم در پس‌زمینه کار می‌کند و این صفحه هر چند ثانیه تازه می‌شود.</p>
+                            </div>
                         @endif
 
                         <div class="mr-row">
                             <div class="mr-row" style="gap: 0.5rem;">
-                                <button type="button" class="mr-btn mr-btn-primary" wire:click="runRound" wire:loading.attr="disabled" wire:target="runRound" @disabled(! $mission->canRunAnotherRound())>
-                                    <span wire:loading.remove wire:target="runRound">▶ {{ $mission->rounds_run === 0 ? 'شروع کار تیم' : 'دور بعدی' }}</span>
-                                    <span wire:loading wire:target="runRound" style="display: inline-flex; align-items: center; gap: 0.5rem;"><span class="mr-spinner"></span> تیم در حال کار است… (چند دقیقه طول می‌کشد)</span>
-                                </button>
+                                @if ($mission->status !== \App\Enums\AiMissionStatus::Running)
+                                    <button type="button" class="mr-btn mr-btn-primary" wire:click="runRound" wire:loading.attr="disabled" wire:target="runRound" @disabled(! $mission->canRunAnotherRound())>
+                                        <span wire:loading.remove wire:target="runRound">▶ {{ $mission->rounds_run === 0 ? 'شروع کار تیم' : 'دور بعدی' }}</span>
+                                        <span wire:loading wire:target="runRound" style="display: inline-flex; align-items: center; gap: 0.5rem;"><span class="mr-spinner"></span> در حال شروع…</span>
+                                    </button>
+                                @endif
                                 <span class="mr-sub">دور {{ $fa($mission->rounds_run) }} از {{ $fa($mission->max_rounds) }}</span>
                             </div>
                             <div class="mr-row" style="gap: 0.4rem;">
                                 <a class="mr-btn" href="{{ route('filament.admin.pages.ai-team-map', ['mission' => $mission->id]) }}">🌐 نمایش روی نقشه</a>
-                                <button type="button" class="mr-btn mr-btn-quiet" wire:click="deleteMission({{ $mission->id }})" wire:confirm="این مأموریت و تختهٔ آن حذف شود؟">حذف</button>
+                                <button type="button" class="mr-btn mr-btn-quiet" wire:click="deleteMission({{ $mission->id }})" wire:confirm="این مأموریت و تختهٔ آن حذف شود؟" @disabled($mission->status === \App\Enums\AiMissionStatus::Running)>حذف</button>
                             </div>
+                        </div>
+
+                        <div class="mr-row" style="border-top: 1px solid var(--mr-line); padding-top: 0.75rem;">
+                            <span class="mr-sub">
+                                مصرف تا الان: {{ $fa(number_format($mission->tokens_used)) }}
+                                @if ($mission->token_budget) از {{ $fa(number_format($mission->token_budget)) }} @endif
+                                توکن
+                            </span>
+                            <span style="display: inline-flex; align-items: center; gap: 0.4rem;">
+                                <input type="number" id="budget-input" x-ref="budget" min="1000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" value="{{ $mission->token_budget ?? 60000 }}" aria-label="سقف توکن" />
+                                <button type="button" class="mr-btn" wire:click="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
+                            </span>
                         </div>
                     </div>
 
