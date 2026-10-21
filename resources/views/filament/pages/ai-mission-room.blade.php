@@ -18,6 +18,7 @@
         @media (min-width: 1024px) { .mr-layout { grid-template-columns: 19rem minmax(0, 1fr); align-items: start; } }
         .mr-card { background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1rem; padding: 1.25rem; }
         .mr-stack { display: grid; gap: 1rem; }
+        .mr-stack > * { min-width: 0; }
         .mr-h { font-size: 1rem; font-weight: 700; margin: 0; }
         .mr-sub { font-size: 0.8rem; color: var(--mr-dim); line-height: 1.8; margin: 0; }
         .mr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.5rem; padding: 0 1.1rem; border-radius: 0.75rem; border: 1px solid var(--mr-line); background: var(--mr-card); color: var(--mr-text); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
@@ -46,15 +47,16 @@
         .mr-step { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.85rem; }
         .mr-num { width: 2rem; height: 2rem; border-radius: 9999px; background: var(--mr-accent-soft); color: var(--mr-accent); font-weight: 800; display: grid; place-items: center; font-size: 0.85rem; }
         .mr-role { border: 1px solid var(--mr-line); border-radius: 0.9rem; padding: 0.9rem; background: var(--mr-soft); display: grid; gap: 0.7rem; }
-        .mr-slot { display: flex; align-items: center; gap: 0.8rem; width: 100%; padding: 0.7rem 0.9rem; border-radius: 0.8rem; border: 2px dashed var(--mr-line); background: var(--mr-card); color: var(--mr-dim); font-size: 0.85rem; cursor: pointer; text-align: start; }
+        .mr-slot { display: flex; align-items: center; gap: 0.8rem; width: 100%; min-width: 0; overflow-wrap: anywhere; padding: 0.7rem 0.9rem; border-radius: 0.8rem; border: 2px dashed var(--mr-line); background: var(--mr-card); color: var(--mr-dim); font-size: 0.85rem; cursor: pointer; text-align: start; }
         .mr-slot.filled { border-style: solid; border-color: var(--mr-line); color: var(--mr-text); }
         .mr-slot:hover { border-color: var(--mr-accent); }
         .mr-overlay { position: fixed; inset: 0; z-index: 60; background: rgb(8 14 26 / 0.6); display: grid; place-items: center; padding: 1rem; }
-        .mr-modal { width: min(46rem, 100%); max-height: 86vh; overflow: auto; background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1.1rem; padding: 1.25rem; }
-        .mr-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
-        .mr-tile { display: grid; justify-items: center; gap: 0.5rem; text-align: center; padding: 1rem 0.8rem; border-radius: 0.9rem; border: 1px solid var(--mr-line); background: var(--mr-soft); color: inherit; cursor: pointer; }
+        .mr-modal { width: min(46rem, 100%); max-height: 86vh; max-height: 86dvh; overflow-x: hidden; overflow-y: auto; overflow-wrap: anywhere; background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1.1rem; padding: 1.25rem; }
+        .mr-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); }
+        .mr-tile { min-width: 0; overflow-wrap: anywhere; display: grid; justify-items: center; gap: 0.5rem; text-align: center; padding: 1rem 0.8rem; border-radius: 0.9rem; border: 1px solid var(--mr-line); background: var(--mr-soft); color: inherit; cursor: pointer; }
         .mr-tile:hover:not([disabled]) { border-color: var(--mr-accent); background: var(--mr-accent-soft); }
         .mr-tile[disabled] { opacity: 0.45; cursor: not-allowed; }
+        .mr-tile .mr-pill, .mr-actions .mr-pill, .mr-slot .mr-pill { white-space: normal; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
         .mr-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: center; }
         .mr-team { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
         @media (min-width: 900px) { .mr-team.has-critic { grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr) auto minmax(0, 1fr); } .mr-team.no-critic { grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr); } }
@@ -87,6 +89,14 @@
         .mr-empty { text-align: center; padding: 2rem 1rem; display: grid; gap: 1rem; justify-items: center; }
         .mr-howto { display: grid; gap: 0.6rem; text-align: start; max-width: 28rem; }
         .mr-spinner { width: 1rem; height: 1rem; border-radius: 9999px; border: 2px solid rgb(255 255 255 / 0.4); border-top-color: #fff; animation: mr-spin 0.8s linear infinite; }
+        @media (max-width: 639px) {
+            .mr-card { padding: 1rem; }
+            .mr-step { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+            .mr-role { padding: 0.75rem; }
+            .mr-overlay { align-items: end; padding: 0; }
+            .mr-modal { width: 100%; max-height: 90vh; max-height: 90dvh; border-radius: 1.1rem 1.1rem 0 0; padding: 1rem; }
+            .mr-templates { grid-template-columns: minmax(0, 1fr); }
+        }
         @keyframes mr-spin { to { transform: rotate(360deg); } }
         @media (prefers-reduced-motion: reduce) { .mr-spinner { animation: none; } }
     </style>
@@ -182,7 +192,7 @@
                                     @foreach ($specialists as $index => $row)
                                         @php $chosen = $profileById[$row['profile_id']] ?? null; @endphp
                                         <div wire:key="specialist-{{ $index }}" class="mr-stack" style="gap: 0.5rem;">
-                                            <div style="display: flex; gap: 0.5rem; align-items: stretch;">
+                                            <div style="display: flex; gap: 0.5rem; align-items: stretch; min-width: 0;">
                                                 <button type="button" wire:click="openPicker('specialist:{{ $index }}')" @class(['mr-slot', 'filled' => $chosen])>
                                                     @if ($chosen)
                                                         <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
@@ -192,7 +202,7 @@
                                                     @endif
                                                 </button>
                                                 @if (count($specialists) > 1)
-                                                    <button type="button" class="mr-btn mr-btn-quiet" wire:click="removeSpecialist({{ $index }})" aria-label="حذف این متخصص">حذف</button>
+                                                    <button type="button" class="mr-btn mr-btn-quiet" style="flex: none;" wire:click="removeSpecialist({{ $index }})" aria-label="حذف این متخصص">حذف</button>
                                                 @endif
                                             </div>
                                             @php $needs = $row['needs'] ?? []; $missing = $chosen ? array_values(array_diff($needs, $chosen->allowed_tools ?? [])) : []; @endphp
@@ -225,7 +235,7 @@
                                         <button type="button" wire:click="openPicker('critic')" @class(['mr-slot', 'filled' => $chosen])>
                                             @if ($chosen)
                                                 <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
-                                                <span><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
+                                                <span style="min-width: 0;"><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
                                             @else
                                                 <span style="font-size: 1.4rem;">＋</span> دستیار را انتخاب کنید
                                             @endif
@@ -241,7 +251,7 @@
                                     <button type="button" wire:click="openPicker('coordinator')" @class(['mr-slot', 'filled' => $chosen])>
                                         @if ($chosen)
                                             <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
-                                            <span><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
+                                            <span style="min-width: 0;"><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
                                         @else
                                             <span style="font-size: 1.4rem;">＋</span> دستیار را انتخاب کنید
                                         @endif
