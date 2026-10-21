@@ -2,7 +2,6 @@
 
 namespace App\Filament\Pages\Concerns;
 
-use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AssistantConsultationService;
 use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
@@ -439,12 +438,7 @@ trait HasCustomAssistantChatEngine
 
     private function buildProfileSystemPrompt(AiAssistantProfile $profile): string
     {
-        $prompt = $profile->description ?: 'شما یک دستیار هوشمند کمکی هستید.';
-        $knowledge = $profile->approvedKnowledgeForPrompt();
-
-        if ($knowledge !== []) {
-            $prompt .= "\n\nدانش انباشته‌شدهٔ این دستیار از گفتگوهای قبلی - در پاسخ‌هایت از این نکات استفاده کن:\n- ".implode("\n- ", $knowledge);
-        }
+        $prompt = $profile->basePrompt();
 
         if ($profile->fetch_url_enabled) {
             $prompt .= "\n\nاگر کاربر یک لینک داد یا صریحاً خواست دربارهٔ موضوعی از وب اطلاعات بیاوری، از ابزار fetch_url برای خواندن آن صفحه استفاده کن؛ خودسرانه و بدون درخواست کاربر به هیچ لینکی سر نزن.";
@@ -463,7 +457,7 @@ trait HasCustomAssistantChatEngine
                 ->map(fn (AiAssistantProfile $consultant) => '- شناسه '.$consultant->id.': '.$consultant->displayName().' (تخصص: '.$this->describeSpecialty($consultant).')')
                 ->implode("\n");
 
-            $prompt .= "\n\nدستیارهای دیگری که در دسترس‌اند و در صورت نیاز می‌توانی با ابزار consult_assistant یک سؤال مشخص از آن‌ها بپرسی:\n{$directory}\nفقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن، نه برای هر سؤال، و سؤال را کوتاه و مستقل بپرس چون آن دستیار تاریخچهٔ این گفتگو را نمی‌بیند.";
+            $prompt .= "\n\nدستیارهای دیگری که در دسترس‌اند و در صورت نیاز می‌توانی با ابزار consult_assistant یک سؤال مشخص از آن‌ها بپرسی:\n{$directory}\nفقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن، نه برای هر سؤال، و سؤال را کوتاه و مستقل بپرس چون آن دستیار تاریخچهٔ این گفتگو را نمی‌بیند. پاسخ آن دستیار با نام خودش برای کاربر هم در گفتگو نمایش داده می‌شود؛ در جمع‌بندی همان را کلمه‌به‌کلمه تکرار نکن و فقط نتیجه‌اش را در پاسخ خودت به کار ببر.";
         }
 
         if ($contextNote = $this->pageContextNote()) {
@@ -497,16 +491,7 @@ trait HasCustomAssistantChatEngine
      */
     private function grantedCrmToolNames(AiAssistantProfile $profile): array
     {
-        if (! Auth::user()?->can('ai-assistant.report')) {
-            return [];
-        }
-
-        $catalog = app(CrmToolCatalog::class)->definitions();
-
-        return collect($profile->allowed_tools ?? [])
-            ->filter(fn (string $toolName) => isset($catalog[$toolName]) && AiToolAccess::allowsTool(Auth::user(), $toolName))
-            ->mapWithKeys(fn (string $toolName) => [$toolName => $catalog[$toolName]])
-            ->all();
+        return app(CrmToolCatalog::class)->grantedTo($profile, Auth::user());
     }
 
     /**
@@ -844,6 +829,28 @@ trait HasCustomAssistantChatEngine
                 : null,
             default => null,
         };
+    }
+
+    /**
+     * The other assistant's own answer from a consult_assistant tool message,
+     * so the chat can show it under that assistant's name instead of only the
+     * asking assistant's paraphrase. Null for anything else, or for a failed call.
+     *
+     * @return array{name: string, answer: string}|null
+     */
+    public function consultationAnswer(AiMessage $message): ?array
+    {
+        if ($message->role !== AiMessageRole::Tool || $message->tool_name !== 'consult_assistant') {
+            return null;
+        }
+
+        $result = json_decode((string) $message->content, true);
+
+        if (! is_array($result) || blank($result['consulted'] ?? null) || blank($result['answer'] ?? null)) {
+            return null;
+        }
+
+        return ['name' => (string) $result['consulted'], 'answer' => (string) $result['answer']];
     }
 
     /**

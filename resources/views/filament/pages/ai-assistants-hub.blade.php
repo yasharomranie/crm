@@ -786,11 +786,18 @@
                     <div x-ref="messages" class="flex-1 space-y-4 overflow-y-auto px-4 py-4">
                         @forelse ($visibleMessages as $message)
                             @if ($message->role === \App\Enums\AiMessageRole::Tool)
-                                <div class="flex justify-center">
+                                @php $consulted = $this->consultationAnswer($message); @endphp
+                                <div class="flex flex-col items-center gap-2">
                                     <span class="inline-flex items-center gap-1 rounded-full bg-gray-100 px-3 py-1 text-[11px] text-gray-500 dark:bg-white/5 dark:text-gray-400">
                                         {{ $message->tool_name === 'consult_assistant' ? '🔄' : '🌐' }}
                                         {{ $this->describeToolActivity($message) }}
                                     </span>
+                                    @if ($consulted)
+                                        <details open class="w-full max-w-[85%] rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-2.5 text-sm dark:border-primary-500/30 dark:bg-primary-500/10">
+                                            <summary class="cursor-pointer text-xs font-semibold text-primary-700 dark:text-primary-300">پاسخ دستیار «{{ $consulted['name'] }}»</summary>
+                                            <div class="mt-2 whitespace-pre-line text-gray-700 dark:text-gray-200">{{ $consulted['answer'] }}</div>
+                                        </details>
+                                    @endif
                                 </div>
                             @else
                                 @php $isUser = $message->role === \App\Enums\AiMessageRole::User; @endphp
