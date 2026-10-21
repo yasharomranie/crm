@@ -9,6 +9,7 @@ use App\Models\AiMessage;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Str;
 use Spatie\Activitylog\Models\Activity;
 
 /**
@@ -68,6 +69,7 @@ class AiTeamMapData
             ->get()
             ->keyBy('ai_assistant_profile_id');
 
+        $replies = $this->latestReplies($user, $profiles);
         $given = $exchanges->where('kind', 'consult')->countBy('to');
         $asked = $exchanges->where('kind', 'consult')->countBy('from');
         $liveIds = collect($edges)->where('live', true)->flatMap(fn (array $edge) => [$edge['source'], $edge['target']])->unique();
@@ -86,6 +88,7 @@ class AiTeamMapData
             'asked' => (int) ($asked[$profile->id] ?? 0),
             'live' => $liveIds->contains((string) $profile->id),
             'last_seen' => $lastSeen((string) $profile->id)?->diffForHumans(),
+            'reply' => $replies[(string) $profile->id] ?? null,
         ])->values()->prepend([
             'id' => self::MANAGER_ID,
             'label' => 'دستیار مدیریتی',
@@ -98,6 +101,7 @@ class AiTeamMapData
             'asked' => $exchanges->where('from', self::MANAGER_ID)->count(),
             'live' => $liveIds->contains(self::MANAGER_ID),
             'last_seen' => $lastSeen(self::MANAGER_ID)?->diffForHumans(),
+            'reply' => $replies[self::MANAGER_ID] ?? null,
         ])->all();
 
         return [
@@ -111,6 +115,50 @@ class AiTeamMapData
                 'live' => count($liveIds),
             ],
         ];
+    }
+
+    /**
+     * The last thing each assistant said to this user, shown as a speech
+     * bubble. Only the user's own conversations are read, so a shared
+     * assistant never reveals what someone else asked it.
+     *
+     * @param  Collection<int, AiAssistantProfile>  $profiles  keyed by id
+     * @return array<string, array{text: string, full: string, at: string}>
+     */
+    private function latestReplies(User $user, Collection $profiles): array
+    {
+        $replies = [];
+
+        AiMessage::query()
+            ->where('role', AiMessageRole::Assistant->value)
+            ->whereNotNull('content')
+            ->whereHas('conversation', fn ($query) => $query->where('user_id', $user->id))
+            ->with('conversation:id,ai_assistant_profile_id,user_id')
+            ->latest('id')
+            ->limit(300)
+            ->get()
+            ->each(function (AiMessage $message) use (&$replies, $profiles) {
+                $owner = $message->ai_assistant_profile_id ?? $message->conversation->ai_assistant_profile_id;
+                $key = $owner === null ? self::MANAGER_ID : (string) $owner;
+
+                if (isset($replies[$key]) || ($owner !== null && ! $profiles->has((int) $owner))) {
+                    return;
+                }
+
+                $plain = trim((string) preg_replace('/\s+/u', ' ', (string) preg_replace('/[#*`|>_~]+/u', ' ', $message->content)));
+
+                if ($plain === '') {
+                    return;
+                }
+
+                $replies[$key] = [
+                    'text' => Str::limit($plain, 110),
+                    'full' => Str::limit($plain, 500),
+                    'at' => $message->created_at->diffForHumans(),
+                ];
+            });
+
+        return $replies;
     }
 
     /**

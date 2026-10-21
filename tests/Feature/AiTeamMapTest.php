@@ -140,4 +140,37 @@ class AiTeamMapTest extends TestCase
 
         $this->actingAs($user)->get(route('filament.admin.pages.ai-team-map'))->assertForbidden();
     }
+
+    public function test_each_assistants_last_reply_to_the_user_is_included_but_never_someone_elses(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $other = User::factory()->create();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id, 'is_shared' => true]);
+
+        $mine = AiConversation::create(['user_id' => $user->id, 'ai_assistant_profile_id' => $profile->id]);
+        $mine->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'پاسخ **اول** من']);
+        $mine->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'آخرین پاسخ به من']);
+
+        $theirs = AiConversation::create(['user_id' => $other->id, 'ai_assistant_profile_id' => $profile->id]);
+        $theirs->messages()->create(['role' => AiMessageRole::Assistant, 'content' => 'راز یک کاربر دیگر']);
+
+        $manager = AiConversation::create(['user_id' => $user->id]);
+        $manager->messages()->create(['role' => AiMessageRole::Assistant, 'content' => '| جدول | عدد |']);
+
+        $nodes = collect(app(AiTeamMapData::class)->build($user)['nodes'])->keyBy('id');
+
+        $this->assertSame('آخرین پاسخ به من', $nodes[(string) $profile->id]['reply']['text']);
+        $this->assertStringNotContainsString('راز', json_encode($nodes[(string) $profile->id]['reply'], JSON_UNESCAPED_UNICODE));
+        $this->assertSame('جدول عدد', $nodes[AiTeamMapData::MANAGER_ID]['reply']['text']);
+    }
+
+    public function test_an_assistant_with_no_reply_has_no_bubble(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $profile = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $node = collect(app(AiTeamMapData::class)->build($user)['nodes'])->firstWhere('id', (string) $profile->id);
+
+        $this->assertNull($node['reply']);
+    }
 }

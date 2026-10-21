@@ -296,7 +296,121 @@ function avatarTexture(shape, color, state, isManager, style, pose) {
     return texture;
 }
 
-function buildNode(node, ringMap, style) {
+const bubbleCache = new Map();
+
+/** A cloud-shaped speech bubble holding the assistant's last words (up to 3 lines). */
+function bubbleTexture(text) {
+    if (bubbleCache.has(text)) {
+        return bubbleCache.get(text);
+    }
+
+    const width = 384;
+    const height = 192;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+
+    const bumps = [];
+    const left = 40;
+    const right = width - 40;
+    const top = 30;
+    const bottom = 128;
+    for (let x = left; x <= right; x += 44) {
+        bumps.push([x, top, 26], [x, bottom, 26]);
+    }
+    for (let y = top + 36; y < bottom - 20; y += 36) {
+        bumps.push([left, y, 26], [right, y, 26]);
+    }
+    const tail = [[44, 158, 12], [22, 178, 7]];
+
+    const draw = (stroke) => {
+        ctx.beginPath();
+        ctx.roundRect(left, top, right - left, bottom - top, 30);
+        [...bumps, ...tail].forEach(([x, y, radius]) => {
+            ctx.moveTo(x + radius, y);
+            ctx.arc(x, y, radius, 0, 2 * Math.PI);
+        });
+        if (stroke) {
+            ctx.lineWidth = 8;
+            ctx.strokeStyle = INK;
+            ctx.stroke();
+        } else {
+            ctx.fillStyle = '#f8fafc';
+            ctx.fill();
+        }
+    };
+    draw(true);
+    draw(false);
+
+    ctx.fillStyle = INK;
+    ctx.font = '600 24px Vazirmatn, sans-serif';
+    ctx.direction = 'rtl';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+
+    const maxWidth = right - left - 24;
+    const lines = [];
+    let current = '';
+    text.split(' ').forEach((word) => {
+        const candidate = current ? `${current} ${word}` : word;
+        if (ctx.measureText(candidate).width > maxWidth && current) {
+            lines.push(current);
+            current = word;
+        } else {
+            current = candidate;
+        }
+    });
+    lines.push(current);
+
+    const shown = lines.slice(0, 3);
+    if (lines.length > 3) {
+        shown[2] = `${shown[2]}…`;
+    }
+    const lineHeight = 31;
+    const startY = (top + bottom) / 2 - ((shown.length - 1) * lineHeight) / 2;
+    shown.forEach((line, index) => ctx.fillText(line, width / 2, startY + index * lineHeight, maxWidth));
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    bubbleCache.set(text, texture);
+
+    return texture;
+}
+
+/** Keeps a node's live ring and speech bubble in step with fresh data (its 3D object is built once). */
+function applyNodeState(group, node, bubblesOn) {
+    const data = group.userData;
+    data.live = node.live;
+    data.halo.material.opacity = node.live ? 1 : 0;
+
+    const text = bubblesOn && node.reply ? node.reply.text : null;
+    if (!text) {
+        if (data.bubble) {
+            data.bubble.visible = false;
+        }
+
+        return;
+    }
+
+    if (!data.bubble) {
+        const bubble = new THREE.Sprite(new THREE.SpriteMaterial({ transparent: true, depthTest: false, depthWrite: false }));
+        bubble.renderOrder = 10;
+        bubble.center.set(0, 0);
+        bubble.position.set(data.radius * 1.2, data.radius * 1.5, 0);
+        bubble.scale.set(data.radius * 7, data.radius * 3.5, 1);
+        group.add(bubble);
+        data.bubble = bubble;
+    }
+    data.bubble.visible = true;
+    if (data.bubbleText !== text) {
+        data.bubbleText = text;
+        data.bubble.material.map = bubbleTexture(text);
+        data.bubble.material.needsUpdate = true;
+    }
+}
+
+function buildNode(node, ringMap, style, bubblesOn) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
     const isManager = node.id === 'manager';
@@ -324,23 +438,25 @@ function buildNode(node, ringMap, style) {
     label.position.y = -(radius * 2.45 + 4);
     group.add(label);
 
-    group.userData = { ...group.userData, core, halo, base, live: node.live, shape: node.shape, color: node.color, isManager };
+    group.userData = { ...group.userData, core, halo, base, radius, live: node.live, shape: node.shape, color: node.color, isManager };
+    applyNodeState(group, node, bubblesOn);
 
     return group;
 }
 
-export function mount(element, { onSelect, initialStyle = 'robot' }) {
+export function mount(element, { onSelect, initialStyle = 'robot', initialBubbles = true }) {
     const ringMap = ringTexture();
     const motion = !reducedMotion();
     let spinning = motion;
     let autoFit = true;
     let style = initialStyle;
+    let bubblesOn = initialBubbles;
 
     const graph = ForceGraph3D({ controlType: 'orbit' })(element)
         .backgroundColor('rgba(0,0,0,0)')
         .showNavInfo(false)
         .nodeLabel(() => '')
-        .nodeThreeObject((node) => buildNode(node, ringMap, style))
+        .nodeThreeObject((node) => buildNode(node, ringMap, style, bubblesOn))
         .nodeThreeObjectExtend(false)
         .linkColor((link) => KIND_COLORS[link.kind] ?? '#64748b')
         .linkOpacity(0.55)
@@ -449,6 +565,7 @@ export function mount(element, { onSelect, initialStyle = 'robot' }) {
     return {
         update(data) {
             graph.graphData(toGraph(data));
+            graph.graphData().nodes.forEach((node) => node.__threeObj && applyNodeState(node.__threeObj, node, bubblesOn));
             [700, 2200].forEach((delay) => setTimeout(() => autoFit && graph.zoomToFit(600, 120), delay));
             graph.cooldownTicks(120);
             graph.d3ReheatSimulation();
@@ -462,6 +579,10 @@ export function mount(element, { onSelect, initialStyle = 'robot' }) {
             autoFit = false;
             const ratio = 1 + 90 / Math.hypot(node.x, node.y, node.z || 1);
             graph.cameraPosition({ x: node.x * ratio, y: node.y * ratio, z: node.z * ratio }, node, 900);
+        },
+        setBubbles(on) {
+            bubblesOn = on;
+            graph.graphData().nodes.forEach((node) => node.__threeObj && applyNodeState(node.__threeObj, node, bubblesOn));
         },
         setStyle(next) {
             style = next;

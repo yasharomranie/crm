@@ -14,6 +14,7 @@
                     shown: { assistants: 0, consultations: 0, handoffs: 0, live: 0 },
                     timers: [],
                     fullscreen: false,
+                    bubbles: (() => { try { return localStorage.getItem('aiTeamMapBubbles') !== 'off'; } catch (e) { return true; } })(),
                     style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'cartoon' ? 'cartoon' : 'robot'; } catch (e) { return 'robot'; } })(),
                     init() {
                         this.tick();
@@ -22,7 +23,7 @@
                         this.countTo(this.data.totals);
                         const boot = () => {
                             if (!window.WarRoom) { return setTimeout(boot, 80); }
-                            scene = window.WarRoom.mount(this.$refs.scene, { onSelect: (id) => this.select(id, false), initialStyle: this.style });
+                            scene = window.WarRoom.mount(this.$refs.scene, { onSelect: (id) => this.select(id, false), initialStyle: this.style, initialBubbles: this.bubbles });
                             scene.update(this.data);
                         };
                         this.$nextTick(boot);
@@ -63,6 +64,11 @@
                         this.style = next;
                         try { localStorage.setItem('aiTeamMapStyle', next); } catch (e) { /* storage unavailable */ }
                         if (scene) { scene.setStyle(next); }
+                    },
+                    toggleBubbles() {
+                        this.bubbles = !this.bubbles;
+                        try { localStorage.setItem('aiTeamMapBubbles', this.bubbles ? 'on' : 'off'); } catch (e) { /* storage unavailable */ }
+                        if (scene) { scene.setBubbles(this.bubbles); }
                     },
                     reset() { this.selected = null; if (scene) { scene.reset(); } },
                     toggleFullscreen() {
@@ -122,6 +128,7 @@
                         <button type="button" :class="style === 'robot' ? 'on' : ''" :aria-pressed="style === 'robot'" x-on:click="setStyle('robot')">ربات</button>
                         <button type="button" :class="style === 'cartoon' ? 'on' : ''" :aria-pressed="style === 'cartoon'" x-on:click="setStyle('cartoon')">کارتونی</button>
                     </div>
+                    <button type="button" class="wr-btn" :aria-pressed="bubbles" :style="bubbles ? 'background: rgb(56 189 248 / 0.22);' : ''" x-on:click="toggleBubbles()">نظرها</button>
                     <button type="button" class="wr-btn" x-on:click="reset()">نمای کلی</button>
                     <button type="button" class="wr-btn" x-on:click="toggleFullscreen()" x-text="fullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'"></button>
                 </div>
@@ -177,6 +184,10 @@
                         <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.messages)"></div><div class="wr-label">پاسخ</div></div>
                         <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.consulted)"></div><div class="wr-label">مشورت داده</div></div>
                         <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.asked)"></div><div class="wr-label">مشورت گرفته</div></div>
+                    </div>
+                    <div x-show="selected.reply" style="margin-top: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 0.5rem; background: rgb(255 255 255 / 0.07); font-size: 0.75rem; line-height: 1.7;">
+                        <div class="wr-label">آخرین پاسخ به شما · <span x-text="selected.reply ? selected.reply.at : ''"></span></div>
+                        <div x-text="selected.reply ? selected.reply.full : ''"></div>
                     </div>
                     <div class="wr-label" style="margin-top: 0.5rem;" x-show="selected.id !== 'manager'" x-text="selected.consultable ? 'قابل‌مشورت است.' : 'قابل‌مشورت نیست؛ دیگران از او نمی‌پرسند.'"></div>
                 </div>
