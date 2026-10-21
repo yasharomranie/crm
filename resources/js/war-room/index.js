@@ -266,6 +266,55 @@ function clayTexture(shape, color, state, isManager) {
     ctx.fillStyle = body;
     ctx.fill();
 
+    // Volume: a soft dark rim on the lower right, a soft light rim on the
+    // upper left (shadows cast inward by the area outside the shape), a
+    // broad glossy light, a small specular dot and light bounced from below.
+    // The area outside the silhouette as an image, so shapes made of several
+    // overlapping circles (cloud, clover) get one clean edge.
+    const outside = document.createElement('canvas');
+    outside.width = outside.height = size;
+    const outsideCtx = outside.getContext('2d');
+    outsideCtx.fillRect(0, 0, size, size);
+    outsideCtx.globalCompositeOperation = 'destination-out';
+    shapePath(outsideCtx, shape, c, cy, r);
+    outsideCtx.fill();
+
+    const rim = (shadowColor, blur, dx, dy) => {
+        ctx.save();
+        shapePath(ctx, shape, c, cy, r);
+        ctx.clip();
+        // Drawn far off canvas: only its shadow lands on the avatar.
+        ctx.shadowColor = shadowColor;
+        ctx.shadowBlur = blur;
+        ctx.shadowOffsetX = dx + size * 2;
+        ctx.shadowOffsetY = dy;
+        ctx.drawImage(outside, -size * 2, 0);
+        ctx.restore();
+    };
+    rim(`${mix(color, '#000000', 0.5)}cc`, 22, -6, -12);
+    rim('rgba(255,255,255,0.55)', 16, 5, 9);
+
+    const glow = (x, y, rx, ry, rotation, rgb, alpha) => {
+        ctx.save();
+        shapePath(ctx, shape, c, cy, r);
+        ctx.clip();
+        ctx.translate(x, y);
+        ctx.rotate(rotation);
+        ctx.scale(1, ry / rx);
+        const gradient = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
+        gradient.addColorStop(0, `rgba(${rgb},${alpha})`);
+        gradient.addColorStop(1, `rgba(${rgb},0)`);
+        ctx.fillStyle = gradient;
+        ctx.beginPath();
+        ctx.arc(0, 0, rx, 0, 2 * Math.PI);
+        ctx.fill();
+        ctx.restore();
+    };
+    const bounce = new THREE.Color(mix(color, '#ffffff', 0.45));
+    glow(c - r * 0.3, cy - r * 0.5, r * 0.62, r * 0.36, -0.5, '255,255,255', 0.5);
+    glow(c - r * 0.42, cy - r * 0.6, r * 0.2, r * 0.1, -0.5, '255,255,255', 0.75);
+    glow(c + r * 0.12, cy + r * 1.0, r * 0.8, r * 0.3, 0, `${Math.round(bounce.r * 255)},${Math.round(bounce.g * 255)},${Math.round(bounce.b * 255)}`, 0.4);
+
     const eyeOffset = { triangle: 0.24, teardrop: 0.14, cloud: 0.05, pentagon: 0.04 }[shape] ?? -0.08;
     const eyeY = cy + r * eyeOffset;
     const tilt = (color === ORANGE_BODY ? 16 : shape === 'pentagon' ? -14 : 0) * (Math.PI / 180);
