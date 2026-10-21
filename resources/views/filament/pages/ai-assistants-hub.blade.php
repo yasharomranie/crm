@@ -797,6 +797,9 @@
                                         <details open class="w-full max-w-[85%] rounded-xl border border-primary-200 bg-primary-50/60 px-4 py-2.5 text-sm dark:border-primary-500/30 dark:bg-primary-500/10">
                                             <summary class="cursor-pointer text-xs font-semibold text-primary-700 dark:text-primary-300">پاسخ دستیار «{{ $consulted['name'] }}»</summary>
                                             <div class="mt-2 whitespace-pre-line text-gray-700 dark:text-gray-200">{{ $consulted['answer'] }}</div>
+                                            @if ($consulted['nested'] !== [])
+                                                <div class="mt-2 text-[11px] text-gray-500 dark:text-gray-400">این دستیار برای جواب از «{{ implode('»، «', $consulted['nested']) }}» هم پرسید.</div>
+                                            @endif
                                         </details>
                                     @endif
                                 </div>
