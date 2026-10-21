@@ -18,6 +18,7 @@ use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -304,18 +305,91 @@ class AiMissionRoomTest extends TestCase
             ->call('toggleCritic')->assertSet('withCritic', false)->assertSet('criticId', null);
     }
 
-    public function test_the_template_fills_the_goal_and_directives_but_keeps_chosen_assistants(): void
+    public function test_a_template_fills_the_goal_directives_and_needed_tools_but_keeps_chosen_assistants(): void
     {
         $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
 
         Livewire::test(AiMissionRoom::class)
             ->call('startCreate')
             ->set('specialists', [['profile_id' => $specialist->id, 'directive' => '']])
-            ->call('applyTemplate')
+            ->call('applyTemplate', 'week-ahead')
+            ->assertSet('templateKey', 'week-ahead')
             ->assertSet('missionTitle', 'وضعیت رزرو و پشتیبانی هفتهٔ آینده')
             ->assertSet('withCritic', true)
             ->assertSet('specialists.0.profile_id', $specialist->id)
-            ->assertSet('specialists.1.profile_id', null);
+            ->assertSet('specialists.0.needs', ['get_occupancy_forecast', 'check_room_availability'])
+            ->assertSet('specialists.1.profile_id', null)
+            ->assertSee('ابزار لازم برای این جایگاه');
+    }
+
+    public function test_a_template_without_a_critic_drops_a_chosen_one_and_an_unknown_key_changes_nothing(): void
+    {
+        $critic = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->call('toggleCritic')->set('criticId', $critic->id)
+            ->call('applyTemplate', 'no-such-template')
+            ->assertSet('templateKey', null)
+            ->assertSet('withCritic', true)
+            ->call('applyTemplate', 'morning-brief')
+            ->assertSet('withCritic', false)
+            ->assertSet('criticId', null)
+            ->assertSet('missionTitle', 'گزارش صبحگاهی مدیریت');
+    }
+
+    public function test_a_template_mission_is_created_with_its_suggested_schedule_only_when_asked(): void
+    {
+        Carbon::setTestNow(Carbon::parse('2026-10-21 10:00', 'Asia/Tehran'));
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $first = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $second = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+
+        $component = Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->call('applyTemplate', 'morning-brief')
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists.0.profile_id', $first->id)
+            ->set('specialists.1.profile_id', $second->id)
+            ->call('createMission');
+
+        $plain = AiMission::sole();
+        $this->assertNull($plain->schedule);
+
+        $component->call('startCreate')
+            ->call('applyTemplate', 'morning-brief')
+            ->set('applyTemplateSchedule', true)
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists.0.profile_id', $first->id)
+            ->set('specialists.1.profile_id', $second->id)
+            ->call('createMission');
+
+        $scheduled = AiMission::whereKeyNot($plain->id)->sole();
+        $this->assertSame('daily', $scheduled->schedule);
+        $this->assertSame('07:30', $scheduled->schedule_time);
+        $this->assertSame('2026-10-22 07:30', $scheduled->next_run_at->timezone('Asia/Tehran')->format('Y-m-d H:i'));
+        Carbon::setTestNow();
+    }
+
+    public function test_the_picker_favours_assistants_that_have_the_tools_a_slot_needs(): void
+    {
+        AiAssistantProfile::factory()->create(['created_by' => $this->admin->id, 'name' => 'دستیار مجهز', 'allowed_tools' => ['get_hotel_report']]);
+        AiAssistantProfile::factory()->create(['created_by' => $this->admin->id, 'name' => 'دستیار بی‌ابزار']);
+
+        $html = Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->call('applyTemplate', 'weekly-performance')
+            ->call('openPicker', 'specialist:0')
+            ->html();
+
+        $equipped = mb_strpos($html, 'دستیار مجهز');
+        $bare = mb_strpos($html, 'دستیار بی‌ابزار');
+
+        $this->assertNotFalse($equipped);
+        $this->assertNotFalse($bare);
+        $this->assertLessThan($bare, $equipped, 'the assistant with the needed tool comes first');
+        $this->assertLessThan($bare, mb_strpos($html, '✓ مناسب این جایگاه'));
+        $this->assertGreaterThan($bare, mb_strpos($html, 'ابزار لازم را ندارد', $bare));
     }
 
     public function test_a_team_member_that_is_someone_elses_private_assistant_is_refused(): void
