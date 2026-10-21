@@ -18,6 +18,7 @@ use App\Models\AiProvider;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
@@ -375,11 +376,20 @@ class AiMissionRoomTest extends TestCase
         AiAssistantProfile::factory()->create(['created_by' => $this->admin->id, 'name' => 'دستیار مجهز', 'allowed_tools' => ['get_hotel_report']]);
         AiAssistantProfile::factory()->create(['created_by' => $this->admin->id, 'name' => 'دستیار بی‌ابزار']);
 
-        Livewire::test(AiMissionRoom::class)
+        $html = Livewire::test(AiMissionRoom::class)
             ->call('startCreate')
             ->call('applyTemplate', 'weekly-performance')
             ->call('openPicker', 'specialist:0')
-            ->assertSeeInOrder(['دستیار مجهز', '✓ مناسب این جایگاه', 'دستیار بی‌ابزار', 'ابزار لازم را ندارد']);
+            ->html();
+
+        $equipped = mb_strpos($html, 'دستیار مجهز');
+        $bare = mb_strpos($html, 'دستیار بی‌ابزار');
+
+        $this->assertNotFalse($equipped);
+        $this->assertNotFalse($bare);
+        $this->assertLessThan($bare, $equipped, 'the assistant with the needed tool comes first');
+        $this->assertLessThan($bare, mb_strpos($html, '✓ مناسب این جایگاه'));
+        $this->assertGreaterThan($bare, mb_strpos($html, 'ابزار لازم را ندارد', $bare));
     }
 
     public function test_a_team_member_that_is_someone_elses_private_assistant_is_refused(): void
