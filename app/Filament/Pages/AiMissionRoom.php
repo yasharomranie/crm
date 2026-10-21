@@ -162,7 +162,7 @@ class AiMissionRoom extends Page
 
     public function startCreate(): void
     {
-        $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
+        $this->reset(['newSourceIds', 'missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
         $this->maxRounds = 2;
         $this->tokenBudget = 60000;
         $this->specialists = [['profile_id' => null, 'directive' => '', 'needs' => []]];
@@ -302,6 +302,8 @@ class AiMissionRoom extends Page
                 $mission->roles()->create(['ai_assistant_profile_id' => $row['profile_id'], 'role' => $row['role'], 'directive' => $row['directive'] ?: null, 'sort' => $sort]);
             }
 
+            $mission->sources()->sync(AiMissionSource::query()->ownedBy(Auth::user())->whereIn('id', array_map('intval', $this->newSourceIds))->pluck('id')->all());
+
             return $mission;
         });
 
@@ -320,7 +322,10 @@ class AiMissionRoom extends Page
 
         $this->missionId = $mission->id;
         $this->showCreate = false;
-        Notification::make()->title('مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')->success()->send();
+        Notification::make()
+            ->title($mission->sources()->exists() ? 'مأموریت ساخته شد؛ فایل‌ها وصل شدند. برای اجرا اول «خلاصهٔ استراتژی» را بسازید و تأیید کنید.' : 'مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')
+            ->success()
+            ->send();
     }
 
     public function runRound(): void
@@ -545,6 +550,13 @@ class AiMissionRoom extends Page
 
     public string $sourceKind = 'policy';
 
+    /**
+     * Library files ticked while a new mission is being set up.
+     *
+     * @var array<int, int|string>
+     */
+    public array $newSourceIds = [];
+
     public string $briefSummary = '';
 
     /**
@@ -587,6 +599,11 @@ class AiMissionRoom extends Page
             ]);
 
             $mission?->sources()->syncWithoutDetaching([$source->id]);
+
+            if ($this->showCreate) {
+                $this->newSourceIds[] = (string) $source->id;
+            }
+
             ProcessMissionSourceJob::dispatch($source->id);
         }
 

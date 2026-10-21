@@ -261,9 +261,33 @@
                             </div>
                         </section>
 
-                        {{-- step 3 --}}
+                        {{-- step 3: sources --}}
                         <section class="mr-step">
                             <span class="mr-num">۳</span>
+                            <div class="mr-stack">
+                                <div>
+                                    <h3 class="mr-h">فایل‌های استراتژی و گزارش (اختیاری)</h3>
+                                    <p class="mr-sub">اگر استراتژی یا گزارش‌هایتان فایل دارد، بگذارید تیم با آن کار کند. فایل‌های تازه را همین‌جا بارگذاری کنید یا از کتابخانه انتخاب کنید؛ بعد از ساخت مأموریت از آن‌ها یک «خلاصهٔ استراتژی» می‌سازید و تأیید می‌کنید. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود.</p>
+                                </div>
+                                @php $wizardLibrary = $this->getSources(); @endphp
+                                @foreach ($wizardLibrary as $item)
+                                    <label class="mr-item" wire:key="wizard-source-{{ $item->id }}" for="wizard-source-{{ $item->id }}" style="cursor: pointer;">
+                                        <span class="mr-row" style="justify-content: flex-start; gap: 0.6rem; min-width: 0;">
+                                            <input id="wizard-source-{{ $item->id }}" type="checkbox" value="{{ $item->id }}" wire:model="newSourceIds" />
+                                            <span style="min-width: 0;">
+                                                <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
+                                                <span class="mr-sub" style="display: block;">{{ strtoupper($item->extension) }} · {{ $item->kind->shortLabel() }} · {{ $item->status->getLabel() }}</span>
+                                            </span>
+                                        </span>
+                                    </label>
+                                @endforeach
+                                @include('filament.pages.partials.ai-mission-source-upload')
+                            </div>
+                        </section>
+
+                        {{-- step 4 --}}
+                        <section class="mr-step">
+                            <span class="mr-num">۴</span>
                             <div class="mr-stack">
                                 <h3 class="mr-h">تنظیمات (می‌توانید دست نزنید)</h3>
                                 <div style="display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr));">
@@ -779,6 +803,7 @@
                             </div>
                             <button type="button" class="mr-btn mr-btn-primary" wire:click="startCreate">＋ ساخت اولین مأموریت</button>
                         </div>
+                        @include('filament.pages.partials.ai-mission-library')
                     @else
                         <div class="mr-stack" @if ($dashboard['running'] !== []) wire:poll.5s @endif>
                             <div class="mr-tiles">
@@ -861,34 +886,7 @@
                                 </div>
                             @endif
 
-                            @php $landingLibrary = $this->getSources(); @endphp
-                            <div class="mr-card mr-stack" style="gap: 0.6rem;" @if ($landingLibrary->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending)) wire:poll.3s @endif>
-                                <div>
-                                    <h2 class="mr-h">📚 کتابخانهٔ منابع</h2>
-                                    <p class="mr-sub">فایل‌های استراتژی و گزارش‌ها اینجا نگه داشته می‌شوند و هر مأموریت هر کدام را که لازم دارد برمی‌دارد. فایل‌ها را از داخل خود مأموریت هم می‌توانید بگذارید.</p>
-                                </div>
-                                @forelse ($landingLibrary as $item)
-                                    <div class="mr-item" wire:key="library-{{ $item->id }}">
-                                        <div style="min-width: 0; flex: 1;">
-                                            <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
-                                                <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
-                                                <span @class(['mr-pill', 'good' => $item->status === \App\Enums\AiMissionSourceStatus::Ready, 'bad' => $item->status === \App\Enums\AiMissionSourceStatus::Failed, 'accent' => $item->status === \App\Enums\AiMissionSourceStatus::Pending])>{{ $item->status->getLabel() }}</span>
-                                                <span class="mr-pill">{{ $item->kind->shortLabel() }}</span>
-                                            </div>
-                                            <span class="mr-sub">{{ strtoupper($item->extension) }} · {{ $fa(number_format($item->char_count)) }} نویسه · در {{ $fa($item->missions()->count()) }} مأموریت@if ($item->status === \App\Enums\AiMissionSourceStatus::Failed && filled($item->error)) · {{ $item->error }}@endif</span>
-                                        </div>
-                                        <div class="mr-row" style="gap: 0.4rem;">
-                                            @if ($item->status === \App\Enums\AiMissionSourceStatus::Failed)
-                                                <button type="button" class="mr-mini" wire:click="retrySource({{ $item->id }})">تلاش دوباره</button>
-                                            @endif
-                                            <button type="button" class="mr-mini" wire:click="deleteSource({{ $item->id }})" wire:confirm="این فایل از کتابخانه حذف شود؟ از همهٔ مأموریت‌ها هم برداشته می‌شود." aria-label="حذف فایل">حذف</button>
-                                        </div>
-                                    </div>
-                                @empty
-                                    <p class="mr-sub">هنوز فایلی نیست.</p>
-                                @endforelse
-                                @include('filament.pages.partials.ai-mission-source-upload')
-                            </div>
+                            @include('filament.pages.partials.ai-mission-library')
 
                             <div class="mr-card mr-stack" style="gap: 0.6rem;">
                                 <h2 class="mr-h">🕘 آخرین نتیجه‌ها</h2>
