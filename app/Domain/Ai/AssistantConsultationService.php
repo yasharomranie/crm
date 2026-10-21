@@ -50,6 +50,20 @@ class AssistantConsultationService
     }
 
     /**
+     * Profiles $user may consult from the built-in management assistant:
+     * the ones they can see that opted into being consulted.
+     *
+     * @return Collection<int, AiAssistantProfile>
+     */
+    public function consultantsForManager(User $user): Collection
+    {
+        return AiAssistantProfile::query()
+            ->visibleTo($user)
+            ->where('consultable', true)
+            ->get();
+    }
+
+    /**
      * Asks $target one question. The consulted assistant answers with its own
      * persona AND its own knowledge notes, and may use the read-only CRM
      * lookups its owner granted it (CrmToolCatalog::grantedTo, narrowed by the
@@ -58,7 +72,7 @@ class AssistantConsultationService
      *
      * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>}|array{error: string}
      */
-    public function consult(AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null): array
+    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null): array
     {
         $provider = AiProvider::active();
 
@@ -113,13 +127,17 @@ class AssistantConsultationService
 
         $answer = trim((string) ($response['content'] ?? ''));
 
-        AiAssistantConsultation::create([
-            'consulting_ai_assistant_profile_id' => $requester->id,
-            'consulted_ai_assistant_profile_id' => $target->id,
-            'ai_conversation_id' => $conversation?->id,
-            'question' => $question,
-            'answer' => $answer,
-        ]);
+        // The built-in management assistant has no profile row (null
+        // requester); its consultations are audited in the activity log.
+        if ($requester) {
+            AiAssistantConsultation::create([
+                'consulting_ai_assistant_profile_id' => $requester->id,
+                'consulted_ai_assistant_profile_id' => $target->id,
+                'ai_conversation_id' => $conversation?->id,
+                'question' => $question,
+                'answer' => $answer,
+            ]);
+        }
 
         return ['answer' => $answer, 'consulted' => $target->displayName(), 'consulted_profile_id' => $target->id, 'tools_used' => array_values(array_unique($toolsUsed))];
     }
