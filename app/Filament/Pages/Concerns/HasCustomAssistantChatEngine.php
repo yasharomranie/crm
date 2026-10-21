@@ -153,7 +153,7 @@ trait HasCustomAssistantChatEngine
 
     public function getProfileMessages(): Collection
     {
-        return $this->getSelectedProfileConversation()?->messages()->get() ?? new Collection;
+        return $this->getSelectedProfileConversation()?->messages()->with('author')->get() ?? new Collection;
     }
 
     public function openProfile(int $profileId): void
@@ -351,17 +351,17 @@ trait HasCustomAssistantChatEngine
      * one tool - this never needs the multi-tool, multi-round agent loop
      * that trait runs.
      */
-    private function runProfileAgentLoop(AiConversation $conversation, AiProvider $provider, AiAssistantProfile $profile): void
+    private function runProfileAgentLoop(AiConversation $conversation, AiProvider $provider, AiAssistantProfile $profile, bool $allowHandoff = true, ?string $handoffNote = null): void
     {
         $messages = [
-            ['role' => 'system', 'content' => $this->buildProfileSystemPrompt($profile)],
+            ['role' => 'system', 'content' => $this->buildProfileSystemPrompt($profile, $handoffNote, $allowHandoff)],
             ...$conversation->messages()->get()->map(fn ($message) => $message->toChatPayload())->all(),
         ];
 
         $consultationsRemaining = self::MAX_CONSULTATIONS_PER_SEND;
 
         for ($round = 0; $round < 3; $round++) {
-            $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions($profile), $profile->model);
+            $assistantMessage = $provider->chatCompletion($messages, $this->profileToolDefinitions($profile, $allowHandoff), $profile->model);
             $toolCalls = $assistantMessage['tool_calls'] ?? null;
 
             if (! $toolCalls && filled($assistantMessage['content'] ?? null)) {
@@ -369,6 +369,7 @@ trait HasCustomAssistantChatEngine
             }
 
             $conversation->messages()->create([
+                'ai_assistant_profile_id' => $profile->id,
                 'role' => AiMessageRole::Assistant,
                 'content' => $assistantMessage['content'] ?? null,
                 'tool_calls' => $toolCalls,
@@ -380,10 +381,13 @@ trait HasCustomAssistantChatEngine
                 return;
             }
 
+            $handoff = null;
+
             foreach ($toolCalls as $toolCall) {
                 $arguments = json_decode($toolCall['function']['arguments'] ?? '{}', true) ?: [];
                 $toolName = $toolCall['function']['name'] ?? null;
                 $result = match (true) {
+                    $toolName === 'handoff_to_assistant' => $this->handoffFromTool($profile, $arguments, $allowHandoff, $handoff),
                     $toolName === 'fetch_url' => $this->fetchUrlFromTool($profile, $arguments),
                     $toolName === 'consult_assistant' => $this->consultAssistantFromTool($profile, $conversation, $arguments, $consultationsRemaining),
                     is_string($toolName) && array_key_exists($toolName, $this->grantedCrmToolNames($profile)) => app(CrmToolCatalog::class)->execute($toolName, $arguments),
@@ -404,7 +408,63 @@ trait HasCustomAssistantChatEngine
                     'content' => $encodedResult,
                 ];
             }
+
+            if ($handoff !== null) {
+                $this->performHandoff($conversation, $provider, $profile, $handoff['target'], $handoff['summary']);
+
+                return;
+            }
         }
+    }
+
+    /**
+     * Validates a handoff_to_assistant call and remembers it; the switch itself
+     * happens only after every tool call of this round has its result
+     * (performHandoff), so the history stays well-formed. Only one handoff per
+     * round, and none at all from an assistant that was itself just handed
+     * the chat - that is what keeps two assistants from passing it back and forth.
+     *
+     * @param  array<string, mixed>  $arguments
+     * @param  array{target: AiAssistantProfile, summary: string}|null  $handoff
+     * @return array<string, mixed>
+     */
+    private function handoffFromTool(AiAssistantProfile $requester, array $arguments, bool $allowHandoff, ?array &$handoff): array
+    {
+        if (! $allowHandoff) {
+            return ['error' => 'این گفتگو همین حالا به تو سپرده شده؛ خودت جواب بده.'];
+        }
+
+        if ($handoff !== null) {
+            return ['error' => 'در هر مرحله فقط یک تحویل ممکن است.'];
+        }
+
+        $target = app(AssistantConsultationService::class)
+            ->availableConsultantsFor($requester, Auth::user())
+            ->firstWhere('id', (int) ($arguments['target_profile_id'] ?? 0));
+        $summary = trim((string) ($arguments['summary'] ?? ''));
+
+        if (! $target || $summary === '') {
+            return ['error' => 'دستیار مقصد یا خلاصه‌ی تحویل نامعتبر است.'];
+        }
+
+        $handoff = ['target' => $target, 'summary' => $summary];
+
+        return ['handed_off_to' => $target->displayName(), 'handed_off_profile_id' => $target->id, 'summary' => $summary];
+    }
+
+    /**
+     * The conversation now belongs to $target, and it answers the user right
+     * away in the same request - no button, no copying.
+     */
+    private function performHandoff(AiConversation $conversation, AiProvider $provider, AiAssistantProfile $from, AiAssistantProfile $target, string $summary): void
+    {
+        $conversation->update(['ai_assistant_profile_id' => $target->id]);
+        $this->activeProfileId = $target->id;
+
+        $note = 'این گفتگو را دستیار «'.$from->displayName().'» همین حالا به تو سپرد، چون موضوع در تخصص توست. خلاصه‌ی تحویل: '.$summary
+            .' مستقیم و کامل به کاربر جواب بده (او پیام‌های بالا را دیده است)؛ دوباره به دستیار دیگری تحویل نده.';
+
+        $this->runProfileAgentLoop($conversation->refresh(), $provider, $target, false, $note);
     }
 
     /**
@@ -436,7 +496,7 @@ trait HasCustomAssistantChatEngine
         }
     }
 
-    private function buildProfileSystemPrompt(AiAssistantProfile $profile): string
+    private function buildProfileSystemPrompt(AiAssistantProfile $profile, ?string $handoffNote = null, bool $allowHandoff = true): string
     {
         $prompt = $profile->basePrompt();
 
@@ -458,6 +518,14 @@ trait HasCustomAssistantChatEngine
                 ->implode("\n");
 
             $prompt .= "\n\nدستیارهای دیگری که در دسترس‌اند و در صورت نیاز می‌توانی با ابزار consult_assistant یک سؤال مشخص از آن‌ها بپرسی:\n{$directory}\nفقط وقتی سؤال واقعاً از تخصص خودت خارج است از این ابزار استفاده کن، نه برای هر سؤال، و سؤال را کوتاه و مستقل بپرس چون آن دستیار تاریخچهٔ این گفتگو را نمی‌بیند. پاسخ آن دستیار با نام خودش برای کاربر هم در گفتگو نمایش داده می‌شود؛ در جمع‌بندی همان را کلمه‌به‌کلمه تکرار نکن و فقط نتیجه‌اش را در پاسخ خودت به کار ببر.";
+
+            if ($allowHandoff) {
+                $prompt .= "\n\nاگر کاربر عملاً باید با یکی از این دستیارها ادامه بدهد (موضوع کامل در تخصص اوست، نه فقط یک سؤال تکی)، با ابزار handoff_to_assistant گفتگو را به او بسپار و در خلاصه بنویس کاربر چه می‌خواهد و تا الان چه گفته شد؛ او همان لحظه مستقیم به کاربر جواب می‌دهد. برای سؤال تکی از consult_assistant استفاده کن.";
+            }
+        }
+
+        if ($handoffNote !== null) {
+            $prompt .= "\n\n".$handoffNote;
         }
 
         if ($contextNote = $this->pageContextNote()) {
@@ -497,7 +565,7 @@ trait HasCustomAssistantChatEngine
     /**
      * @return array<int, array<string, mixed>>
      */
-    private function profileToolDefinitions(AiAssistantProfile $profile): array
+    private function profileToolDefinitions(AiAssistantProfile $profile, bool $allowHandoff = true): array
     {
         $tools = [
             [
@@ -561,6 +629,31 @@ trait HasCustomAssistantChatEngine
                             ],
                         ],
                         'required' => ['target_profile_id', 'question'],
+                    ],
+                ],
+            ];
+        }
+
+        if ($allowHandoff && $consultants->isNotEmpty()) {
+            $tools[] = [
+                'type' => 'function',
+                'function' => [
+                    'name' => 'handoff_to_assistant',
+                    'description' => 'گفتگو را به دستیار دیگری که موضوع کاملاً در تخصص اوست می‌سپارد؛ همان لحظه او مستقیم به کاربر جواب می‌دهد و ادامه‌ی گفتگو با او خواهد بود. برای یک سؤال تکی از consult_assistant استفاده کن.',
+                    'parameters' => [
+                        'type' => 'object',
+                        'properties' => [
+                            'target_profile_id' => [
+                                'type' => 'integer',
+                                'enum' => $consultants->pluck('id')->all(),
+                                'description' => 'شناسه‌ی دستیاری که گفتگو را تحویل می‌گیرد (از فهرست دستور سیستمی).',
+                            ],
+                            'summary' => [
+                                'type' => 'string',
+                                'description' => 'خلاصه‌ی خواسته‌ی کاربر و آنچه تا الان گفته شده.',
+                            ],
+                        ],
+                        'required' => ['target_profile_id', 'summary'],
                     ],
                 ],
             ];
@@ -823,6 +916,9 @@ trait HasCustomAssistantChatEngine
         return match ($message->tool_name) {
             'consult_assistant' => isset($result['consulted'])
                 ? 'از «'.$result['consulted'].'» مشورت گرفت'
+                : null,
+            'handoff_to_assistant' => isset($result['handed_off_to'])
+                ? 'گفتگو را به «'.$result['handed_off_to'].'» سپرد'
                 : null,
             'fetch_url' => isset($result['url'])
                 ? 'صفحهٔ «'.(parse_url((string) $result['url'], PHP_URL_HOST) ?: $result['url']).'» را خواند'
