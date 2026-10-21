@@ -259,9 +259,13 @@ class MissionRunner
             'finished_at' => now(),
         ]);
 
+        $conflicts = collect($mission->report['decisions'] ?? [])->where('compliance.verdict', 'conflict')->count()
+            + $mission->actions()->where('round', $round)->where('status', AiMissionActionStatus::Pending->value)->get()->where('compliance.verdict', 'conflict')->count();
+
         $this->alert($mission, $decisions + $actions > 0 ? 'ready' : 'done', $decisions + $actions > 0
             ? "پیش‌نویس تصمیم آماده است ({$decisions} پیشنهاد"
                 .($actions > 0 ? " و {$actions} اقدام منتظر تأیید" : '').')؛ منتظر نظر شماست.'
+                .($conflicts > 0 ? " ⚠ {$conflicts} مورد با خط قرمز استراتژی در تضاد دانسته شد." : '')
             : 'اجرا تمام شد و تصمیمی پیشنهاد نشد.');
     }
 
@@ -422,7 +426,64 @@ class MissionRunner
             'finished_at' => now(),
         ]);
 
+        $this->checkCompliance($mission, $role, $round, $user, $summary, $decisions);
+
         return true;
+    }
+
+    /**
+     * With an approved, current strategy brief, a second member (the critic
+     * if the mission has one, else the coordinator) weighs the round's
+     * decisions and proposed actions against the brief's red lines and
+     * principles and notes which goals the round touched. It only flags: a
+     * failure here never fails the round, and the manager still decides.
+     *
+     * @param  list<array{title: string, detail: string}>  $decisions
+     */
+    private function checkCompliance(AiMission $mission, AiMissionRole $coordinator, int $round, User $user, string $summary, array $decisions): void
+    {
+        $mission->refresh();
+
+        if (! MissionBrief::isCurrent($mission)) {
+            return;
+        }
+
+        $brief = MissionBrief::normalize($mission->brief);
+        $actions = $mission->actions()->where('round', $round)->where('status', AiMissionActionStatus::Pending->value)->get();
+
+        if ($brief['goals'] === [] && $brief['red_lines'] === [] && $brief['principles'] === []) {
+            return;
+        }
+
+        $checker = $this->rolesOf($mission, AiMissionRoleType::Critic, $user)->first() ?? $coordinator;
+        $mission->update(['current_step' => "«{$checker->profile->displayName()}» در حال سنجیدن با استراتژی…", 'current_profile_id' => $checker->ai_assistant_profile_id]);
+
+        $result = $this->ask($mission, $checker, $user, MissionCompliance::question($brief, $summary, $decisions, $actions, $this->board($mission, $round)), MissionCompliance::FORMAT);
+        $report = $mission->report ?? [];
+
+        if (isset($result['error'])) {
+            $mission->update(['report' => [...$report, 'compliance_error' => Str::limit((string) $result['error'], 200, '')]]);
+
+            return;
+        }
+
+        $checked = MissionCompliance::parse($result['answer']);
+
+        foreach ($decisions as $index => $decision) {
+            if (isset($checked['decisions'][$index + 1])) {
+                $decisions[$index]['compliance'] = $checked['decisions'][$index + 1];
+            }
+        }
+
+        foreach ($actions as $action) {
+            if (isset($checked['actions'][$action->id])) {
+                $action->update(['compliance' => $checked['actions'][$action->id]]);
+            }
+        }
+
+        $coverage = collect($brief['goals'])->map(fn (string $goal, int $index) => ['goal' => $goal, 'covered' => $checked['goals'][$index + 1]['covered'] ?? null, 'note' => $checked['goals'][$index + 1]['note'] ?? ''])->all();
+
+        $mission->update(['report' => [...$report, 'decisions' => $decisions, 'coverage' => $coverage, 'compliance_by' => $checker->profile->displayName()]]);
     }
 
     /**
