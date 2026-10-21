@@ -28,27 +28,105 @@ function glowTexture() {
     return new THREE.CanvasTexture(canvas);
 }
 
+const avatarCache = new Map();
+
+function shapePath(ctx, shape, cx, cy, r) {
+    const polygon = (sides, rotation = -Math.PI / 2) => {
+        for (let i = 0; i < sides; i++) {
+            const angle = rotation + (2 * Math.PI * i) / sides;
+            const x = cx + r * Math.cos(angle);
+            const y = cy + r * Math.sin(angle);
+            i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+        }
+        ctx.closePath();
+    };
+
+    ctx.beginPath();
+    switch (shape) {
+        case 'rounded-square': ctx.roundRect(cx - r * 0.85, cy - r * 0.85, r * 1.7, r * 1.7, r * 0.35); break;
+        case 'hexagon': polygon(6, 0); break;
+        case 'pentagon': polygon(5); break;
+        case 'triangle': polygon(3); break;
+        case 'diamond': polygon(4); break;
+        case 'manager': polygon(8, Math.PI / 8); break;
+        case 'teardrop':
+            ctx.moveTo(cx, cy - r * 1.05);
+            ctx.bezierCurveTo(cx + r * 0.2, cy - r * 0.6, cx + r * 0.85, cy - r * 0.15, cx + r * 0.85, cy + r * 0.2);
+            ctx.arc(cx, cy + r * 0.2, r * 0.85, 0, Math.PI, false);
+            ctx.bezierCurveTo(cx - r * 0.85, cy - r * 0.15, cx - r * 0.2, cy - r * 0.6, cx, cy - r * 1.05);
+            break;
+        case 'cloud':
+            [[-0.45, 0.15, 0.5], [0.05, -0.2, 0.55], [0.5, 0.2, 0.45], [0, 0.3, 0.55]].forEach(([dx, dy, k]) => {
+                ctx.moveTo(cx + r * (dx + k), cy + r * dy);
+                ctx.arc(cx + r * dx, cy + r * dy, r * k, 0, 2 * Math.PI);
+            });
+            break;
+        case 'flower':
+            [[0, -0.5], [0.5, 0], [0, 0.5], [-0.5, 0]].forEach(([dx, dy]) => {
+                ctx.moveTo(cx + r * (dx + 0.5), cy + r * dy);
+                ctx.arc(cx + r * dx, cy + r * dy, r * 0.5, 0, 2 * Math.PI);
+            });
+            break;
+        default: ctx.arc(cx, cy, r * 0.92, 0, 2 * Math.PI);
+    }
+}
+
+/** The assistant's own avatar (its shape and colour) drawn as a glossy badge. */
+function avatarTexture(shape, color) {
+    const key = `${shape}|${color}`;
+    if (avatarCache.has(key)) {
+        return avatarCache.get(key);
+    }
+
+    const size = 256;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvas.height = size;
+    const ctx = canvas.getContext('2d');
+    const c = size / 2;
+    const r = size * 0.4;
+
+    shapePath(ctx, shape, c, c, r);
+    const fill = ctx.createLinearGradient(c - r, c - r, c + r, c + r);
+    fill.addColorStop(0, '#ffffff');
+    fill.addColorStop(0.35, color);
+    fill.addColorStop(1, '#0b1220');
+    ctx.fillStyle = fill;
+    ctx.fill();
+
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = 'rgba(255,255,255,0.85)';
+    ctx.stroke();
+
+    ctx.save();
+    shapePath(ctx, shape, c, c, r * 0.78);
+    ctx.lineWidth = 2;
+    ctx.strokeStyle = 'rgba(255,255,255,0.35)';
+    ctx.stroke();
+    ctx.restore();
+
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    avatarCache.set(key, texture);
+
+    return texture;
+}
+
 function buildNode(node, glow) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
     const isManager = node.id === 'manager';
     const radius = isManager ? 10 : 6.5;
+    const base = radius * 3;
 
-    const core = new THREE.Mesh(
-        isManager ? new THREE.OctahedronGeometry(radius) : new THREE.IcosahedronGeometry(radius, 1),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.95 }),
-    );
-    const shell = new THREE.Mesh(
-        new THREE.IcosahedronGeometry(radius * 1.55, 1),
-        new THREE.MeshBasicMaterial({ color, wireframe: true, transparent: true, opacity: 0.35 }),
-    );
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color), transparent: true, depthWrite: false }));
+    core.scale.set(base, base, 1);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: glow, color, transparent: true, opacity: node.live ? 0.9 : 0.35, blending: THREE.AdditiveBlending, depthWrite: false }));
     halo.scale.set(radius * 5, radius * 5, 1);
 
-    group.add(core, shell, halo);
+    group.add(halo, core);
 
     if (isManager) {
-        const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * 2.1, 0.35, 8, 72), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }));
+        const ring = new THREE.Mesh(new THREE.TorusGeometry(radius * 1.9, 0.3, 8, 72), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.7 }));
         ring.rotation.x = Math.PI / 2.4;
         group.add(ring);
         group.userData.ring = ring;
@@ -58,10 +136,10 @@ function buildNode(node, glow) {
     label.fontFace = 'Vazirmatn, sans-serif';
     label.fontWeight = '600';
     label.material.depthWrite = false;
-    label.position.y = -(radius * 2.2 + 3);
+    label.position.y = -(radius * 1.6 + 4);
     group.add(label);
 
-    group.userData = { ...group.userData, core, shell, halo, live: node.live, radius };
+    group.userData = { ...group.userData, core, halo, base, live: node.live };
 
     return group;
 }
@@ -153,14 +231,12 @@ export function mount(element, { onSelect }) {
                 if (!data) {
                     return;
                 }
-                data.shell.rotation.y += 0.006;
-                data.shell.rotation.x += 0.003;
                 if (data.ring) {
                     data.ring.rotation.z += 0.012;
                 }
                 if (data.live) {
                     const pulse = 1 + 0.12 * Math.sin(tick + node.index);
-                    data.core.scale.setScalar(pulse);
+                    data.core.scale.set(data.base * pulse, data.base * pulse, 1);
                     data.halo.material.opacity = 0.65 + 0.25 * Math.sin(tick * 1.3 + node.index);
                 }
             });
