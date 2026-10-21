@@ -14,6 +14,7 @@
                     shown: { assistants: 0, consultations: 0, handoffs: 0, live: 0 },
                     timers: [],
                     fullscreen: false,
+                    style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'cartoon' ? 'cartoon' : 'robot'; } catch (e) { return 'robot'; } })(),
                     init() {
                         this.tick();
                         this.timers.push(setInterval(() => this.tick(), 1000));
@@ -21,7 +22,7 @@
                         this.countTo(this.data.totals);
                         const boot = () => {
                             if (!window.WarRoom) { return setTimeout(boot, 80); }
-                            scene = window.WarRoom.mount(this.$refs.scene, { onSelect: (id) => this.select(id, false) });
+                            scene = window.WarRoom.mount(this.$refs.scene, { onSelect: (id) => this.select(id, false), initialStyle: this.style });
                             scene.update(this.data);
                         };
                         this.$nextTick(boot);
@@ -58,6 +59,11 @@
                         this.selected = id ? this.data.nodes.find((n) => n.id === id) || null : null;
                         if (id && fly && scene) { scene.focus(id); }
                     },
+                    setStyle(next) {
+                        this.style = next;
+                        try { localStorage.setItem('aiTeamMapStyle', next); } catch (e) { /* storage unavailable */ }
+                        if (scene) { scene.setStyle(next); }
+                    },
                     reset() { this.selected = null; if (scene) { scene.reset(); } },
                     toggleFullscreen() {
                         if (document.fullscreenElement) { document.exitFullscreen(); } else { this.$refs.stage.requestFullscreen(); }
@@ -82,6 +88,10 @@
         .wr-btn { height: 2rem; padding-inline: 0.75rem; font-size: 0.75rem; border-radius: 0.375rem; border: 1px solid var(--wr-line); background: rgb(7 16 32 / 0.8); color: var(--wr-text); cursor: pointer; }
         .wr-btn:hover { background: rgb(14 32 60 / 0.9); }
         .wr-btn:focus-visible { outline: 2px solid var(--wr-cyan); outline-offset: 2px; }
+        .wr-seg { display: inline-flex; border: 1px solid var(--wr-line); border-radius: 0.375rem; overflow: hidden; }
+        .wr-seg button { height: 2rem; padding-inline: 0.7rem; font-size: 0.75rem; background: rgb(7 16 32 / 0.8); color: var(--wr-dim); border: 0; cursor: pointer; }
+        .wr-seg button.on { background: rgb(56 189 248 / 0.22); color: var(--wr-text); }
+        .wr-seg button:focus-visible { outline: 2px solid var(--wr-cyan); outline-offset: -2px; }
         .wr-led { width: 0.5rem; height: 0.5rem; border-radius: 9999px; background: #475569; flex: none; }
         .wr-led.on { background: #34d399; }
         .wr-row { display: flex; width: 100%; align-items: center; gap: 0.5rem; padding: 0.4rem 0.5rem; border-radius: 0.375rem; text-align: start; cursor: pointer; background: transparent; border: 0; color: inherit; }
@@ -107,6 +117,10 @@
                     <div style="text-align: end;" class="wr-side">
                         <div class="wr-num" style="font-size: 1rem; color: var(--wr-cyan);" x-text="clock"></div>
                         <div class="wr-label" x-text="day"></div>
+                    </div>
+                    <div class="wr-seg" role="group" aria-label="سبک آواتار">
+                        <button type="button" :class="style === 'robot' ? 'on' : ''" :aria-pressed="style === 'robot'" x-on:click="setStyle('robot')">ربات</button>
+                        <button type="button" :class="style === 'cartoon' ? 'on' : ''" :aria-pressed="style === 'cartoon'" x-on:click="setStyle('cartoon')">کارتونی</button>
                     </div>
                     <button type="button" class="wr-btn" x-on:click="reset()">نمای کلی</button>
                     <button type="button" class="wr-btn" x-on:click="toggleFullscreen()" x-text="fullscreen ? 'خروج از تمام‌صفحه' : 'تمام‌صفحه'"></button>

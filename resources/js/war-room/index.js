@@ -78,10 +78,12 @@ const mix = (hex, target, amount) => {
 
 /**
  * The assistant's own avatar: its shape and colour, softly shaded like a ball,
- * with a face. `state` is the expression: idle, blink or talk.
+ * with a face. `state` is the expression: idle, blink or talk; `style` is
+ * 'cartoon' (round eyes and a smile) or 'robot' (antenna, ear bolts, a screen
+ * face with LED eyes and a speaker grille).
  */
-function avatarTexture(shape, color, state, isManager) {
-    const key = `${shape}|${color}|${state}`;
+function avatarTexture(shape, color, state, isManager, style) {
+    const key = `${style}|${shape}|${color}|${state}`;
     if (avatarCache.has(key)) {
         return avatarCache.get(key);
     }
@@ -94,7 +96,23 @@ function avatarTexture(shape, color, state, isManager) {
     const r = size * 0.36;
     const faceY = shape === 'triangle' ? r * 0.28 : shape === 'teardrop' ? r * 0.12 : 0;
 
-    if (isManager) {
+    const robot = style === 'robot';
+
+    if (robot) {
+        const earX = shape === 'triangle' ? r * 0.72 : r * 1.02;
+        const earY = shape === 'triangle' ? c + r * 0.32 : c;
+        ctx.fillStyle = mix(color, '#0b1220', 0.35);
+        ctx.strokeStyle = '#0b1220';
+        ctx.lineWidth = 6;
+        [-1, 1].forEach((side) => {
+            ctx.beginPath();
+            ctx.roundRect(c + side * earX - 11, earY - 20, 22, 40, 8);
+            ctx.fill();
+            ctx.stroke();
+        });
+    }
+
+    if (robot || isManager) {
         ctx.strokeStyle = '#0b1220';
         ctx.lineWidth = 7;
         ctx.beginPath();
@@ -130,47 +148,85 @@ function avatarTexture(shape, color, state, isManager) {
     ctx.stroke();
 
     const ink = '#0b1220';
-    const eyeX = r * 0.34;
-    const eyeY = c - r * 0.12 + faceY;
-    [-1, 1].forEach((side) => {
-        const x = c + side * eyeX;
-        if (state === 'blink') {
-            ctx.strokeStyle = ink;
-            ctx.lineWidth = 6;
-            ctx.lineCap = 'round';
+    const lit = mix(color, '#ffffff', 0.75);
+
+    if (robot) {
+        const sw = r * 1.3;
+        const sh = r * 0.78;
+        const sy = c - r * 0.06 + faceY;
+        ctx.fillStyle = ink;
+        ctx.beginPath();
+        ctx.roundRect(c - sw / 2, sy - sh / 2, sw, sh, 14);
+        ctx.fill();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = mix(color, '#ffffff', 0.35);
+        ctx.stroke();
+
+        [-1, 1].forEach((side) => {
+            const x = c + side * r * 0.3;
+            const y = sy - sh * 0.12;
+            ctx.fillStyle = lit;
             ctx.beginPath();
-            ctx.moveTo(x - r * 0.15, eyeY);
-            ctx.lineTo(x + r * 0.15, eyeY);
-            ctx.stroke();
+            if (state === 'blink') {
+                ctx.roundRect(x - r * 0.15, y - 3, r * 0.3, 6, 3);
+            } else {
+                ctx.roundRect(x - r * 0.14, y - r * 0.17, r * 0.28, r * 0.34, 7);
+            }
+            ctx.fill();
+        });
 
-            return;
-        }
-        ctx.fillStyle = '#ffffff';
-        ctx.beginPath();
-        ctx.ellipse(x, eyeY, r * 0.17, r * 0.21, 0, 0, 2 * Math.PI);
-        ctx.fill();
-        ctx.lineWidth = 4;
-        ctx.strokeStyle = ink;
-        ctx.stroke();
-        ctx.fillStyle = ink;
-        ctx.beginPath();
-        ctx.arc(x + r * 0.03, eyeY + r * 0.03, r * 0.085, 0, 2 * Math.PI);
-        ctx.fill();
-    });
-
-    const mouthY = c + r * 0.34 + faceY;
-    ctx.strokeStyle = ink;
-    ctx.lineCap = 'round';
-    if (state === 'talk') {
-        ctx.fillStyle = ink;
-        ctx.beginPath();
-        ctx.ellipse(c, mouthY + r * 0.03, r * 0.17, r * 0.13, 0, 0, 2 * Math.PI);
-        ctx.fill();
+        ctx.fillStyle = lit;
+        const my = sy + sh * 0.3;
+        const heights = state === 'talk' ? [0.1, 0.22, 0.14, 0.24, 0.1] : [0.05, 0.05, 0.05, 0.05, 0.05];
+        heights.forEach((height, index) => {
+            const bar = r * height;
+            ctx.beginPath();
+            ctx.roundRect(c + (index - 2) * r * 0.2 - 4, my - bar / 2, 8, bar, 3);
+            ctx.fill();
+        });
     } else {
-        ctx.lineWidth = 6;
-        ctx.beginPath();
-        ctx.arc(c, mouthY - r * 0.12, r * 0.24, Math.PI * 0.2, Math.PI * 0.8);
-        ctx.stroke();
+        const eyeX = r * 0.34;
+        const eyeY = c - r * 0.12 + faceY;
+        [-1, 1].forEach((side) => {
+            const x = c + side * eyeX;
+            if (state === 'blink') {
+                ctx.strokeStyle = ink;
+                ctx.lineWidth = 6;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                ctx.moveTo(x - r * 0.15, eyeY);
+                ctx.lineTo(x + r * 0.15, eyeY);
+                ctx.stroke();
+
+                return;
+            }
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.ellipse(x, eyeY, r * 0.17, r * 0.21, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = ink;
+            ctx.stroke();
+            ctx.fillStyle = ink;
+            ctx.beginPath();
+            ctx.arc(x + r * 0.03, eyeY + r * 0.03, r * 0.085, 0, 2 * Math.PI);
+            ctx.fill();
+        });
+
+        const mouthY = c + r * 0.34 + faceY;
+        ctx.strokeStyle = ink;
+        ctx.lineCap = 'round';
+        if (state === 'talk') {
+            ctx.fillStyle = ink;
+            ctx.beginPath();
+            ctx.ellipse(c, mouthY + r * 0.03, r * 0.17, r * 0.13, 0, 0, 2 * Math.PI);
+            ctx.fill();
+        } else {
+            ctx.lineWidth = 6;
+            ctx.beginPath();
+            ctx.arc(c, mouthY - r * 0.12, r * 0.24, Math.PI * 0.2, Math.PI * 0.8);
+            ctx.stroke();
+        }
     }
 
     const texture = new THREE.CanvasTexture(canvas);
@@ -180,14 +236,14 @@ function avatarTexture(shape, color, state, isManager) {
     return texture;
 }
 
-function buildNode(node, ringMap) {
+function buildNode(node, ringMap, style) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
     const isManager = node.id === 'manager';
     const radius = isManager ? 13 : 10;
     const base = radius * 3.4;
 
-    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color, 'idle', isManager), transparent: true, depthWrite: false }));
+    const core = new THREE.Sprite(new THREE.SpriteMaterial({ map: avatarTexture(node.shape, node.color, 'idle', isManager, style), transparent: true, depthWrite: false }));
     core.scale.set(base, base, 1);
     const halo = new THREE.Sprite(new THREE.SpriteMaterial({ map: ringMap, color, transparent: true, opacity: node.live ? 1 : 0, depthWrite: false }));
     halo.scale.set(base * 1.35, base * 1.35, 1);
@@ -213,17 +269,18 @@ function buildNode(node, ringMap) {
     return group;
 }
 
-export function mount(element, { onSelect }) {
+export function mount(element, { onSelect, initialStyle = 'robot' }) {
     const ringMap = ringTexture();
     const motion = !reducedMotion();
     let spinning = motion;
     let autoFit = true;
+    let style = initialStyle;
 
     const graph = ForceGraph3D({ controlType: 'orbit' })(element)
         .backgroundColor('rgba(0,0,0,0)')
         .showNavInfo(false)
         .nodeLabel(() => '')
-        .nodeThreeObject((node) => buildNode(node, ringMap))
+        .nodeThreeObject((node) => buildNode(node, ringMap, style))
         .nodeThreeObjectExtend(false)
         .linkColor((link) => KIND_COLORS[link.kind] ?? '#64748b')
         .linkOpacity(0.55)
@@ -296,7 +353,7 @@ export function mount(element, { onSelect }) {
                 const state = blinking ? 'blink' : talking ? 'talk' : 'idle';
                 if (data.state !== state) {
                     data.state = state;
-                    data.core.material.map = avatarTexture(data.shape, data.color, state, data.isManager);
+                    data.core.material.map = avatarTexture(data.shape, data.color, state, data.isManager, style);
                 }
                 data.core.position.y = Math.sin(now * 1.4 + node.index * 2) * 1.6;
                 if (data.live) {
@@ -342,6 +399,16 @@ export function mount(element, { onSelect }) {
             autoFit = false;
             const ratio = 1 + 90 / Math.hypot(node.x, node.y, node.z || 1);
             graph.cameraPosition({ x: node.x * ratio, y: node.y * ratio, z: node.z * ratio }, node, 900);
+        },
+        setStyle(next) {
+            style = next;
+            graph.graphData().nodes.forEach((node) => {
+                const data = node.__threeObj?.userData;
+                if (data) {
+                    data.state = 'idle';
+                    data.core.material.map = avatarTexture(data.shape, data.color, 'idle', data.isManager, style);
+                }
+            });
         },
         reset() {
             spinning = motion;
