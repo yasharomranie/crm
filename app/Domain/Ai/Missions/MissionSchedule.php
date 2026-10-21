@@ -4,6 +4,7 @@ namespace App\Domain\Ai\Missions;
 
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Date;
+use Illuminate\Support\Number;
 
 /**
  * When a recurring mission runs next. Times are the manager's own wall clock
@@ -33,6 +34,20 @@ class MissionSchedule
             'monthly' => $this->advanceToDay($candidate, $day ?? 1, $from),
             default => $candidate->lessThanOrEqualTo($from) ? $candidate->addDay() : $candidate,
         };
+    }
+
+    /**
+     * A short Persian description such as «هر هفته · شنبه · ۰۸:۰۰».
+     */
+    public function describe(?string $frequency, ?string $time, ?int $weekday = null, ?int $day = null): string
+    {
+        $when = match ($frequency) {
+            'weekly' => 'هر هفته · '.(self::WEEKDAYS[$weekday ?? 6] ?? 'شنبه'),
+            'monthly' => 'هر ماه · روز '.($day ?? 1),
+            default => 'هر روز',
+        };
+
+        return Number::toPersian($when.' · '.($time ?? '08:00'));
     }
 
     private function advanceToWeekday(Carbon $candidate, int $weekday, Carbon $from): Carbon
