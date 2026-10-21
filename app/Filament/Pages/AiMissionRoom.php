@@ -31,7 +31,6 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
@@ -162,7 +161,8 @@ class AiMissionRoom extends Page
 
     public function startCreate(): void
     {
-        $this->reset(['newSourceIds', 'missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
+        $this->discardPendingSources();
+        $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
         $this->maxRounds = 2;
         $this->tokenBudget = 60000;
         $this->specialists = [['profile_id' => null, 'directive' => '', 'needs' => []]];
@@ -302,7 +302,7 @@ class AiMissionRoom extends Page
                 $mission->roles()->create(['ai_assistant_profile_id' => $row['profile_id'], 'role' => $row['role'], 'directive' => $row['directive'] ?: null, 'sort' => $sort]);
             }
 
-            $mission->sources()->sync(AiMissionSource::query()->ownedBy(Auth::user())->whereIn('id', array_map('intval', $this->newSourceIds))->pluck('id')->all());
+            $this->getPendingSources()->each->update(['ai_mission_id' => $mission->id]);
 
             return $mission;
         });
@@ -320,10 +320,11 @@ class AiMissionRoom extends Page
             ]);
         }
 
+        $this->newSourceIds = [];
         $this->missionId = $mission->id;
         $this->showCreate = false;
         Notification::make()
-            ->title($mission->sources()->exists() ? 'مأموریت ساخته شد؛ فایل‌ها وصل شدند. برای اجرا اول «خلاصهٔ استراتژی» را بسازید و تأیید کنید.' : 'مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')
+            ->title($mission->sources()->exists() ? 'مأموریت ساخته شد؛ فایل‌ها در کتابخانهٔ آن هستند و وقتی «آماده» شدند تیم از آن‌ها استفاده می‌کند.' : 'مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')
             ->success()
             ->send();
     }
@@ -543,7 +544,7 @@ class AiMissionRoom extends Page
 
     public const SOURCE_EXTENSIONS = ['txt', 'md', 'csv', 'docx', 'pdf', 'xlsx'];
 
-    public const MAX_SOURCES_PER_USER = 40;
+    public const MAX_SOURCES_PER_MISSION = 20;
 
     /** @var array<int, mixed> */
     public array $sourceUploads = [];
@@ -551,7 +552,8 @@ class AiMissionRoom extends Page
     public string $sourceKind = 'policy';
 
     /**
-     * Library files ticked while a new mission is being set up.
+     * Files uploaded while a new mission is being set up; they get their
+     * mission when it is created.
      *
      * @var array<int, int|string>
      */
@@ -567,13 +569,13 @@ class AiMissionRoom extends Page
     public array $briefLists = [];
 
     /**
-     * The user's whole library of source files.
+     * Files uploaded in the new-mission form that have no mission yet.
      *
      * @return Collection<int, AiMissionSource>
      */
-    public function getSources(): Collection
+    public function getPendingSources(): Collection
     {
-        return AiMissionSource::query()->ownedBy(Auth::user())->orderBy('title')->get();
+        return AiMissionSource::query()->ownedBy(Auth::user())->whereNull('ai_mission_id')->whereIn('id', array_map('intval', $this->newSourceIds))->orderBy('id')->get();
     }
 
     public function uploadSources(): void
@@ -584,13 +586,21 @@ class AiMissionRoom extends Page
             'sourceKind' => ['required', 'in:'.implode(',', array_column(AiMissionSourceKind::cases(), 'value'))],
         ], [], ['sourceUploads.*' => 'فایل']);
 
-        $mission = $this->missionId ? AiMission::query()->ownedBy(Auth::user())->find($this->missionId) : null;
-        $room = self::MAX_SOURCES_PER_USER - AiMissionSource::query()->ownedBy(Auth::user())->count();
+        $mission = $this->showCreate || ! $this->missionId ? null : AiMission::query()->ownedBy(Auth::user())->find($this->missionId);
+
+        if (! $this->showCreate && (! $mission || $mission->status === AiMissionStatus::Running)) {
+            Notification::make()->title($mission ? 'تا پایان اجرا نمی‌توان فایل اضافه کرد.' : 'اول یک مأموریت را باز کنید یا بسازید.')->warning()->send();
+
+            return;
+        }
+
+        $room = self::MAX_SOURCES_PER_MISSION - ($mission ? $mission->sources()->count() : count($this->getPendingSources()));
 
         foreach (array_slice($this->sourceUploads, 0, max(0, $room)) as $file) {
             $name = $file->getClientOriginalName();
             $source = AiMissionSource::create([
                 'user_id' => Auth::id(),
+                'ai_mission_id' => $mission?->id,
                 'title' => Str::limit(pathinfo($name, PATHINFO_FILENAME), 120, ''),
                 'original_filename' => Str::limit($name, 200, ''),
                 'extension' => strtolower($file->getClientOriginalExtension()),
@@ -598,9 +608,7 @@ class AiMissionRoom extends Page
                 'path' => $file->store('mission-sources'),
             ]);
 
-            $mission?->sources()->syncWithoutDetaching([$source->id]);
-
-            if ($this->showCreate) {
+            if (! $mission) {
                 $this->newSourceIds[] = (string) $source->id;
             }
 
@@ -611,26 +619,28 @@ class AiMissionRoom extends Page
         $this->reset('sourceUploads');
 
         Notification::make()
-            ->title($skipped > 0 ? 'سقف '.self::MAX_SOURCES_PER_USER.' فایل پر شد؛ '.$skipped.' فایل بارگذاری نشد.' : 'فایل‌ها بارگذاری شدند و در پس‌زمینه خوانده می‌شوند.')
+            ->title($skipped > 0 ? 'سقف '.self::MAX_SOURCES_PER_MISSION.' فایل برای هر مأموریت پر شد؛ '.$skipped.' فایل بارگذاری نشد.' : 'فایل‌ها بارگذاری شدند و در پس‌زمینه خوانده می‌شوند.')
             ->{$skipped > 0 ? 'warning' : 'success'}()
             ->send();
     }
 
-    public function toggleSource(int $sourceId): void
+    /** Takes back a file uploaded in the new-mission form before the mission exists. */
+    public function removePendingSource(int $sourceId): void
     {
-        $mission = $this->getSelectedMission();
-        $source = AiMissionSource::query()->ownedBy(Auth::user())->find($sourceId);
+        $this->getPendingSources()->firstWhere('id', $sourceId)?->delete();
+        $this->newSourceIds = array_values(array_diff($this->newSourceIds, [(string) $sourceId, $sourceId]));
+    }
 
-        if (! $mission || ! $source || $mission->status === AiMissionStatus::Running) {
-            return;
-        }
+    public function cancelCreate(): void
+    {
+        $this->discardPendingSources();
+        $this->showCreate = false;
+    }
 
-        $mission->sources()->toggle([$source->id]);
-
-        // A file taken off the mission is also off every member's allowed list.
-        if (! $mission->sources()->whereKey($source->id)->exists()) {
-            DB::table('ai_mission_role_source')->where('ai_mission_source_id', $source->id)->whereIn('ai_mission_role_id', $mission->roles()->pluck('id'))->delete();
-        }
+    private function discardPendingSources(): void
+    {
+        $this->getPendingSources()->each->delete();
+        $this->newSourceIds = [];
     }
 
     /**
@@ -681,17 +691,9 @@ class AiMissionRoom extends Page
 
     public function deleteSource(int $sourceId): void
     {
-        $source = AiMissionSource::query()->ownedBy(Auth::user())->find($sourceId);
+        $source = AiMissionSource::query()->ownedBy(Auth::user())->whereNotNull('ai_mission_id')->whereDoesntHave('mission', fn ($query) => $query->where('status', AiMissionStatus::Running->value))->find($sourceId);
 
-        if (! $source) {
-            return;
-        }
-
-        if ($source->path) {
-            Storage::disk('local')->delete($source->path);
-        }
-
-        $source->delete();
+        $source?->delete();
     }
 
     public function buildBrief(): void
@@ -771,7 +773,7 @@ class AiMissionRoom extends Page
 
     public function deleteMission(int $id): void
     {
-        AiMission::query()->ownedBy(Auth::user())->whereKey($id)->where('status', '!=', AiMissionStatus::Running->value)->delete();
+        AiMission::query()->ownedBy(Auth::user())->whereKey($id)->where('status', '!=', AiMissionStatus::Running->value)->get()->each->delete();
 
         if ($this->missionId === $id) {
             $this->missionId = null;

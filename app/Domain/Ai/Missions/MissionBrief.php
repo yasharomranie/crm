@@ -3,14 +3,15 @@
 namespace App\Domain\Ai\Missions;
 
 use App\Enums\AiMissionBriefStatus;
+use App\Enums\AiMissionSourceStatus;
 use App\Models\AiMission;
 use Illuminate\Support\Str;
 
 /**
- * The strategy brief of a mission: a short, manager-approved digest of its
- * source files that every member reads before working. Only an approved
- * brief that still matches the attached files is ever given to the team, and
- * a mission with sources will not run without one.
+ * The optional strategy brief of a mission: a short, manager-approved digest
+ * of its files that every member reads before working. Only an approved brief
+ * that still matches the mission's files is ever given to the team; without
+ * one the team still searches the files themselves.
  */
 class MissionBrief
 {
@@ -63,28 +64,30 @@ class MissionBrief
             ->implode('|'));
     }
 
-    /** Why the mission cannot run yet because of its sources, or null when it can. */
+    /**
+     * Why the mission cannot run yet because of its files, or null when it can.
+     * Files are usable as soon as they are read; the brief is optional. The
+     * only wait is for a file still being read.
+     */
     public static function blocksRun(AiMission $mission): ?string
     {
-        if (! $mission->sources()->exists()) {
-            return null;
-        }
+        $reading = $mission->sources()->where('status', AiMissionSourceStatus::Pending->value)->count();
 
-        if ($mission->brief_status !== AiMissionBriefStatus::Approved) {
-            return 'برای این مأموریت منبع گذاشته‌اید؛ اول «خلاصهٔ استراتژی» را بسازید و تأیید کنید.';
-        }
+        return $reading > 0 ? 'هنوز '.$reading.' فایل در حال خواندن است؛ وقتی همه «آماده» شدند اجرا کنید.' : null;
+    }
 
-        if ($mission->brief_sources_hash !== self::sourcesHash($mission)) {
-            return 'منابع مأموریت بعد از تأیید خلاصه تغییر کرده؛ خلاصه را دوباره بسازید و تأیید کنید.';
-        }
-
-        return null;
+    /** Whether the brief was approved for exactly the files the mission has now. */
+    public static function isCurrent(AiMission $mission): bool
+    {
+        return $mission->brief_status === AiMissionBriefStatus::Approved
+            && $mission->sources()->exists()
+            && $mission->brief_sources_hash === self::sourcesHash($mission);
     }
 
     /** The text every member reads, or an empty string when there is no usable brief. */
     public static function promptBlock(AiMission $mission): string
     {
-        if (self::blocksRun($mission) !== null || ! $mission->sources()->exists()) {
+        if (! self::isCurrent($mission)) {
             return '';
         }
 

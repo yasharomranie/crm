@@ -8,7 +8,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
-use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -27,6 +26,12 @@ class AiMission extends Model
         'schedule_day', 'next_run_at', 'last_scheduled_at', 'run_trigger', 'budget_alerted',
         'brief', 'brief_status', 'brief_sources_hash', 'brief_error', 'brief_approved_at',
     ];
+
+    protected static function booted(): void
+    {
+        // The database cascades the rows; going through the models also removes the stored files.
+        static::deleting(fn (self $mission) => $mission->sources()->get()->each->delete());
+    }
 
     protected function casts(): array
     {
@@ -61,9 +66,9 @@ class AiMission extends Model
         return $this->hasMany(AiMissionRun::class)->latest('finished_at')->latest('id');
     }
 
-    public function sources(): BelongsToMany
+    public function sources(): HasMany
     {
-        return $this->belongsToMany(AiMissionSource::class, 'ai_mission_source_mission')->withTimestamps()->orderBy('ai_mission_sources.title');
+        return $this->hasMany(AiMissionSource::class)->orderBy('title');
     }
 
     public function actions(): HasMany
