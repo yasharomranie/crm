@@ -333,4 +333,65 @@ class AiMissionSourcesTest extends TestCase
             ->assertSee('منابع و استراتژی')
             ->assertSee('برنامهٔ راهبردی ۱۴۰۵');
     }
+
+    public function test_the_library_and_its_upload_form_show_even_before_the_first_mission(): void
+    {
+        $this->assertSame(0, AiMission::count());
+
+        Livewire::test(AiMissionRoom::class)
+            ->assertSee('ساخت اولین مأموریت')
+            ->assertSee('کتابخانهٔ منابع')
+            ->assertSeeHtml('id="source-files"');
+    }
+
+    public function test_the_new_mission_form_has_a_files_step_that_attaches_the_ticked_files(): void
+    {
+        $this->fakeJson($this->digest());
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $existing = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => 'فایل قدیمی کتابخانه']);
+        $unticked = AiMissionSource::factory()->create(['user_id' => $this->admin->id]);
+        $others = AiMissionSource::factory()->create(['user_id' => User::factory()->create()->id, 'title' => 'سند ناشناس غریبه']);
+
+        $page = Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->assertSee('فایل‌های استراتژی و گزارش')
+            ->assertSee('فایل قدیمی کتابخانه')
+            ->assertDontSee('سند ناشناس غریبه')
+            ->set('sourceUploads', [UploadedFile::fake()->createWithContent('new-plan.txt', 'برنامهٔ تازه')])
+            ->call('uploadSources');
+
+        $uploaded = AiMissionSource::where('title', 'new-plan')->sole();
+        $this->assertContains((string) $uploaded->id, $page->get('newSourceIds'));
+
+        $page
+            ->set('newSourceIds', [(string) $existing->id, (string) $uploaded->id, (string) $others->id])
+            ->set('missionTitle', 'مأموریت با فایل')
+            ->set('missionGoal', 'هدف')
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists', [['profile_id' => $specialist->id, 'directive' => '']])
+            ->call('createMission');
+
+        $mission = AiMission::sole();
+        $this->assertEqualsCanonicalizing([$existing->id, $uploaded->id], $mission->sources()->pluck('ai_mission_sources.id')->all());
+        $this->assertFalse($mission->sources()->whereKey($unticked->id)->exists());
+        $this->assertFalse($mission->sources()->whereKey($others->id)->exists(), 'another user\'s file can never be attached');
+    }
+
+    public function test_a_mission_made_without_ticking_files_has_none_and_runs_without_a_brief(): void
+    {
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
+        AiMissionSource::factory()->create(['user_id' => $this->admin->id]);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->set('missionTitle', 'بی‌فایل')
+            ->set('missionGoal', 'هدف')
+            ->set('coordinatorId', $coordinator->id)
+            ->set('specialists', [['profile_id' => $specialist->id, 'directive' => '']])
+            ->call('createMission');
+
+        $this->assertSame(0, AiMission::sole()->sources()->count());
+    }
 }
