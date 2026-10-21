@@ -18,6 +18,7 @@
         @media (min-width: 1024px) { .mr-layout { grid-template-columns: 19rem minmax(0, 1fr); align-items: start; } }
         .mr-card { background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1rem; padding: 1.25rem; }
         .mr-stack { display: grid; gap: 1rem; }
+        .mr-stack > * { min-width: 0; }
         .mr-h { font-size: 1rem; font-weight: 700; margin: 0; }
         .mr-sub { font-size: 0.8rem; color: var(--mr-dim); line-height: 1.8; margin: 0; }
         .mr-btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; min-height: 2.5rem; padding: 0 1.1rem; border-radius: 0.75rem; border: 1px solid var(--mr-line); background: var(--mr-card); color: var(--mr-text); font-size: 0.85rem; font-weight: 600; cursor: pointer; text-decoration: none; }
@@ -46,15 +47,16 @@
         .mr-step { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.85rem; }
         .mr-num { width: 2rem; height: 2rem; border-radius: 9999px; background: var(--mr-accent-soft); color: var(--mr-accent); font-weight: 800; display: grid; place-items: center; font-size: 0.85rem; }
         .mr-role { border: 1px solid var(--mr-line); border-radius: 0.9rem; padding: 0.9rem; background: var(--mr-soft); display: grid; gap: 0.7rem; }
-        .mr-slot { display: flex; align-items: center; gap: 0.8rem; width: 100%; padding: 0.7rem 0.9rem; border-radius: 0.8rem; border: 2px dashed var(--mr-line); background: var(--mr-card); color: var(--mr-dim); font-size: 0.85rem; cursor: pointer; text-align: start; }
+        .mr-slot { display: flex; align-items: center; gap: 0.8rem; width: 100%; min-width: 0; overflow-wrap: anywhere; padding: 0.7rem 0.9rem; border-radius: 0.8rem; border: 2px dashed var(--mr-line); background: var(--mr-card); color: var(--mr-dim); font-size: 0.85rem; cursor: pointer; text-align: start; }
         .mr-slot.filled { border-style: solid; border-color: var(--mr-line); color: var(--mr-text); }
         .mr-slot:hover { border-color: var(--mr-accent); }
         .mr-overlay { position: fixed; inset: 0; z-index: 60; background: rgb(8 14 26 / 0.6); display: grid; place-items: center; padding: 1rem; }
-        .mr-modal { width: min(46rem, 100%); max-height: 86vh; overflow: auto; background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1.1rem; padding: 1.25rem; }
-        .mr-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(13rem, 1fr)); }
-        .mr-tile { display: grid; justify-items: center; gap: 0.5rem; text-align: center; padding: 1rem 0.8rem; border-radius: 0.9rem; border: 1px solid var(--mr-line); background: var(--mr-soft); color: inherit; cursor: pointer; }
+        .mr-modal { width: min(46rem, 100%); max-height: 86vh; max-height: 86dvh; overflow-x: hidden; overflow-y: auto; overflow-wrap: anywhere; background: var(--mr-card); border: 1px solid var(--mr-line); border-radius: 1.1rem; padding: 1.25rem; }
+        .mr-grid { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fill, minmax(min(13rem, 100%), 1fr)); }
+        .mr-tile { min-width: 0; overflow-wrap: anywhere; display: grid; justify-items: center; gap: 0.5rem; text-align: center; padding: 1rem 0.8rem; border-radius: 0.9rem; border: 1px solid var(--mr-line); background: var(--mr-soft); color: inherit; cursor: pointer; }
         .mr-tile:hover:not([disabled]) { border-color: var(--mr-accent); background: var(--mr-accent-soft); }
         .mr-tile[disabled] { opacity: 0.45; cursor: not-allowed; }
+        .mr-tile .mr-pill, .mr-actions .mr-pill, .mr-slot .mr-pill { white-space: normal; max-width: 100%; text-align: center; overflow-wrap: anywhere; }
         .mr-chips { display: flex; flex-wrap: wrap; gap: 0.3rem; justify-content: center; }
         .mr-team { display: grid; gap: 0.75rem; grid-template-columns: minmax(0, 1fr); align-items: stretch; }
         @media (min-width: 900px) { .mr-team.has-critic { grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr) auto minmax(0, 1fr); } .mr-team.no-critic { grid-template-columns: minmax(0, 1.4fr) auto minmax(0, 1fr); } }
@@ -87,6 +89,14 @@
         .mr-empty { text-align: center; padding: 2rem 1rem; display: grid; gap: 1rem; justify-items: center; }
         .mr-howto { display: grid; gap: 0.6rem; text-align: start; max-width: 28rem; }
         .mr-spinner { width: 1rem; height: 1rem; border-radius: 9999px; border: 2px solid rgb(255 255 255 / 0.4); border-top-color: #fff; animation: mr-spin 0.8s linear infinite; }
+        @media (max-width: 639px) {
+            .mr-card { padding: 1rem; }
+            .mr-step { grid-template-columns: minmax(0, 1fr); gap: 0.6rem; }
+            .mr-role { padding: 0.75rem; }
+            .mr-overlay { align-items: end; padding: 0; }
+            .mr-modal { width: 100%; max-height: 90vh; max-height: 90dvh; border-radius: 1.1rem 1.1rem 0 0; padding: 1rem; }
+            .mr-templates { grid-template-columns: minmax(0, 1fr); }
+        }
         @keyframes mr-spin { to { transform: rotate(360deg); } }
         @media (prefers-reduced-motion: reduce) { .mr-spinner { animation: none; } }
     </style>
@@ -182,7 +192,7 @@
                                     @foreach ($specialists as $index => $row)
                                         @php $chosen = $profileById[$row['profile_id']] ?? null; @endphp
                                         <div wire:key="specialist-{{ $index }}" class="mr-stack" style="gap: 0.5rem;">
-                                            <div style="display: flex; gap: 0.5rem; align-items: stretch;">
+                                            <div style="display: flex; gap: 0.5rem; align-items: stretch; min-width: 0;">
                                                 <button type="button" wire:click="openPicker('specialist:{{ $index }}')" @class(['mr-slot', 'filled' => $chosen])>
                                                     @if ($chosen)
                                                         <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
@@ -192,7 +202,7 @@
                                                     @endif
                                                 </button>
                                                 @if (count($specialists) > 1)
-                                                    <button type="button" class="mr-btn mr-btn-quiet" wire:click="removeSpecialist({{ $index }})" aria-label="حذف این متخصص">حذف</button>
+                                                    <button type="button" class="mr-btn mr-btn-quiet" style="flex: none;" wire:click="removeSpecialist({{ $index }})" aria-label="حذف این متخصص">حذف</button>
                                                 @endif
                                             </div>
                                             @php $needs = $row['needs'] ?? []; $missing = $chosen ? array_values(array_diff($needs, $chosen->allowed_tools ?? [])) : []; @endphp
@@ -225,7 +235,7 @@
                                         <button type="button" wire:click="openPicker('critic')" @class(['mr-slot', 'filled' => $chosen])>
                                             @if ($chosen)
                                                 <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
-                                                <span><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
+                                                <span style="min-width: 0;"><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
                                             @else
                                                 <span style="font-size: 1.4rem;">＋</span> دستیار را انتخاب کنید
                                             @endif
@@ -241,7 +251,7 @@
                                     <button type="button" wire:click="openPicker('coordinator')" @class(['mr-slot', 'filled' => $chosen])>
                                         @if ($chosen)
                                             <x-ai-assistant-avatar :shape="$chosen->avatar_shape" :color="$chosen->avatar_color" :size="44" :animated="false" />
-                                            <span><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
+                                            <span style="min-width: 0;"><strong style="display: block;">{{ $chosen->displayName() }}</strong><span class="mr-sub">برای تغییر بزنید</span></span>
                                         @else
                                             <span style="font-size: 1.4rem;">＋</span> دستیار را انتخاب کنید
                                         @endif
@@ -382,6 +392,99 @@
                                 <button type="button" class="mr-btn" wire:click="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
                             </span>
                         </div>
+                    </div>
+
+                    {{-- sources and strategy brief --}}
+                    @php
+                        $library = $this->getSources();
+                        $attachedIds = $mission->sources->pluck('id')->all();
+                        $isRunning = $mission->status === \App\Enums\AiMissionStatus::Running;
+                        $briefStatus = $mission->brief_status;
+                        $briefStale = $mission->sources->isNotEmpty() && $briefStatus === \App\Enums\AiMissionBriefStatus::Approved && $mission->brief_sources_hash !== \App\Domain\Ai\Missions\MissionBrief::sourcesHash($mission);
+                        $sourcesBusy = $briefStatus === \App\Enums\AiMissionBriefStatus::Building || $library->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending);
+                        $hasBrief = ! empty($mission->brief);
+                    @endphp
+                    <div class="mr-card mr-stack" style="gap: 0.8rem;" @if ($sourcesBusy) wire:poll.3s="refreshBrief" @endif>
+                        <div class="mr-row">
+                            <div>
+                                <h2 class="mr-h">📚 منابع و استراتژی</h2>
+                                <p class="mr-sub">فایل‌های استراتژی، سیاست‌ها و گزارش‌ها را بگذارید؛ از آن‌ها یک «خلاصهٔ استراتژی» ساخته می‌شود که شما می‌خوانید و تأیید می‌کنید و بعد همهٔ اعضا با آن کار می‌کنند. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود؛ فایل بسیار محرمانه نگذارید.</p>
+                            </div>
+                            @if ($mission->sources->isNotEmpty())
+                                <span @class(['mr-pill', 'good' => $briefStatus === \App\Enums\AiMissionBriefStatus::Approved && ! $briefStale, 'warn' => $briefStale || $briefStatus === \App\Enums\AiMissionBriefStatus::Review || $briefStatus === \App\Enums\AiMissionBriefStatus::None, 'bad' => $briefStatus === \App\Enums\AiMissionBriefStatus::Failed, 'accent' => $briefStatus === \App\Enums\AiMissionBriefStatus::Building])>خلاصه: {{ $briefStale ? 'منابع تغییر کرده' : $briefStatus->getLabel() }}</span>
+                            @endif
+                        </div>
+
+                        @forelse ($library as $item)
+                            @php $attached = in_array($item->id, $attachedIds, true); @endphp
+                            <div class="mr-item" wire:key="source-{{ $item->id }}">
+                                <div style="min-width: 0; flex: 1;">
+                                    <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+                                        <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
+                                        <span @class(['mr-pill', 'good' => $item->status === \App\Enums\AiMissionSourceStatus::Ready, 'bad' => $item->status === \App\Enums\AiMissionSourceStatus::Failed, 'accent' => $item->status === \App\Enums\AiMissionSourceStatus::Pending])>{{ $item->status->getLabel() }}</span>
+                                    </div>
+                                    <span class="mr-sub">{{ strtoupper($item->extension) }} · {{ $fa(number_format($item->char_count)) }} نویسه@if ($item->tokens_used) · {{ $fa(number_format($item->tokens_used)) }} توکن برای خواندن@endif</span>
+                                    @if ($item->status === \App\Enums\AiMissionSourceStatus::Failed && filled($item->error))
+                                        <span class="mr-sub" style="color: var(--mr-bad); display: block;">{{ $item->error }}</span>
+                                    @endif
+                                </div>
+                                <div class="mr-row" style="gap: 0.4rem; flex-wrap: wrap;">
+                                    <select class="mr-input" style="width: auto; padding: 0.35rem 0.6rem; font-size: 0.78rem;" aria-label="نوع فایل {{ $item->title }}" wire:change="setSourceKind({{ $item->id }}, $event.target.value)" @disabled($isRunning)>
+                                        @foreach (\App\Enums\AiMissionSourceKind::cases() as $kind)
+                                            <option value="{{ $kind->value }}" @selected($item->kind === $kind)>{{ $kind->getLabel() }}</option>
+                                        @endforeach
+                                    </select>
+                                    @if ($item->status === \App\Enums\AiMissionSourceStatus::Failed)
+                                        <button type="button" class="mr-mini" wire:click="retrySource({{ $item->id }})">تلاش دوباره</button>
+                                    @endif
+                                    <button type="button" @class(['mr-btn', 'mr-btn-primary' => ! $attached]) style="min-height: 2.2rem; padding: 0 0.9rem; font-size: 0.8rem;" wire:click="toggleSource({{ $item->id }})" @disabled($isRunning)>{{ $attached ? '✓ در این مأموریت (برداشتن)' : '＋ افزودن به مأموریت' }}</button>
+                                    <button type="button" class="mr-mini" wire:click="deleteSource({{ $item->id }})" wire:confirm="این فایل از کتابخانه حذف شود؟ از همهٔ مأموریت‌ها هم برداشته می‌شود." aria-label="حذف فایل">حذف</button>
+                                </div>
+                            </div>
+                        @empty
+                            <p class="mr-sub">هنوز فایلی در کتابخانه نیست.</p>
+                        @endforelse
+
+                        @include('filament.pages.partials.ai-mission-source-upload')
+
+                        @if ($mission->sources->isNotEmpty())
+                            <div class="mr-row" style="gap: 0.5rem; justify-content: flex-start; flex-wrap: wrap;">
+                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; font-size: 0.85rem;" wire:click="buildBrief" wire:loading.attr="disabled" wire:target="buildBrief" @disabled($isRunning || $briefStatus === \App\Enums\AiMissionBriefStatus::Building)>{{ $hasBrief ? 'ساخت دوبارهٔ خلاصه' : 'ساخت خلاصهٔ استراتژی' }}</button>
+                                @if ($briefStatus === \App\Enums\AiMissionBriefStatus::Building)
+                                    <span class="mr-sub">در حال ساخت خلاصه… (چند لحظه)</span>
+                                @elseif ($briefStatus === \App\Enums\AiMissionBriefStatus::Failed)
+                                    <span class="mr-sub" style="color: var(--mr-bad);">{{ $mission->brief_error }}</span>
+                                @elseif (! $hasBrief)
+                                    <span class="mr-sub">تا خلاصه ساخته و تأیید نشود، این مأموریت اجرا نمی‌شود.</span>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if ($mission->sources->isNotEmpty() && $hasBrief && $briefStatus !== \App\Enums\AiMissionBriefStatus::Building)
+                            <div class="mr-stack" style="gap: 0.6rem; border-top: 1px solid var(--mr-line); padding-top: 0.8rem;">
+                                <strong style="font-size: 0.9rem;">خلاصهٔ استراتژی (بخوانید، ویرایش کنید و تأیید بزنید؛ هر مورد یک خط)</strong>
+                                @if ($briefStale)
+                                    <p class="mr-sub" style="color: var(--mr-warn);">فایل‌های مأموریت بعد از تأیید عوض شده‌اند؛ خلاصه را دوباره بسازید یا همین را دوباره تأیید کنید.</p>
+                                @endif
+                                <div>
+                                    <label class="mr-sub" for="brief-summary">چکیده</label>
+                                    <textarea id="brief-summary" class="mr-input" rows="3" wire:model="briefSummary" @disabled($isRunning)></textarea>
+                                </div>
+                                @foreach (\App\Domain\Ai\Missions\MissionBrief::LISTS as $listKey => $listLabel)
+                                    <div wire:key="brief-list-{{ $listKey }}">
+                                        <label class="mr-sub" for="brief-{{ $listKey }}">{{ $listLabel }}</label>
+                                        <textarea id="brief-{{ $listKey }}" class="mr-input" rows="{{ $listKey === 'conflicts' ? 2 : 3 }}" wire:model="briefLists.{{ $listKey }}" @disabled($isRunning)></textarea>
+                                    </div>
+                                @endforeach
+                                <div class="mr-row" style="gap: 0.5rem; justify-content: flex-start;">
+                                    <button type="button" class="mr-btn mr-btn-primary" wire:click="approveBrief" @disabled($isRunning)>✓ تأیید خلاصه برای تیم</button>
+                                    <button type="button" class="mr-btn" wire:click="saveBrief" @disabled($isRunning)>ذخیرهٔ ویرایش</button>
+                                    @if ($briefStatus === \App\Enums\AiMissionBriefStatus::Approved && ! $briefStale)
+                                        <span class="mr-sub" style="color: var(--mr-good);">تأیید شده{{ $mission->brief_approved_at ? ' · '.$mission->brief_approved_at->copy()->timezone(\App\Domain\Ai\Missions\MissionSchedule::TIMEZONE)->toJalali() : '' }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                        @endif
                     </div>
 
                     {{-- notes to the team --}}
@@ -725,6 +828,35 @@
                                     @endforeach
                                 </div>
                             @endif
+
+                            @php $landingLibrary = $this->getSources(); @endphp
+                            <div class="mr-card mr-stack" style="gap: 0.6rem;" @if ($landingLibrary->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending)) wire:poll.3s @endif>
+                                <div>
+                                    <h2 class="mr-h">📚 کتابخانهٔ منابع</h2>
+                                    <p class="mr-sub">فایل‌های استراتژی و گزارش‌ها اینجا نگه داشته می‌شوند و هر مأموریت هر کدام را که لازم دارد برمی‌دارد. فایل‌ها را از داخل خود مأموریت هم می‌توانید بگذارید.</p>
+                                </div>
+                                @forelse ($landingLibrary as $item)
+                                    <div class="mr-item" wire:key="library-{{ $item->id }}">
+                                        <div style="min-width: 0; flex: 1;">
+                                            <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+                                                <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
+                                                <span @class(['mr-pill', 'good' => $item->status === \App\Enums\AiMissionSourceStatus::Ready, 'bad' => $item->status === \App\Enums\AiMissionSourceStatus::Failed, 'accent' => $item->status === \App\Enums\AiMissionSourceStatus::Pending])>{{ $item->status->getLabel() }}</span>
+                                                <span class="mr-pill">{{ $item->kind->shortLabel() }}</span>
+                                            </div>
+                                            <span class="mr-sub">{{ strtoupper($item->extension) }} · {{ $fa(number_format($item->char_count)) }} نویسه · در {{ $fa($item->missions()->count()) }} مأموریت@if ($item->status === \App\Enums\AiMissionSourceStatus::Failed && filled($item->error)) · {{ $item->error }}@endif</span>
+                                        </div>
+                                        <div class="mr-row" style="gap: 0.4rem;">
+                                            @if ($item->status === \App\Enums\AiMissionSourceStatus::Failed)
+                                                <button type="button" class="mr-mini" wire:click="retrySource({{ $item->id }})">تلاش دوباره</button>
+                                            @endif
+                                            <button type="button" class="mr-mini" wire:click="deleteSource({{ $item->id }})" wire:confirm="این فایل از کتابخانه حذف شود؟ از همهٔ مأموریت‌ها هم برداشته می‌شود." aria-label="حذف فایل">حذف</button>
+                                        </div>
+                                    </div>
+                                @empty
+                                    <p class="mr-sub">هنوز فایلی نیست.</p>
+                                @endforelse
+                                @include('filament.pages.partials.ai-mission-source-upload')
+                            </div>
 
                             <div class="mr-card mr-stack" style="gap: 0.6rem;">
                                 <h2 class="mr-h">🕘 آخرین نتیجه‌ها</h2>

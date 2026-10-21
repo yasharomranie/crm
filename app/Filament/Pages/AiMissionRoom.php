@@ -3,20 +3,27 @@
 namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionActionExecutor;
+use App\Domain\Ai\Missions\MissionBrief;
 use App\Domain\Ai\Missions\MissionDashboard;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
 use App\Domain\Ai\Missions\MissionTemplates;
 use App\Enums\AiMissionActionStatus;
+use App\Enums\AiMissionBriefStatus;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
+use App\Enums\AiMissionSourceKind;
+use App\Enums\AiMissionSourceStatus;
 use App\Enums\AiMissionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
+use App\Jobs\BuildMissionBriefJob;
+use App\Jobs\ProcessMissionSourceJob;
 use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use App\Models\AiMissionAction;
+use App\Models\AiMissionSource;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -24,7 +31,10 @@ use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
+use Livewire\WithFileUploads;
 
 /**
  * The operations room: hand a goal to a small team of the user's assistants
@@ -34,7 +44,7 @@ use Livewire\Attributes\Url;
  */
 class AiMissionRoom extends Page
 {
-    use HasAccessControlledPage;
+    use HasAccessControlledPage, WithFileUploads;
 
     protected string $view = 'filament.pages.ai-mission-room';
 
@@ -107,7 +117,7 @@ class AiMissionRoom extends Page
     public function getSelectedMission(): ?AiMission
     {
         return $this->missionId
-            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs', 'actions.profile'])->find($this->missionId)
+            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs', 'actions.profile', 'sources'])->find($this->missionId)
             : null;
     }
 
@@ -126,12 +136,15 @@ class AiMissionRoom extends Page
         $this->showCreate = false;
 
         $this->fillScheduleFields($mission);
+        $this->fillBriefFields($mission);
     }
 
     public function mount(): void
     {
         if ($this->missionId) {
-            $this->fillScheduleFields(AiMission::query()->ownedBy(Auth::user())->find($this->missionId));
+            $mission = AiMission::query()->ownedBy(Auth::user())->find($this->missionId);
+            $this->fillScheduleFields($mission);
+            $this->fillBriefFields($mission);
         }
     }
 
@@ -521,6 +534,190 @@ class AiMissionRoom extends Page
             ->where('status', AiMissionActionStatus::Pending->value)
             ->whereHas('mission', fn ($query) => $query->ownedBy(Auth::user()))
             ->first();
+    }
+
+    public const SOURCE_EXTENSIONS = ['txt', 'md', 'csv', 'docx', 'pdf', 'xlsx'];
+
+    public const MAX_SOURCES_PER_USER = 40;
+
+    /** @var array<int, mixed> */
+    public array $sourceUploads = [];
+
+    public string $sourceKind = 'policy';
+
+    public string $briefSummary = '';
+
+    /**
+     * One textarea per brief list, a line per item.
+     *
+     * @var array<string, string>
+     */
+    public array $briefLists = [];
+
+    /**
+     * The user's whole library of source files.
+     *
+     * @return Collection<int, AiMissionSource>
+     */
+    public function getSources(): Collection
+    {
+        return AiMissionSource::query()->ownedBy(Auth::user())->orderBy('title')->get();
+    }
+
+    public function uploadSources(): void
+    {
+        $this->validate([
+            'sourceUploads' => ['required', 'array', 'max:10'],
+            'sourceUploads.*' => ['file', 'max:20480', 'extensions:'.implode(',', self::SOURCE_EXTENSIONS)],
+            'sourceKind' => ['required', 'in:'.implode(',', array_column(AiMissionSourceKind::cases(), 'value'))],
+        ], [], ['sourceUploads.*' => 'فایل']);
+
+        $mission = $this->missionId ? AiMission::query()->ownedBy(Auth::user())->find($this->missionId) : null;
+        $room = self::MAX_SOURCES_PER_USER - AiMissionSource::query()->ownedBy(Auth::user())->count();
+
+        foreach (array_slice($this->sourceUploads, 0, max(0, $room)) as $file) {
+            $name = $file->getClientOriginalName();
+            $source = AiMissionSource::create([
+                'user_id' => Auth::id(),
+                'title' => Str::limit(pathinfo($name, PATHINFO_FILENAME), 120, ''),
+                'original_filename' => Str::limit($name, 200, ''),
+                'extension' => strtolower($file->getClientOriginalExtension()),
+                'kind' => $this->sourceKind,
+                'path' => $file->store('mission-sources'),
+            ]);
+
+            $mission?->sources()->syncWithoutDetaching([$source->id]);
+            ProcessMissionSourceJob::dispatch($source->id);
+        }
+
+        $skipped = max(0, count($this->sourceUploads) - max(0, $room));
+        $this->reset('sourceUploads');
+
+        Notification::make()
+            ->title($skipped > 0 ? 'سقف '.self::MAX_SOURCES_PER_USER.' فایل پر شد؛ '.$skipped.' فایل بارگذاری نشد.' : 'فایل‌ها بارگذاری شدند و در پس‌زمینه خوانده می‌شوند.')
+            ->{$skipped > 0 ? 'warning' : 'success'}()
+            ->send();
+    }
+
+    public function toggleSource(int $sourceId): void
+    {
+        $mission = $this->getSelectedMission();
+        $source = AiMissionSource::query()->ownedBy(Auth::user())->find($sourceId);
+
+        if (! $mission || ! $source || $mission->status === AiMissionStatus::Running) {
+            return;
+        }
+
+        $mission->sources()->toggle([$source->id]);
+    }
+
+    public function setSourceKind(int $sourceId, string $kind): void
+    {
+        $newKind = AiMissionSourceKind::tryFrom($kind);
+
+        if ($newKind) {
+            AiMissionSource::query()->ownedBy(Auth::user())->whereKey($sourceId)->update(['kind' => $newKind->value]);
+        }
+    }
+
+    public function retrySource(int $sourceId): void
+    {
+        $source = AiMissionSource::query()->ownedBy(Auth::user())->where('status', AiMissionSourceStatus::Failed->value)->find($sourceId);
+
+        if ($source) {
+            $source->update(['status' => AiMissionSourceStatus::Pending->value, 'error' => null]);
+            ProcessMissionSourceJob::dispatch($source->id);
+        }
+    }
+
+    public function deleteSource(int $sourceId): void
+    {
+        $source = AiMissionSource::query()->ownedBy(Auth::user())->find($sourceId);
+
+        if (! $source) {
+            return;
+        }
+
+        if ($source->path) {
+            Storage::disk('local')->delete($source->path);
+        }
+
+        $source->delete();
+    }
+
+    public function buildBrief(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission || $mission->status === AiMissionStatus::Running || $mission->brief_status === AiMissionBriefStatus::Building) {
+            return;
+        }
+
+        $sources = $mission->sources;
+
+        if ($sources->isEmpty() || $sources->contains(fn (AiMissionSource $source) => $source->status !== AiMissionSourceStatus::Ready)) {
+            Notification::make()->title('اول فایل‌ها باید خوانده شوند؛ فایل‌های «ناموفق» را دوباره امتحان یا حذف کنید.')->warning()->send();
+
+            return;
+        }
+
+        $mission->update(['brief_status' => AiMissionBriefStatus::Building, 'brief_error' => null]);
+        BuildMissionBriefJob::dispatch($mission->id);
+        $this->refreshBrief();
+    }
+
+    /** Called while a file is being read or a brief built: picks up the result when it lands. */
+    public function refreshBrief(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if ($mission && $mission->brief_status !== AiMissionBriefStatus::Building) {
+            $this->fillBriefFields($mission);
+        }
+    }
+
+    private function fillBriefFields(?AiMission $mission): void
+    {
+        $brief = MissionBrief::normalize($mission?->brief);
+        $this->briefSummary = $brief['summary'];
+        $this->briefLists = collect(MissionBrief::LISTS)->mapWithKeys(fn (string $label, string $key) => [$key => implode("\n", $brief[$key])])->all();
+    }
+
+    /** Stores the text the manager edited. Any edit asks for a new approval. */
+    public function saveBrief(): void
+    {
+        $this->storeBrief(approve: false);
+    }
+
+    public function approveBrief(): void
+    {
+        $this->storeBrief(approve: true);
+    }
+
+    private function storeBrief(bool $approve): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission || $mission->status === AiMissionStatus::Running || in_array($mission->brief_status, [AiMissionBriefStatus::None, AiMissionBriefStatus::Building], true)) {
+            return;
+        }
+
+        $brief = MissionBrief::normalize([
+            'summary' => $this->briefSummary,
+            ...collect($this->briefLists)->map(fn ($text) => preg_split('/\R/u', (string) $text) ?: [])->all(),
+        ]);
+
+        $mission->update([
+            'brief' => $brief,
+            'brief_status' => $approve ? AiMissionBriefStatus::Approved : AiMissionBriefStatus::Review,
+            'brief_sources_hash' => MissionBrief::sourcesHash($mission),
+            'brief_approved_at' => $approve ? now() : null,
+            'brief_error' => null,
+        ]);
+
+        $this->fillBriefFields($mission->refresh());
+
+        Notification::make()->title($approve ? 'خلاصهٔ استراتژی تأیید شد؛ تیم از این به بعد با آن کار می‌کند.' : 'ویرایش ذخیره شد؛ برای استفادهٔ تیم باید تأیید شود.')->success()->send();
     }
 
     public function deleteMission(int $id): void

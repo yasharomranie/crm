@@ -2,11 +2,13 @@
 
 namespace App\Models;
 
+use App\Enums\AiMissionBriefStatus;
 use App\Enums\AiMissionStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
 /**
@@ -23,6 +25,7 @@ class AiMission extends Model
         'report', 'notes', 'last_error', 'started_at', 'finished_at', 'cancel_requested', 'current_step', 'current_profile_id',
         'step_index', 'step_total', 'tokens_used', 'token_budget', 'schedule', 'schedule_time', 'schedule_weekday',
         'schedule_day', 'next_run_at', 'last_scheduled_at', 'run_trigger', 'budget_alerted',
+        'brief', 'brief_status', 'brief_sources_hash', 'brief_error', 'brief_approved_at',
     ];
 
     protected function casts(): array
@@ -31,6 +34,9 @@ class AiMission extends Model
             'status' => AiMissionStatus::class,
             'report' => 'array',
             'notes' => 'array',
+            'brief' => 'array',
+            'brief_status' => AiMissionBriefStatus::class,
+            'brief_approved_at' => 'datetime',
             'cancel_requested' => 'boolean',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
@@ -53,6 +59,11 @@ class AiMission extends Model
     public function runs(): HasMany
     {
         return $this->hasMany(AiMissionRun::class)->latest('finished_at')->latest('id');
+    }
+
+    public function sources(): BelongsToMany
+    {
+        return $this->belongsToMany(AiMissionSource::class, 'ai_mission_source_mission')->withTimestamps()->orderBy('ai_mission_sources.title');
     }
 
     public function actions(): HasMany
