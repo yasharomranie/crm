@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionConfidence;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
@@ -495,5 +496,138 @@ class AiMissionRoomTest extends TestCase
         (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->failed(new \RuntimeException('boom'));
 
         $this->assertSame(AiMissionStatus::Failed, $mission->refresh()->status);
+    }
+
+    /**
+     * Fakes the team and records, by role label, the user message each member received.
+     *
+     * @param  array<string, string>  $seen
+     */
+    private function recordMessages(array $answers, array &$seen): void
+    {
+        Http::fake(['*/chat/completions' => function (Request $request) use ($answers, &$seen) {
+            $messages = $request->data()['messages'];
+            $system = $messages[0]['content'];
+
+            foreach ($answers as $label => $answer) {
+                if (str_contains($system, "نقش «{$label}»")) {
+                    $seen[$label] = $messages[1]['content'];
+
+                    return Http::response($this->reply($answer));
+                }
+            }
+
+            return Http::response(['error' => ['message' => 'unexpected role']], 400);
+        }]);
+    }
+
+    public function test_rejected_findings_are_left_out_of_what_the_team_reads_and_locked_ones_are_marked(): void
+    {
+        ['mission' => $mission, 'specialist' => $specialist] = $this->team(withCritic: false);
+        $mission->update(['rounds_run' => 1]);
+        foreach ([['یافتهٔ ردشده', AiMissionCardStatus::Rejected], ['یافتهٔ تأییدشده', AiMissionCardStatus::Locked], ['یافتهٔ باز', AiMissionCardStatus::Open]] as [$claim, $status]) {
+            AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'round' => 1, 'claim' => $claim, 'status' => $status]);
+        }
+
+        $seen = [];
+        $this->recordMessages(['متخصص' => '{"findings":[]}', 'هماهنگ‌کننده' => '{"summary":"x","decisions":[],"uncertain":[]}'], $seen);
+
+        app(MissionRunner::class)->runRound($mission, $this->admin);
+
+        foreach (['متخصص', 'هماهنگ‌کننده'] as $label) {
+            $this->assertStringNotContainsString('یافتهٔ ردشده', $seen[$label], $label);
+            $this->assertStringContainsString('یافتهٔ باز', $seen[$label], $label);
+        }
+        $this->assertStringContainsString('یافتهٔ تأییدشده', $seen['هماهنگ‌کننده']);
+        $this->assertStringContainsString('[تأییدشدهٔ مدیر]', $seen['هماهنگ‌کننده']);
+    }
+
+    public function test_only_open_unsourced_findings_are_listed_as_uncertain(): void
+    {
+        ['mission' => $mission, 'specialist' => $specialist] = $this->team(withCritic: false);
+        foreach ([['ردشدهٔ بی‌منبع', AiMissionCardStatus::Rejected], ['تأییدشدهٔ بی‌منبع', AiMissionCardStatus::Locked], ['بازِ بی‌منبع', AiMissionCardStatus::Open]] as [$claim, $status]) {
+            AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'round' => 1, 'claim' => $claim, 'status' => $status, 'unsourced' => true, 'source' => null]);
+        }
+
+        $this->fakeTeam(['متخصص' => '{"findings":[]}', 'هماهنگ‌کننده' => '{"summary":"x","decisions":[],"uncertain":[]}']);
+
+        app(MissionRunner::class)->runRound($mission, $this->admin);
+
+        $this->assertSame(['بدون منبع: بازِ بی‌منبع'], $mission->refresh()->report['uncertain']);
+    }
+
+    public function test_the_managers_notes_reach_every_member_of_the_next_steps(): void
+    {
+        ['mission' => $mission] = $this->team();
+        $mission->update(['notes' => [['text' => 'روی ویلاهای شمال تمرکز کن', 'at' => now()->toIso8601String()]]]);
+        AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'round' => 1]);
+
+        $seen = [];
+        $this->recordMessages(['متخصص' => '{"findings":[]}', 'منتقد' => '{"critiques":[]}', 'هماهنگ‌کننده' => '{"summary":"x","decisions":[],"uncertain":[]}'], $seen);
+
+        app(MissionRunner::class)->runRound($mission, $this->admin);
+
+        foreach (['متخصص', 'منتقد', 'هماهنگ‌کننده'] as $label) {
+            $this->assertStringContainsString('روی ویلاهای شمال تمرکز کن', $seen[$label], $label);
+        }
+    }
+
+    public function test_the_page_adds_and_removes_notes_with_limits(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+
+        $component = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)
+            ->set('noteText', '   ')->call('addNote');
+        $this->assertNull($mission->refresh()->notes);
+
+        $component->set('noteText', 'پیام اول')->call('addNote')->assertSet('noteText', '');
+        $component->set('noteText', 'پیام دوم')->call('addNote');
+        $this->assertSame(['پیام اول', 'پیام دوم'], collect($mission->refresh()->notes)->pluck('text')->all());
+
+        $component->call('removeNote', 0);
+        $this->assertSame(['پیام دوم'], collect($mission->refresh()->notes)->pluck('text')->all());
+
+        $mission->update(['notes' => array_fill(0, 10, ['text' => 'x', 'at' => now()->toIso8601String()])]);
+        $component->set('noteText', 'یازدهم')->call('addNote');
+        $this->assertCount(10, $mission->refresh()->notes);
+    }
+
+    public function test_the_manager_can_lock_reject_and_reopen_a_finding_but_not_while_it_runs(): void
+    {
+        ['mission' => $mission, 'specialist' => $specialist] = $this->team(withCritic: false);
+        $card = AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id]);
+        $component = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id);
+
+        $component->call('setCardStatus', $card->id, 'locked');
+        $this->assertSame(AiMissionCardStatus::Locked, $card->refresh()->status);
+
+        $component->call('setCardStatus', $card->id, 'rejected')->assertSee('رد شده توسط شما');
+        $this->assertSame(AiMissionCardStatus::Rejected, $card->refresh()->status);
+
+        $component->call('setCardStatus', $card->id, 'open');
+        $this->assertSame(AiMissionCardStatus::Open, $card->refresh()->status);
+
+        $component->call('setCardStatus', $card->id, 'bogus');
+        $this->assertSame(AiMissionCardStatus::Open, $card->refresh()->status);
+
+        $mission->update(['status' => AiMissionStatus::Running]);
+        $component->call('setCardStatus', $card->id, 'rejected');
+        $this->assertSame(AiMissionCardStatus::Open, $card->refresh()->status);
+    }
+
+    public function test_a_critique_never_targets_a_rejected_finding(): void
+    {
+        ['mission' => $mission, 'specialist' => $specialist] = $this->team();
+        $rejected = AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'round' => 1, 'status' => AiMissionCardStatus::Rejected]);
+
+        $this->fakeTeam([
+            'متخصص' => '{"findings":[]}',
+            'منتقد' => json_encode(['critiques' => [['card_id' => $rejected->id, 'objection' => 'نقد به ردشده', 'severity' => 'low']]]),
+            'هماهنگ‌کننده' => '{"summary":"x","decisions":[],"uncertain":[]}',
+        ]);
+
+        app(MissionRunner::class)->runRound($mission, $this->admin);
+
+        $this->assertSame(0, AiMissionCard::where('kind', AiMissionCardKind::Critique)->count());
     }
 }

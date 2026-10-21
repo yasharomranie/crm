@@ -63,6 +63,14 @@
         .mr-member { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.7rem; border-radius: 0.8rem; background: var(--mr-soft); }
         .mr-decision { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.8rem; padding: 0.9rem 1rem; border-radius: 0.9rem; background: var(--mr-card); border: 1px solid var(--mr-line); }
         .mr-finding { border: 1px solid var(--mr-line); border-radius: 0.85rem; padding: 0.8rem 0.9rem; background: var(--mr-card); display: grid; gap: 0.5rem; font-size: 0.85rem; line-height: 1.9; }
+        .mr-finding.rejected { opacity: 0.55; }
+        .mr-finding.rejected .mr-claim { text-decoration: line-through; }
+        .mr-finding.locked { border-color: var(--mr-good); }
+        .mr-actions { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
+        .mr-mini { display: inline-flex; align-items: center; gap: 0.25rem; min-height: 1.8rem; padding: 0 0.7rem; border-radius: 0.6rem; border: 1px solid var(--mr-line); background: var(--mr-card); color: var(--mr-text); font-size: 0.75rem; font-weight: 600; cursor: pointer; }
+        .mr-mini:hover { background: var(--mr-soft); }
+        .mr-mini:focus-visible { outline: 2px solid var(--mr-accent); outline-offset: 2px; }
+        .mr-note { display: flex; gap: 0.6rem; align-items: flex-start; justify-content: space-between; padding: 0.6rem 0.8rem; border-radius: 0.7rem; background: var(--mr-soft); font-size: 0.82rem; line-height: 1.8; }
         .mr-critique { background: var(--mr-bad-soft); color: var(--mr-bad); border-radius: 0.6rem; padding: 0.45rem 0.7rem; font-size: 0.78rem; line-height: 1.8; }
         .mr-columns { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); align-items: start; }
         .mr-empty { text-align: center; padding: 2rem 1rem; display: grid; gap: 1rem; justify-items: center; }
@@ -337,6 +345,24 @@
                         </div>
                     </div>
 
+                    {{-- notes to the team --}}
+                    <div class="mr-card mr-stack" style="gap: 0.7rem;">
+                        <div>
+                            <h2 class="mr-h">💬 پیام به تیم</h2>
+                            <p class="mr-sub">اگر مسیر کار را باید عوض کنید همین‌جا بنویسید؛ {{ $mission->status === \App\Enums\AiMissionStatus::Running ? 'از مرحلهٔ بعدی' : 'از دور بعدی' }} همهٔ اعضا آن را رعایت می‌کنند.</p>
+                        </div>
+                        @foreach ($mission->notes ?? [] as $index => $note)
+                            <div class="mr-note" wire:key="note-{{ $index }}">
+                                <span>{{ $note['text'] }}</span>
+                                <button type="button" class="mr-mini" wire:click="removeNote({{ $index }})" aria-label="پاک کردن پیام">پاک</button>
+                            </div>
+                        @endforeach
+                        <div style="display: flex; gap: 0.5rem; flex-wrap: wrap;">
+                            <input id="mission-note" type="text" class="mr-input" style="flex: 1; min-width: 14rem;" wire:model="noteText" wire:keydown.enter="addNote" placeholder="مثلاً: روی ویلاهای شمال تمرکز کن" />
+                            <button type="button" class="mr-btn" wire:click="addNote">ارسال به تیم</button>
+                        </div>
+                    </div>
+
                     {{-- result --}}
                     @if ($mission->report)
                         <div class="mr-card mr-stack" style="border-color: var(--mr-warn);">
@@ -412,20 +438,39 @@
                                             <span class="mr-pill">{{ $fa($own->count()) }} یافته</span>
                                         </div>
                                         @forelse ($own as $card)
-                                            <article class="mr-finding" wire:key="card-{{ $card->id }}">
+                                            <article @class(['mr-finding', 'rejected' => $card->status === \App\Enums\AiMissionCardStatus::Rejected, 'locked' => $card->status === \App\Enums\AiMissionCardStatus::Locked]) wire:key="card-{{ $card->id }}">
                                                 <div class="mr-row" style="gap: 0.3rem;">
-                                                    <span @class(['mr-pill', 'good' => $card->confidence->value === 'high', 'warn' => $card->confidence->value === 'medium', 'bad' => $card->confidence->value === 'low'])>{{ $card->confidence->getLabel() }}</span>
+                                                    <span class="mr-row" style="gap: 0.3rem; justify-content: flex-start;">
+                                                        <span @class(['mr-pill', 'good' => $card->confidence->value === 'high', 'warn' => $card->confidence->value === 'medium', 'bad' => $card->confidence->value === 'low'])>{{ $card->confidence->getLabel() }}</span>
+                                                        @if ($card->status === \App\Enums\AiMissionCardStatus::Locked)
+                                                            <span class="mr-pill good">🔒 تأییدشده توسط شما</span>
+                                                        @elseif ($card->status === \App\Enums\AiMissionCardStatus::Rejected)
+                                                            <span class="mr-pill bad">رد شده توسط شما</span>
+                                                        @endif
+                                                    </span>
                                                     <span class="mr-sub">دور {{ $fa($card->round) }}</span>
                                                 </div>
-                                                <span>{{ $card->claim }}</span>
+                                                <span class="mr-claim">{{ $card->claim }}</span>
                                                 @if ($card->unsourced)
                                                     <span class="mr-pill bad" style="justify-self: start;">بدون منبع</span>
                                                 @elseif ($card->source)
                                                     <span class="mr-sub">منبع: {{ $card->source }}</span>
                                                 @endif
-                                                @foreach ($mission->cards->where('target_card_id', $card->id) as $critique)
-                                                    <div class="mr-critique">🧐 {{ $critique->profile?->displayName() }}: {{ $critique->claim }}</div>
-                                                @endforeach
+                                                @if ($card->status !== \App\Enums\AiMissionCardStatus::Rejected)
+                                                    @foreach ($mission->cards->where('target_card_id', $card->id) as $critique)
+                                                        <div class="mr-critique">🧐 {{ $critique->profile?->displayName() }}: {{ $critique->claim }}</div>
+                                                    @endforeach
+                                                @endif
+                                                @if ($mission->status !== \App\Enums\AiMissionStatus::Running)
+                                                    <div class="mr-actions">
+                                                        @if ($card->status === \App\Enums\AiMissionCardStatus::Open)
+                                                            <button type="button" class="mr-mini" wire:click="setCardStatus({{ $card->id }}, 'locked')">✓ تأیید می‌کنم</button>
+                                                            <button type="button" class="mr-mini" wire:click="setCardStatus({{ $card->id }}, 'rejected')">✕ رد می‌کنم</button>
+                                                        @else
+                                                            <button type="button" class="mr-mini" wire:click="setCardStatus({{ $card->id }}, 'open')">↺ بازگرداندن</button>
+                                                        @endif
+                                                    </div>
+                                                @endif
                                             </article>
                                         @empty
                                             <p class="mr-sub">هنوز یافته‌ای ثبت نکرده.</p>

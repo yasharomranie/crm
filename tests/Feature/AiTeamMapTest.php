@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Domain\Ai\AiTeamMapData;
 use App\Enums\AiMessageRole;
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
 use App\Filament\Pages\AiTeamMap;
@@ -250,5 +251,24 @@ class AiTeamMapTest extends TestCase
 
         $component->call('selectMission', $mission->id)->assertSet('missionId', $mission->id);
         $this->assertSame($mission->id, $component->instance()->mapData()['mission']['id']);
+    }
+
+    public function test_rejected_findings_do_not_appear_on_the_missions_map(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $mission = AiMission::factory()->create(['created_by' => $user->id]);
+        AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $coordinator->id, 'role' => AiMissionRoleType::Coordinator]);
+        AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'role' => AiMissionRoleType::Specialist]);
+        AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'claim' => 'قدیمی و باز']);
+        AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'claim' => 'ردشدهٔ جدیدتر', 'status' => AiMissionCardStatus::Rejected]);
+
+        $map = app(AiTeamMapData::class)->build($user, $mission->id);
+        $node = collect($map['nodes'])->firstWhere('id', (string) $specialist->id);
+
+        $this->assertSame('قدیمی و باز', $node['reply']['text']);
+        $this->assertSame(1, $node['consulted']);
+        $this->assertSame(1, $map['totals']['consultations']);
     }
 }

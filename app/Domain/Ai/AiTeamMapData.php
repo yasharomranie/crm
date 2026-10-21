@@ -4,6 +4,7 @@ namespace App\Domain\Ai;
 
 use App\Enums\AiMessageRole;
 use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
 use App\Models\AiAssistantConsultation;
@@ -148,6 +149,7 @@ class AiTeamMapData
     {
         $running = $mission->status === AiMissionStatus::Running;
         $members = $mission->roles->filter(fn (AiMissionRole $role) => $role->profile)->values();
+        $mission->setRelation('cards', $mission->cards->reject(fn (AiMissionCard $card) => $card->status === AiMissionCardStatus::Rejected)->values());
         $coordinatorId = $members->firstWhere('role', AiMissionRoleType::Coordinator)?->ai_assistant_profile_id;
         $criticId = $members->firstWhere('role', AiMissionRoleType::Critic)?->ai_assistant_profile_id;
 
