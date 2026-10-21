@@ -266,20 +266,18 @@
                             <span class="mr-num">۳</span>
                             <div class="mr-stack">
                                 <div>
-                                    <h3 class="mr-h">فایل‌های استراتژی و گزارش (اختیاری)</h3>
-                                    <p class="mr-sub">اگر استراتژی یا گزارش‌هایتان فایل دارد، بگذارید تیم با آن کار کند. فایل‌های تازه را همین‌جا بارگذاری کنید یا از کتابخانه انتخاب کنید؛ بعد از ساخت مأموریت از آن‌ها یک «خلاصهٔ استراتژی» می‌سازید و تأیید می‌کنید. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود.</p>
+                                    <h3 class="mr-h">فایل‌های استراتژی و گزارش این مأموریت (اختیاری)</h3>
+                                    <p class="mr-sub">اگر استراتژی یا گزارش‌هایتان فایل دارد، همین‌جا بگذارید تا کتابخانهٔ همین مأموریت شود. بعد از ساخت مأموریت از آن‌ها یک «خلاصهٔ استراتژی» می‌سازید و تأیید می‌کنید. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود.</p>
                                 </div>
-                                @php $wizardLibrary = $this->getSources(); @endphp
-                                @foreach ($wizardLibrary as $item)
-                                    <label class="mr-item" wire:key="wizard-source-{{ $item->id }}" for="wizard-source-{{ $item->id }}" style="cursor: pointer;">
-                                        <span class="mr-row" style="justify-content: flex-start; gap: 0.6rem; min-width: 0;">
-                                            <input id="wizard-source-{{ $item->id }}" type="checkbox" value="{{ $item->id }}" wire:model="newSourceIds" />
-                                            <span style="min-width: 0;">
-                                                <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
-                                                <span class="mr-sub" style="display: block;">{{ strtoupper($item->extension) }} · {{ $item->kind->shortLabel() }} · {{ $item->status->getLabel() }}</span>
-                                            </span>
-                                        </span>
-                                    </label>
+                                @php $pendingSources = $this->getPendingSources(); @endphp
+                                @foreach ($pendingSources as $item)
+                                    <div class="mr-item" wire:key="pending-source-{{ $item->id }}" @if ($item->status === \App\Enums\AiMissionSourceStatus::Pending) wire:poll.3s @endif>
+                                        <div style="min-width: 0; flex: 1;">
+                                            <strong style="font-size: 0.88rem;">{{ $item->title }}</strong>
+                                            <span class="mr-sub" style="display: block;">{{ strtoupper($item->extension) }} · {{ $item->kind->shortLabel() }} · {{ $item->status->getLabel() }}</span>
+                                        </div>
+                                        <button type="button" class="mr-mini" wire:click="removePendingSource({{ $item->id }})" aria-label="حذف فایل">حذف</button>
+                                    </div>
                                 @endforeach
                                 @include('filament.pages.partials.ai-mission-source-upload')
                             </div>
@@ -308,7 +306,7 @@
                         </section>
 
                         <div class="mr-row" style="border-top: 1px solid var(--mr-line); padding-top: 1rem;">
-                            <button type="button" class="mr-btn mr-btn-quiet" wire:click="$set('showCreate', false)">انصراف</button>
+                            <button type="button" class="mr-btn mr-btn-quiet" wire:click="cancelCreate">انصراف</button>
                             <button type="button" class="mr-btn mr-btn-primary" wire:click="createMission">ساخت مأموریت</button>
                         </div>
                     </div>
@@ -420,27 +418,25 @@
 
                     {{-- sources and strategy brief --}}
                     @php
-                        $library = $this->getSources();
                         $attachedIds = $mission->sources->pluck('id')->all();
                         $isRunning = $mission->status === \App\Enums\AiMissionStatus::Running;
                         $briefStatus = $mission->brief_status;
                         $briefStale = $mission->sources->isNotEmpty() && $briefStatus === \App\Enums\AiMissionBriefStatus::Approved && $mission->brief_sources_hash !== \App\Domain\Ai\Missions\MissionBrief::sourcesHash($mission);
-                        $sourcesBusy = $briefStatus === \App\Enums\AiMissionBriefStatus::Building || $library->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending);
+                        $sourcesBusy = $briefStatus === \App\Enums\AiMissionBriefStatus::Building || $mission->sources->contains(fn ($item) => $item->status === \App\Enums\AiMissionSourceStatus::Pending);
                         $hasBrief = ! empty($mission->brief);
                     @endphp
                     <div class="mr-card mr-stack" style="gap: 0.8rem;" @if ($sourcesBusy) wire:poll.3s="refreshBrief" @endif>
                         <div class="mr-row">
                             <div>
-                                <h2 class="mr-h">📚 منابع و استراتژی</h2>
-                                <p class="mr-sub">فایل‌های استراتژی، سیاست‌ها و گزارش‌ها را بگذارید؛ از آن‌ها یک «خلاصهٔ استراتژی» ساخته می‌شود که شما می‌خوانید و تأیید می‌کنید و بعد همهٔ اعضا با آن کار می‌کنند. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود؛ فایل بسیار محرمانه نگذارید.</p>
+                                <h2 class="mr-h">📚 کتابخانهٔ این مأموریت</h2>
+                                <p class="mr-sub">فایل‌های استراتژی، سیاست‌ها و گزارش‌های همین مأموریت را بگذارید (برای هر مأموریت کتابخانهٔ جدا)؛ از آن‌ها یک «خلاصهٔ استراتژی» ساخته می‌شود که شما می‌خوانید و تأیید می‌کنید و بعد همهٔ اعضا با آن کار می‌کنند. متن فایل‌ها برای پردازش به سرویس هوش مصنوعی فرستاده می‌شود؛ فایل بسیار محرمانه نگذارید.</p>
                             </div>
                             @if ($mission->sources->isNotEmpty())
                                 <span @class(['mr-pill', 'good' => $briefStatus === \App\Enums\AiMissionBriefStatus::Approved && ! $briefStale, 'warn' => $briefStale || $briefStatus === \App\Enums\AiMissionBriefStatus::Review || $briefStatus === \App\Enums\AiMissionBriefStatus::None, 'bad' => $briefStatus === \App\Enums\AiMissionBriefStatus::Failed, 'accent' => $briefStatus === \App\Enums\AiMissionBriefStatus::Building])>خلاصه: {{ $briefStale ? 'منابع تغییر کرده' : $briefStatus->getLabel() }}</span>
                             @endif
                         </div>
 
-                        @forelse ($library as $item)
-                            @php $attached = in_array($item->id, $attachedIds, true); @endphp
+                        @forelse ($mission->sources as $item)
                             <div class="mr-item" wire:key="source-{{ $item->id }}">
                                 <div style="min-width: 0; flex: 1;">
                                     <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
@@ -461,12 +457,11 @@
                                     @if ($item->status === \App\Enums\AiMissionSourceStatus::Failed)
                                         <button type="button" class="mr-mini" wire:click="retrySource({{ $item->id }})">تلاش دوباره</button>
                                     @endif
-                                    <button type="button" @class(['mr-btn', 'mr-btn-primary' => ! $attached]) style="min-height: 2.2rem; padding: 0 0.9rem; font-size: 0.8rem;" wire:click="toggleSource({{ $item->id }})" @disabled($isRunning)>{{ $attached ? '✓ در این مأموریت (برداشتن)' : '＋ افزودن به مأموریت' }}</button>
-                                    <button type="button" class="mr-mini" wire:click="deleteSource({{ $item->id }})" wire:confirm="این فایل از کتابخانه حذف شود؟ از همهٔ مأموریت‌ها هم برداشته می‌شود." aria-label="حذف فایل">حذف</button>
+                                    <button type="button" class="mr-mini" wire:click="deleteSource({{ $item->id }})" wire:confirm="این فایل حذف شود؟" aria-label="حذف فایل" @disabled($isRunning)>حذف</button>
                                 </div>
                             </div>
                         @empty
-                            <p class="mr-sub">هنوز فایلی در کتابخانه نیست.</p>
+                            <p class="mr-sub">هنوز فایلی برای این مأموریت نگذاشته‌اید.</p>
                         @endforelse
 
                         @include('filament.pages.partials.ai-mission-source-upload')
@@ -803,7 +798,6 @@
                             </div>
                             <button type="button" class="mr-btn mr-btn-primary" wire:click="startCreate">＋ ساخت اولین مأموریت</button>
                         </div>
-                        @include('filament.pages.partials.ai-mission-library')
                     @else
                         <div class="mr-stack" @if ($dashboard['running'] !== []) wire:poll.5s @endif>
                             <div class="mr-tiles">
@@ -885,8 +879,6 @@
                                     @endforeach
                                 </div>
                             @endif
-
-                            @include('filament.pages.partials.ai-mission-library')
 
                             <div class="mr-card mr-stack" style="gap: 0.6rem;">
                                 <h2 class="mr-h">🕘 آخرین نتیجه‌ها</h2>

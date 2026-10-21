@@ -49,9 +49,10 @@ class AiMissionSourceSearchTest extends TestCase
         AiProvider::factory()->active()->create();
     }
 
-    private function sourceWithChunk(string $title, string $text, ?string $heading = null): AiMissionSourceChunk
+    private function sourceWithChunk(string $title, string $text, ?string $heading = null, ?AiMission $mission = null): AiMissionSourceChunk
     {
-        $source = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => $title, 'content' => $text]);
+        $mission ??= AiMission::factory()->create(['created_by' => $this->admin->id]);
+        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'title' => $title, 'content' => $text]);
 
         return AiMissionSourceChunk::factory()->create(['ai_mission_source_id' => $source->id, 'position' => 1, 'heading' => $heading, 'content' => $text]);
     }
@@ -139,9 +140,8 @@ class AiMissionSourceSearchTest extends TestCase
     public function test_a_member_reads_only_the_files_the_owner_allowed(): void
     {
         ['mission' => $mission, 'specialist' => $specialist] = $this->missionWithTeam();
-        $a = $this->sourceWithChunk('الف', 'نرخ اشغال')->source;
-        $b = $this->sourceWithChunk('ب', 'درآمد ماهانه')->source;
-        $mission->sources()->attach([$a->id, $b->id]);
+        $a = $this->sourceWithChunk('الف', 'نرخ اشغال', null, $mission)->source;
+        $b = $this->sourceWithChunk('ب', 'درآمد ماهانه', null, $mission)->source;
         $tools = app(MissionSourceTools::class);
 
         $this->assertEqualsCanonicalizing([$a->id, $b->id], $tools->allowedSourceIds($mission, $specialist));
@@ -161,9 +161,8 @@ class AiMissionSourceSearchTest extends TestCase
     public function test_a_finding_that_copies_a_returned_citation_is_tied_to_that_piece(): void
     {
         ['mission' => $mission] = $this->missionWithTeam();
-        $chunk = $this->sourceWithChunk('برنامهٔ راهبردی', 'هدف سال آینده رسیدن به نرخ اشغال ۷۵ درصد است.');
+        $chunk = $this->sourceWithChunk('برنامهٔ راهبردی', 'هدف سال آینده رسیدن به نرخ اشغال ۷۵ درصد است.', null, $mission);
         $citation = $chunk->load('source')->citation();
-        $mission->sources()->attach($chunk->ai_mission_source_id);
         $this->approveBriefFor($mission);
 
         $toolResults = [];
@@ -196,9 +195,8 @@ class AiMissionSourceSearchTest extends TestCase
     public function test_a_member_limited_to_one_file_never_gets_text_from_another(): void
     {
         ['mission' => $mission, 'specialist' => $specialist] = $this->missionWithTeam();
-        $allowed = $this->sourceWithChunk('مجاز', 'نرخ اشغال');
-        $secret = $this->sourceWithChunk('محرمانه', 'درآمد ماهانه ۹۰۰ میلیون');
-        $mission->sources()->attach([$allowed->ai_mission_source_id, $secret->ai_mission_source_id]);
+        $allowed = $this->sourceWithChunk('مجاز', 'نرخ اشغال', null, $mission);
+        $secret = $this->sourceWithChunk('محرمانه', 'درآمد ماهانه ۹۰۰ میلیون', null, $mission);
         $specialist->sources()->attach($allowed->ai_mission_source_id);
         $this->approveBriefFor($mission);
 
@@ -229,9 +227,8 @@ class AiMissionSourceSearchTest extends TestCase
     public function test_the_owner_limits_a_member_and_ticking_everything_returns_to_the_default(): void
     {
         ['mission' => $mission, 'specialist' => $specialist] = $this->missionWithTeam();
-        $a = $this->sourceWithChunk('الف', 'x')->source;
-        $b = $this->sourceWithChunk('ب', 'y')->source;
-        $mission->sources()->attach([$a->id, $b->id]);
+        $a = $this->sourceWithChunk('الف', 'x', null, $mission)->source;
+        $b = $this->sourceWithChunk('ب', 'y', null, $mission)->source;
 
         $page = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id);
 
@@ -245,24 +242,23 @@ class AiMissionSourceSearchTest extends TestCase
         $this->assertSame(0, $specialist->sources()->count());
     }
 
-    public function test_taking_a_file_off_the_mission_also_takes_it_off_the_members(): void
+    public function test_deleting_a_file_also_takes_it_off_the_members(): void
     {
         ['mission' => $mission, 'specialist' => $specialist] = $this->missionWithTeam();
-        $a = $this->sourceWithChunk('الف', 'x')->source;
-        $b = $this->sourceWithChunk('ب', 'y')->source;
-        $mission->sources()->attach([$a->id, $b->id]);
+        $a = $this->sourceWithChunk('الف', 'x', null, $mission)->source;
+        $b = $this->sourceWithChunk('ب', 'y', null, $mission)->source;
         $specialist->sources()->attach($a->id);
 
-        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('toggleSource', $a->id);
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('deleteSource', $a->id);
 
         $this->assertSame(0, $specialist->sources()->count());
-        $this->assertSame([$b->id], $mission->sources()->pluck('ai_mission_sources.id')->all());
+        $this->assertSame([$b->id], $mission->sources()->pluck('id')->all());
     }
 
     public function test_the_board_offers_the_quoted_text_of_a_cited_finding(): void
     {
         ['mission' => $mission, 'specialist' => $specialist] = $this->missionWithTeam();
-        $chunk = $this->sourceWithChunk('برنامهٔ راهبردی', 'هدف: اشغال ۷۵ درصد تا پایان سال');
+        $chunk = $this->sourceWithChunk('برنامهٔ راهبردی', 'هدف: اشغال ۷۵ درصد تا پایان سال', null, $mission);
         AiMissionCard::create([
             'ai_mission_id' => $mission->id,
             'ai_assistant_profile_id' => $specialist->ai_assistant_profile_id,

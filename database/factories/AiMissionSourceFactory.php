@@ -4,6 +4,7 @@ namespace Database\Factories;
 
 use App\Enums\AiMissionSourceKind;
 use App\Enums\AiMissionSourceStatus;
+use App\Models\AiMission;
 use App\Models\AiMissionSource;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
@@ -20,7 +21,8 @@ class AiMissionSourceFactory extends Factory
         $content = fake()->paragraph(6);
 
         return [
-            'user_id' => User::factory(),
+            'ai_mission_id' => AiMission::factory(),
+            'user_id' => fn (array $attributes) => $attributes['ai_mission_id'] ? AiMission::find($attributes['ai_mission_id'])?->created_by : User::factory(),
             'title' => fake()->words(3, true),
             'original_filename' => 'strategy.txt',
             'extension' => 'txt',

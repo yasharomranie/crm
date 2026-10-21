@@ -27,8 +27,8 @@ use Spatie\Permission\Models\Role;
 use Tests\TestCase;
 
 /**
- * A mission's source files: extracted and digested once into a library, then
- * merged into a strategy brief the owner approves before the team may run.
+ * A mission's own files: extracted and digested into its library, then merged
+ * into a strategy brief the owner approves before the team may run.
  */
 class AiMissionSourcesTest extends TestCase
 {
@@ -112,7 +112,7 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame("کاربرگ «اشغال»\nماه |  | نرخ اشغال\nمهر |  | 78.5", $extractor->extract($xlsx, 'xlsx')['content']);
     }
 
-    public function test_uploading_files_stores_them_digests_them_and_attaches_them_to_the_open_mission(): void
+    public function test_uploading_files_stores_them_digests_them_and_puts_them_in_the_open_missions_library(): void
     {
         $this->fakeJson($this->digest());
         $mission = $this->mission();
@@ -131,7 +131,7 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame(AiMissionSourceKind::Policy, $source->kind);
         $this->assertSame($this->admin->id, $source->user_id);
         Storage::disk('local')->assertExists($source->path);
-        $this->assertTrue($mission->sources()->whereKey($source->id)->exists());
+        $this->assertSame($mission->id, $source->ai_mission_id);
     }
 
     public function test_a_file_type_outside_the_list_is_rejected(): void
@@ -153,7 +153,9 @@ class AiMissionSourcesTest extends TestCase
                 : Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => json_encode($this->digest(), JSON_UNESCAPED_UNICODE)]]]]);
         }]);
 
+        $mission = $this->mission();
         $component = Livewire::test(AiMissionRoom::class)
+            ->call('openMission', $mission->id)
             ->set('sourceUploads', [UploadedFile::fake()->createWithContent('plan.csv', "ماه;اشغال\nمهر;۷۸\n")])
             ->call('uploadSources');
 
@@ -171,8 +173,7 @@ class AiMissionSourcesTest extends TestCase
     public function test_one_source_becomes_the_brief_without_another_ai_call_and_waits_for_approval(): void
     {
         $mission = $this->mission();
-        $source = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'digest' => $this->digest()]);
-        $mission->sources()->attach($source);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
         Http::fake();
 
         Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief');
@@ -187,10 +188,8 @@ class AiMissionSourcesTest extends TestCase
     public function test_several_sources_are_merged_by_the_ai_with_binding_files_marked(): void
     {
         $mission = $this->mission();
-        $mission->sources()->attach([
-            AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => 'سیاست قیمت', 'kind' => AiMissionSourceKind::Policy])->id,
-            AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => 'گزارش فروش', 'kind' => AiMissionSourceKind::Evidence])->id,
-        ]);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'title' => 'سیاست قیمت', 'kind' => AiMissionSourceKind::Policy]);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'title' => 'گزارش فروش', 'kind' => AiMissionSourceKind::Evidence]);
         $seen = null;
         Http::fake(['*/chat/completions' => function (Request $request) use (&$seen) {
             $seen = $request->data()['messages'][1]['content'];
@@ -208,7 +207,7 @@ class AiMissionSourcesTest extends TestCase
     public function test_a_source_that_is_not_ready_blocks_building_the_brief(): void
     {
         $mission = $this->mission();
-        $mission->sources()->attach(AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'status' => AiMissionSourceStatus::Failed, 'digest' => null])->id);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'status' => AiMissionSourceStatus::Failed, 'digest' => null]);
 
         Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief');
 
@@ -218,8 +217,7 @@ class AiMissionSourcesTest extends TestCase
     public function test_a_mission_with_sources_does_not_run_until_the_brief_is_approved_and_current(): void
     {
         $mission = $this->missionWithTeam();
-        $source = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'digest' => $this->digest()]);
-        $mission->sources()->attach($source);
+        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
 
         $result = app(MissionRunner::class)->start($mission, $this->admin);
         $this->assertFalse($result['ok']);
@@ -248,8 +246,7 @@ class AiMissionSourcesTest extends TestCase
     public function test_members_read_the_approved_brief_and_nothing_else_from_the_files(): void
     {
         $mission = $this->missionWithTeam();
-        $source = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'digest' => $this->digest(), 'content' => 'متن خام خیلی محرمانه']);
-        $mission->sources()->attach($source);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest(), 'content' => 'متن خام خیلی محرمانه']);
         Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('buildBrief')->call('approveBrief');
 
         $prompts = [];
@@ -273,7 +270,7 @@ class AiMissionSourcesTest extends TestCase
     public function test_editing_the_brief_asks_for_a_new_approval(): void
     {
         $mission = $this->mission();
-        $mission->sources()->attach(AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'digest' => $this->digest()])->id);
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'digest' => $this->digest()]);
 
         Livewire::test(AiMissionRoom::class)
             ->call('openMission', $mission->id)
@@ -288,17 +285,20 @@ class AiMissionSourcesTest extends TestCase
         $this->assertNotNull(MissionBrief::blocksRun($mission));
     }
 
-    public function test_only_the_owner_can_see_attach_or_delete_a_source(): void
+    public function test_only_the_owner_can_see_change_or_delete_a_file(): void
     {
         $other = User::factory()->create();
         $other->assignRole(Role::firstOrCreate(['name' => 'admin']));
-        $theirs = AiMissionSource::factory()->create(['user_id' => $other->id, 'title' => 'فایل محرمانهٔ دیگری']);
+        $theirs = AiMissionSource::factory()->create([
+            'user_id' => $other->id,
+            'ai_mission_id' => AiMission::factory()->create(['created_by' => $other->id])->id,
+            'title' => 'فایل محرمانهٔ دیگری',
+        ]);
         $mission = $this->mission();
 
         Livewire::test(AiMissionRoom::class)
             ->call('openMission', $mission->id)
             ->assertDontSee('فایل محرمانهٔ دیگری')
-            ->call('toggleSource', $theirs->id)
             ->call('deleteSource', $theirs->id)
             ->call('setSourceKind', $theirs->id, 'background');
 
@@ -307,12 +307,11 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame(AiMissionSourceKind::Policy, $theirs->fresh()->kind);
     }
 
-    public function test_deleting_a_source_removes_its_file_and_detaches_it(): void
+    public function test_deleting_a_file_removes_it_from_the_disk_and_the_mission(): void
     {
         $mission = $this->mission();
         Storage::disk('local')->put('mission-sources/a.txt', 'x');
-        $source = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'path' => 'mission-sources/a.txt']);
-        $mission->sources()->attach($source);
+        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'path' => 'mission-sources/a.txt']);
 
         Livewire::test(AiMissionRoom::class)->call('deleteSource', $source->id);
 
@@ -321,51 +320,51 @@ class AiMissionSourcesTest extends TestCase
         $this->assertSame(0, $mission->sources()->count());
     }
 
-    public function test_the_library_shows_on_the_landing_page_and_the_card_inside_a_mission(): void
+    public function test_each_mission_has_its_own_library_and_there_is_no_shared_one(): void
     {
-        $mission = $this->mission();
-        AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => 'برنامهٔ راهبردی ۱۴۰۵']);
+        $first = $this->mission();
+        $second = $this->mission();
+        AiMissionSource::factory()->create(['ai_mission_id' => $first->id, 'title' => 'برنامهٔ راهبردی ۱۴۰۵']);
 
         Livewire::test(AiMissionRoom::class)
-            ->assertSee('کتابخانهٔ منابع')
+            ->assertDontSee('کتابخانهٔ منابع')
+            ->call('openMission', $first->id)
+            ->assertSee('کتابخانهٔ این مأموریت')
             ->assertSee('برنامهٔ راهبردی ۱۴۰۵')
-            ->call('openMission', $mission->id)
-            ->assertSee('منابع و استراتژی')
-            ->assertSee('برنامهٔ راهبردی ۱۴۰۵');
+            ->call('openMission', $second->id)
+            ->assertSee('کتابخانهٔ این مأموریت')
+            ->assertDontSee('برنامهٔ راهبردی ۱۴۰۵');
     }
 
-    public function test_the_library_and_its_upload_form_show_even_before_the_first_mission(): void
+    public function test_uploading_without_an_open_mission_or_form_stores_nothing(): void
     {
-        $this->assertSame(0, AiMission::count());
-
         Livewire::test(AiMissionRoom::class)
-            ->assertSee('ساخت اولین مأموریت')
-            ->assertSee('کتابخانهٔ منابع')
-            ->assertSeeHtml('id="source-files"');
+            ->set('sourceUploads', [UploadedFile::fake()->createWithContent('plan.txt', 'x')])
+            ->call('uploadSources');
+
+        $this->assertSame(0, AiMissionSource::count());
     }
 
-    public function test_the_new_mission_form_has_a_files_step_that_attaches_the_ticked_files(): void
+    public function test_files_uploaded_in_the_new_mission_form_belong_to_the_mission_once_it_is_made(): void
     {
         $this->fakeJson($this->digest());
         $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
         $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
-        $existing = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'title' => 'فایل قدیمی کتابخانه']);
-        $unticked = AiMissionSource::factory()->create(['user_id' => $this->admin->id]);
-        $others = AiMissionSource::factory()->create(['user_id' => User::factory()->create()->id, 'title' => 'سند ناشناس غریبه']);
+        $strangers = AiMissionSource::factory()->create(['user_id' => User::factory()->create()->id, 'ai_mission_id' => null, 'title' => 'سند ناشناس غریبه']);
 
         $page = Livewire::test(AiMissionRoom::class)
             ->call('startCreate')
-            ->assertSee('فایل‌های استراتژی و گزارش')
-            ->assertSee('فایل قدیمی کتابخانه')
-            ->assertDontSee('سند ناشناس غریبه')
+            ->assertSeeHtml('id="source-files"')
+            ->assertSee('فایل‌های استراتژی و گزارش این مأموریت')
             ->set('sourceUploads', [UploadedFile::fake()->createWithContent('new-plan.txt', 'برنامهٔ تازه')])
-            ->call('uploadSources');
+            ->call('uploadSources')
+            ->assertSee('new-plan');
 
         $uploaded = AiMissionSource::where('title', 'new-plan')->sole();
-        $this->assertContains((string) $uploaded->id, $page->get('newSourceIds'));
+        $this->assertNull($uploaded->ai_mission_id);
 
         $page
-            ->set('newSourceIds', [(string) $existing->id, (string) $uploaded->id, (string) $others->id])
+            ->set('newSourceIds', [(string) $uploaded->id, (string) $strangers->id])
             ->set('missionTitle', 'مأموریت با فایل')
             ->set('missionGoal', 'هدف')
             ->set('coordinatorId', $coordinator->id)
@@ -373,16 +372,42 @@ class AiMissionSourcesTest extends TestCase
             ->call('createMission');
 
         $mission = AiMission::sole();
-        $this->assertEqualsCanonicalizing([$existing->id, $uploaded->id], $mission->sources()->pluck('ai_mission_sources.id')->all());
-        $this->assertFalse($mission->sources()->whereKey($unticked->id)->exists());
-        $this->assertFalse($mission->sources()->whereKey($others->id)->exists(), 'another user\'s file can never be attached');
+        $this->assertSame([$uploaded->id], $mission->sources()->pluck('id')->all());
+        $this->assertNull($strangers->fresh()->ai_mission_id, 'another user\'s file is never taken');
     }
 
-    public function test_a_mission_made_without_ticking_files_has_none_and_runs_without_a_brief(): void
+    public function test_cancelling_the_form_throws_away_the_files_uploaded_for_it(): void
+    {
+        Storage::disk('local')->put('mission-sources/x.txt', 'x');
+        $pending = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'ai_mission_id' => null, 'path' => 'mission-sources/x.txt']);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->set('newSourceIds', [(string) $pending->id])
+            ->call('cancelCreate');
+
+        $this->assertNull($pending->fresh());
+        Storage::disk('local')->assertMissing('mission-sources/x.txt');
+    }
+
+    public function test_a_pending_file_can_be_taken_back_before_the_mission_is_made(): void
+    {
+        $pending = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'ai_mission_id' => null]);
+
+        Livewire::test(AiMissionRoom::class)
+            ->call('startCreate')
+            ->set('newSourceIds', [(string) $pending->id])
+            ->call('removePendingSource', $pending->id)
+            ->assertSet('newSourceIds', []);
+
+        $this->assertNull($pending->fresh());
+    }
+
+    public function test_files_without_a_mission_from_the_old_library_are_left_alone_by_a_new_mission(): void
     {
         $coordinator = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
         $specialist = AiAssistantProfile::factory()->create(['created_by' => $this->admin->id]);
-        AiMissionSource::factory()->create(['user_id' => $this->admin->id]);
+        $old = AiMissionSource::factory()->create(['user_id' => $this->admin->id, 'ai_mission_id' => null]);
 
         Livewire::test(AiMissionRoom::class)
             ->call('startCreate')
@@ -393,5 +418,19 @@ class AiMissionSourcesTest extends TestCase
             ->call('createMission');
 
         $this->assertSame(0, AiMission::sole()->sources()->count());
+        $this->assertNotNull($old->fresh());
+        $this->assertNull($old->fresh()->ai_mission_id);
+    }
+
+    public function test_deleting_a_mission_deletes_its_files_from_the_disk(): void
+    {
+        $mission = $this->mission();
+        Storage::disk('local')->put('mission-sources/m.txt', 'x');
+        AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'path' => 'mission-sources/m.txt']);
+
+        Livewire::test(AiMissionRoom::class)->call('deleteMission', $mission->id);
+
+        $this->assertSame(0, AiMissionSource::count());
+        Storage::disk('local')->assertMissing('mission-sources/m.txt');
     }
 }
