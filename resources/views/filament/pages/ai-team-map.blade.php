@@ -17,7 +17,7 @@
                     fullscreenOk: !!document.fullscreenEnabled,
                     missionPick: initialMission,
                     bubbles: (() => { try { return localStorage.getItem('aiTeamMapBubbles') !== 'off'; } catch (e) { return true; } })(),
-                    style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'cartoon' ? 'cartoon' : 'robot'; } catch (e) { return 'robot'; } })(),
+                    style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'robot' ? 'robot' : 'cartoon'; } catch (e) { return 'cartoon'; } })(),
                     init() {
                         this.tick();
                         this.timers.push(setInterval(() => this.tick(), 1000));

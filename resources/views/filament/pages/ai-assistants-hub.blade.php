@@ -155,13 +155,14 @@
                         <div>
                             <p class="mb-2 text-xs font-medium text-gray-600 dark:text-gray-300">رنگ</p>
                             <div class="flex gap-2 overflow-x-auto pb-1">
-                                @foreach (\App\Support\AiAssistantAvatar::COLORS as $colorKey => $colorLabel)
+                                @foreach (\App\Support\AiAssistantAvatar::PALETTE as $colorKey)
+                                    @php $colorLabel = \App\Support\AiAssistantAvatar::COLORS[$colorKey]; @endphp
                                     <button
                                         type="button"
                                         wire:click="$set('newColor', '{{ $colorKey }}')"
                                         title="{{ $colorLabel }}"
-                                        style="background-color: {{ \App\Support\AiAssistantAvatar::shade($colorKey, 500) }};"
-                                        class="ai-swatch h-8 w-8 shrink-0 rounded-full {{ $newColor === $colorKey ? 'ring-2 ring-offset-2 ring-primary-500 dark:ring-offset-gray-900' : '' }}"
+                                        style="background-color: {{ \App\Support\AiAssistantAvatar::hex($colorKey) }};"
+                                        class="ai-swatch h-8 w-8 shrink-0 rounded-full ring-1 ring-black/10 {{ $newColor === $colorKey ? 'ring-2 ring-offset-2 ring-primary-500 dark:ring-offset-gray-900' : '' }}"
                                     ></button>
                                 @endforeach
                             </div>

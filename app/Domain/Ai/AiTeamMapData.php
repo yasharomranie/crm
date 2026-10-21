@@ -14,6 +14,7 @@ use App\Models\AiMission;
 use App\Models\AiMissionCard;
 use App\Models\AiMissionRole;
 use App\Models\User;
+use App\Support\AiAssistantAvatar;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
@@ -35,11 +36,6 @@ class AiTeamMapData
 
     /** An exchange this recent still "glows" on the map. */
     public const LIVE_SECONDS = 300;
-
-    private const COLORS = [
-        'Amber' => '#fbbf24', 'Orange' => '#fb923c', 'Red' => '#f87171', 'Pink' => '#f472b6', 'Purple' => '#c084fc',
-        'Indigo' => '#818cf8', 'Blue' => '#60a5fa', 'Teal' => '#2dd4bf', 'Emerald' => '#34d399', 'Green' => '#4ade80',
-    ];
 
     /**
      * @return array<string, mixed>
@@ -92,7 +88,7 @@ class AiTeamMapData
         $nodes = $profiles->map(fn (AiAssistantProfile $profile) => [
             'id' => (string) $profile->id,
             'label' => $profile->displayName(),
-            'color' => self::COLORS[$profile->avatar_color] ?? self::COLORS['Amber'],
+            'color' => AiAssistantAvatar::hex((string) $profile->avatar_color),
             'shape' => $profile->avatar_shape,
             'consultable' => (bool) $profile->consultable,
             'specialties' => collect($profile->specialties ?? [])->take(4)->values()->all(),
@@ -162,7 +158,7 @@ class AiTeamMapData
             return [
                 'id' => (string) $profile->id,
                 'label' => $profile->displayName(),
-                'color' => self::COLORS[$profile->avatar_color] ?? self::COLORS['Amber'],
+                'color' => AiAssistantAvatar::hex((string) $profile->avatar_color),
                 'shape' => $profile->avatar_shape,
                 'consultable' => (bool) $profile->consultable,
                 'specialties' => [],
