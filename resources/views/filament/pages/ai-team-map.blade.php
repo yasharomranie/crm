@@ -2,7 +2,7 @@
     @assets
         <script src="{{ asset('vendor/war-room/war-room.js') }}?v={{ filemtime(public_path('vendor/war-room/war-room.js')) }}"></script>
         <script>
-            window.aiTeamMap = function (initial) {
+            window.aiTeamMap = function (initial, initialMission) {
                 // The 3D scene lives outside the reactive object so Alpine never proxies it.
                 let scene = null;
 
@@ -14,6 +14,7 @@
                     shown: { assistants: 0, consultations: 0, handoffs: 0, live: 0 },
                     timers: [],
                     fullscreen: false,
+                    missionPick: initialMission,
                     bubbles: (() => { try { return localStorage.getItem('aiTeamMapBubbles') !== 'off'; } catch (e) { return true; } })(),
                     style: (() => { try { return localStorage.getItem('aiTeamMapStyle') === 'cartoon' ? 'cartoon' : 'robot'; } catch (e) { return 'robot'; } })(),
                     init() {
@@ -38,8 +39,8 @@
                         this.clock = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                         this.day = now.toLocaleDateString('fa-IR', { weekday: 'long', day: 'numeric', month: 'long' });
                     },
-                    async refresh() {
-                        if (document.hidden) { return; }
+                    async refresh(force = false) {
+                        if (document.hidden && !force) { return; }
                         this.data = await this.$wire.mapData();
                         if (scene) { scene.update(this.data); }
                         this.countTo(this.data.totals);
@@ -64,6 +65,12 @@
                         this.style = next;
                         try { localStorage.setItem('aiTeamMapStyle', next); } catch (e) { /* storage unavailable */ }
                         if (scene) { scene.setStyle(next); }
+                    },
+                    async pickMission(value) {
+                        this.missionPick = value ? Number(value) : null;
+                        this.selected = null;
+                        await this.$wire.selectMission(this.missionPick);
+                        await this.refresh(true);
                     },
                     toggleBubbles() {
                         this.bubbles = !this.bubbles;
@@ -106,7 +113,7 @@
         @media (max-width: 1023px) { .wr-side { display: none; } .wr-stage { height: 36rem; } }
     </style>
 
-    <div x-data="aiTeamMap(@js($this->mapData()))">
+    <div x-data="aiTeamMap(@js($this->mapData()), @js($this->missionId))">
         <div x-ref="stage" class="wr-stage" dir="rtl">
             <div wire:ignore x-ref="scene" class="wr-scene"></div>
 
@@ -116,7 +123,8 @@
                     <span class="wr-led on"></span>
                     <div style="min-width: 0;">
                         <div style="font-size: 0.95rem; font-weight: 700; white-space: nowrap;">اتاق فرماندهی دستیاران</div>
-                        <div class="wr-label">نظارت زنده · فقط خواندنی</div>
+                        <div class="wr-label" x-show="!data.mission">نظارت زنده · فقط خواندنی</div>
+                        <div class="wr-label" x-show="data.mission" x-text="data.mission ? 'مأموریت: ' + data.mission.title + ' · ' + data.mission.status : ''"></div>
                     </div>
                 </div>
                 <div style="display: flex; align-items: center; gap: 0.75rem;">
@@ -124,6 +132,12 @@
                         <div class="wr-num" style="font-size: 1rem; color: var(--wr-cyan);" x-text="clock"></div>
                         <div class="wr-label" x-text="day"></div>
                     </div>
+                    <select id="wr-mission" class="wr-btn" style="max-width: 11rem;" aria-label="نمایش تیم" x-on:change="pickMission($event.target.value)">
+                        <option value="" :selected="!missionPick">همهٔ دستیارها</option>
+                        <template x-for="item in data.missions" :key="item.id">
+                            <option :value="item.id" :selected="missionPick === item.id" x-text="'مأموریت: ' + item.title"></option>
+                        </template>
+                    </select>
                     <div class="wr-seg" role="group" aria-label="سبک آواتار">
                         <button type="button" :class="style === 'robot' ? 'on' : ''" :aria-pressed="style === 'robot'" x-on:click="setStyle('robot')">ربات</button>
                         <button type="button" :class="style === 'cartoon' ? 'on' : ''" :aria-pressed="style === 'cartoon'" x-on:click="setStyle('cartoon')">کارتونی</button>
@@ -143,7 +157,7 @@
                             <span class="wr-led" :class="node.live ? 'on' : ''"></span>
                             <span style="min-width: 0; flex: 1;">
                                 <span style="display: block; font-size: 0.78rem; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" x-text="node.label"></span>
-                                <span class="wr-label" style="display: block;" x-text="node.last_seen ? node.last_seen : 'بی‌فعالیت'"></span>
+                                <span class="wr-label" style="display: block;" x-text="(node.role_label ? node.role_label + ' · ' : '') + (node.last_seen ? node.last_seen : 'بی‌فعالیت')"></span>
                                 <span style="display: block; height: 3px; margin-top: 3px; border-radius: 2px; background: rgb(255 255 255 / 0.08);">
                                     <span style="display: block; height: 100%; border-radius: 2px;" :style="'width:' + Math.round((node.messages / maxMessages()) * 100) + '%; background:' + node.color"></span>
                                 </span>
@@ -167,7 +181,7 @@
                             </span>
                         </li>
                     </template>
-                    <li x-show="data.feed.length === 0" class="wr-label" style="line-height: 1.8;">هنوز مخابره‌ای ثبت نشده. یک دستیار را «قابل‌مشورت» کنید و از دستیار دیگری سؤالی در تخصص او بپرسید.</li>
+                    <li x-show="data.feed.length === 0" class="wr-label" style="line-height: 1.8;">هنوز چیزی ثبت نشده.</li>
                 </ul>
             </div>
 
@@ -177,19 +191,20 @@
                     <div style="display: flex; align-items: center; gap: 0.5rem;">
                         <span style="width: 0.65rem; height: 0.65rem; border-radius: 9999px;" :style="'background:' + selected.color"></span>
                         <strong style="font-size: 0.85rem;" x-text="selected.label"></strong>
+                        <span x-show="selected.role_label" style="font-size: 0.65rem; color: var(--wr-dim);" x-text="selected.role_label"></span>
                         <span x-show="selected.live" style="font-size: 0.65rem; color: #34d399;">● فعال</span>
                         <button type="button" class="wr-btn" style="margin-inline-start: auto; height: 1.6rem;" x-on:click="reset()">بستن</button>
                     </div>
                     <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 0.5rem; margin-top: 0.6rem; text-align: center;">
-                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.messages)"></div><div class="wr-label">پاسخ</div></div>
-                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.consulted)"></div><div class="wr-label">مشورت داده</div></div>
-                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.asked)"></div><div class="wr-label">مشورت گرفته</div></div>
+                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.messages)"></div><div class="wr-label" x-text="data.mission ? 'کارت' : 'پاسخ'"></div></div>
+                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.consulted)"></div><div class="wr-label" x-text="data.mission ? 'یافته' : 'مشورت داده'"></div></div>
+                        <div><div class="wr-num" style="font-size: 1.15rem;" x-text="num(selected.asked)"></div><div class="wr-label" x-text="data.mission ? 'نقد' : 'مشورت گرفته'"></div></div>
                     </div>
                     <div x-show="selected.reply" style="margin-top: 0.6rem; padding: 0.5rem 0.6rem; border-radius: 0.5rem; background: rgb(255 255 255 / 0.07); font-size: 0.75rem; line-height: 1.7;">
-                        <div class="wr-label">آخرین پاسخ به شما · <span x-text="selected.reply ? selected.reply.at : ''"></span></div>
+                        <div class="wr-label"><span x-text="data.mission ? 'آخرین ثبت روی تخته' : 'آخرین پاسخ به شما'"></span> · <span x-text="selected.reply ? selected.reply.at : ''"></span></div>
                         <div x-text="selected.reply ? selected.reply.full : ''"></div>
                     </div>
-                    <div class="wr-label" style="margin-top: 0.5rem;" x-show="selected.id !== 'manager'" x-text="selected.consultable ? 'قابل‌مشورت است.' : 'قابل‌مشورت نیست؛ دیگران از او نمی‌پرسند.'"></div>
+                    <div class="wr-label" style="margin-top: 0.5rem;" x-show="selected.id !== 'manager' && !data.mission" x-text="selected.consultable ? 'قابل‌مشورت است.' : 'قابل‌مشورت نیست؛ دیگران از او نمی‌پرسند.'"></div>
                 </div>
             </template>
 
@@ -197,17 +212,18 @@
             <div class="wr-panel" style="bottom: 0.75rem; inset-inline: 0.75rem; padding: 0.55rem 0.9rem; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.6rem 1.5rem;">
                 <div style="display: flex; flex-wrap: wrap; gap: 0.4rem 1.6rem;">
                     <template x-for="tile in [
-                        { label: 'دستیار در تیم', key: 'assistants' },
-                        { label: 'مشورت · ۳۰ روز', key: 'consultations' },
-                        { label: 'تحویل گفتگو', key: 'handoffs' },
-                        { label: 'فعال · ۵ دقیقه', key: 'live' },
+                        { label: data.labels[0], key: 'assistants' },
+                        { label: data.labels[1], key: 'consultations' },
+                        { label: data.labels[2], key: 'handoffs' },
+                        { label: data.labels[3], key: 'live' },
                     ]" :key="tile.key">
                         <div><span class="wr-num" style="font-size: 1.3rem; color: var(--wr-cyan);" x-text="num(shown[tile.key])"></span> <span class="wr-label" x-text="tile.label"></span></div>
                     </template>
                 </div>
                 <div style="display: flex; flex-wrap: wrap; gap: 0.3rem 1.1rem;" class="wr-label">
-                    <span><span style="display: inline-block; width: 1.1rem; height: 2px; background: var(--wr-cyan); vertical-align: middle;"></span> مشورت</span>
-                    <span><span style="display: inline-block; width: 1.1rem; height: 2px; background: var(--wr-amber); vertical-align: middle;"></span> تحویل گفتگو</span>
+                    <template x-for="item in data.legend" :key="item.label">
+                        <span><span style="display: inline-block; width: 1.1rem; height: 2px; vertical-align: middle;" :style="'background:' + item.color"></span> <span x-text="item.label"></span></span>
+                    </template>
                     <span>ذرهٔ نوری = پیام در جریان · حلقه دور دستیار = فعال در ۵ دقیقهٔ اخیر</span>
                 </div>
             </div>

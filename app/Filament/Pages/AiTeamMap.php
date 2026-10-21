@@ -8,6 +8,7 @@ use BackedEnum;
 use Filament\Pages\Page;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Support\Facades\Auth;
+use Livewire\Attributes\Url;
 
 /**
  * A live "team map" of the AI assistants: who is on the team and how they
@@ -34,11 +35,20 @@ class AiTeamMap extends Page
         return 'ai-team-map.access';
     }
 
+    /** The mission the map is showing the team of; null shows every assistant. */
+    #[Url(as: 'mission')]
+    public ?int $missionId = null;
+
+    public function selectMission(?int $id): void
+    {
+        $this->missionId = $id ?: null;
+    }
+
     /**
-     * @return array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>, feed: list<array<string, mixed>>, totals: array<string, int>}
+     * @return array<string, mixed>
      */
     public function mapData(): array
     {
-        return app(AiTeamMapData::class)->build(Auth::user());
+        return app(AiTeamMapData::class)->build(Auth::user(), $this->missionId);
     }
 }

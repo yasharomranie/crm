@@ -4,10 +4,16 @@ namespace Tests\Feature;
 
 use App\Domain\Ai\AiTeamMapData;
 use App\Enums\AiMessageRole;
+use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionRoleType;
+use App\Enums\AiMissionStatus;
 use App\Filament\Pages\AiTeamMap;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantProfile;
 use App\Models\AiConversation;
+use App\Models\AiMission;
+use App\Models\AiMissionCard;
+use App\Models\AiMissionRole;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Livewire\Livewire;
@@ -172,5 +178,76 @@ class AiTeamMapTest extends TestCase
         $node = collect(app(AiTeamMapData::class)->build($user)['nodes'])->firstWhere('id', (string) $profile->id);
 
         $this->assertNull($node['reply']);
+    }
+
+    public function test_a_missions_map_shows_only_its_team_with_roles_and_the_flow_of_findings(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $critic = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $outsider = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+
+        $mission = AiMission::factory()->create(['created_by' => $user->id, 'status' => AiMissionStatus::Running]);
+        foreach ([[$coordinator, AiMissionRoleType::Coordinator], [$specialist, AiMissionRoleType::Specialist], [$critic, AiMissionRoleType::Critic]] as [$profile, $role]) {
+            AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $profile->id, 'role' => $role]);
+        }
+        $finding = AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'claim' => 'سه‌شنبه پر است.']);
+        AiMissionCard::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $critic->id, 'role' => AiMissionRoleType::Critic, 'kind' => AiMissionCardKind::Critique, 'target_card_id' => $finding->id, 'claim' => 'منبع روشن نیست.']);
+
+        $map = app(AiTeamMapData::class)->build($user, $mission->id);
+        $nodes = collect($map['nodes'])->keyBy('id');
+
+        $this->assertSame($mission->id, $map['mission']['id']);
+        $this->assertEqualsCanonicalizing([(string) $coordinator->id, (string) $specialist->id, (string) $critic->id], $nodes->keys()->all());
+        $this->assertNotContains((string) $outsider->id, $nodes->keys()->all());
+        $this->assertTrue($nodes[(string) $coordinator->id]['hub']);
+        $this->assertSame('منتقد', $nodes[(string) $critic->id]['role_label']);
+        $this->assertSame('سه‌شنبه پر است.', $nodes[(string) $specialist->id]['reply']['text']);
+        $this->assertTrue($nodes[(string) $specialist->id]['live']);
+
+        $edges = collect($map['edges'])->keyBy('kind');
+        $this->assertSame([(string) $specialist->id, (string) $critic->id], [$edges['report']['source'], $edges['report']['target']]);
+        $this->assertSame([(string) $critic->id, (string) $coordinator->id], [$edges['review']['source'], $edges['review']['target']]);
+        $this->assertSame([3, 1, 1], [$map['totals']['assistants'], $map['totals']['consultations'], $map['totals']['handoffs']]);
+        $this->assertCount(2, $map['feed']);
+    }
+
+    public function test_without_a_critic_findings_flow_straight_to_the_coordinator(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $coordinator = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $specialist = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
+        $mission = AiMission::factory()->create(['created_by' => $user->id]);
+        AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $coordinator->id, 'role' => AiMissionRoleType::Coordinator]);
+        AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $specialist->id, 'role' => AiMissionRoleType::Specialist]);
+
+        $edge = collect(app(AiTeamMapData::class)->build($user, $mission->id)['edges'])->sole();
+
+        $this->assertSame([(string) $specialist->id, (string) $coordinator->id, 'report', false], [$edge['source'], $edge['target'], $edge['kind'], $edge['live']]);
+    }
+
+    public function test_someone_elses_mission_falls_back_to_the_normal_map(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $foreign = AiMission::factory()->create();
+
+        $map = app(AiTeamMapData::class)->build($user, $foreign->id);
+
+        $this->assertNull($map['mission']);
+        $this->assertSame([], $map['missions']);
+    }
+
+    public function test_the_page_switches_the_map_to_a_chosen_mission(): void
+    {
+        $user = $this->actingAsMapViewer();
+        $mission = AiMission::factory()->create(['created_by' => $user->id, 'title' => 'مأموریت نقشه']);
+
+        $component = Livewire::test(AiTeamMap::class)->assertSet('missionId', null);
+        $this->assertNull($component->instance()->mapData()['mission']);
+        $this->assertSame('مأموریت نقشه', $component->instance()->mapData()['missions'][0]['title']);
+
+        $component->call('selectMission', $mission->id)->assertSet('missionId', $mission->id);
+        $this->assertSame($mission->id, $component->instance()->mapData()['mission']['id']);
     }
 }

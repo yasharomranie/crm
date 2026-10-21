@@ -106,6 +106,7 @@
                                 <span wire:loading.remove wire:target="runRound">یک دور اجرا</span>
                                 <span wire:loading wire:target="runRound">در حال اجرا… (ممکن است چند دقیقه طول بکشد)</span>
                             </x-filament::button>
+                            <x-filament::button tag="a" :href="route('filament.admin.pages.ai-team-map', ['mission' => $mission->id])" color="gray" size="sm" icon="heroicon-o-share">نمایش روی نقشه</x-filament::button>
                             <x-filament::button color="danger" outlined size="sm" wire:click="deleteMission({{ $mission->id }})" wire:confirm="این مأموریت و تختهٔ آن حذف شود؟">حذف</x-filament::button>
                         </div>
                     </div>

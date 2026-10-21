@@ -9,7 +9,8 @@ import * as THREE from 'three';
  * and bundled on its own (npm run build:war-room) into public/vendor/war-room.
  */
 
-const KIND_COLORS = { consult: '#38bdf8', handoff: '#fbbf24' };
+const KIND_COLORS = { consult: '#38bdf8', handoff: '#fbbf24', report: '#34d399', review: '#fb7185' };
+const ROLE_COLORS = { coordinator: '#fbbf24', specialist: '#38bdf8', critic: '#fb7185' };
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches;
 
@@ -384,6 +385,29 @@ function applyNodeState(group, node, bubblesOn) {
     data.live = node.live;
     data.halo.material.opacity = node.live ? 1 : 0;
 
+    if (node.role_label) {
+        if (data.roleText !== node.role_label) {
+            if (data.roleBadge) {
+                group.remove(data.roleBadge);
+            }
+            const badge = new SpriteText(node.role_label, 3.4, INK);
+            badge.fontFace = 'Vazirmatn, sans-serif';
+            badge.fontWeight = '700';
+            badge.backgroundColor = ROLE_COLORS[node.role] ?? '#94a3b8';
+            badge.padding = [2.2, 1];
+            badge.borderRadius = 3;
+            badge.material.depthWrite = false;
+            badge.position.y = data.labelY - 8.5;
+            group.add(badge);
+            data.roleBadge = badge;
+            data.roleText = node.role_label;
+        }
+    } else if (data.roleBadge) {
+        group.remove(data.roleBadge);
+        data.roleBadge = null;
+        data.roleText = null;
+    }
+
     const text = bubblesOn && node.reply ? node.reply.text : null;
     if (!text) {
         if (data.bubble) {
@@ -413,7 +437,7 @@ function applyNodeState(group, node, bubblesOn) {
 function buildNode(node, ringMap, style, bubblesOn) {
     const group = new THREE.Group();
     const color = new THREE.Color(node.color);
-    const isManager = node.id === 'manager';
+    const isManager = node.id === 'manager' || node.hub === true;
     const radius = isManager ? 13 : 10;
     const base = radius * 4.6;
 
@@ -436,9 +460,10 @@ function buildNode(node, ringMap, style, bubblesOn) {
     label.fontWeight = '600';
     label.material.depthWrite = false;
     label.position.y = -(radius * 2.45 + 4);
+    const labelY = label.position.y;
     group.add(label);
 
-    group.userData = { ...group.userData, core, halo, base, radius, live: node.live, shape: node.shape, color: node.color, isManager };
+    group.userData = { ...group.userData, core, halo, base, radius, labelY, live: node.live, shape: node.shape, color: node.color, isManager };
     applyNodeState(group, node, bubblesOn);
 
     return group;
@@ -451,6 +476,7 @@ export function mount(element, { onSelect, initialStyle = 'robot', initialBubble
     let autoFit = true;
     let style = initialStyle;
     let bubblesOn = initialBubbles;
+    let viewKey = 0;
 
     const graph = ForceGraph3D({ controlType: 'orbit' })(element)
         .backgroundColor('rgba(0,0,0,0)')
@@ -487,8 +513,8 @@ export function mount(element, { onSelect, initialStyle = 'robot', initialBubble
         });
 
     graph.cameraPosition({ x: 0, y: 30, z: 240 });
-    graph.d3Force('charge').strength(-260);
-    graph.d3Force('link').distance(70);
+    graph.d3Force('charge').strength(-520);
+    graph.d3Force('link').distance(130);
 
     const scene = graph.scene();
     const floor = new THREE.GridHelper(520, 26, 0x23344d, 0x1a2638);
@@ -555,7 +581,7 @@ export function mount(element, { onSelect, initialStyle = 'robot', initialBubble
         const previous = new Map(graph.graphData().nodes.map((node) => [node.id, node]));
 
         return {
-            nodes: data.nodes.map((node) => Object.assign(previous.get(node.id) ?? {}, node, node.id === 'manager' ? { fx: 0, fy: 0, fz: 0 } : {})),
+            nodes: data.nodes.map((node) => Object.assign(previous.get(node.id) ?? {}, node, node.id === 'manager' || node.hub ? { fx: 0, fy: 0, fz: 0 } : { fx: null, fy: null, fz: null })),
             links: data.edges.map((edge) => ({ ...edge })),
         };
     };
@@ -564,6 +590,13 @@ export function mount(element, { onSelect, initialStyle = 'robot', initialBubble
 
     return {
         update(data) {
+            // A different mission (or back to everyone) rebuilds every figure: roles, hub and sizes change.
+            const key = data.mission ? data.mission.id : 0;
+            if (key !== viewKey) {
+                viewKey = key;
+                graph.graphData({ nodes: [], links: [] });
+                autoFit = true;
+            }
             graph.graphData(toGraph(data));
             graph.graphData().nodes.forEach((node) => node.__threeObj && applyNodeState(node.__threeObj, node, bubblesOn));
             [700, 2200].forEach((delay) => setTimeout(() => autoFit && graph.zoomToFit(600, 120), delay));
@@ -579,6 +612,10 @@ export function mount(element, { onSelect, initialStyle = 'robot', initialBubble
             autoFit = false;
             const ratio = 1 + 90 / Math.hypot(node.x, node.y, node.z || 1);
             graph.cameraPosition({ x: node.x * ratio, y: node.y * ratio, z: node.z * ratio }, node, 900);
+        },
+        refit() {
+            autoFit = true;
+            [700, 2200].forEach((delay) => setTimeout(() => autoFit && graph.zoomToFit(600, 120), delay));
         },
         setBubbles(on) {
             bubblesOn = on;
