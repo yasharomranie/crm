@@ -3,9 +3,15 @@
 namespace App\Domain\Ai;
 
 use App\Enums\AiMessageRole;
+use App\Enums\AiMissionCardKind;
+use App\Enums\AiMissionRoleType;
+use App\Enums\AiMissionStatus;
 use App\Models\AiAssistantConsultation;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMessage;
+use App\Models\AiMission;
+use App\Models\AiMissionCard;
+use App\Models\AiMissionRole;
 use App\Models\User;
 use Carbon\CarbonInterface;
 use Illuminate\Support\Collection;
@@ -35,10 +41,16 @@ class AiTeamMapData
     ];
 
     /**
-     * @return array{nodes: list<array<string, mixed>>, edges: list<array<string, mixed>>, feed: list<array<string, mixed>>, totals: array<string, int>}
+     * @return array<string, mixed>
      */
-    public function build(User $user): array
+    public function build(User $user, ?int $missionId = null): array
     {
+        $mission = $missionId ? AiMission::query()->ownedBy($user)->with(['roles.profile', 'cards.profile'])->find($missionId) : null;
+
+        if ($mission) {
+            return $this->buildForMission($mission, $this->missionChoices($user));
+        }
+
         $since = now()->subDays(self::WINDOW_DAYS);
         $profiles = AiAssistantProfile::query()->visibleTo($user)->get()->keyBy('id');
         $exchanges = $this->exchanges($user, $profiles, $since);
@@ -105,6 +117,8 @@ class AiTeamMapData
         ])->all();
 
         return [
+            'mission' => null,
+            'missions' => $this->missionChoices($user),
             'nodes' => $nodes,
             'edges' => $edges,
             'feed' => $this->feed($exchanges, $profiles),
@@ -114,7 +128,107 @@ class AiTeamMapData
                 'handoffs' => $exchanges->where('kind', 'handoff')->count(),
                 'live' => count($liveIds),
             ],
+            'labels' => ['دستیار در تیم', 'مشورت · ۳۰ روز', 'تحویل گفتگو', 'فعال · ۵ دقیقه'],
+            'legend' => [
+                ['color' => '#38bdf8', 'label' => 'مشورت'],
+                ['color' => '#fbbf24', 'label' => 'تحویل گفتگو'],
+            ],
         ];
+    }
+
+    /**
+     * The same map for one mission: only its team, laid out around the
+     * coordinator, with the board's findings flowing to the critic (or
+     * straight to the coordinator when there is none) and on to the report.
+     *
+     * @param  list<array{id: int, title: string, status: string}>  $choices
+     * @return array<string, mixed>
+     */
+    private function buildForMission(AiMission $mission, array $choices): array
+    {
+        $running = $mission->status === AiMissionStatus::Running;
+        $members = $mission->roles->filter(fn (AiMissionRole $role) => $role->profile)->values();
+        $coordinatorId = $members->firstWhere('role', AiMissionRoleType::Coordinator)?->ai_assistant_profile_id;
+        $criticId = $members->firstWhere('role', AiMissionRoleType::Critic)?->ai_assistant_profile_id;
+
+        $nodes = $members->map(function (AiMissionRole $role) use ($mission, $running, $coordinatorId) {
+            $profile = $role->profile;
+            $own = $mission->cards->where('ai_assistant_profile_id', $profile->id);
+            $last = $own->sortByDesc('id')->first();
+            $plain = $last ? trim((string) preg_replace('/\s+/u', ' ', $last->claim)) : null;
+
+            return [
+                'id' => (string) $profile->id,
+                'label' => $profile->displayName(),
+                'color' => self::COLORS[$profile->avatar_color] ?? self::COLORS['Amber'],
+                'shape' => $profile->avatar_shape,
+                'consultable' => (bool) $profile->consultable,
+                'specialties' => [],
+                'messages' => $own->count(),
+                'consulted' => $own->where('kind', AiMissionCardKind::Finding)->count(),
+                'asked' => $own->where('kind', AiMissionCardKind::Critique)->count(),
+                'live' => $running,
+                'last_seen' => $last?->created_at->diffForHumans(),
+                'reply' => $last ? ['text' => Str::limit($plain, 110), 'full' => Str::limit($plain, 500), 'at' => $last->created_at->diffForHumans()] : null,
+                'role' => $role->role->value,
+                'role_label' => $role->role->getLabel(),
+                'hub' => $profile->id === $coordinatorId,
+            ];
+        })->all();
+
+        $edges = [];
+        foreach ($members->where('role', AiMissionRoleType::Specialist) as $role) {
+            $target = $criticId ?? $coordinatorId;
+            $count = $mission->cards->where('ai_assistant_profile_id', $role->ai_assistant_profile_id)->where('kind', AiMissionCardKind::Finding)->count();
+
+            if ($target) {
+                $edges[] = ['id' => $role->ai_assistant_profile_id.'>'.$target.'>report', 'source' => (string) $role->ai_assistant_profile_id, 'target' => (string) $target, 'kind' => 'report', 'count' => max($count, 1), 'live' => $running];
+            }
+        }
+        if ($criticId && $coordinatorId) {
+            $edges[] = ['id' => $criticId.'>'.$coordinatorId.'>review', 'source' => (string) $criticId, 'target' => (string) $coordinatorId, 'kind' => 'review', 'count' => max($mission->cards->where('kind', AiMissionCardKind::Critique)->count(), 1), 'live' => $running];
+        }
+
+        $names = $members->mapWithKeys(fn (AiMissionRole $role) => [$role->ai_assistant_profile_id => $role->profile->displayName()]);
+        $feed = $mission->cards->sortByDesc('id')->take(12)->map(fn (AiMissionCard $card) => [
+            'text' => '«'.($names[$card->ai_assistant_profile_id] ?? 'دستیار').'» '.match ($card->kind) {
+                AiMissionCardKind::Finding => 'یافته ثبت کرد: '.Str::limit($card->claim, 90),
+                AiMissionCardKind::Critique => 'نقد کرد: '.Str::limit($card->claim, 90),
+                AiMissionCardKind::Summary => 'جمع‌بندی نوشت.',
+            },
+            'kind' => $card->kind === AiMissionCardKind::Critique ? 'handoff' : 'consult',
+            'at' => $card->created_at->diffForHumans(),
+            'live' => $card->created_at->gt(now()->subSeconds(self::LIVE_SECONDS)),
+        ])->values()->all();
+
+        return [
+            'mission' => ['id' => $mission->id, 'title' => $mission->title, 'status' => $mission->status->getLabel(), 'color' => $mission->status->getColor()],
+            'missions' => $choices,
+            'nodes' => $nodes,
+            'edges' => $edges,
+            'feed' => $feed,
+            'totals' => [
+                'assistants' => count($nodes),
+                'consultations' => $mission->cards->where('kind', AiMissionCardKind::Finding)->count(),
+                'handoffs' => $mission->cards->where('kind', AiMissionCardKind::Critique)->count(),
+                'live' => $mission->rounds_run,
+            ],
+            'labels' => ['عضو تیم', 'یافته روی تخته', 'نقد', 'دور اجرا‌شده'],
+            'legend' => [
+                ['color' => '#34d399', 'label' => 'گزارش یافته'],
+                ['color' => '#fb7185', 'label' => 'بازبینی منتقد'],
+            ],
+        ];
+    }
+
+    /**
+     * @return list<array{id: int, title: string, status: string}>
+     */
+    private function missionChoices(User $user): array
+    {
+        return AiMission::query()->ownedBy($user)->latest('id')->limit(30)->get()
+            ->map(fn (AiMission $mission) => ['id' => $mission->id, 'title' => $mission->title, 'status' => $mission->status->getLabel()])
+            ->all();
     }
 
     /**
