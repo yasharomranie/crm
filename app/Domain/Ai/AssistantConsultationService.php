@@ -74,11 +74,12 @@ class AssistantConsultationService
      * lookups its owner granted it (CrmToolCatalog::grantedTo, narrowed by the
      * asking user's permissions) for a couple of rounds. It may itself ask one
      * further assistant (never one already in the chain, one level deep at
-     * most) but cannot save knowledge or fetch pages.
+     * most) but cannot save knowledge or fetch pages. A mission passes its own
+     * $instructions and a $depth that already rules nesting out.
      *
      * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>, nested: list<string>}|array{error: string}
      */
-    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = []): array
+    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null): array
     {
         $provider = AiProvider::active();
 
@@ -118,7 +119,7 @@ class AssistantConsultationService
         $directory = $nestedCandidates->map(fn (AiAssistantProfile $profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.$profile->specialties.')' : ''))->implode('؛ ');
 
         $messages = [
-            ['role' => 'system', 'content' => $target->basePrompt()."\n\nدستیار دیگری از تو مشورت می‌خواهد. کوتاه، دقیق و کامل جواب بده.".($nestedCandidates->isNotEmpty() ? "\nاگر بخشی از جواب در تخصص تو نیست می‌توانی با consult_assistant از یکی از اینها بپرسی: {$directory}" : '')],
+            ['role' => 'system', 'content' => $target->basePrompt()."\n\n".($instructions ?? 'دستیار دیگری از تو مشورت می‌خواهد. کوتاه، دقیق و کامل جواب بده.').($nestedCandidates->isNotEmpty() ? "\nاگر بخشی از جواب در تخصص تو نیست می‌توانی با consult_assistant از یکی از اینها بپرسی: {$directory}" : '')],
             ['role' => 'user', 'content' => $question],
         ];
         $toolsUsed = [];
