@@ -6,6 +6,7 @@ use App\Enums\AiMissionRoleType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 
 class AiMissionRole extends Model
 {
@@ -21,6 +22,14 @@ class AiMissionRole extends Model
     public function mission(): BelongsTo
     {
         return $this->belongsTo(AiMission::class, 'ai_mission_id');
+    }
+
+    /**
+     * Files the owner limited this member to; none means every file of the mission.
+     */
+    public function sources(): BelongsToMany
+    {
+        return $this->belongsToMany(AiMissionSource::class, 'ai_mission_role_source');
     }
 
     public function profile(): BelongsTo

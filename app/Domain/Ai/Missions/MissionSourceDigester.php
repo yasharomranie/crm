@@ -23,7 +23,7 @@ class MissionSourceDigester
 
     public const MAX_CHUNKS = 8;
 
-    public function __construct(private readonly DocumentTextExtractor $extractor) {}
+    public function __construct(private readonly DocumentTextExtractor $extractor, private readonly MissionSourceChunker $chunker) {}
 
     public function process(AiMissionSource $source): AiMissionSource
     {
@@ -41,6 +41,9 @@ class MissionSourceDigester
                 'char_count' => mb_strlen($extraction['content']),
                 'content_hash' => sha1($extraction['content']),
             ]);
+            $this->chunker->store($source);
+        } elseif (! $source->chunks()->exists()) {
+            $this->chunker->store($source);
         }
 
         $provider = AiProvider::active();

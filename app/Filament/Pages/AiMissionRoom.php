@@ -117,7 +117,7 @@ class AiMissionRoom extends Page
     public function getSelectedMission(): ?AiMission
     {
         return $this->missionId
-            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs', 'actions.profile', 'sources'])->find($this->missionId)
+            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'roles.sources', 'cards.profile', 'cards.sourceChunk.source', 'runs', 'actions.profile', 'sources'])->find($this->missionId)
             : null;
     }
 
@@ -609,6 +609,38 @@ class AiMissionRoom extends Page
         }
 
         $mission->sources()->toggle([$source->id]);
+
+        // A file taken off the mission is also off every member's allowed list.
+        if (! $mission->sources()->whereKey($source->id)->exists()) {
+            DB::table('ai_mission_role_source')->where('ai_mission_source_id', $source->id)->whereIn('ai_mission_role_id', $mission->roles()->pluck('id'))->delete();
+        }
+    }
+
+    /**
+     * Limits what one member may read: by default every file of the mission,
+     * after the first change only the ones ticked. Ticking all again goes back
+     * to the default; a member always keeps at least one file.
+     */
+    public function toggleRoleSource(int $roleId, int $sourceId): void
+    {
+        $mission = $this->getSelectedMission();
+        $role = $mission?->roles->firstWhere('id', $roleId);
+        $attached = $mission?->sources->pluck('id')->all() ?? [];
+
+        if (! $mission || ! $role || ! in_array($sourceId, $attached, true) || $mission->status === AiMissionStatus::Running) {
+            return;
+        }
+
+        $current = $role->sources->pluck('id')->all() ?: $attached;
+        $next = in_array($sourceId, $current, true) ? array_values(array_diff($current, [$sourceId])) : [...$current, $sourceId];
+
+        if ($next === []) {
+            Notification::make()->title('هر عضو باید دست‌کم یک فایل ببیند؛ اگر نباید فایلی ببیند، همین عضو را از مأموریت جدا کنید.')->warning()->send();
+
+            return;
+        }
+
+        $role->sources()->sync(count(array_intersect($attached, $next)) === count($attached) ? [] : $next);
     }
 
     public function setSourceKind(int $sourceId, string $kind): void

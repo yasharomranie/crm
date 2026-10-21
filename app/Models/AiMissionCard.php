@@ -20,7 +20,7 @@ class AiMissionCard extends Model
 
     protected $fillable = [
         'ai_mission_id', 'ai_assistant_profile_id', 'role', 'round', 'kind', 'target_card_id',
-        'claim', 'source', 'confidence', 'unsourced', 'status',
+        'claim', 'source', 'source_chunk_id', 'confidence', 'unsourced', 'status',
     ];
 
     protected function casts(): array
@@ -37,6 +37,11 @@ class AiMissionCard extends Model
     public function mission(): BelongsTo
     {
         return $this->belongsTo(AiMission::class, 'ai_mission_id');
+    }
+
+    public function sourceChunk(): BelongsTo
+    {
+        return $this->belongsTo(AiMissionSourceChunk::class, 'source_chunk_id');
     }
 
     public function profile(): BelongsTo

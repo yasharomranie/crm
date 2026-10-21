@@ -75,11 +75,13 @@ class AssistantConsultationService
      * asking user's permissions) for a couple of rounds. It may itself ask one
      * further assistant (never one already in the chain, one level deep at
      * most) but cannot save knowledge or fetch pages. A mission passes its own
-     * $instructions and a $depth that already rules nesting out.
+     * $instructions and a $depth that already rules nesting out, and may add
+     * $extraTools of its own (name => description, parameters and a handler
+     * callable) that are offered next to the granted lookups.
      *
      * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>, nested: list<string>, tokens: int}|array{error: string}
      */
-    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null): array
+    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null, array $extraTools = []): array
     {
         $provider = AiProvider::active();
 
@@ -93,6 +95,10 @@ class AssistantConsultationService
             ->map(fn (array $definition, string $name) => ['type' => 'function', 'function' => ['name' => $name, 'description' => $definition['description'], 'parameters' => $definition['parameters']]])
             ->values()
             ->all();
+
+        foreach ($extraTools as $name => $definition) {
+            $tools[] = ['type' => 'function', 'function' => ['name' => $name, 'description' => $definition['description'], 'parameters' => $definition['parameters']]];
+        }
 
         $user ??= Auth::user();
         $chain = array_values(array_unique(array_filter([...$chain, $requester?->id, $target->id])));
@@ -146,6 +152,8 @@ class AssistantConsultationService
 
                     if ($name === 'consult_assistant' && $nestedCandidates->isNotEmpty()) {
                         $result = $this->consultNested($target, $nestedCandidates, $arguments, $conversation, $user, $depth, $chain, $nestedLeft, $nested);
+                    } elseif (isset($extraTools[$name])) {
+                        $result = ($extraTools[$name]['handler'])($arguments);
                     } else {
                         $result = isset($granted[$name])
                             ? $catalog->execute($name, $arguments)
