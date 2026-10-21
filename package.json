@@ -4,7 +4,8 @@
     "type": "module",
     "scripts": {
         "build": "vite build",
-        "dev": "vite"
+        "dev": "vite",
+        "build:war-room": "vite build --config vite.war-room.config.js"
     },
     "devDependencies": {
         "@tailwindcss/vite": "^4.0.0",
@@ -17,11 +18,13 @@
         "@laravel/multiplex": "^0.4.1"
     },
     "dependencies": {
+        "3d-force-graph": "^1.77.0",
         "chart.js": "^4.5.1",
-        "cytoscape": "^3.33.1",
         "d3": "^7.9.0",
         "leaflet": "1.9.4",
         "qr-scanner": "^1.4.2",
-        "qrcodejs": "1.0.0"
+        "qrcodejs": "1.0.0",
+        "three": "^0.186.1",
+        "three-spritetext": "^1.9.6"
     }
 }

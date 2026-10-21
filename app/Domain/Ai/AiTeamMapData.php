@@ -72,6 +72,8 @@ class AiTeamMapData
         $asked = $exchanges->where('kind', 'consult')->countBy('from');
         $liveIds = collect($edges)->where('live', true)->flatMap(fn (array $edge) => [$edge['source'], $edge['target']])->unique();
 
+        $lastSeen = fn (string $id) => $exchanges->first(fn (array $exchange) => $exchange['from'] === $id || $exchange['to'] === $id)['at'] ?? null;
+
         $nodes = $profiles->map(fn (AiAssistantProfile $profile) => [
             'id' => (string) $profile->id,
             'label' => $profile->displayName(),
@@ -83,10 +85,11 @@ class AiTeamMapData
             'consulted' => (int) ($given[$profile->id] ?? 0),
             'asked' => (int) ($asked[$profile->id] ?? 0),
             'live' => $liveIds->contains((string) $profile->id),
+            'last_seen' => $lastSeen((string) $profile->id)?->diffForHumans(),
         ])->values()->prepend([
             'id' => self::MANAGER_ID,
             'label' => 'دستیار مدیریتی',
-            'color' => '#e2e8f0',
+            'color' => '#7dd3fc',
             'shape' => 'manager',
             'consultable' => false,
             'specialties' => [],
@@ -94,6 +97,7 @@ class AiTeamMapData
             'consulted' => 0,
             'asked' => $exchanges->where('from', self::MANAGER_ID)->count(),
             'live' => $liveIds->contains(self::MANAGER_ID),
+            'last_seen' => $lastSeen(self::MANAGER_ID)?->diffForHumans(),
         ])->all();
 
         return [
