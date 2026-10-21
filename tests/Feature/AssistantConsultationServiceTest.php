@@ -202,7 +202,9 @@ class AssistantConsultationServiceTest extends TestCase
 
     public function test_a_user_without_the_report_permission_gives_the_consulted_assistant_no_tools(): void
     {
-        $this->actingAs(User::factory()->create());
+        $user = User::factory()->create();
+        $user->assignRole(Role::firstOrCreate(['name' => 'viewer']));
+        $this->actingAs($user);
         AiProvider::factory()->active()->create();
         $requester = AiAssistantProfile::factory()->create();
         $target = AiAssistantProfile::factory()->create(['allowed_tools' => ['check_support_ticket_status']]);
