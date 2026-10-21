@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
+use App\Domain\Ai\Missions\MissionTemplates;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
@@ -72,6 +73,10 @@ class AiMissionRoom extends Page
 
     public bool $withCritic = false;
 
+    public ?string $templateKey = null;
+
+    public bool $applyTemplateSchedule = false;
+
     public ?int $criticId = null;
 
     public string $criticDirective = '';
@@ -132,31 +137,44 @@ class AiMissionRoom extends Page
 
     public function startCreate(): void
     {
-        $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor']);
+        $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
         $this->maxRounds = 2;
         $this->tokenBudget = 60000;
-        $this->specialists = [['profile_id' => null, 'directive' => '']];
+        $this->specialists = [['profile_id' => null, 'directive' => '', 'needs' => []]];
         $this->showCreate = true;
         $this->missionId = null;
     }
 
     /**
-     * A ready-made mission built on the lookups every custom assistant can be
-     * granted (room availability, guests, support tickets); the user only picks
-     * which assistant plays each part.
+     * Fills the form from one of the ready-made missions (MissionTemplates):
+     * goal, directives and the lookups each specialist will need. Assistants the
+     * user already picked stay where they are.
      */
-    public function applyTemplate(): void
+    public function applyTemplate(string $key): void
     {
-        $this->missionTitle = 'وضعیت رزرو و پشتیبانی هفتهٔ آینده';
-        $this->missionGoal = 'برای هفتهٔ آینده بگو کدام روزها اتاق خالی کم است، کدام مهمان یا رزرو نیاز به پیگیری دارد و کدام تیکت پشتیبانی باز مانده است.';
-        $this->missionEnd = 'وقتی برای هر سه بخش (اتاق، مهمان، تیکت) یافتهٔ منبع‌دار داریم.';
-        $this->coordinatorDirective = 'یافته‌ها را جمع کن و فقط تصمیم‌هایی پیشنهاد بده که شاهد دارند.';
-        $this->specialists = [
-            ['profile_id' => $this->specialists[0]['profile_id'] ?? null, 'directive' => 'با ابزار وضعیت اتاق‌های خالی هفتهٔ آینده را بررسی کن.'],
-            ['profile_id' => $this->specialists[1]['profile_id'] ?? null, 'directive' => 'با ابزار وضعیت تیکت‌های پشتیبانی و مهمانان مرتبط را بررسی کن.'],
-        ];
-        $this->withCritic = true;
-        $this->criticDirective = 'هر ادعای بی‌منبع یا عددی که با ابزار تأیید نشده را به چالش بکش.';
+        $template = app(MissionTemplates::class)->find($key);
+
+        if (! $template) {
+            return;
+        }
+
+        $this->templateKey = $key;
+        $this->applyTemplateSchedule = false;
+        $this->missionTitle = $template['title'];
+        $this->missionGoal = $template['goal'];
+        $this->missionEnd = $template['end'];
+        $this->coordinatorDirective = $template['coordinator'];
+        $this->specialists = collect($template['specialists'])->values()->map(fn (array $specialist, int $index) => [
+            'profile_id' => $this->specialists[$index]['profile_id'] ?? null,
+            'directive' => $specialist['directive'],
+            'needs' => $specialist['needs'],
+        ])->all();
+        $this->withCritic = $template['critic'] !== null;
+        $this->criticDirective = $template['critic'] ?? '';
+
+        if (! $this->withCritic) {
+            $this->criticId = null;
+        }
     }
 
     public function openPicker(string $slot): void
@@ -189,7 +207,7 @@ class AiMissionRoom extends Page
     public function addSpecialist(): void
     {
         if (count($this->specialists) < 4) {
-            $this->specialists[] = ['profile_id' => null, 'directive' => ''];
+            $this->specialists[] = ['profile_id' => null, 'directive' => '', 'needs' => []];
             $this->pickingFor = 'specialist:'.(count($this->specialists) - 1);
         }
     }
@@ -261,6 +279,19 @@ class AiMissionRoom extends Page
 
             return $mission;
         });
+
+        $template = $this->applyTemplateSchedule && $this->templateKey ? app(MissionTemplates::class)->find($this->templateKey) : null;
+
+        if ($template) {
+            $schedule = $template['schedule'];
+            $mission->update([
+                'schedule' => $schedule['frequency'],
+                'schedule_time' => $schedule['time'],
+                'schedule_weekday' => $schedule['weekday'],
+                'schedule_day' => $schedule['day'],
+                'next_run_at' => app(MissionSchedule::class)->nextRun($schedule['frequency'], $schedule['time'], $schedule['weekday'], $schedule['day']),
+            ]);
+        }
 
         $this->missionId = $mission->id;
         $this->showCreate = false;

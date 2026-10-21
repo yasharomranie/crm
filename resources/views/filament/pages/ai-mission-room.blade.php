@@ -63,6 +63,11 @@
         .mr-member { display: flex; align-items: center; gap: 0.6rem; padding: 0.5rem 0.7rem; border-radius: 0.8rem; background: var(--mr-soft); }
         .mr-decision { display: grid; grid-template-columns: 2rem minmax(0, 1fr); gap: 0.8rem; padding: 0.9rem 1rem; border-radius: 0.9rem; background: var(--mr-card); border: 1px solid var(--mr-line); }
         .mr-finding { border: 1px solid var(--mr-line); border-radius: 0.85rem; padding: 0.8rem 0.9rem; background: var(--mr-card); display: grid; gap: 0.5rem; font-size: 0.85rem; line-height: 1.9; }
+        .mr-templates { display: grid; gap: 0.7rem; grid-template-columns: repeat(auto-fit, minmax(14rem, 1fr)); }
+        .mr-template { display: grid; gap: 0.35rem; text-align: start; padding: 0.9rem 1rem; border-radius: 0.9rem; border: 1px solid var(--mr-line); background: var(--mr-soft); color: inherit; cursor: pointer; }
+        .mr-template:hover { border-color: var(--mr-accent); }
+        .mr-template.on { border-color: var(--mr-accent); background: var(--mr-accent-soft); }
+        .mr-template:focus-visible { outline: 2px solid var(--mr-accent); outline-offset: 2px; }
         .mr-finding.rejected { opacity: 0.55; }
         .mr-finding.rejected .mr-claim { text-decoration: line-through; }
         .mr-finding.locked { border-color: var(--mr-good); }
@@ -110,12 +115,29 @@
             <main class="mr-stack" style="min-width: 0;">
                 @if ($showCreate)
                     <div class="mr-card mr-stack">
-                        <div class="mr-row">
-                            <div>
-                                <h2 class="mr-h" style="font-size: 1.15rem;">مأموریت جدید</h2>
-                                <p class="mr-sub">سه قدم: بگویید چه می‌خواهید، تیم را انتخاب کنید و شروع کنید.</p>
+                        <div>
+                            <h2 class="mr-h" style="font-size: 1.15rem;">مأموریت جدید</h2>
+                            <p class="mr-sub">از یک نمونهٔ آماده شروع کنید یا خودتان از صفر بنویسید: بگویید چه می‌خواهید، تیم را انتخاب کنید و شروع کنید.</p>
+                        </div>
+
+                        <div class="mr-stack" style="gap: 0.6rem;">
+                            <strong style="font-size: 0.85rem;">✨ نمونه‌های آماده</strong>
+                            <div class="mr-templates">
+                                @foreach (app(\App\Domain\Ai\Missions\MissionTemplates::class)->all() as $key => $template)
+                                    <button type="button" wire:key="template-{{ $key }}" wire:click="applyTemplate('{{ $key }}')" @class(['mr-template', 'on' => $templateKey === $key])>
+                                        <span style="font-size: 1.4rem;">{{ $template['icon'] }}</span>
+                                        <strong style="font-size: 0.88rem;">{{ $template['title'] }}</strong>
+                                        <span class="mr-sub">{{ $template['about'] }}</span>
+                                        <span class="mr-pill accent" style="justify-self: start;">پیشنهاد تکرار: {{ $template['schedule']['label'] }}</span>
+                                    </button>
+                                @endforeach
                             </div>
-                            <button type="button" class="mr-btn" wire:click="applyTemplate">✨ شروع سریع با نمونه «رزرو و پشتیبانی هفتهٔ آینده»</button>
+                            @if ($templateKey)
+                                <label style="display: flex; gap: 0.5rem; align-items: center; font-size: 0.82rem;">
+                                    <input id="apply-template-schedule" type="checkbox" wire:model="applyTemplateSchedule" />
+                                    مأموریت با تکرار پیشنهادیِ این نمونه ({{ app(\App\Domain\Ai\Missions\MissionTemplates::class)->find($templateKey)['schedule']['label'] }}) ساخته شود
+                                </label>
+                            @endif
                         </div>
 
                         {{-- step 1 --}}
@@ -167,7 +189,18 @@
                                                     <button type="button" class="mr-btn mr-btn-quiet" wire:click="removeSpecialist({{ $index }})" aria-label="حذف این متخصص">حذف</button>
                                                 @endif
                                             </div>
-                                            @if ($chosen && $toolLabels($chosen)->isEmpty())
+                                            @php $needs = $row['needs'] ?? []; $missing = $chosen ? array_values(array_diff($needs, $chosen->allowed_tools ?? [])) : []; @endphp
+                                            @if ($needs !== [])
+                                                <div class="mr-actions">
+                                                    <span class="mr-sub">ابزار لازم برای این جایگاه:</span>
+                                                    @foreach ($needs as $need)
+                                                        <span @class(['mr-pill', 'accent' => ! in_array($need, $missing, true), 'bad' => in_array($need, $missing, true)])>{{ $catalog->label($need) }}</span>
+                                                    @endforeach
+                                                </div>
+                                            @endif
+                                            @if ($chosen && $needs !== [] && $missing !== [])
+                                                <span class="mr-pill warn" style="justify-self: start; white-space: normal;">⚠ این دستیار همهٔ ابزارهای لازم را ندارد؛ در «مرکز دستیاران» آن‌ها را برایش فعال کنید، وگرنه یافته‌هایش «بدون منبع» می‌شود</span>
+                                            @elseif ($chosen && $toolLabels($chosen)->isEmpty())
                                                 <span class="mr-pill warn" style="justify-self: start;">⚠ این دستیار ابزاری ندارد؛ یافته‌هایش «بدون منبع» می‌شود</span>
                                             @endif
                                             <input id="specialist-directive-{{ $index }}" type="text" class="mr-input" wire:model="specialists.{{ $index }}.directive" placeholder="چه چیزی را بررسی کند؟ (اختیاری)" />
@@ -587,6 +620,9 @@
                     $pickingFor === 'critic' => $criticId,
                     default => $specialists[(int) str($pickingFor)->after(':')->toString()]['profile_id'] ?? null,
                 };
+                $slotNeeds = str_starts_with($pickingFor, 'specialist:') ? ($specialists[(int) str($pickingFor)->after(':')->toString()]['needs'] ?? []) : [];
+                $fits = fn ($profile) => $slotNeeds === [] || array_diff($slotNeeds, $profile->allowed_tools ?? []) === [];
+                $pickerProfiles = $slotNeeds === [] ? $profiles : $profiles->sortByDesc(fn ($profile) => $fits($profile) ? 1 : 0)->values();
             @endphp
             <div class="mr-overlay" wire:click.self="closePicker" role="dialog" aria-modal="true" aria-label="انتخاب دستیار">
                 <div class="mr-modal mr-stack">
@@ -603,7 +639,7 @@
                     @endif
 
                     <div class="mr-grid">
-                        @foreach ($profiles as $profile)
+                        @foreach ($pickerProfiles as $profile)
                             @php $taken = in_array($profile->id, $usedIds, true) && $profile->id !== $currentId; @endphp
                             <button type="button" class="mr-tile" wire:key="pick-{{ $profile->id }}" wire:click="pickProfile({{ $profile->id }})" @disabled($taken)>
                                 <x-ai-assistant-avatar :shape="$profile->avatar_shape" :color="$profile->avatar_color" :size="56" :animated="false" />
@@ -619,6 +655,10 @@
                                     @endforelse
                                     @if ($taken)
                                         <span class="mr-pill warn">در تیم هست</span>
+                                    @elseif ($slotNeeds !== [] && $fits($profile))
+                                        <span class="mr-pill good">✓ مناسب این جایگاه</span>
+                                    @elseif ($slotNeeds !== [])
+                                        <span class="mr-pill warn">ابزار لازم را ندارد</span>
                                     @endif
                                 </span>
                             </button>

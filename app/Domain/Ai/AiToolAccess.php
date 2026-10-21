@@ -94,6 +94,9 @@ class AiToolAccess
         'check_room_availability' => 'bookings',
         'lookup_guest' => 'guests',
         'check_support_ticket_status' => 'guest-tickets',
+        'get_hotel_report' => 'bookings',
+        'get_occupancy_forecast' => 'bookings',
+        'get_today_operations' => 'bookings',
     ];
 
     /**

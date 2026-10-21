@@ -2,6 +2,8 @@
 
 namespace App\Domain\Ai;
 
+use App\Domain\Hospitality\HotelReport;
+use App\Domain\Hospitality\MorningDigest;
 use App\Enums\BookingStatus;
 use App\Enums\TicketStatus;
 use App\Models\AiAssistantProfile;
@@ -57,6 +59,30 @@ class CrmToolCatalog
                     'required' => ['name_or_mobile'],
                 ],
             ],
+            'get_hotel_report' => [
+                'description' => 'گزارش عملکرد اقامتگاه برای هفتهٔ گذشته یا ماه گذشته (تا امروز): درصد اشغال، میانگین نرخ اتاق (ADR)، درآمد به‌ازای هر اتاق قابل‌فروش (RevPAR)، درآمد، تعداد رزرو، لغو و عدم حضور، و سه کانال فروش برتر.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'period' => ['type' => 'string', 'enum' => ['week', 'month'], 'description' => 'week = ۷ روز گذشته، month = ۳۰ روز گذشته (پیش‌فرض)'],
+                    ],
+                    'required' => [],
+                ],
+            ],
+            'get_occupancy_forecast' => [
+                'description' => 'پیش‌بینی روزبه‌روز اشغال برای روزهای آینده: تعداد اتاق فروخته‌شده، رزروهای تأییدنشده، اتاق قابل‌فروش و درصد اشغال هر شب.',
+                'parameters' => [
+                    'type' => 'object',
+                    'properties' => [
+                        'days' => ['type' => 'integer', 'description' => 'چند روز آینده، از امروز (پیش‌فرض ۷، حداکثر ۳۰)'],
+                    ],
+                    'required' => [],
+                ],
+            ],
+            'get_today_operations' => [
+                'description' => 'وضعیت عملیاتی امروز در یک نگاه: ورودی‌های امروز، خروجی‌ها و تأخیرهای خروج، مهمانان داخل اقامتگاه، اتاق‌های خارج از سرویس، یادداشت‌های تحویل شیفتِ باز و دریافتیِ نقدیِ دیروز.',
+                'parameters' => ['type' => 'object', 'properties' => (object) [], 'required' => []],
+            ],
             'check_support_ticket_status' => [
                 'description' => 'تیکت‌های پشتیبانی باز یک مشتری خاص (یا همهٔ تیکت‌های باز، اگر نامی داده نشود) را همراه با وضعیت و مهلت SLA برمی‌گرداند.',
                 'parameters' => [
@@ -99,6 +125,9 @@ class CrmToolCatalog
             'check_room_availability' => 'بررسی اتاق خالی',
             'lookup_guest' => 'جست‌وجوی مشتری',
             'check_support_ticket_status' => 'وضعیت تیکت پشتیبانی',
+            'get_hotel_report' => 'گزارش عملکرد (اشغال، ADR، RevPAR)',
+            'get_occupancy_forecast' => 'پیش‌بینی اشغال',
+            'get_today_operations' => 'وضعیت عملیاتی امروز',
             default => null,
         };
     }
@@ -113,8 +142,40 @@ class CrmToolCatalog
             'check_room_availability' => $this->checkRoomAvailability($arguments),
             'lookup_guest' => $this->lookupGuest($arguments),
             'check_support_ticket_status' => $this->checkSupportTicketStatus($arguments),
+            'get_hotel_report' => $this->hotelReport($arguments),
+            'get_occupancy_forecast' => $this->occupancyForecast($arguments),
+            'get_today_operations' => app(MorningDigest::class)->summary(today()),
             default => ['error' => "ابزار ناشناخته: {$toolName}"],
         };
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function hotelReport(array $arguments): array
+    {
+        $days = ($arguments['period'] ?? 'month') === 'week' ? 7 : 30;
+        $report = app(HotelReport::class)->build(today()->subDays($days - 1), today());
+
+        return [
+            'from' => $report['from']->toDateString(),
+            'to' => $report['to']->toDateString(),
+            ...collect($report)->only(['rooms', 'room_nights_available', 'room_nights_sold', 'occupancy_percent', 'revenue', 'adr', 'revpar', 'bookings', 'average_stay_nights', 'cancellations', 'no_shows', 'cancellation_rate_percent'])->all(),
+            'top_channels' => collect($report['by_channel'])->take(3)->map(fn (array $row) => collect($row)->only(['name', 'bookings', 'revenue', 'share_percent'])->all())->all(),
+            'currency' => 'تومان',
+        ];
+    }
+
+    /**
+     * @param  array<string, mixed>  $arguments
+     * @return array<string, mixed>
+     */
+    private function occupancyForecast(array $arguments): array
+    {
+        $days = max(1, min(30, (int) ($arguments['days'] ?? 7)));
+
+        return ['days' => array_slice(app(HotelReport::class)->forecast(), 0, $days)];
     }
 
     /**
