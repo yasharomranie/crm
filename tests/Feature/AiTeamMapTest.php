@@ -188,7 +188,7 @@ class AiTeamMapTest extends TestCase
         $critic = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
         $outsider = AiAssistantProfile::factory()->create(['created_by' => $user->id]);
 
-        $mission = AiMission::factory()->create(['created_by' => $user->id, 'status' => AiMissionStatus::Running]);
+        $mission = AiMission::factory()->create(['created_by' => $user->id, 'status' => AiMissionStatus::Running, 'current_profile_id' => $specialist->id, 'current_step' => '«متخصص» در حال بررسی…']);
         foreach ([[$coordinator, AiMissionRoleType::Coordinator], [$specialist, AiMissionRoleType::Specialist], [$critic, AiMissionRoleType::Critic]] as [$profile, $role]) {
             AiMissionRole::factory()->create(['ai_mission_id' => $mission->id, 'ai_assistant_profile_id' => $profile->id, 'role' => $role]);
         }
@@ -203,8 +203,9 @@ class AiTeamMapTest extends TestCase
         $this->assertNotContains((string) $outsider->id, $nodes->keys()->all());
         $this->assertTrue($nodes[(string) $coordinator->id]['hub']);
         $this->assertSame('منتقد', $nodes[(string) $critic->id]['role_label']);
-        $this->assertSame('سه‌شنبه پر است.', $nodes[(string) $specialist->id]['reply']['text']);
         $this->assertTrue($nodes[(string) $specialist->id]['live']);
+        $this->assertFalse($nodes[(string) $critic->id]['live'], 'only the member working right now is live');
+        $this->assertSame('«متخصص» در حال بررسی…', $nodes[(string) $specialist->id]['reply']['text']);
 
         $edges = collect($map['edges'])->keyBy('kind');
         $this->assertSame([(string) $specialist->id, (string) $critic->id], [$edges['report']['source'], $edges['report']['target']]);

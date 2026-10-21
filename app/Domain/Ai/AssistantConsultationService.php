@@ -77,7 +77,7 @@ class AssistantConsultationService
      * most) but cannot save knowledge or fetch pages. A mission passes its own
      * $instructions and a $depth that already rules nesting out.
      *
-     * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>, nested: list<string>}|array{error: string}
+     * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>, nested: list<string>, tokens: int}|array{error: string}
      */
     public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null): array
     {
@@ -123,12 +123,15 @@ class AssistantConsultationService
             ['role' => 'user', 'content' => $question],
         ];
         $toolsUsed = [];
+        $tokens = 0;
+        $spent = fn () => (int) ($provider->lastUsage['total_tokens'] ?? (($provider->lastUsage['prompt_tokens'] ?? 0) + ($provider->lastUsage['completion_tokens'] ?? 0)));
 
         try {
             $response = ['content' => null];
 
             for ($round = 0; $round < self::MAX_TOOL_ROUNDS; $round++) {
                 $response = $provider->chatCompletion($messages, $tools, $target->model);
+                $tokens += $spent();
                 $calls = $response['tool_calls'] ?? null;
 
                 if (! $calls || $tools === []) {
@@ -157,6 +160,7 @@ class AssistantConsultationService
                 // Out of rounds with calls still pending: ask once more for a plain answer.
                 if ($round === self::MAX_TOOL_ROUNDS - 1) {
                     $response = $provider->chatCompletion($messages, [], $target->model);
+                    $tokens += $spent();
                 }
             }
         } catch (AiProviderException $exception) {
@@ -177,7 +181,7 @@ class AssistantConsultationService
             ]);
         }
 
-        return ['answer' => $answer, 'consulted' => $target->displayName(), 'consulted_profile_id' => $target->id, 'tools_used' => array_values(array_unique($toolsUsed)), 'nested' => $nested];
+        return ['answer' => $answer, 'consulted' => $target->displayName(), 'consulted_profile_id' => $target->id, 'tools_used' => array_values(array_unique($toolsUsed)), 'nested' => $nested, 'tokens' => $tokens];
     }
 
     /**

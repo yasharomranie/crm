@@ -167,9 +167,11 @@ class AiTeamMapData
                 'messages' => $own->count(),
                 'consulted' => $own->where('kind', AiMissionCardKind::Finding)->count(),
                 'asked' => $own->where('kind', AiMissionCardKind::Critique)->count(),
-                'live' => $running,
+                'live' => $running && $mission->current_profile_id === $profile->id,
                 'last_seen' => $last?->created_at->diffForHumans(),
-                'reply' => $last ? ['text' => Str::limit($plain, 110), 'full' => Str::limit($plain, 500), 'at' => $last->created_at->diffForHumans()] : null,
+                'reply' => $running && $mission->current_profile_id === $profile->id && $mission->current_step
+                    ? ['text' => $mission->current_step, 'full' => $mission->current_step, 'at' => 'همین الان']
+                    : ($last ? ['text' => Str::limit($plain, 110), 'full' => Str::limit($plain, 500), 'at' => $last->created_at->diffForHumans()] : null),
                 'role' => $role->role->value,
                 'role_label' => $role->role->getLabel(),
                 'hub' => $profile->id === $coordinatorId,
@@ -182,11 +184,11 @@ class AiTeamMapData
             $count = $mission->cards->where('ai_assistant_profile_id', $role->ai_assistant_profile_id)->where('kind', AiMissionCardKind::Finding)->count();
 
             if ($target) {
-                $edges[] = ['id' => $role->ai_assistant_profile_id.'>'.$target.'>report', 'source' => (string) $role->ai_assistant_profile_id, 'target' => (string) $target, 'kind' => 'report', 'count' => max($count, 1), 'live' => $running];
+                $edges[] = ['id' => $role->ai_assistant_profile_id.'>'.$target.'>report', 'source' => (string) $role->ai_assistant_profile_id, 'target' => (string) $target, 'kind' => 'report', 'count' => max($count, 1), 'live' => $running && $mission->current_profile_id === $role->ai_assistant_profile_id];
             }
         }
         if ($criticId && $coordinatorId) {
-            $edges[] = ['id' => $criticId.'>'.$coordinatorId.'>review', 'source' => (string) $criticId, 'target' => (string) $coordinatorId, 'kind' => 'review', 'count' => max($mission->cards->where('kind', AiMissionCardKind::Critique)->count(), 1), 'live' => $running];
+            $edges[] = ['id' => $criticId.'>'.$coordinatorId.'>review', 'source' => (string) $criticId, 'target' => (string) $coordinatorId, 'kind' => 'review', 'count' => max($mission->cards->where('kind', AiMissionCardKind::Critique)->count(), 1), 'live' => $running && $mission->current_profile_id === $criticId];
         }
 
         $names = $members->mapWithKeys(fn (AiMissionRole $role) => [$role->ai_assistant_profile_id => $role->profile->displayName()]);

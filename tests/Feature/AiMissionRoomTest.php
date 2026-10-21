@@ -8,6 +8,7 @@ use App\Enums\AiMissionConfidence;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionStatus;
 use App\Filament\Pages\AiMissionRoom;
+use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use App\Models\AiMissionCard;
@@ -17,6 +18,7 @@ use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\Client\Request;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Queue;
 use Livewire\Livewire;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -367,5 +369,131 @@ class AiMissionRoomTest extends TestCase
         $user->assignRole(Role::create(['name' => 'بدون دسترسی اتاق عملیات']));
 
         $this->actingAs($user)->get(route('filament.admin.pages.ai-mission-room'))->assertForbidden();
+    }
+
+    private function replyWithUsage(string $content, int $tokens): array
+    {
+        return $this->reply($content) + ['usage' => ['total_tokens' => $tokens]];
+    }
+
+    public function test_the_page_starts_a_round_in_the_background_and_shows_the_progress(): void
+    {
+        Queue::fake();
+        ['mission' => $mission] = $this->team();
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('runRound');
+
+        $mission->refresh();
+        $this->assertSame(AiMissionStatus::Running, $mission->status);
+        $this->assertSame(3, $mission->step_total);
+        Queue::assertPushed(RunMissionStepJob::class, fn (RunMissionStepJob $job) => $job->missionId === $mission->id && $job->round === 1 && $job->step === 0);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->assertSee('در صف اجرا')->assertSee('توقف');
+    }
+
+    public function test_the_step_jobs_chain_one_member_at_a_time_and_finish_with_the_report(): void
+    {
+        Queue::fake();
+        ['mission' => $mission] = $this->team();
+        $this->fakeTeam([
+            'متخصص' => json_encode(['findings' => [['claim' => 'یافتهٔ مرحله‌ای', 'source' => 'check_room_availability']]], JSON_UNESCAPED_UNICODE),
+            'منتقد' => '{"critiques":[]}',
+            'هماهنگ‌کننده' => json_encode(['summary' => 'پایان', 'decisions' => [['title' => 'یک تصمیم', 'detail' => '']], 'uncertain' => []], JSON_UNESCAPED_UNICODE),
+        ]);
+        $runner = app(MissionRunner::class);
+
+        $this->assertTrue($runner->start($mission, $this->admin)['ok']);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->handle($runner);
+        Queue::assertPushed(RunMissionStepJob::class, fn (RunMissionStepJob $job) => $job->step === 1);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 1))->handle($runner);
+        Queue::assertPushed(RunMissionStepJob::class, fn (RunMissionStepJob $job) => $job->step === 2);
+        $this->assertSame(AiMissionStatus::Running, $mission->refresh()->status);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 2))->handle($runner);
+
+        $mission->refresh();
+        $this->assertSame(AiMissionStatus::WaitingApproval, $mission->status);
+        $this->assertNull($mission->current_step);
+        $this->assertSame(1, $mission->rounds_run);
+        Queue::assertPushedTimes(RunMissionStepJob::class, 2);
+    }
+
+    public function test_a_stop_request_ends_the_run_at_the_next_step_and_discards_the_half_round(): void
+    {
+        Queue::fake();
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $this->fakeTeam(['متخصص' => json_encode(['findings' => [['claim' => 'x', 'source' => 's']]]), 'هماهنگ‌کننده' => '{}']);
+        $runner = app(MissionRunner::class);
+        $runner->start($mission, $this->admin);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->handle($runner);
+        $this->assertSame(1, AiMissionCard::count());
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('stopMission');
+        $this->assertTrue($mission->refresh()->cancel_requested);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 1))->handle($runner);
+
+        $mission->refresh();
+        $this->assertSame(AiMissionStatus::Stopped, $mission->status);
+        $this->assertSame(0, AiMissionCard::count());
+        $this->assertSame(0, $mission->rounds_run);
+        $this->assertTrue($mission->canRunAnotherRound());
+    }
+
+    public function test_a_run_whose_worker_died_is_released_by_the_stop_button_at_once(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $mission->update(['status' => AiMissionStatus::Running]);
+        AiMission::whereKey($mission->id)->update(['updated_at' => now()->subMinutes(10)]);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('stopMission');
+
+        $this->assertSame(AiMissionStatus::Stopped, $mission->refresh()->status);
+    }
+
+    public function test_token_usage_is_counted_and_the_budget_stops_the_next_step(): void
+    {
+        Queue::fake();
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $mission->update(['token_budget' => 100]);
+        Http::fake(['*/chat/completions' => Http::response($this->replyWithUsage(json_encode(['findings' => [['claim' => 'x', 'source' => 's']]]), 150))]);
+        $runner = app(MissionRunner::class);
+        $runner->start($mission, $this->admin);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->handle($runner);
+        $this->assertSame(150, $mission->refresh()->tokens_used);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 1))->handle($runner);
+
+        $mission->refresh();
+        $this->assertSame(AiMissionStatus::Failed, $mission->status);
+        $this->assertStringContainsString('سقف توکن', $mission->last_error);
+        $this->assertSame(0, AiMissionCard::count());
+    }
+
+    public function test_a_mission_over_its_budget_cannot_start_until_the_budget_is_raised(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $mission->update(['token_budget' => 1000, 'tokens_used' => 1500]);
+
+        $this->assertFalse(app(MissionRunner::class)->start($mission, $this->admin)['ok']);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('saveBudget', 5000);
+
+        $this->assertSame(5000, $mission->refresh()->token_budget);
+        $this->assertTrue(app(MissionRunner::class)->start($mission, $this->admin)['ok']);
+    }
+
+    public function test_a_failed_job_abandons_the_round_that_was_running(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+        app(MissionRunner::class)->start($mission, $this->admin);
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->failed(new \RuntimeException('boom'));
+
+        $this->assertSame(AiMissionStatus::Failed, $mission->refresh()->status);
     }
 }

@@ -12,6 +12,7 @@ enum AiMissionStatus: string implements HasColor, HasLabel
     case WaitingApproval = 'waiting_approval';
     case Done = 'done';
     case Failed = 'failed';
+    case Stopped = 'stopped';
 
     public function getLabel(): string
     {
@@ -21,6 +22,7 @@ enum AiMissionStatus: string implements HasColor, HasLabel
             self::WaitingApproval => 'منتظر تأیید شما',
             self::Done => 'تمام شد',
             self::Failed => 'ناموفق',
+            self::Stopped => 'متوقف شد',
         };
     }
 
@@ -32,6 +34,7 @@ enum AiMissionStatus: string implements HasColor, HasLabel
             self::WaitingApproval => 'warning',
             self::Done => 'success',
             self::Failed => 'danger',
+            self::Stopped => 'gray',
         };
     }
 }
