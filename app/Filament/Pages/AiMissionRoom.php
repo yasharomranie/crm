@@ -3,6 +3,7 @@
 namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionRunner;
+use App\Domain\Ai\Missions\MissionSchedule;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionCardStatus;
 use App\Enums\AiMissionRoleType;
@@ -89,7 +90,7 @@ class AiMissionRoom extends Page
     public function getSelectedMission(): ?AiMission
     {
         return $this->missionId
-            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile'])->find($this->missionId)
+            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'cards.profile', 'runs'])->find($this->missionId)
             : null;
     }
 
@@ -103,8 +104,30 @@ class AiMissionRoom extends Page
 
     public function openMission(int $id): void
     {
-        $this->missionId = AiMission::query()->ownedBy(Auth::user())->whereKey($id)->value('id');
+        $mission = AiMission::query()->ownedBy(Auth::user())->find($id);
+        $this->missionId = $mission?->id;
         $this->showCreate = false;
+
+        $this->fillScheduleFields($mission);
+    }
+
+    public function mount(): void
+    {
+        if ($this->missionId) {
+            $this->fillScheduleFields(AiMission::query()->ownedBy(Auth::user())->find($this->missionId));
+        }
+    }
+
+    private function fillScheduleFields(?AiMission $mission): void
+    {
+        if (! $mission) {
+            return;
+        }
+
+        $this->scheduleFrequency = $mission->schedule ?? '';
+        $this->scheduleTime = $mission->schedule_time ?: '08:00';
+        $this->scheduleWeekday = $mission->schedule_weekday ?? 6;
+        $this->scheduleDay = $mission->schedule_day ?? 1;
     }
 
     public function startCreate(): void
@@ -301,7 +324,53 @@ class AiMissionRoom extends Page
         }
     }
 
+    public string $scheduleFrequency = '';
+
+    public string $scheduleTime = '08:00';
+
+    public int $scheduleWeekday = 6;
+
+    public int $scheduleDay = 1;
+
     public string $noteText = '';
+
+    /**
+     * Makes the mission recur (or stops it): at the chosen time a fresh round
+     * starts by itself and the owner is told when it needs a look. An empty
+     * frequency switches it off.
+     */
+    public function saveSchedule(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission) {
+            return;
+        }
+
+        $this->validate([
+            'scheduleFrequency' => ['nullable', 'in:daily,weekly,monthly'],
+            'scheduleTime' => ['required', 'regex:/^([01]\d|2[0-3]):[0-5]\d$/'],
+            'scheduleWeekday' => ['integer', 'between:0,6'],
+            'scheduleDay' => ['integer', 'between:1,28'],
+        ], [], ['scheduleTime' => 'ساعت']);
+
+        if ($this->scheduleFrequency === '') {
+            $mission->update(['schedule' => null, 'next_run_at' => null]);
+            Notification::make()->title('تکرار خودکار خاموش شد.')->success()->send();
+
+            return;
+        }
+
+        $mission->update([
+            'schedule' => $this->scheduleFrequency,
+            'schedule_time' => $this->scheduleTime,
+            'schedule_weekday' => $this->scheduleFrequency === 'weekly' ? $this->scheduleWeekday : null,
+            'schedule_day' => $this->scheduleFrequency === 'monthly' ? $this->scheduleDay : null,
+            'next_run_at' => app(MissionSchedule::class)->nextRun($this->scheduleFrequency, $this->scheduleTime, $this->scheduleWeekday, $this->scheduleDay),
+        ]);
+
+        Notification::make()->title('تکرار خودکار ذخیره شد.')->success()->send();
+    }
 
     /**
      * A message to the team ("focus on the north villas"): every step that has

@@ -250,6 +250,13 @@ Schedule::call($artisan('ai-assistant:run-scheduled-reports'))
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
+// Recurring operations-room missions whose daily/weekly/monthly time has arrived.
+Schedule::call($artisan('ai-missions:run-due'))
+    ->name('ai-missions:run-due')
+    ->everyFiveMinutes()
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 Schedule::call($artisan('ai-assistants:run-scheduled-prompts'))
     ->name('ai-assistants:run-scheduled-prompts')
     ->everyFifteenMinutes()

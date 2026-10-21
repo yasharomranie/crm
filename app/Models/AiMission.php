@@ -21,7 +21,8 @@ class AiMission extends Model
     protected $fillable = [
         'created_by', 'title', 'goal', 'end_condition', 'status', 'max_rounds', 'rounds_run',
         'report', 'notes', 'last_error', 'started_at', 'finished_at', 'cancel_requested', 'current_step', 'current_profile_id',
-        'step_index', 'step_total', 'tokens_used', 'token_budget',
+        'step_index', 'step_total', 'tokens_used', 'token_budget', 'schedule', 'schedule_time', 'schedule_weekday',
+        'schedule_day', 'next_run_at', 'last_scheduled_at', 'run_trigger', 'budget_alerted',
     ];
 
     protected function casts(): array
@@ -33,6 +34,9 @@ class AiMission extends Model
             'cancel_requested' => 'boolean',
             'started_at' => 'datetime',
             'finished_at' => 'datetime',
+            'next_run_at' => 'datetime',
+            'last_scheduled_at' => 'datetime',
+            'budget_alerted' => 'boolean',
         ];
     }
 
@@ -44,6 +48,11 @@ class AiMission extends Model
     public function roles(): HasMany
     {
         return $this->hasMany(AiMissionRole::class)->orderBy('sort')->orderBy('id');
+    }
+
+    public function runs(): HasMany
+    {
+        return $this->hasMany(AiMissionRun::class)->latest('finished_at')->latest('id');
     }
 
     public function cards(): HasMany
