@@ -423,7 +423,7 @@ class AiMissionRoomTest extends TestCase
             ->assertSee('پنجشنبه پر است.')
             ->assertSee('پیش‌نویس تصمیم')
             ->assertSee('نرخ پنجشنبه را بررسی کن')
-            ->assertSee('هیچ اقدامی انجام نشده')
+            ->assertSee('تا تأیید شما هیچ اقدامی انجام نمی‌شود')
             ->assertSee('متخصص رزرو');
     }
 
