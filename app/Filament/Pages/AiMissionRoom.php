@@ -55,17 +55,30 @@ class AiMissionRoom extends Page
 
     public int $maxRounds = 2;
 
+    public ?int $coordinatorId = null;
+
+    public string $coordinatorDirective = '';
+
     /**
-     * @var list<array{profile_id: ?int, role: string, directive: string}>
+     * @var list<array{profile_id: ?int, directive: string}>
      */
-    public array $roleRows = [];
+    public array $specialists = [];
+
+    public bool $withCritic = false;
+
+    public ?int $criticId = null;
+
+    public string $criticDirective = '';
+
+    /** Which team slot the assistant picker is open for: coordinator, critic or specialist:{index}. */
+    public ?string $pickingFor = null;
 
     /**
      * @return Collection<int, AiMission>
      */
     public function getMissions(): Collection
     {
-        return AiMission::query()->ownedBy(Auth::user())->latest('id')->limit(30)->get();
+        return AiMission::query()->ownedBy(Auth::user())->with('roles.profile')->latest('id')->limit(30)->get();
     }
 
     public function getSelectedMission(): ?AiMission
@@ -91,12 +104,9 @@ class AiMissionRoom extends Page
 
     public function startCreate(): void
     {
-        $this->reset(['missionTitle', 'missionGoal', 'missionEnd']);
+        $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor']);
         $this->maxRounds = 2;
-        $this->roleRows = [
-            ['profile_id' => null, 'role' => AiMissionRoleType::Coordinator->value, 'directive' => ''],
-            ['profile_id' => null, 'role' => AiMissionRoleType::Specialist->value, 'directive' => ''],
-        ];
+        $this->specialists = [['profile_id' => null, 'directive' => '']];
         $this->showCreate = true;
         $this->missionId = null;
     }
@@ -111,25 +121,64 @@ class AiMissionRoom extends Page
         $this->missionTitle = 'وضعیت رزرو و پشتیبانی هفتهٔ آینده';
         $this->missionGoal = 'برای هفتهٔ آینده بگو کدام روزها اتاق خالی کم است، کدام مهمان یا رزرو نیاز به پیگیری دارد و کدام تیکت پشتیبانی باز مانده است.';
         $this->missionEnd = 'وقتی برای هر سه بخش (اتاق، مهمان، تیکت) یافتهٔ منبع‌دار داریم.';
-        $this->roleRows = [
-            ['profile_id' => null, 'role' => AiMissionRoleType::Coordinator->value, 'directive' => 'یافته‌ها را جمع کن و فقط تصمیم‌هایی پیشنهاد بده که شاهد دارند.'],
-            ['profile_id' => null, 'role' => AiMissionRoleType::Specialist->value, 'directive' => 'با ابزار وضعیت اتاق‌های خالی هفتهٔ آینده را بررسی کن.'],
-            ['profile_id' => null, 'role' => AiMissionRoleType::Specialist->value, 'directive' => 'با ابزار وضعیت تیکت‌های پشتیبانی و مهمانان مرتبط را بررسی کن.'],
-            ['profile_id' => null, 'role' => AiMissionRoleType::Critic->value, 'directive' => 'هر ادعای بی‌منبع یا عددی که با ابزار تأیید نشده را به چالش بکش.'],
+        $this->coordinatorDirective = 'یافته‌ها را جمع کن و فقط تصمیم‌هایی پیشنهاد بده که شاهد دارند.';
+        $this->specialists = [
+            ['profile_id' => $this->specialists[0]['profile_id'] ?? null, 'directive' => 'با ابزار وضعیت اتاق‌های خالی هفتهٔ آینده را بررسی کن.'],
+            ['profile_id' => $this->specialists[1]['profile_id'] ?? null, 'directive' => 'با ابزار وضعیت تیکت‌های پشتیبانی و مهمانان مرتبط را بررسی کن.'],
         ];
+        $this->withCritic = true;
+        $this->criticDirective = 'هر ادعای بی‌منبع یا عددی که با ابزار تأیید نشده را به چالش بکش.';
     }
 
-    public function addRoleRow(): void
+    public function openPicker(string $slot): void
     {
-        if (count($this->roleRows) < 6) {
-            $this->roleRows[] = ['profile_id' => null, 'role' => AiMissionRoleType::Specialist->value, 'directive' => ''];
+        $this->pickingFor = $slot;
+    }
+
+    public function closePicker(): void
+    {
+        $this->pickingFor = null;
+    }
+
+    public function pickProfile(int $profileId): void
+    {
+        if (! $this->getProfiles()->contains('id', $profileId) || $this->pickingFor === null) {
+            return;
+        }
+
+        if ($this->pickingFor === 'coordinator') {
+            $this->coordinatorId = $profileId;
+        } elseif ($this->pickingFor === 'critic') {
+            $this->criticId = $profileId;
+        } elseif (preg_match('/^specialist:(\d+)$/', $this->pickingFor, $match) && isset($this->specialists[(int) $match[1]])) {
+            $this->specialists[(int) $match[1]]['profile_id'] = $profileId;
+        }
+
+        $this->pickingFor = null;
+    }
+
+    public function addSpecialist(): void
+    {
+        if (count($this->specialists) < 4) {
+            $this->specialists[] = ['profile_id' => null, 'directive' => ''];
+            $this->pickingFor = 'specialist:'.(count($this->specialists) - 1);
         }
     }
 
-    public function removeRoleRow(int $index): void
+    public function removeSpecialist(int $index): void
     {
-        unset($this->roleRows[$index]);
-        $this->roleRows = array_values($this->roleRows);
+        unset($this->specialists[$index]);
+        $this->specialists = array_values($this->specialists);
+        $this->pickingFor = null;
+    }
+
+    public function toggleCritic(): void
+    {
+        $this->withCritic = ! $this->withCritic;
+
+        if (! $this->withCritic) {
+            $this->criticId = null;
+        }
     }
 
     public function createMission(): void
@@ -139,19 +188,22 @@ class AiMissionRoom extends Page
             'missionGoal' => ['required', 'string', 'max:1500'],
             'missionEnd' => ['nullable', 'string', 'max:500'],
             'maxRounds' => ['required', 'integer', 'min:1', 'max:5'],
-            'roleRows' => ['required', 'array', 'min:2', 'max:6'],
-            'roleRows.*.profile_id' => ['required', 'integer'],
-            'roleRows.*.role' => ['required', 'in:'.implode(',', array_column(AiMissionRoleType::cases(), 'value'))],
-            'roleRows.*.directive' => ['nullable', 'string', 'max:500'],
-        ], [], ['missionTitle' => 'عنوان', 'missionGoal' => 'هدف', 'roleRows.*.profile_id' => 'دستیار']);
+            'coordinatorDirective' => ['nullable', 'string', 'max:500'],
+            'criticDirective' => ['nullable', 'string', 'max:500'],
+            'specialists.*.directive' => ['nullable', 'string', 'max:500'],
+        ], [], ['missionTitle' => 'عنوان', 'missionGoal' => 'هدف']);
 
-        $rows = collect($this->roleRows);
+        $rows = collect([
+            ['profile_id' => $this->coordinatorId, 'role' => AiMissionRoleType::Coordinator->value, 'directive' => $this->coordinatorDirective],
+            ...collect($this->specialists)->map(fn (array $row) => ['profile_id' => $row['profile_id'], 'role' => AiMissionRoleType::Specialist->value, 'directive' => $row['directive']])->all(),
+            ...($this->withCritic ? [['profile_id' => $this->criticId, 'role' => AiMissionRoleType::Critic->value, 'directive' => $this->criticDirective]] : []),
+        ]);
         $allowed = $this->getProfiles()->pluck('id');
 
         $problem = match (true) {
-            $rows->where('role', AiMissionRoleType::Coordinator->value)->count() !== 1 => 'دقیقاً یک هماهنگ‌کننده لازم است.',
-            $rows->where('role', AiMissionRoleType::Specialist->value)->isEmpty() => 'دست‌کم یک متخصص لازم است.',
-            $rows->where('role', AiMissionRoleType::Critic->value)->count() > 2 => 'حداکثر دو منتقد مجاز است.',
+            ! $this->coordinatorId => 'یک هماهنگ‌کننده انتخاب کنید.',
+            $rows->where('role', AiMissionRoleType::Specialist->value)->whereNotNull('profile_id')->isEmpty() => 'دست‌کم یک متخصص انتخاب کنید.',
+            $rows->contains(fn (array $row) => $row['profile_id'] === null) => 'برای هر جایگاه یک دستیار انتخاب کنید (یا جایگاه خالی را حذف کنید).',
             $rows->pluck('profile_id')->unique()->count() !== $rows->count() => 'هر دستیار فقط یک نقش می‌گیرد.',
             $rows->pluck('profile_id')->diff($allowed)->isNotEmpty() => 'یکی از دستیارهای انتخاب‌شده در دسترس شما نیست.',
             default => null,
@@ -181,7 +233,7 @@ class AiMissionRoom extends Page
 
         $this->missionId = $mission->id;
         $this->showCreate = false;
-        Notification::make()->title('مأموریت ساخته شد؛ «یک دور اجرا» را بزنید.')->success()->send();
+        Notification::make()->title('مأموریت ساخته شد؛ «شروع کار تیم» را بزنید.')->success()->send();
     }
 
     public function runRound(): void
