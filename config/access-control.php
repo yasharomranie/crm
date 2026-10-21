@@ -3,6 +3,7 @@
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Pages\AiAssistantsHub;
 use App\Filament\Pages\AiAssistantUsageDashboard;
+use App\Filament\Pages\AiTeamMap;
 use App\Filament\Pages\BookingMessageSettings;
 use App\Filament\Pages\Cashier;
 use App\Filament\Pages\ChannelManagerDashboard;
@@ -205,6 +206,7 @@ return [
     */
     'pages' => [
         'ai-assistants-hub' => ['page' => AiAssistantsHub::class, 'label' => 'مرکز دستیاران هوشمند', 'group' => 'دستیار هوشمند مدیریتی'],
+        'ai-team-map' => ['page' => AiTeamMap::class, 'label' => 'نقشهٔ تیم دستیاران', 'group' => 'دستیار هوشمند مدیریتی'],
         'ai-assistant-usage-dashboard' => ['page' => AiAssistantUsageDashboard::class, 'label' => 'آمار مصرف دستیاران', 'group' => 'دستیار هوشمند مدیریتی'],
         'whatsapp-settings' => ['page' => WhatsAppSettings::class, 'label' => 'اتصال واتس‌اپ', 'group' => 'دستیار هوشمند مدیریتی'],
         'ai-assistant' => [
