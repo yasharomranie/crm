@@ -73,7 +73,7 @@ class AiMissionRoom extends Page
 
     public int $maxRounds = 2;
 
-    public int $tokenBudget = 60000;
+    public int $tokenBudget = 200000;
 
     public ?int $coordinatorId = null;
 
@@ -164,7 +164,7 @@ class AiMissionRoom extends Page
         $this->discardPendingSources();
         $this->reset(['missionTitle', 'missionGoal', 'missionEnd', 'coordinatorId', 'coordinatorDirective', 'criticId', 'criticDirective', 'withCritic', 'pickingFor', 'templateKey', 'applyTemplateSchedule']);
         $this->maxRounds = 2;
-        $this->tokenBudget = 60000;
+        $this->tokenBudget = 200000;
         $this->specialists = [['profile_id' => null, 'directive' => '', 'needs' => []]];
         $this->showCreate = true;
         $this->missionId = null;
