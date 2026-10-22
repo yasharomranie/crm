@@ -44,7 +44,7 @@ class CustomerGoogleOAuthService
     {
         $settings = $this->settingsOrFail();
 
-        $tokenResponse = Http::asForm()->post(self::TOKEN_URL, [
+        $tokenResponse = Http::asForm()->timeout(20)->connectTimeout(5)->post(self::TOKEN_URL, [
             'client_id' => $settings->client_id,
             'client_secret' => $settings->client_secret,
             'redirect_uri' => $this->redirectUri(),
@@ -58,7 +58,7 @@ class CustomerGoogleOAuthService
 
         $accessToken = $tokenResponse->json('access_token');
 
-        $userResponse = Http::withToken($accessToken)->get(self::USERINFO_URL);
+        $userResponse = Http::withToken($accessToken)->timeout(20)->connectTimeout(5)->get(self::USERINFO_URL);
 
         if ($userResponse->failed()) {
             throw CustomerAuthException::googleRequestFailed('دریافت اطلاعات حساب گوگل ناموفق بود.');

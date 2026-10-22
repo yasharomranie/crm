@@ -31,6 +31,8 @@ class SearchConsoleClient
     public function listSites(): array
     {
         $response = Http::withToken($this->accessToken)
+            ->timeout(20)
+            ->connectTimeout(5)
             ->get(self::BASE_URL.'/sites');
 
         if ($response->failed()) {
@@ -52,6 +54,8 @@ class SearchConsoleClient
     public function getSitemap(string $siteUrl, string $feedpath): array
     {
         $response = Http::withToken($this->accessToken)
+            ->timeout(20)
+            ->connectTimeout(5)
             ->get(self::BASE_URL.'/sites/'.rawurlencode($siteUrl).'/sitemaps/'.rawurlencode($feedpath));
 
         if ($response->failed()) {
@@ -78,6 +82,8 @@ class SearchConsoleClient
         string $searchType = 'web',
     ): array {
         $response = Http::withToken($this->accessToken)
+            ->timeout(20)
+            ->connectTimeout(5)
             ->post(self::BASE_URL.'/sites/'.rawurlencode($siteUrl).'/searchAnalytics/query', [
                 'startDate' => $startDate,
                 'endDate' => $endDate,

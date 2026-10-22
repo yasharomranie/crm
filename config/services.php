@@ -35,4 +35,16 @@ return [
         ],
     ],
 
+    /*
+    | Where map pictures (tiles) come from. The default is OpenStreetMap's own
+    | server; if it cannot be reached (international internet cut) the map
+    | still shows the markers and a notice. Point this at your own tile server,
+    | or at this app's local route "/map-tiles/{z}/{x}/{y}.png", which serves
+    | PNG tiles you place under storage/app/private/map-tiles/{z}/{x}/{y}.png
+    | (the Word/print thumbnails look in that folder first, whatever this is).
+    */
+    'maps' => [
+        'tile_url' => env('MAP_TILE_URL', 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'),
+    ],
+
 ];

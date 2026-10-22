@@ -26,6 +26,8 @@ class UrlInspectionClient
     public function inspect(string $inspectionUrl, string $siteUrl): array
     {
         $response = Http::withToken($this->accessToken)
+            ->timeout(20)
+            ->connectTimeout(5)
             ->post(self::INSPECT_URL, [
                 'inspectionUrl' => $inspectionUrl,
                 'siteUrl' => $siteUrl,

@@ -23,7 +23,7 @@ class GoogleAnalyticsClient
      */
     public function listProperties(): array
     {
-        $response = Http::withToken($this->accessToken)->get(self::ADMIN_URL.'/accountSummaries', ['pageSize' => 200]);
+        $response = Http::withToken($this->accessToken)->timeout(20)->connectTimeout(5)->get(self::ADMIN_URL.'/accountSummaries', ['pageSize' => 200]);
 
         if ($response->failed()) {
             throw SeoGoogleException::requestFailed($response->json('error.message') ?? "HTTP {$response->status()}");
@@ -52,6 +52,7 @@ class GoogleAnalyticsClient
     {
         $response = Http::withToken($this->accessToken)
             ->timeout(60)
+            ->connectTimeout(5)
             ->post(self::DATA_URL."/properties/{$propertyId}:runReport", $body);
 
         if ($response->failed()) {
