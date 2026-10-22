@@ -926,7 +926,10 @@ class AiAssistantTest extends TestCase
     {
         AiProvider::factory()->active()->create();
 
-        $template = FormTemplate::factory()->create(['title' => 'چک‌لیست روزانه']);
+        // The tool matches users by name, so nobody else in this test may get a
+        // random fa_IR name that happens to contain the filter - including the
+        // template's own creator.
+        $template = FormTemplate::factory()->create(['title' => 'چک‌لیست روزانه', 'created_by' => User::factory()->create(['name' => 'سازندهٔ فرم'])->id]);
         $employee = User::factory()->create(['name' => 'زهرا احمدی']);
         $otherEmployee = User::factory()->create(['name' => 'رضا کریمی']);
 
