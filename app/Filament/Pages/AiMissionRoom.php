@@ -104,6 +104,9 @@ class AiMissionRoom extends Page
 
     public string $chatMessage = '';
 
+    /** The token cap as typed in the field of the selected mission. */
+    public string $budgetInput = '200000';
+
     public bool $askWholeTeam = false;
 
     /**
@@ -168,6 +171,7 @@ class AiMissionRoom extends Page
         $this->scheduleTime = $mission->schedule_time ?: '08:00';
         $this->scheduleWeekday = $mission->schedule_weekday ?? 6;
         $this->scheduleDay = $mission->schedule_day ?? 1;
+        $this->budgetInput = (string) ($mission->token_budget ?? 200000);
     }
 
     public function startCreate(): void
@@ -387,13 +391,15 @@ class AiMissionRoom extends Page
         Notification::make()->title('درخواست توقف ثبت شد؛ بعد از پایان مرحلهٔ فعلی می‌ایستد.')->success()->send();
     }
 
-    public function saveBudget(int $tokens): void
+    public function saveBudget(int|string|null $tokens = null): void
     {
         $mission = $this->getSelectedMission();
 
         if (! $mission) {
             return;
         }
+
+        $tokens = (int) preg_replace('/\D/', '', (string) ($tokens ?? $this->budgetInput));
 
         if ($tokens < 1000 || $tokens > 2000000) {
             Notification::make()->title('سقف توکن باید بین ۱٬۰۰۰ تا ۲٬۰۰۰٬۰۰۰ باشد.')->danger()->send();
@@ -402,7 +408,8 @@ class AiMissionRoom extends Page
         }
 
         $mission->update(['token_budget' => $tokens]);
-        Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
+        $this->budgetInput = (string) $tokens;
+        Notification::make()->title('سقف توکن به‌روز شد: '.number_format($tokens).' توکن.')->success()->send();
     }
 
     public string $scheduleFrequency = '';

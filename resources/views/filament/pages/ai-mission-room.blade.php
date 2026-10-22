@@ -420,8 +420,11 @@
                                 توکن
                             </span>
                             <span style="display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="number" id="budget-input" x-ref="budget" min="1000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" value="{{ $mission->token_budget ?? 200000 }}" aria-label="سقف توکن" />
-                                <button type="button" class="mr-btn" wire:click.async="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
+                                <input type="number" inputmode="numeric" id="budget-input" min="1000" max="2000000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" wire:model="budgetInput" aria-label="سقف توکن" />
+                                <button type="button" class="mr-btn" wire:click.async="saveBudget($wire.budgetInput)" wire:loading.attr="disabled" wire:target="saveBudget">
+                                    <span wire:loading.remove wire:target="saveBudget">ذخیرهٔ سقف</span>
+                                    <span wire:loading wire:target="saveBudget">در حال ذخیره…</span>
+                                </button>
                             </span>
                         </div>
                     </div>
