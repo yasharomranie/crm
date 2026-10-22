@@ -35,10 +35,7 @@
 
         var map = L.map('{{ $mapId }}', { attributionControl: true }).setView([{{ $lat }}, {{ $lng }}], 16);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        }).addTo(map);
+        window.crmTileLayer(map, { maxZoom: 19 });
 
         L.marker([{{ $lat }}, {{ $lng }}]).addTo(map);
     })();

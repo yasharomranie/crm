@@ -35,7 +35,7 @@ class GoogleCustomSearchClient
             throw SeoGoogleException::rankTrackerNotConfigured();
         }
 
-        $response = Http::get(self::BASE_URL, [
+        $response = Http::timeout(20)->connectTimeout(5)->get(self::BASE_URL, [
             'key' => $settings->api_key,
             'cx' => $settings->search_engine_id,
             'q' => $query,

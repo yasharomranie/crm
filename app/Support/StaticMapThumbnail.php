@@ -128,17 +128,35 @@ class StaticMapThumbnail
     }
 
     /**
+     * A tile from the local tile pack (map-tiles/{z}/{x}/{y}.png on the local
+     * disk) if there is one, otherwise from the configured tile server; null
+     * when neither has it (no internet, no pack).
+     *
      * @return \GdImage|null
      */
     private static function fetchTile(int $x, int $y, int $zoom)
     {
-        $subdomain = ['a', 'b', 'c'][($x + $y) % 3];
-        $url = "https://{$subdomain}.tile.openstreetmap.org/{$zoom}/{$x}/{$y}.png";
+        $local = "map-tiles/{$zoom}/{$x}/{$y}.png";
+
+        if (Storage::disk('local')->exists($local)) {
+            $image = @imagecreatefromstring((string) Storage::disk('local')->get($local));
+
+            return $image ?: null;
+        }
+
+        $template = (string) config('services.maps.tile_url');
+
+        if (! str_starts_with($template, 'http')) {
+            return null;
+        }
+
+        $url = str_replace(['{s}', '{z}', '{x}', '{y}'], [['a', 'b', 'c'][($x + $y) % 3], $zoom, $x, $y], $template);
 
         try {
             // A descriptive User-Agent is required by OSM's tile usage
             // policy for any non-browser client.
             $response = Http::withHeaders(['User-Agent' => 'FarsiWP-CRM/1.0 (form submission map thumbnails)'])
+                ->connectTimeout(3)
                 ->timeout(5)
                 ->get($url);
         } catch (\Throwable) {

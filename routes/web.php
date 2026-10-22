@@ -26,6 +26,7 @@ use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\GuestFeedbackController;
 use App\Http\Controllers\HousekeepingSheetController;
 use App\Http\Controllers\LeadCaptureController;
+use App\Http\Controllers\MapTileController;
 use App\Http\Controllers\MessageAttachmentController;
 use App\Http\Controllers\PushSubscriptionController;
 use App\Http\Controllers\ReportPrintController;
@@ -33,6 +34,11 @@ use App\Http\Controllers\Seo\GoogleOAuthController;
 use App\Http\Controllers\SeoPeriodicReportPrintController;
 use App\Http\Controllers\VoiceMessageController;
 use Illuminate\Support\Facades\Route;
+
+// Local map pictures (a tile pack kept on this server) - see config/services.php.
+Route::get('/map-tiles/{z}/{x}/{y}.png', [MapTileController::class, 'show'])
+    ->whereNumber(['z', 'x', 'y'])
+    ->name('map-tiles');
 
 Route::get('/', function () {
     return view('welcome');

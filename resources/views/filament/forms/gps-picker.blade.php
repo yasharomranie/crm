@@ -64,10 +64,7 @@
 
                     if (! this.map) {
                         this.map = L.map(this.$refs.mapContainer, { attributionControl: true }).setView(point, 16);
-                        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-                            maxZoom: 19,
-                            attribution: '&copy; OpenStreetMap',
-                        }).addTo(this.map);
+                        window.crmTileLayer(this.map, { maxZoom: 19 });
                         this.marker = L.marker(point).addTo(this.map);
                     } else {
                         this.map.setView(point, 16);

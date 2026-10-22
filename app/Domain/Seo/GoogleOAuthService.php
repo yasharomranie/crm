@@ -58,7 +58,7 @@ class GoogleOAuthService
     {
         $settings = $this->settingsOrFail();
 
-        $response = Http::asForm()->post(self::TOKEN_URL, [
+        $response = Http::asForm()->timeout(20)->connectTimeout(5)->post(self::TOKEN_URL, [
             'client_id' => $settings->client_id,
             'client_secret' => $settings->client_secret,
             'redirect_uri' => $this->redirectUri(),
@@ -80,7 +80,7 @@ class GoogleOAuthService
     {
         $settings = $this->settingsOrFail();
 
-        $response = Http::asForm()->post(self::TOKEN_URL, [
+        $response = Http::asForm()->timeout(20)->connectTimeout(5)->post(self::TOKEN_URL, [
             'client_id' => $settings->client_id,
             'client_secret' => $settings->client_secret,
             'grant_type' => 'refresh_token',

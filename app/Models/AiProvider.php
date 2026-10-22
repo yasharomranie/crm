@@ -145,6 +145,7 @@ class AiProvider extends Model
             $response = Http::withToken($this->api_key)
                 ->baseUrl(rtrim($this->base_url, '/'))
                 ->timeout(90)
+                ->connectTimeout(10)
                 ->retry(2, 800, fn (\Throwable $exception) => $this->isTransientFailure($exception), throw: false)
                 ->post('/chat/completions', $payload);
         } catch (ConnectionException) {
@@ -183,6 +184,7 @@ class AiProvider extends Model
         $response = Http::withToken($this->api_key)
             ->baseUrl(rtrim($this->base_url, '/'))
             ->timeout(30)
+            ->connectTimeout(10)
             ->get('/models');
 
         if ($response->failed()) {

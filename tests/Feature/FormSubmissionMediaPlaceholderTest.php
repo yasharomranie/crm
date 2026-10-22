@@ -6,6 +6,7 @@ use App\Enums\FormFieldType;
 use App\Models\FormField;
 use App\Models\FormSubmission;
 use App\Models\FormTemplate;
+use App\Support\StaticMapThumbnail;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Storage;
@@ -30,7 +31,7 @@ class FormSubmissionMediaPlaceholderTest extends TestCase
     {
         Storage::fake();
         Http::fake([
-            'https://*.tile.openstreetmap.org/*' => Http::response($this->tinyPng(), 200),
+            'https://tile.openstreetmap.org/*' => Http::response($this->tinyPng(), 200),
         ]);
 
         $template = FormTemplate::factory()->create([
@@ -57,7 +58,7 @@ class FormSubmissionMediaPlaceholderTest extends TestCase
     {
         Storage::fake();
         Http::fake([
-            'https://*.tile.openstreetmap.org/*' => Http::response('', 500),
+            'https://tile.openstreetmap.org/*' => Http::response('', 500),
         ]);
 
         $template = FormTemplate::factory()->create([
@@ -78,6 +79,50 @@ class FormSubmissionMediaPlaceholderTest extends TestCase
 
         $this->assertStringNotContainsString('<img', $merged);
         $this->assertStringContainsString('مشاهدهٔ موقعیت روی نقشه', $merged);
+    }
+
+    public function test_gps_thumbnail_uses_the_local_tile_pack_without_any_internet(): void
+    {
+        Storage::fake();
+        Storage::fake('local');
+        Http::fake();
+        [$x, $y] = [(int) floor((51.404343 + 180) / 360 * 2 ** 16), (int) floor((1 - asinh(tan(deg2rad(35.715298))) / M_PI) / 2 * 2 ** 16)];
+
+        for ($dx = -1; $dx <= 1; $dx++) {
+            for ($dy = -1; $dy <= 1; $dy++) {
+                Storage::disk('local')->put('map-tiles/16/'.($x + $dx).'/'.($y + $dy).'.png', $this->tinyPng());
+            }
+        }
+
+        $template = FormTemplate::factory()->create([
+            'document_template' => '<p><span data-type="mergeTag" data-id="location">موقعیت</span></p>',
+        ]);
+        $field = FormField::factory()->create([
+            'form_template_id' => $template->id,
+            'field_key' => 'location',
+            'field_type' => FormFieldType::Gps,
+        ]);
+        $submission = FormSubmission::factory()->create(['form_template_id' => $template->id]);
+        $submission->values()->create([
+            'form_field_id' => $field->id,
+            'value_json' => ['lat' => 35.715298, 'lng' => 51.404343],
+        ]);
+
+        $merged = $submission->load('values.formField')->mergedDocumentBody();
+
+        $this->assertStringContainsString('<img src="data:image/png;base64,', $merged);
+        Http::assertNothingSent();
+    }
+
+    public function test_gps_thumbnail_does_not_call_a_server_when_the_tile_address_is_the_local_route(): void
+    {
+        Storage::fake();
+        Storage::fake('local');
+        config(['services.maps.tile_url' => '/map-tiles/{z}/{x}/{y}.png']);
+        Http::fake();
+
+        $this->assertNull(StaticMapThumbnail::dataUri(35.715298, 51.404343));
+        Http::assertNothingSent();
     }
 
     public function test_file_field_embeds_an_image_attachment_inline(): void

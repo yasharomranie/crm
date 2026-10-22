@@ -16,11 +16,16 @@
     public/vendor/leaflet/).
 
     No API key, no billing account: OpenStreetMap's tile server is free for
-    normal, low-volume use like this. If OpenStreetMap's tile server itself
-    is unreachable, only the map tiles fail to load - the marker and the
-    "باز کردن در Google Maps" link next to it still work.
+    normal, low-volume use like this. The tile address is config('services.
+    maps.tile_url') (MAP_TILE_URL) - it can point at this app's own
+    /map-tiles route (a tile pack on the local disk). If the tile server is
+    unreachable, public/vendor/leaflet/crm-tiles.js shows a notice and only
+    the pictures are missing - the marker and the "باز کردن در Google Maps"
+    link next to it still work.
 --}}
 @once
     <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}" />
     <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
+    <script>window.crmMapTileUrl = @json(config('services.maps.tile_url'));</script>
+    <script src="{{ asset('vendor/leaflet/crm-tiles.js') }}"></script>
 @endonce

@@ -490,6 +490,7 @@
       <li><a href="#ch-14">مرکز سئو (جزوه‌ی کامل)</a></li>
       <li><a href="#ch-15">وب‌اپ مشتریان (گنجنامه)</a></li>
       <li><a href="#ch-16">تریپ‌پلنر</a></li>
+      <li><a href="#ch-17">استقلال از اینترنت بین‌المللی</a></li>
     </ol>
   </nav>
 
@@ -3214,6 +3215,47 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
         <div>
           <span class="label">ساعت‌ها همیشه رعایت می‌شوند</span>
           <p>اگر جاذبه‌ای جمعه‌ها دیرتر باز شود، در «ساعت ویژه‌ی بعضی روزها» همان روز و ساعت را بدهید؛ بازدید آن جاذبه در جمعه از همان ساعت شروع می‌شود و بقیه‌ی روزها ساعت معمول می‌ماند. اگر مهمان همان درخواست را در ۱۰ دقیقه‌ی بعد دوباره بفرستد، همان برنامه‌ی قبلی نشان داده می‌شود و درخواست تکراری ساخته نمی‌شود.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 17 — INDEPENDENCE FROM THE INTERNATIONAL INTERNET ============ -->
+  <section class="chapter" id="ch-17">
+    <div class="chapter-head">
+      <div class="chapter-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+      </div>
+      <div>
+        <span class="chapter-num">فصل ۱۷</span>
+        <h2>استقلال از اینترنت بین‌المللی</h2>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="lede">
+        همهٔ کتابخانه‌ها، قلم‌ها و تصویرهای ظاهر سامانه داخل خود پروژه هستند و از هیچ CDN یا سایت خارجی بارگذاری نمی‌شوند؛
+        پس با قطع اینترنت بین‌المللی، پنل و برنامه‌ها همچنان باز می‌شوند و کار می‌کنند. یک آزمایش خودکار هم نگهبان این قاعده است
+        و اگر کسی آدرس بیرونی به صفحه‌ها اضافه کند، ساخت پروژه رد می‌شود.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="name">بدون اینترنت بین‌المللی کار می‌کند</div><div class="desc">پنل مدیریت، مشتریان، فروش، فرم‌ها، وظایف، نمودارها، نقشهٔ مختصات و نشانگرها، اسکن QR، اتاق عملیات (فایل‌ها و بایگانی)، چاپ و خروجی‌ها، درگاه پرداخت و پیامک داخلی.</div></div>
+        <div class="feature-card"><div class="name">ذاتاً به اینترنت نیاز دارد</div><div class="desc">ارائه‌دهندهٔ هوش مصنوعی، واتساپ، تلگرام، سئوی گوگل و ورود با گوگل، اعلان وب‌پوش، و سرور ایمیل بیرونی. در قطعی، این بخش‌ها پس از چند ثانیه با پیام خطا متوقف می‌شوند و بقیهٔ سامانه کند نمی‌شود.</div></div>
+        <div class="feature-card"><div class="name">تصویر نقشه</div><div class="desc">فقط تصویرهای زیرِ نقشه از سرور نقشه می‌آید. بدون آن، نشانگرها و مختصات درست نمایش داده می‌شوند و یک پیام «تصویر نقشه بارگذاری نشد» دیده می‌شود.</div></div>
+      </div>
+      <h3>نقشه روی سرور خودتان</h3>
+      <div class="tbl"><table class="ref">
+        <thead><tr><th>راه</th><th>چطور</th></tr></thead>
+        <tbody>
+          <tr><td>بستهٔ تصویر محلی</td><td>تصویرهای نقشه را به شکل <code>storage/app/private/map-tiles/{z}/{x}/{y}.png</code> روی سرور بگذارید و در فایل <code>.env</code> مقدار <code>MAP_TILE_URL=/map-tiles/{z}/{x}/{y}.png</code> را بدهید؛ نقشهٔ زنده و تصویر نقشه در سند Word هر دو از همین پوشه می‌آیند.</td></tr>
+          <tr><td>سرور نقشهٔ دیگر</td><td>آدرس هر سرور نقشهٔ داخلی یا در دسترس را در <code>MAP_TILE_URL</code> بدهید (با <code>{z}</code>، <code>{x}</code> و <code>{y}</code>).</td></tr>
+          <tr><td>پیش‌فرض</td><td>اگر چیزی تنظیم نشود، همان سرور OpenStreetMap استفاده می‌شود.</td></tr>
+        </tbody>
+      </table></div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div>
+          <span class="label">بعد از تغییر .env</span>
+          <p>پس از تغییر <code>MAP_TILE_URL</code> یک بار <code>php artisan optimize:clear</code> را اجرا کنید. اگر بستهٔ تصویر ندارید، هیچ کاری لازم نیست؛ فقط زیرِ نقشه در قطعی خالی دیده می‌شود.</p>
         </div>
       </div>
     </div>

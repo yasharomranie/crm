@@ -520,12 +520,14 @@
     @if ($mapStops->isNotEmpty())
         <link rel="stylesheet" href="{{ asset('vendor/leaflet/leaflet.css') }}">
         <script src="{{ asset('vendor/leaflet/leaflet.js') }}"></script>
+        <script>window.crmMapTileUrl = @json(config('services.maps.tile_url'));</script>
+        <script src="{{ asset('vendor/leaflet/crm-tiles.js') }}"></script>
         <script>
             (function () {
                 if (typeof L === 'undefined') { return; }
                 var stops = @json($mapStopsPayload);
                 var map = L.map('trip-map');
-                L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 18, attribution: '© OpenStreetMap' }).addTo(map);
+                window.crmTileLayer(map, { maxZoom: 18 });
                 var colors = ['#f97316', '#0ea5e9', '#16a34a', '#a855f7', '#e11d48', '#ca8a04', '#0d9488'];
                 var bounds = [];
                 var byDay = {};
