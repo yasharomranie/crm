@@ -339,10 +339,10 @@ class MissionChat
         $request = $this->lastUserMessage($thread);
 
         if ($thread->plan['follow_up'] ?? false) {
-            $previous = $thread->messages()->where('kind', AiMissionMessageKind::Final->value)->latest('id')->value('body');
+            $previous = $thread->messages()->where('kind', AiMissionMessageKind::Final->value)->reorder('id', 'desc')->value('body');
             $content = "جواب قبلی تیم:\n".Str::limit((string) $previous, self::PREVIOUS_ANSWER_CLIP, '…')."\n\nپیام جدید مدیر: {$request}";
         } else {
-            $critique = $thread->messages()->where('kind', AiMissionMessageKind::Critique->value)->where('id', '>', $this->lastUserMessageId($thread))->latest('id')->value('body');
+            $critique = $thread->messages()->where('kind', AiMissionMessageKind::Critique->value)->where('id', '>', $this->lastUserMessageId($thread))->reorder('id', 'desc')->value('body');
             $answers = $this->answersText($thread);
             $content = "درخواست مدیر: {$request}".($answers !== '' ? "\n\nپاسخ متخصص‌ها:\n{$answers}" : '').($critique ? "\n\nنقد منتقد:\n{$critique}" : '');
         }
@@ -407,12 +407,12 @@ class MissionChat
 
     private function lastUserMessage(AiMissionThread $thread): string
     {
-        return (string) $thread->messages()->where('kind', AiMissionMessageKind::User->value)->latest('id')->value('body');
+        return (string) $thread->messages()->where('kind', AiMissionMessageKind::User->value)->reorder('id', 'desc')->value('body');
     }
 
     private function lastUserMessageId(AiMissionThread $thread): int
     {
-        return (int) $thread->messages()->where('kind', AiMissionMessageKind::User->value)->latest('id')->value('id');
+        return (int) $thread->messages()->where('kind', AiMissionMessageKind::User->value)->reorder('id', 'desc')->value('id');
     }
 
     /** This request's specialist replies, shortened, for the critic and the coordinator. */
