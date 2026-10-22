@@ -16,7 +16,7 @@ class AiMissionAction extends Model
     use HasFactory;
 
     protected $fillable = [
-        'ai_mission_id', 'ai_assistant_profile_id', 'round', 'tool', 'arguments', 'summary', 'reason',
+        'ai_mission_id', 'ai_assistant_profile_id', 'round', 'tool', 'arguments', 'summary', 'reason', 'compliance',
         'status', 'decided_by', 'decided_at', 'result', 'error',
     ];
 
@@ -26,6 +26,7 @@ class AiMissionAction extends Model
             'status' => AiMissionActionStatus::class,
             'arguments' => 'array',
             'result' => 'array',
+            'compliance' => 'array',
             'decided_at' => 'datetime',
         ];
     }

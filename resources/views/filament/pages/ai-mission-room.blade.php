@@ -578,10 +578,34 @@
                                                 @if (filled($decision['detail'] ?? null))
                                                     <p class="mr-sub" style="margin-top: 0.2rem;">{{ $decision['detail'] }}</p>
                                                 @endif
+                                                @include('filament.pages.partials.ai-mission-compliance', ['compliance' => $decision['compliance'] ?? null])
                                             </div>
                                         </div>
                                     @endforeach
                                 </div>
+                            @endif
+
+                            @if (! empty($mission->report['coverage']))
+                                @php
+                                    $coverage = collect($mission->report['coverage']);
+                                    $coveredCount = $coverage->where('covered', true)->count();
+                                @endphp
+                                <div class="mr-stack" style="gap: 0.4rem;">
+                                    <div class="mr-row">
+                                        <strong style="font-size: 0.85rem;">🎯 پوشش اهداف استراتژی</strong>
+                                        <span @class(['mr-pill', 'good' => $coveredCount === $coverage->count(), 'warn' => $coveredCount < $coverage->count()])>{{ $fa($coveredCount) }} از {{ $fa($coverage->count()) }} هدف در این دور پوشش داده شد</span>
+                                    </div>
+                                    @foreach ($coverage as $goalRow)
+                                        <div class="mr-item" wire:key="coverage-{{ $loop->index }}">
+                                            <span style="min-width: 0; flex: 1; font-size: 0.82rem;">{{ ($goalRow['covered'] ?? null) === true ? '✓' : (($goalRow['covered'] ?? null) === false ? '✕' : '؟') }} {{ $goalRow['goal'] }}@if (filled($goalRow['note'] ?? null)) <span class="mr-sub">— {{ $goalRow['note'] }}</span>@endif</span>
+                                        </div>
+                                    @endforeach
+                                    @if (filled($mission->report['compliance_by'] ?? null))
+                                        <p class="mr-sub">سنجش را «{{ $mission->report['compliance_by'] }}» با خلاصهٔ استراتژی تأییدشده انجام داد؛ فقط علامت می‌زند و تصمیم با شماست.</p>
+                                    @endif
+                                </div>
+                            @elseif (filled($mission->report['compliance_error'] ?? null))
+                                <p class="mr-sub" style="color: var(--mr-warn);">سنجش با استراتژی انجام نشد: {{ $mission->report['compliance_error'] }}</p>
                             @endif
 
                             @if (! empty($mission->report['uncertain']))
@@ -612,13 +636,14 @@
                                             <span @class(['mr-pill', 'warn' => $action->status === \App\Enums\AiMissionActionStatus::Pending, 'good' => $action->status === \App\Enums\AiMissionActionStatus::Executed, 'bad' => $action->status === \App\Enums\AiMissionActionStatus::Failed])>{{ $action->status->getLabel() }}</span>
                                         </div>
                                         <span class="mr-sub">پیشنهاد «{{ $action->profile?->displayName() ?? 'تیم' }}»@if (filled($action->reason)) · {{ $action->reason }}@endif</span>
+                                        @include('filament.pages.partials.ai-mission-compliance', ['compliance' => $action->compliance])
                                         @if (filled($action->error))
                                             <span class="mr-sub" style="color: var(--mr-bad);">{{ $action->error }}</span>
                                         @endif
                                     </div>
                                     @if ($action->status === \App\Enums\AiMissionActionStatus::Pending)
                                         <div class="mr-row" style="gap: 0.4rem;">
-                                            <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
+                                            <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" @if (($action->compliance['verdict'] ?? null) === 'conflict') wire:confirm="این اقدام با خط قرمز استراتژی در تضاد دانسته شده است؛ مطمئنید که انجام شود؟" @endif wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
                                             <button type="button" class="mr-btn" wire:click="rejectAction({{ $action->id }})">رد</button>
                                         </div>
                                     @endif
@@ -828,9 +853,10 @@
                                             <div style="min-width: 0; flex: 1;">
                                                 <strong style="font-size: 0.88rem;">{{ $action->summary }}</strong>
                                                 <span class="mr-sub">مأموریت «{{ $action->mission->title }}» · پیشنهاد «{{ $action->profile?->displayName() ?? 'تیم' }}»@if (filled($action->reason)) · {{ $action->reason }}@endif</span>
+                                                @include('filament.pages.partials.ai-mission-compliance', ['compliance' => $action->compliance])
                                             </div>
                                             <div class="mr-row" style="gap: 0.4rem;">
-                                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
+                                                <button type="button" class="mr-btn mr-btn-primary" style="min-height: 2.5rem; padding: 0 1.1rem; font-size: 0.85rem;" wire:click="approveAction({{ $action->id }})" @if (($action->compliance['verdict'] ?? null) === 'conflict') wire:confirm="این اقدام با خط قرمز استراتژی در تضاد دانسته شده است؛ مطمئنید که انجام شود؟" @endif wire:loading.attr="disabled" wire:target="approveAction({{ $action->id }})">تأیید و انجام</button>
                                                 <button type="button" class="mr-btn" wire:click="rejectAction({{ $action->id }})">رد</button>
                                                 <button type="button" class="mr-btn mr-btn-quiet" wire:click="openMission({{ $action->ai_mission_id }})">مأموریت</button>
                                             </div>
