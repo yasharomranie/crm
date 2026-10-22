@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionActionExecutor;
 use App\Domain\Ai\Missions\MissionBrief;
+use App\Domain\Ai\Missions\MissionChat;
 use App\Domain\Ai\Missions\MissionDashboard;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
@@ -19,11 +20,13 @@ use App\Enums\AiMissionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Jobs\BuildMissionBriefJob;
 use App\Jobs\ProcessMissionSourceJob;
+use App\Jobs\RunMissionChatStepJob;
 use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use App\Models\AiMissionAction;
 use App\Models\AiMissionSource;
+use App\Models\AiMissionThread;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -97,6 +100,12 @@ class AiMissionRoom extends Page
     /** Which team slot the assistant picker is open for: coordinator, critic or specialist:{index}. */
     public ?string $pickingFor = null;
 
+    public ?int $threadId = null;
+
+    public string $chatMessage = '';
+
+    public bool $askWholeTeam = false;
+
     /**
      * @return Collection<int, AiMission>
      */
@@ -133,6 +142,8 @@ class AiMissionRoom extends Page
         $mission = AiMission::query()->ownedBy(Auth::user())->find($id);
         $this->missionId = $mission?->id;
         $this->showCreate = false;
+        $this->threadId = null;
+        $this->chatMessage = '';
 
         $this->fillScheduleFields($mission);
         $this->fillBriefFields($mission);
@@ -470,6 +481,77 @@ class AiMissionRoom extends Page
         $this->noteText = '';
 
         Notification::make()->title($mission->status === AiMissionStatus::Running ? 'پیام ثبت شد؛ از مرحلهٔ بعدی اعمال می‌شود.' : 'پیام ثبت شد؛ از دور بعدی اعمال می‌شود.')->success()->send();
+    }
+
+    public function getSelectedThread(): ?AiMissionThread
+    {
+        return $this->threadId
+            ? AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->with('messages.profile')->find($this->threadId)
+            : null;
+    }
+
+    public function openThread(int $id): void
+    {
+        $this->threadId = AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->find($id)?->id;
+        $this->askWholeTeam = false;
+    }
+
+    public function newThread(): void
+    {
+        $this->threadId = null;
+        $this->askWholeTeam = false;
+    }
+
+    public function sendChat(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission) {
+            return;
+        }
+
+        $thread = $this->threadId ? $mission->threads()->find($this->threadId) : null;
+        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user());
+
+        if (! $sent['ok']) {
+            Notification::make()->title($sent['error'] ?? 'ارسال ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        $this->threadId = $sent['thread']->id;
+        $this->chatMessage = '';
+        $this->askWholeTeam = false;
+
+        RunMissionChatStepJob::dispatch($sent['thread']->id, Auth::id());
+    }
+
+    public function resumeChat(): void
+    {
+        $thread = $this->threadId ? AiMissionThread::query()->where('created_by', Auth::id())->find($this->threadId) : null;
+
+        if (! $thread) {
+            return;
+        }
+
+        $resumed = app(MissionChat::class)->resume($thread, Auth::user());
+
+        if (! $resumed['ok']) {
+            Notification::make()->title($resumed['error'] ?? 'ادامه ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        RunMissionChatStepJob::dispatch($thread->id, Auth::id());
+    }
+
+    public function deleteThread(int $id): void
+    {
+        AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->whereKey($id)->delete();
+
+        if ($this->threadId === $id) {
+            $this->threadId = null;
+        }
     }
 
     public function removeNote(int $index): void

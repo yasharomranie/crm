@@ -81,6 +81,11 @@ class AiMission extends Model
         return $this->hasMany(AiMissionCard::class)->orderBy('round')->orderBy('id');
     }
 
+    public function threads(): HasMany
+    {
+        return $this->hasMany(AiMissionThread::class)->latest('updated_at')->latest('id');
+    }
+
     public function scopeOwnedBy(Builder $query, User $user): Builder
     {
         return $query->where('created_by', $user->id);
