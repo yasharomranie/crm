@@ -608,6 +608,17 @@ class AiMissionRoomTest extends TestCase
         $this->assertTrue(app(MissionRunner::class)->start($mission, $this->admin)['ok']);
     }
 
+    public function test_a_budget_outside_the_allowed_range_is_refused_with_a_message(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $before = $mission->token_budget;
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('saveBudget', 50)
+            ->assertNotified('سقف توکن باید بین ۱٬۰۰۰ تا ۲٬۰۰۰٬۰۰۰ باشد.');
+
+        $this->assertSame($before, $mission->refresh()->token_budget);
+    }
+
     public function test_a_failed_job_abandons_the_round_that_was_running(): void
     {
         ['mission' => $mission] = $this->team(withCritic: false);

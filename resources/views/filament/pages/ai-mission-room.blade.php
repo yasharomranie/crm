@@ -411,7 +411,7 @@
                             </span>
                             <span style="display: inline-flex; align-items: center; gap: 0.4rem;">
                                 <input type="number" id="budget-input" x-ref="budget" min="1000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" value="{{ $mission->token_budget ?? 200000 }}" aria-label="سقف توکن" />
-                                <button type="button" class="mr-btn" wire:click="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
+                                <button type="button" class="mr-btn" wire:click.async="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
                             </span>
                         </div>
                     </div>
