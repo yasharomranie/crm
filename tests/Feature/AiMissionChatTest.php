@@ -36,6 +36,13 @@ class AiMissionChatTest extends TestCase
     /** @var list<array{kind: string, data: array<string, mixed>}> */
     private array $calls = [];
 
+    /** @var array<string, string> */
+    private array $answers = [];
+
+    private int $tokensPerCall = 10;
+
+    private bool $faked = false;
+
     protected function setUp(): void
     {
         parent::setUp();
@@ -73,14 +80,24 @@ class AiMissionChatTest extends TestCase
 
     /**
      * Answers each call by what the system prompt asks for and records it.
+     * The HTTP fake is registered once (stubs accumulate and every one runs);
+     * calling this again only swaps the answers and clears the record.
      *
      * @param  array<string, string>  $answers  kind (triage|specialist|critic|final) => content
      */
     private function fakeChat(array $answers, int $tokens = 10): void
     {
         $this->calls = [];
+        $this->answers = $answers;
+        $this->tokensPerCall = $tokens;
 
-        Http::fake(['*/chat/completions' => function (Request $request) use ($answers, $tokens) {
+        if ($this->faked) {
+            return;
+        }
+
+        $this->faked = true;
+
+        Http::fake(['*/chat/completions' => function (Request $request) {
             $system = $request->data()['messages'][0]['content'];
             $kind = match (true) {
                 str_contains($system, 'فقط تصمیم بگیر کدام متخصص‌ها') => 'triage',
@@ -90,7 +107,7 @@ class AiMissionChatTest extends TestCase
             };
             $this->calls[] = ['kind' => $kind, 'data' => $request->data()];
 
-            return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => $answers[$kind] ?? 'جواب']]], 'usage' => ['total_tokens' => $tokens]]);
+            return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => $this->answers[$kind] ?? 'جواب']]], 'usage' => ['total_tokens' => $this->tokensPerCall]]);
         }]);
     }
 
