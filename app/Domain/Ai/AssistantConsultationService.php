@@ -77,11 +77,12 @@ class AssistantConsultationService
      * most) but cannot save knowledge or fetch pages. A mission passes its own
      * $instructions and a $depth that already rules nesting out, and may add
      * $extraTools of its own (name => description, parameters and a handler
-     * callable) that are offered next to the granted lookups.
+     * callable) that are offered next to the granted lookups; $useGrantedTools = false
+     * leaves those lookups out (a member that only has to reason over text sends no tool definitions).
      *
      * @return array{answer: string, consulted: string, consulted_profile_id: int, tools_used: list<string>, nested: list<string>, tokens: int}|array{error: string}
      */
-    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null, array $extraTools = []): array
+    public function consult(?AiAssistantProfile $requester, AiAssistantProfile $target, string $question, ?AiConversation $conversation = null, ?User $user = null, int $depth = 0, array $chain = [], ?string $instructions = null, array $extraTools = [], bool $useGrantedTools = true): array
     {
         $provider = AiProvider::active();
 
@@ -90,7 +91,7 @@ class AssistantConsultationService
         }
 
         $catalog = app(CrmToolCatalog::class);
-        $granted = $catalog->grantedTo($target, $user ?? Auth::user());
+        $granted = $useGrantedTools ? $catalog->grantedTo($target, $user ?? Auth::user()) : [];
         $tools = collect($granted)
             ->map(fn (array $definition, string $name) => ['type' => 'function', 'function' => ['name' => $name, 'description' => $definition['description'], 'parameters' => $definition['parameters']]])
             ->values()

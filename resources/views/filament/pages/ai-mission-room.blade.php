@@ -76,6 +76,16 @@
         .mr-tile-stat.warn { background: var(--mr-warn-soft); border-color: var(--mr-warn); }
         .mr-tile-stat.bad { background: var(--mr-bad-soft); border-color: var(--mr-bad); }
         .mr-item { display: flex; gap: 0.75rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: 0.7rem 0.9rem; border-radius: 0.8rem; background: var(--mr-soft); }
+        .mr-chat { display: grid; gap: 0.75rem; }
+        .mr-msg { display: grid; grid-template-columns: 2.2rem minmax(0, 1fr); gap: 0.6rem; align-items: start; }
+        .mr-bubble { min-width: 0; border: 1px solid var(--mr-line); border-radius: 0.9rem; padding: 0.6rem 0.8rem; background: var(--mr-soft); display: grid; gap: 0.3rem; }
+        .mr-bubble.me { background: var(--mr-accent-soft); border-color: var(--mr-accent); }
+        .mr-bubble.final { background: var(--mr-card); border-color: var(--mr-good); }
+        .mr-bubble.critique { background: var(--mr-bad-soft); }
+        .mr-bubble-body { font-size: 0.86rem; line-height: 1.95; white-space: pre-wrap; overflow-wrap: anywhere; }
+        .mr-bubble-meta { display: flex; gap: 0.4rem; align-items: center; flex-wrap: wrap; font-size: 0.72rem; color: var(--mr-dim); }
+        .mr-me-dot { width: 2.2rem; height: 2.2rem; border-radius: 9999px; background: var(--mr-accent); color: #fff; display: grid; place-items: center; font-size: 0.75rem; font-weight: 700; }
+        .mr-threads { display: flex; flex-wrap: wrap; gap: 0.4rem; }
         .mr-finding.rejected { opacity: 0.55; }
         .mr-finding.rejected .mr-claim { text-decoration: line-through; }
         .mr-finding.locked { border-color: var(--mr-good); }
@@ -410,11 +420,16 @@
                                 توکن
                             </span>
                             <span style="display: inline-flex; align-items: center; gap: 0.4rem;">
-                                <input type="number" id="budget-input" x-ref="budget" min="1000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" value="{{ $mission->token_budget ?? 200000 }}" aria-label="سقف توکن" />
-                                <button type="button" class="mr-btn" wire:click.async="saveBudget($refs.budget.value)">ذخیرهٔ سقف</button>
+                                <input type="number" inputmode="numeric" id="budget-input" min="1000" max="2000000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" wire:model="budgetInput" aria-label="سقف توکن" />
+                                <button type="button" class="mr-btn" wire:click.async="saveBudget($wire.budgetInput)" wire:loading.attr="disabled" wire:target="saveBudget">
+                                    <span wire:loading.remove wire:target="saveBudget">ذخیرهٔ سقف</span>
+                                    <span wire:loading wire:target="saveBudget">در حال ذخیره…</span>
+                                </button>
                             </span>
                         </div>
                     </div>
+
+                    @include('filament.pages.partials.ai-mission-chat', ['mission' => $mission, 'fa' => $fa])
 
                     {{-- sources and strategy brief --}}
                     @php

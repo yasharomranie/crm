@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Domain\Ai\Missions\MissionActionExecutor;
 use App\Domain\Ai\Missions\MissionBrief;
+use App\Domain\Ai\Missions\MissionChat;
 use App\Domain\Ai\Missions\MissionDashboard;
 use App\Domain\Ai\Missions\MissionRunner;
 use App\Domain\Ai\Missions\MissionSchedule;
@@ -19,11 +20,13 @@ use App\Enums\AiMissionStatus;
 use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use App\Jobs\BuildMissionBriefJob;
 use App\Jobs\ProcessMissionSourceJob;
+use App\Jobs\RunMissionChatStepJob;
 use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use App\Models\AiMissionAction;
 use App\Models\AiMissionSource;
+use App\Models\AiMissionThread;
 use BackedEnum;
 use Filament\Notifications\Notification;
 use Filament\Pages\Page;
@@ -97,6 +100,15 @@ class AiMissionRoom extends Page
     /** Which team slot the assistant picker is open for: coordinator, critic or specialist:{index}. */
     public ?string $pickingFor = null;
 
+    public ?int $threadId = null;
+
+    public string $chatMessage = '';
+
+    /** The token cap as typed in the field of the selected mission. */
+    public string $budgetInput = '200000';
+
+    public bool $askWholeTeam = false;
+
     /**
      * @return Collection<int, AiMission>
      */
@@ -133,6 +145,8 @@ class AiMissionRoom extends Page
         $mission = AiMission::query()->ownedBy(Auth::user())->find($id);
         $this->missionId = $mission?->id;
         $this->showCreate = false;
+        $this->threadId = null;
+        $this->chatMessage = '';
 
         $this->fillScheduleFields($mission);
         $this->fillBriefFields($mission);
@@ -157,6 +171,7 @@ class AiMissionRoom extends Page
         $this->scheduleTime = $mission->schedule_time ?: '08:00';
         $this->scheduleWeekday = $mission->schedule_weekday ?? 6;
         $this->scheduleDay = $mission->schedule_day ?? 1;
+        $this->budgetInput = (string) ($mission->token_budget ?? 200000);
     }
 
     public function startCreate(): void
@@ -376,13 +391,15 @@ class AiMissionRoom extends Page
         Notification::make()->title('درخواست توقف ثبت شد؛ بعد از پایان مرحلهٔ فعلی می‌ایستد.')->success()->send();
     }
 
-    public function saveBudget(int $tokens): void
+    public function saveBudget(int|string|null $tokens = null): void
     {
         $mission = $this->getSelectedMission();
 
         if (! $mission) {
             return;
         }
+
+        $tokens = (int) preg_replace('/\D/', '', (string) ($tokens ?? $this->budgetInput));
 
         if ($tokens < 1000 || $tokens > 2000000) {
             Notification::make()->title('سقف توکن باید بین ۱٬۰۰۰ تا ۲٬۰۰۰٬۰۰۰ باشد.')->danger()->send();
@@ -391,7 +408,8 @@ class AiMissionRoom extends Page
         }
 
         $mission->update(['token_budget' => $tokens]);
-        Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
+        $this->budgetInput = (string) $tokens;
+        Notification::make()->title('سقف توکن به‌روز شد: '.number_format($tokens).' توکن.')->success()->send();
     }
 
     public string $scheduleFrequency = '';
@@ -470,6 +488,77 @@ class AiMissionRoom extends Page
         $this->noteText = '';
 
         Notification::make()->title($mission->status === AiMissionStatus::Running ? 'پیام ثبت شد؛ از مرحلهٔ بعدی اعمال می‌شود.' : 'پیام ثبت شد؛ از دور بعدی اعمال می‌شود.')->success()->send();
+    }
+
+    public function getSelectedThread(): ?AiMissionThread
+    {
+        return $this->threadId
+            ? AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->with('messages.profile')->find($this->threadId)
+            : null;
+    }
+
+    public function openThread(int $id): void
+    {
+        $this->threadId = AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->find($id)?->id;
+        $this->askWholeTeam = false;
+    }
+
+    public function newThread(): void
+    {
+        $this->threadId = null;
+        $this->askWholeTeam = false;
+    }
+
+    public function sendChat(): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission) {
+            return;
+        }
+
+        $thread = $this->threadId ? $mission->threads()->find($this->threadId) : null;
+        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user());
+
+        if (! $sent['ok']) {
+            Notification::make()->title($sent['error'] ?? 'ارسال ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        $this->threadId = $sent['thread']->id;
+        $this->chatMessage = '';
+        $this->askWholeTeam = false;
+
+        RunMissionChatStepJob::dispatch($sent['thread']->id, Auth::id());
+    }
+
+    public function resumeChat(): void
+    {
+        $thread = $this->threadId ? AiMissionThread::query()->where('created_by', Auth::id())->find($this->threadId) : null;
+
+        if (! $thread) {
+            return;
+        }
+
+        $resumed = app(MissionChat::class)->resume($thread, Auth::user());
+
+        if (! $resumed['ok']) {
+            Notification::make()->title($resumed['error'] ?? 'ادامه ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        RunMissionChatStepJob::dispatch($thread->id, Auth::id());
+    }
+
+    public function deleteThread(int $id): void
+    {
+        AiMissionThread::query()->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id())->whereKey($id)->delete();
+
+        if ($this->threadId === $id) {
+            $this->threadId = null;
+        }
     }
 
     public function removeNote(int $index): void

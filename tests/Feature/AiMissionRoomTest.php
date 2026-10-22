@@ -608,6 +608,23 @@ class AiMissionRoomTest extends TestCase
         $this->assertTrue(app(MissionRunner::class)->start($mission, $this->admin)['ok']);
     }
 
+    public function test_the_budget_typed_in_the_field_is_saved_as_text_or_from_the_bound_value(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)
+            ->assertSet('budgetInput', (string) ($mission->token_budget ?? 200000))
+            ->call('saveBudget', '250000');
+
+        $this->assertSame(250000, $mission->refresh()->token_budget);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)
+            ->set('budgetInput', '300000')
+            ->call('saveBudget');
+
+        $this->assertSame(300000, $mission->refresh()->token_budget);
+    }
+
     public function test_a_budget_outside_the_allowed_range_is_refused_with_a_message(): void
     {
         ['mission' => $mission] = $this->team(withCritic: false);
