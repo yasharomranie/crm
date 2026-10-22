@@ -490,7 +490,7 @@
       <li><a href="#ch-14">مرکز سئو (جزوه‌ی کامل)</a></li>
       <li><a href="#ch-15">وب‌اپ مشتریان (گنجنامه)</a></li>
       <li><a href="#ch-16">تریپ‌پلنر</a></li>
-      <li><a href="#ch-17">استقلال از اینترنت بین‌المللی</a></li>
+      <li><a href="#ch-offline">استقلال از اینترنت بین‌المللی</a></li>
     </ol>
   </nav>
 
@@ -3221,7 +3221,7 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
   </section>
 
   <!-- ============ 17 — INDEPENDENCE FROM THE INTERNATIONAL INTERNET ============ -->
-  <section class="chapter" id="ch-17">
+  <section class="chapter" id="ch-offline">
     <div class="chapter-head">
       <div class="chapter-icon">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
