@@ -41,7 +41,11 @@ class MissionRunner
      * themselves are then run one by one with runStep() (as queued jobs, so no
      * single request has to last for minutes).
      *
-     * @return array{ok: bool, round?: int, steps?: int, error?: string}
+     * A round that failed part-way (budget used up, provider error) keeps the
+     * steps already paid for; starting again continues from the failed step
+     * ("from" says which one).
+     *
+     * @return array{ok: bool, round?: int, steps?: int, from?: int, error?: string}
      */
     public function start(AiMission $mission, User $user, string $trigger = 'manual'): array
     {
@@ -73,20 +77,29 @@ class MissionRunner
             return ['ok' => false, 'error' => 'مأموریت دست‌کم یک متخصص و یک هماهنگ‌کننده می‌خواهد (و دستیارها باید برای شما در دسترس باشند).'];
         }
 
+        $round = $mission->rounds_run + 1;
+        $from = $this->resumeFrom($mission, $round, $steps);
+
+        if ($from > 0) {
+            $profileId = $steps[$from]['role']->ai_assistant_profile_id;
+            $mission->cards()->where('round', $round)->where('ai_assistant_profile_id', $profileId)->delete();
+            $mission->actions()->where('round', $round)->where('ai_assistant_profile_id', $profileId)->where('status', AiMissionActionStatus::Pending->value)->delete();
+        }
+
         $mission->update([
             'status' => AiMissionStatus::Running,
             'started_at' => $mission->started_at ?? now(),
             'last_error' => null,
             'cancel_requested' => false,
-            'current_step' => 'در صف اجرا…',
+            'current_step' => $from > 0 ? 'ادامه از مرحلهٔ متوقف‌شده…' : 'در صف اجرا…',
             'current_profile_id' => null,
-            'step_index' => 0,
+            'step_index' => $from,
             'step_total' => count($steps),
             'run_trigger' => $trigger,
             'budget_alerted' => false,
         ]);
 
-        return ['ok' => true, 'round' => $mission->rounds_run + 1, 'steps' => count($steps)];
+        return ['ok' => true, 'round' => $round, 'steps' => count($steps), 'from' => $from];
     }
 
     /**
@@ -109,7 +122,9 @@ class MissionRunner
         }
 
         if ($mission->token_budget && $mission->tokens_used >= $mission->token_budget) {
-            return $this->abandonRound($mission, $round, 'سقف توکن مأموریت پر شد؛ سقف را بالاتر ببرید و دور را دوباره اجرا کنید.');
+            $mission->update(['step_index' => $index]);
+
+            return $this->abandonRound($mission, $round, 'سقف توکن مأموریت پر شد؛ کارِ مرحله‌های قبلی نگه داشته شد. سقف را بالاتر ببرید و دوباره اجرا کنید تا از همین‌جا ادامه دهد.');
         }
 
         $steps = $this->steps($mission, $user);
@@ -159,6 +174,23 @@ class MissionRunner
     }
 
     /**
+     * The step to continue from after a failed round: only when the round's
+     * finished steps are still on the board, otherwise it starts over.
+     *
+     * @param  list<array{role: AiMissionRole, type: AiMissionRoleType}>  $steps
+     */
+    private function resumeFrom(AiMission $mission, int $round, array $steps): int
+    {
+        $index = (int) $mission->step_index;
+
+        if ($mission->status !== AiMissionStatus::Failed || $index < 1 || $index >= count($steps) || ! $mission->cards()->where('round', $round)->exists()) {
+            return 0;
+        }
+
+        return $index;
+    }
+
+    /**
      * The whole round in one go (used where there is no queue worker).
      *
      * @return array{ok: bool, error?: string}
@@ -171,7 +203,7 @@ class MissionRunner
             return $started;
         }
 
-        for ($index = 0; $index < $started['steps']; $index++) {
+        for ($index = $started['from']; $index < $started['steps']; $index++) {
             $result = $this->runStep($mission, $index, $started['round'], $user);
 
             if (! $result['ok']) {
@@ -200,14 +232,19 @@ class MissionRunner
     }
 
     /**
-     * A failed or stopped round leaves nothing half-written: its cards go, the
-     * mission is marked with the reason, and the same round can be run again.
+     * A stopped round is thrown away (its cards go). A failed one keeps the
+     * steps that finished, so running again continues from the failed step
+     * instead of paying for them twice. Either way the mission is marked with
+     * the reason and the same round can be run again.
      *
      * @return array{ok: bool, error: string}
      */
     public function abandonRound(AiMission $mission, int $round, ?string $reason = null, AiMissionStatus $status = AiMissionStatus::Failed): array
     {
-        $mission->cards()->where('round', $round)->delete();
+        if ($status !== AiMissionStatus::Failed) {
+            $mission->cards()->where('round', $round)->delete();
+        }
+
         $mission->refresh();
         $mission->update([
             'status' => $status,

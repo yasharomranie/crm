@@ -546,7 +546,53 @@ class AiMissionRoomTest extends TestCase
         $mission->refresh();
         $this->assertSame(AiMissionStatus::Failed, $mission->status);
         $this->assertStringContainsString('سقف توکن', $mission->last_error);
-        $this->assertSame(0, AiMissionCard::count());
+        $this->assertSame(1, AiMissionCard::count());
+    }
+
+    public function test_a_round_that_ran_out_of_budget_continues_from_the_failed_step_without_paying_twice(): void
+    {
+        Queue::fake();
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $mission->update(['token_budget' => 100]);
+        $coordinatorReady = false;
+        $specialistCalls = 0;
+        Http::fake(['*/chat/completions' => function () use (&$coordinatorReady, &$specialistCalls) {
+            if ($coordinatorReady) {
+                return Http::response($this->replyWithUsage('{"summary":"جمع‌بندی","decisions":[],"uncertain":[]}', 10));
+            }
+
+            $specialistCalls++;
+
+            return Http::response($this->replyWithUsage(json_encode(['findings' => [['claim' => 'x', 'source' => 's']]]), 150));
+        }]);
+        $runner = app(MissionRunner::class);
+        $runner->start($mission, $this->admin);
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 0))->handle($runner);
+        (new RunMissionStepJob($mission->id, $this->admin->id, 1, 1))->handle($runner);
+
+        $this->assertSame(AiMissionStatus::Failed, $mission->refresh()->status);
+
+        $mission->update(['token_budget' => 5000]);
+        $coordinatorReady = true;
+        $restarted = $runner->start($mission->refresh(), $this->admin);
+
+        $this->assertTrue($restarted['ok']);
+        $this->assertSame(1, $restarted['from']);
+        $this->assertSame(1, AiMissionCard::where('ai_mission_id', $mission->id)->count());
+
+        (new RunMissionStepJob($mission->id, $this->admin->id, $restarted['round'], $restarted['from']))->handle($runner);
+
+        $this->assertSame(1, $specialistCalls);
+        $this->assertSame(1, $mission->refresh()->rounds_run);
+        $this->assertSame('جمع‌بندی', $mission->report['summary']);
+    }
+
+    public function test_a_failed_round_without_kept_work_starts_over_from_the_first_step(): void
+    {
+        ['mission' => $mission] = $this->team(withCritic: false);
+        $mission->update(['status' => AiMissionStatus::Failed, 'step_index' => 1]);
+
+        $this->assertSame(0, app(MissionRunner::class)->start($mission, $this->admin)['from']);
     }
 
     public function test_a_mission_over_its_budget_cannot_start_until_the_budget_is_raised(): void

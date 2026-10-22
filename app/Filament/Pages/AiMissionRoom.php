@@ -345,12 +345,12 @@ class AiMissionRoom extends Page
             return;
         }
 
-        RunMissionStepJob::dispatch($mission->id, Auth::id(), $started['round'], 0);
+        RunMissionStepJob::dispatch($mission->id, Auth::id(), $started['round'], $started['from'] ?? 0);
 
         $mission->refresh();
 
         match ($mission->status) {
-            AiMissionStatus::Running => Notification::make()->title('تیم شروع به کار کرد؛ می‌توانید صفحه را ببندید، نتیجه در همین‌جا می‌ماند.')->success()->send(),
+            AiMissionStatus::Running => Notification::make()->title(($started['from'] ?? 0) > 0 ? 'کار از مرحلهٔ متوقف‌شده ادامه پیدا کرد؛ مرحله‌های قبلی دوباره اجرا نمی‌شوند.' : 'تیم شروع به کار کرد؛ می‌توانید صفحه را ببندید، نتیجه در همین‌جا می‌ماند.')->success()->send(),
             AiMissionStatus::Failed, AiMissionStatus::Stopped => Notification::make()->title($mission->last_error ?? 'اجرا ناموفق بود.')->danger()->send(),
             default => Notification::make()->title('دور اجرا شد؛ تخته و گزارش را ببینید.')->success()->send(),
         };
