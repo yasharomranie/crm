@@ -380,10 +380,18 @@ class AiMissionRoom extends Page
     {
         $mission = $this->getSelectedMission();
 
-        if ($mission && $tokens >= 1000 && $tokens <= 2000000) {
-            $mission->update(['token_budget' => $tokens]);
-            Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
+        if (! $mission) {
+            return;
         }
+
+        if ($tokens < 1000 || $tokens > 2000000) {
+            Notification::make()->title('سقف توکن باید بین ۱٬۰۰۰ تا ۲٬۰۰۰٬۰۰۰ باشد.')->danger()->send();
+
+            return;
+        }
+
+        $mission->update(['token_budget' => $tokens]);
+        Notification::make()->title('سقف توکن به‌روز شد.')->success()->send();
     }
 
     public string $scheduleFrequency = '';
