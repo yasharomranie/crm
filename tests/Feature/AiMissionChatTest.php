@@ -101,7 +101,7 @@ class AiMissionChatTest extends TestCase
             $system = $request->data()['messages'][0]['content'];
             $kind = match (true) {
                 str_contains($system, 'فقط تصمیم بگیر کدام متخصص‌ها') => 'triage',
-                str_contains($system, 'جواب نهایی را مستقیم') => 'final',
+                str_contains($system, 'جواب نهایی را کامل و مستقیم') => 'final',
                 str_contains($system, 'تو منتقد این تیم هستی') => 'critic',
                 default => 'specialist',
             };
@@ -179,9 +179,26 @@ class AiMissionChatTest extends TestCase
 
         $this->send($mission, 'بررسی کن');
 
-        $this->assertSame(['triage', 'specialist', 'specialist', 'critic', 'final'], $this->callKinds());
+        $this->assertSame(['triage', 'specialist', 'specialist', 'specialist', 'specialist', 'critic', 'final'], $this->callKinds());
         $this->assertTrue(AiMissionThread::sole()->messages->contains(fn ($message) => $message->kind === AiMissionMessageKind::Critique && $message->body === 'عدد بی‌منبع است.'));
-        $this->assertArrayNotHasKey('tools', $this->calls[3]['data']);
+        $this->assertArrayNotHasKey('tools', $this->calls[5]['data']);
+    }
+
+    public function test_members_read_each_others_full_answers_and_discuss_once(): void
+    {
+        ['mission' => $mission, 'specialists' => [$first, $second]] = $this->team(specialists: 2);
+        $this->fakeChat([
+            'triage' => json_encode(['ask' => [['id' => $first->id, 'question' => 'الف؟'], ['id' => $second->id, 'question' => 'ب؟']]], JSON_UNESCAPED_UNICODE),
+            'specialist' => 'پاسخ کامل همکار با همهٔ جزئیات',
+            'final' => 'جواب نهایی',
+        ]);
+
+        $this->send($mission, 'بررسی کن');
+
+        $this->assertSame(['triage', 'specialist', 'specialist', 'specialist', 'specialist', 'final'], $this->callKinds());
+        $this->assertStringContainsString('نظر همکاران', $this->calls[3]['data']['messages'][1]['content']);
+        $this->assertStringContainsString('پاسخ کامل همکار با همهٔ جزئیات', $this->calls[3]['data']['messages'][1]['content']);
+        $this->assertSame(4, AiMissionThread::sole()->messages->where('kind', AiMissionMessageKind::Answer)->count());
     }
 
     public function test_a_request_that_needs_no_specialist_is_answered_by_the_coordinator_in_one_call(): void
@@ -246,11 +263,14 @@ class AiMissionChatTest extends TestCase
 
         $mission->update(['token_budget' => 5000]);
         $this->assertTrue($chat->resume($thread, $this->admin)['ok']);
-        $this->assertTrue($chat->runStep($thread, $this->admin)['ok']);
 
-        $this->assertSame(['triage', 'specialist', 'specialist', 'final'], $this->callKinds());
+        do {
+            $step = $chat->runStep($thread, $this->admin);
+        } while ($step['ok'] && ! $step['done']);
+
+        $this->assertSame(['triage', 'specialist', 'specialist', 'specialist', 'specialist', 'final'], $this->callKinds());
         $this->assertSame(AiMissionThreadStatus::Idle, $thread->refresh()->status);
-        $this->assertSame(2, $thread->messages->where('kind', AiMissionMessageKind::Answer)->count());
+        $this->assertSame(4, $thread->messages->where('kind', AiMissionMessageKind::Answer)->count());
     }
 
     public function test_only_the_owner_can_chat_and_an_empty_message_or_missing_coordinator_is_refused(): void
