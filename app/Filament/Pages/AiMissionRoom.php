@@ -2,6 +2,7 @@
 
 namespace App\Filament\Pages;
 
+use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\Missions\MissionActionExecutor;
 use App\Domain\Ai\Missions\MissionBrief;
 use App\Domain\Ai\Missions\MissionChat;
@@ -28,6 +29,7 @@ use App\Models\AiMission;
 use App\Models\AiMissionAction;
 use App\Models\AiMissionMessage;
 use App\Models\AiMissionPin;
+use App\Models\AiMissionRole;
 use App\Models\AiMissionSource;
 use App\Models\AiMissionThread;
 use BackedEnum;
@@ -115,6 +117,17 @@ class AiMissionRoom extends Page
 
     public string $chatDepth = 'normal';
 
+    /** A file attached to the next message only (not added to the mission's library). */
+    public $chatAttachment = null;
+
+    /** The per-conversation token cap as typed (empty = no cap). */
+    public string $threadCapInput = '';
+
+    /**
+     * @var array<int, array{directive: string, reason: string}> proposed directives by role id, waiting for the manager
+     */
+    public array $suggestedDirectives = [];
+
     /**
      * @return Collection<int, AiMission>
      */
@@ -178,6 +191,7 @@ class AiMissionRoom extends Page
         $this->scheduleWeekday = $mission->schedule_weekday ?? 6;
         $this->scheduleDay = $mission->schedule_day ?? 1;
         $this->budgetInput = (string) ($mission->token_budget ?? 200000);
+        $this->threadCapInput = (string) ($mission->thread_token_cap ?? '');
     }
 
     public function startCreate(): void
@@ -523,8 +537,23 @@ class AiMissionRoom extends Page
             return;
         }
 
+        $attachment = null;
+
+        if ($this->chatAttachment) {
+            $this->validate(['chatAttachment' => ['file', 'max:5120', 'extensions:'.implode(',', self::SOURCE_EXTENSIONS)]], [], ['chatAttachment' => 'پیوست']);
+            $extraction = app(DocumentTextExtractor::class)->extract($this->chatAttachment->getRealPath(), strtolower($this->chatAttachment->getClientOriginalExtension()));
+
+            if (isset($extraction['error'])) {
+                Notification::make()->title($extraction['error'])->danger()->send();
+
+                return;
+            }
+
+            $attachment = ['name' => Str::limit($this->chatAttachment->getClientOriginalName(), 120, ''), 'text' => Str::limit((string) $extraction['content'], MissionChat::MAX_ATTACHMENT_CHARS, '')];
+        }
+
         $thread = $this->threadId ? $mission->threads()->find($this->threadId) : null;
-        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user(), $this->chatDepth);
+        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user(), $this->chatDepth, $attachment);
 
         if (! $sent['ok']) {
             Notification::make()->title($sent['error'] ?? 'ارسال ممکن نشد.')->danger()->send();
@@ -535,6 +564,7 @@ class AiMissionRoom extends Page
         $this->threadId = $sent['thread']->id;
         $this->chatMessage = '';
         $this->askWholeTeam = false;
+        $this->reset('chatAttachment');
 
         RunMissionChatStepJob::dispatch($sent['thread']->id, Auth::id());
     }
@@ -624,6 +654,151 @@ class AiMissionRoom extends Page
             ->title($queued > 0 ? $queued.' وظیفه به صف تأیید رفت؛ در کارت «اقدام‌های پیشنهادی تیم» تأییدشان کنید.' : 'کار مشخصی در این جواب پیدا نشد (یا قبلاً ساخته شده است).')
             ->{$queued > 0 ? 'success' : 'warning'}()
             ->send();
+    }
+
+    /** Pins the one-sentence decision the coordinator marked in an answer (shorter than the whole answer, so it costs the team less). */
+    public function pinDecision(int $messageId): void
+    {
+        $message = $this->ownedMessage($messageId, [AiMissionMessageKind::Final]);
+        $mission = $this->getSelectedMission();
+        $text = trim((string) ($message?->meta['decision'] ?? ''));
+
+        if (! $message || ! $mission || $text === '') {
+            return;
+        }
+
+        if ($mission->pins->count() >= AiMissionPin::MAX_PER_MISSION) {
+            Notification::make()->title('حداکثر '.AiMissionPin::MAX_PER_MISSION.' تصمیم؛ یکی از قبلی‌ها را پاک کنید.')->danger()->send();
+
+            return;
+        }
+
+        if (! $mission->pins->contains('text', $text)) {
+            $mission->pins()->create(['created_by' => Auth::id(), 'source_message_id' => $message->id, 'text' => $text]);
+            Notification::make()->title('ذخیره شد؛ تیم در همهٔ گفت‌وگوها این تصمیم را می‌داند.')->success()->send();
+        }
+    }
+
+    /** Saves the message in the box as a ready-made question of this team. */
+    public function addQuickPrompt(): void
+    {
+        $mission = $this->getSelectedMission();
+        $text = trim($this->chatMessage);
+
+        if (! $mission || mb_strlen($text) < 3 || mb_strlen($text) > 300) {
+            Notification::make()->title('اول پرسش را (۳ تا ۳۰۰ نویسه) در کادر بنویسید.')->danger()->send();
+
+            return;
+        }
+
+        $prompts = $mission->quick_prompts ?? [];
+
+        if (count($prompts) >= 8) {
+            Notification::make()->title('حداکثر ۸ پرسش آماده؛ یکی را پاک کنید.')->danger()->send();
+
+            return;
+        }
+
+        if (! in_array($text, $prompts, true)) {
+            $mission->update(['quick_prompts' => [...$prompts, $text]]);
+        }
+    }
+
+    public function useQuickPrompt(int $index): void
+    {
+        $prompt = $this->getSelectedMission()?->quick_prompts[$index] ?? null;
+
+        if ($prompt !== null) {
+            $this->chatMessage = $prompt;
+        }
+    }
+
+    public function removeQuickPrompt(int $index): void
+    {
+        $mission = $this->getSelectedMission();
+        $prompts = $mission?->quick_prompts ?? [];
+
+        if ($mission && isset($prompts[$index])) {
+            unset($prompts[$index]);
+            $mission->update(['quick_prompts' => array_values($prompts)]);
+        }
+    }
+
+    /** The token cap of one conversation; empty removes it. */
+    public function saveThreadCap(int|string|null $value = null): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if (! $mission) {
+            return;
+        }
+
+        $digits = preg_replace('/\D/', '', (string) ($value ?? $this->threadCapInput));
+
+        if ($digits === '') {
+            $mission->update(['thread_token_cap' => null]);
+            $this->threadCapInput = '';
+            Notification::make()->title('سقف هر گفت‌وگو برداشته شد.')->success()->send();
+
+            return;
+        }
+
+        $cap = (int) $digits;
+
+        if ($cap < 5000 || $cap > 2000000) {
+            Notification::make()->title('سقف هر گفت‌وگو باید بین ۵٬۰۰۰ تا ۲٬۰۰۰٬۰۰۰ توکن باشد (یا خالی).')->danger()->send();
+
+            return;
+        }
+
+        $mission->update(['thread_token_cap' => $cap]);
+        $this->threadCapInput = (string) $cap;
+        Notification::make()->title('سقف هر گفت‌وگو: '.number_format($cap).' توکن.')->success()->send();
+    }
+
+    /** Asks the coordinator for a better directive for a member, from the answers rated down. */
+    public function suggestDirective(int $roleId): void
+    {
+        $role = $this->ownedRole($roleId);
+
+        if (! $role) {
+            return;
+        }
+
+        $result = app(MissionChat::class)->suggestDirective($role, Auth::user());
+
+        if (! $result['ok']) {
+            Notification::make()->title($result['error'] ?? 'پیشنهاد ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        $this->suggestedDirectives[$role->id] = ['directive' => $result['directive'], 'reason' => $result['reason'] ?? ''];
+    }
+
+    public function applyDirective(int $roleId): void
+    {
+        $role = $this->ownedRole($roleId);
+        $suggestion = $this->suggestedDirectives[$roleId] ?? null;
+
+        if ($role && $suggestion) {
+            $role->update(['directive' => $suggestion['directive']]);
+            unset($this->suggestedDirectives[$roleId]);
+            Notification::make()->title('دستور عضو به‌روز شد.')->success()->send();
+        }
+    }
+
+    public function dismissDirective(int $roleId): void
+    {
+        unset($this->suggestedDirectives[$roleId]);
+    }
+
+    private function ownedRole(int $roleId): ?AiMissionRole
+    {
+        return AiMissionRole::query()
+            ->whereHas('mission', fn ($query) => $query->where('created_by', Auth::id())->where('ai_missions.id', $this->missionId))
+            ->with('profile')
+            ->find($roleId);
     }
 
     public function removePin(int $pinId): void
