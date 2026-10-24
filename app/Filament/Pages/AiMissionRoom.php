@@ -13,6 +13,7 @@ use App\Enums\AiMissionActionStatus;
 use App\Enums\AiMissionBriefStatus;
 use App\Enums\AiMissionCardKind;
 use App\Enums\AiMissionCardStatus;
+use App\Enums\AiMissionMessageKind;
 use App\Enums\AiMissionRoleType;
 use App\Enums\AiMissionSourceKind;
 use App\Enums\AiMissionSourceStatus;
@@ -25,6 +26,8 @@ use App\Jobs\RunMissionStepJob;
 use App\Models\AiAssistantProfile;
 use App\Models\AiMission;
 use App\Models\AiMissionAction;
+use App\Models\AiMissionMessage;
+use App\Models\AiMissionPin;
 use App\Models\AiMissionSource;
 use App\Models\AiMissionThread;
 use BackedEnum;
@@ -109,6 +112,8 @@ class AiMissionRoom extends Page
 
     public bool $askWholeTeam = false;
 
+    public string $chatDepth = 'normal';
+
     /**
      * @return Collection<int, AiMission>
      */
@@ -128,7 +133,7 @@ class AiMissionRoom extends Page
     public function getSelectedMission(): ?AiMission
     {
         return $this->missionId
-            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'roles.sources', 'cards.profile', 'cards.sourceChunk.source', 'runs', 'actions.profile', 'sources'])->find($this->missionId)
+            ? AiMission::query()->ownedBy(Auth::user())->with(['roles.profile', 'roles.sources', 'cards.profile', 'cards.sourceChunk.source', 'runs', 'actions.profile', 'sources', 'pins'])->find($this->missionId)
             : null;
     }
 
@@ -518,7 +523,7 @@ class AiMissionRoom extends Page
         }
 
         $thread = $this->threadId ? $mission->threads()->find($this->threadId) : null;
-        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user());
+        $sent = app(MissionChat::class)->send($mission, $thread, $this->chatMessage, $this->askWholeTeam, Auth::user(), $this->chatDepth);
 
         if (! $sent['ok']) {
             Notification::make()->title($sent['error'] ?? 'ارسال ممکن نشد.')->danger()->send();
@@ -531,6 +536,79 @@ class AiMissionRoom extends Page
         $this->askWholeTeam = false;
 
         RunMissionChatStepJob::dispatch($sent['thread']->id, Auth::id());
+    }
+
+    /** Puts "@name" into the message so that member is asked directly. */
+    public function addMention(int $profileId): void
+    {
+        $mission = $this->getSelectedMission();
+        $role = $mission?->roles->first(fn ($role) => $role->role === AiMissionRoleType::Specialist && $role->ai_assistant_profile_id === $profileId);
+
+        if (! $role?->profile) {
+            return;
+        }
+
+        $mention = '@'.$role->profile->displayName();
+
+        if (! str_contains($this->chatMessage, $mention)) {
+            $this->chatMessage = trim($this->chatMessage.' '.$mention).' ';
+        }
+    }
+
+    /** Saves a final answer as a decision the team remembers in every later conversation. */
+    public function pinMessage(int $messageId): void
+    {
+        $message = $this->ownedMessage($messageId, [AiMissionMessageKind::Final]);
+        $mission = $this->getSelectedMission();
+
+        if (! $message || ! $mission) {
+            return;
+        }
+
+        if ($mission->pins->count() >= AiMissionPin::MAX_PER_MISSION) {
+            Notification::make()->title('حداکثر '.AiMissionPin::MAX_PER_MISSION.' تصمیم؛ یکی از قبلی‌ها را پاک کنید.')->danger()->send();
+
+            return;
+        }
+
+        $text = Str::limit(trim($message->body), 800, '…');
+
+        if ($mission->pins->contains('text', $text)) {
+            return;
+        }
+
+        $mission->pins()->create(['created_by' => Auth::id(), 'source_message_id' => $message->id, 'text' => $text]);
+        Notification::make()->title('ذخیره شد؛ از این به بعد تیم در همهٔ گفت‌وگوها این تصمیم را می‌داند.')->success()->send();
+    }
+
+    public function removePin(int $pinId): void
+    {
+        $mission = $this->getSelectedMission();
+
+        if ($mission) {
+            $mission->pins()->whereKey($pinId)->delete();
+        }
+    }
+
+    /** 👍 / 👎 on a member's answer; the same rating again takes it back. */
+    public function rateMessage(int $messageId, int $rating): void
+    {
+        $message = $this->ownedMessage($messageId, [AiMissionMessageKind::Answer, AiMissionMessageKind::Final]);
+
+        if ($message && in_array($rating, [1, -1], true)) {
+            $message->update(['rating' => $message->rating === $rating ? null : $rating]);
+        }
+    }
+
+    /**
+     * @param  list<AiMissionMessageKind>  $kinds
+     */
+    private function ownedMessage(int $messageId, array $kinds): ?AiMissionMessage
+    {
+        return AiMissionMessage::query()
+            ->whereIn('kind', array_map(fn (AiMissionMessageKind $kind) => $kind->value, $kinds))
+            ->whereHas('thread', fn ($query) => $query->where('ai_mission_id', $this->missionId)->where('created_by', Auth::id()))
+            ->find($messageId);
     }
 
     public function resumeChat(): void

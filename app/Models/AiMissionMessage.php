@@ -12,7 +12,7 @@ class AiMissionMessage extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['ai_mission_thread_id', 'ai_assistant_profile_id', 'role', 'kind', 'body', 'tokens', 'meta'];
+    protected $fillable = ['ai_mission_thread_id', 'ai_assistant_profile_id', 'role', 'kind', 'body', 'tokens', 'rating', 'meta'];
 
     protected function casts(): array
     {
