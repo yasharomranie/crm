@@ -40,6 +40,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Livewire\Attributes\Url;
 use Livewire\WithFileUploads;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 /**
  * The operations room: hand a goal to a small team of the user's assistants
@@ -579,6 +580,50 @@ class AiMissionRoom extends Page
 
         $mission->pins()->create(['created_by' => Auth::id(), 'source_message_id' => $message->id, 'text' => $text]);
         Notification::make()->title('ذخیره شد؛ از این به بعد تیم در همهٔ گفت‌وگوها این تصمیم را می‌داند.')->success()->send();
+    }
+
+    /** The answer as a Markdown file: the request, then the team's full answer. */
+    public function downloadMessage(int $messageId): ?StreamedResponse
+    {
+        $message = $this->ownedMessage($messageId, [AiMissionMessageKind::Final]);
+
+        if (! $message) {
+            return null;
+        }
+
+        $request = $message->thread->messages()->where('kind', AiMissionMessageKind::User->value)->where('id', '<', $message->id)->reorder('id', 'desc')->value('body');
+        $sources = collect($message->meta['sources'] ?? []);
+        $content = "# {$message->thread->title}\n\n## درخواست\n\n".trim((string) $request)."\n\n## جواب تیم\n\n".trim($message->body)
+            .($sources->isNotEmpty() ? "\n\n## منابع\n\n".$sources->map(fn (string $title) => "- {$title}")->implode("\n") : '')
+            ."\n\n— ".now()->format('Y-m-d H:i')."\n";
+
+        return response()->streamDownload(function () use ($content): void {
+            echo $content;
+        }, 'team-answer-'.$message->id.'.md', ['Content-Type' => 'text/markdown; charset=UTF-8']);
+    }
+
+    /** Turns one final answer into proposed tasks that wait in the approval queue. */
+    public function extractTasks(int $messageId): void
+    {
+        $message = $this->ownedMessage($messageId, [AiMissionMessageKind::Final]);
+
+        if (! $message) {
+            return;
+        }
+
+        $result = app(MissionChat::class)->extractTasks($message, Auth::user());
+
+        if (! $result['ok']) {
+            Notification::make()->title($result['error'] ?? 'ساخت وظیفه ممکن نشد.')->danger()->send();
+
+            return;
+        }
+
+        $queued = (int) $result['queued'];
+        Notification::make()
+            ->title($queued > 0 ? $queued.' وظیفه به صف تأیید رفت؛ در کارت «اقدام‌های پیشنهادی تیم» تأییدشان کنید.' : 'کار مشخصی در این جواب پیدا نشد (یا قبلاً ساخته شده است).')
+            ->{$queued > 0 ? 'success' : 'warning'}()
+            ->send();
     }
 
     public function removePin(int $pinId): void

@@ -13,6 +13,7 @@ use App\Models\AiMissionAction;
 use App\Models\AiMissionMessage;
 use App\Models\AiMissionPin;
 use App\Models\AiMissionRole;
+use App\Models\AiMissionSourceChunk;
 use App\Models\AiMissionThread;
 use App\Models\User;
 use Illuminate\Support\Collection;
@@ -322,7 +323,7 @@ class MissionChat
 
         $tokens = (int) ($result['tokens'] ?? 0);
         $this->spend($thread, $mission, $tokens);
-        $this->post($thread, AiMissionMessageKind::Answer, $role, $result['answer'] !== '' ? $result['answer'] : 'داده‌ای برای گفتن ندارم.', $tokens, [...$meta, 'tools' => $result['tools_used'] ?? []]);
+        $this->post($thread, AiMissionMessageKind::Answer, $role, $result['answer'] !== '' ? $result['answer'] : 'داده‌ای برای گفتن ندارم.', $tokens, [...$meta, 'tools' => $result['tools_used'] ?? [], 'sources' => $this->sourceTitles($citations)]);
 
         return ['ok' => true];
     }
@@ -465,13 +466,22 @@ class MissionChat
         $body = trim((string) preg_replace('/\[\[actions\]\].*?\[\[\/actions\]\]/su', '', $body));
         $proposals = json_decode(trim((string) preg_replace('/^```(?:json)?|```$/m', '', trim($match[1]))), true);
         $proposals = is_array($proposals) ? $proposals : [];
+
+        return $this->queueFromProposals($mission, $role, $user, $proposals, self::MAX_ACTIONS_PER_ANSWER);
+    }
+
+    /**
+     * @param  list<mixed>  $proposals
+     */
+    private function queueFromProposals(AiMission $mission, AiMissionRole $role, User $user, array $proposals, int $limit): int
+    {
         $known = $mission->actions()->whereIn('status', [AiMissionActionStatus::Pending->value, AiMissionActionStatus::Executed->value])->get();
         $queued = 0;
 
         foreach ($proposals as $proposal) {
             $clean = is_array($proposal) ? $this->actions->sanitize($proposal, $user) : null;
 
-            if (! $clean || $queued >= self::MAX_ACTIONS_PER_ANSWER) {
+            if (! $clean || $queued >= $limit) {
                 continue;
             }
 
@@ -491,6 +501,70 @@ class MissionChat
         }
 
         return $queued;
+    }
+
+    /**
+     * "Turn into a task list": the coordinator pulls the concrete, doable jobs
+     * out of one final answer and queues them for the manager's approval (one
+     * call, only when the manager asks; asking again adds nothing twice).
+     *
+     * @return array{ok: bool, queued?: int, error?: string}
+     */
+    public function extractTasks(AiMissionMessage $message, User $user): array
+    {
+        $thread = $message->thread;
+        $mission = $thread->mission()->with('roles.profile')->first();
+
+        if (! $mission || $mission->created_by !== $user->id || $message->kind !== AiMissionMessageKind::Final) {
+            return ['ok' => false, 'error' => 'فقط از جواب نهایی تیم می‌شود وظیفه ساخت.'];
+        }
+
+        $coordinator = $this->coordinatorOf($mission, $user);
+
+        if (! $coordinator) {
+            return ['ok' => false, 'error' => 'این تیم هماهنگ‌کننده‌ای در دسترس ندارد.'];
+        }
+
+        if ($blocked = $this->blocked($mission)) {
+            return ['ok' => false, 'error' => $blocked];
+        }
+
+        $instructions = implode("\n", [
+            'تو هماهنگ‌کنندهٔ این تیم هستی. از جواب زیر فقط کارهای مشخص و قابل انجام را به‌صورت وظیفه بیرون بکش (حداکثر ۵)؛ چیزی از خودت اضافه نکن.',
+            'خروجی فقط JSON باشد: [{"tool":"create_task","title":"عنوان","priority":"urgent_important|not_urgent_important|urgent_not_important|neither","due_at":"Y-m-d H:i (اختیاری)","department_name":"(اختیاری)","reason":"چرا"}]. اگر کاری نیست [] بنویس.',
+        ]);
+
+        $result = $this->consultations->consult(null, $coordinator->profile, "جواب تیم:\n{$message->body}", null, $user, depth: 1, instructions: $instructions, useGrantedTools: false);
+
+        if (isset($result['error'])) {
+            return ['ok' => false, 'error' => $this->memberError($coordinator, $result['error'])];
+        }
+
+        $this->spend($thread, $mission, (int) ($result['tokens'] ?? 0));
+        $proposals = preg_match('/\[.*\]/su', (string) $result['answer'], $match) ? json_decode($match[0], true) : [];
+
+        return ['ok' => true, 'queued' => $this->queueFromProposals($mission, $coordinator, $user, is_array($proposals) ? $proposals : [], 5)];
+    }
+
+    /**
+     * The titles of the files a member's searches handed back, for the source chips.
+     *
+     * @param  array<string, int>  $citations
+     * @return list<string>
+     */
+    private function sourceTitles(array $citations): array
+    {
+        if ($citations === []) {
+            return [];
+        }
+
+        return AiMissionSourceChunk::query()->with('source:id,title')->whereIn('id', array_values(array_unique($citations)))->get()
+            ->map(fn (AiMissionSourceChunk $chunk) => $chunk->source?->title)
+            ->filter()
+            ->unique()
+            ->take(5)
+            ->values()
+            ->all();
     }
 
     /**
@@ -607,7 +681,8 @@ class MissionChat
         $this->spend($thread, $mission, $tokens);
         $body = (string) $result['answer'];
         $queued = $this->queueProposedActions($mission, $coordinator, $user, $body);
-        $this->post($thread, AiMissionMessageKind::Final, $coordinator, $body !== '' ? $body : 'جوابی نوشته نشد؛ دوباره بپرسید.', $tokens, $queued > 0 ? ['actions' => $queued] : []);
+        $sources = $this->answersThisRound($thread)->flatMap(fn (AiMissionMessage $message) => $message->meta['sources'] ?? [])->unique()->take(8)->values()->all();
+        $this->post($thread, AiMissionMessageKind::Final, $coordinator, $body !== '' ? $body : 'جوابی نوشته نشد؛ دوباره بپرسید.', $tokens, [...($queued > 0 ? ['actions' => $queued] : []), ...($sources !== [] ? ['sources' => $sources] : [])]);
 
         return $this->moveTo($thread, null, $thread->plan ?? [], done: true);
     }
