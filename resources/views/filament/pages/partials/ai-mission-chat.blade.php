@@ -4,6 +4,14 @@
     $running = $thread?->status === \App\Enums\AiMissionThreadStatus::Running;
     $stuck = $running && $thread->updated_at->lt(now()->subMinutes(3));
     $hasAnswer = $thread?->messages->contains(fn ($message) => $message->kind === \App\Enums\AiMissionMessageKind::Final);
+    $working = $thread ? app(\App\Domain\Ai\Missions\MissionChat::class)->workingMember($thread, $mission) : null;
+    $specialistRoles = $mission->roles->filter(fn ($role) => $role->role === \App\Enums\AiMissionRoleType::Specialist && $role->profile);
+    $stats = app(\App\Domain\Ai\Missions\MissionChatStats::class)->forMission($mission);
+    $depthOptions = [
+        'fast' => ['سریع', 'یک متخصص، بدون بحث؛ کمترین مصرف'],
+        'normal' => ['عادی', 'یک دور بحث بین همکاران'],
+        'deep' => ['عمیق', 'اگر منتقد ایراد بگیرد، دور دوم بحث'],
+    ];
 @endphp
 
 <div class="mr-card mr-stack" style="gap: 0.8rem;" @if ($running) wire:poll.2s @endif>
@@ -14,6 +22,20 @@
         </div>
         <button type="button" class="mr-btn" wire:click="newThread">+ گفت‌وگوی تازه</button>
     </div>
+
+    @if ($mission->pins->isNotEmpty())
+        <details class="mr-note" style="display: block;">
+            <summary style="cursor: pointer; font-weight: 600;">📌 تصمیم‌های ذخیره‌شدهٔ تیم ({{ $fa($mission->pins->count()) }}) — در همهٔ گفت‌وگوها به تیم داده می‌شود</summary>
+            <div class="mr-stack" style="gap: 0.4rem; margin-top: 0.5rem;">
+                @foreach ($mission->pins as $pin)
+                    <div class="mr-row" style="align-items: flex-start; flex-wrap: nowrap;" wire:key="pin-{{ $pin->id }}">
+                        <span class="mr-sub" style="min-width: 0; overflow-wrap: anywhere; white-space: pre-wrap;">{{ \Illuminate\Support\Str::limit($pin->text, 220, '…') }}</span>
+                        <button type="button" class="mr-mini" wire:click="removePin({{ $pin->id }})" aria-label="حذف تصمیم">✕</button>
+                    </div>
+                @endforeach
+            </div>
+        </details>
+    @endif
 
     @if ($threads->isNotEmpty())
         <div class="mr-threads">
@@ -33,6 +55,7 @@
             @foreach ($thread->messages as $message)
                 @php
                     $isUser = $message->kind === \App\Enums\AiMissionMessageKind::User;
+                    $rateable = in_array($message->kind, [\App\Enums\AiMissionMessageKind::Answer, \App\Enums\AiMissionMessageKind::Final], true);
                     $bubbleClass = match ($message->kind) {
                         \App\Enums\AiMissionMessageKind::User => 'me',
                         \App\Enums\AiMissionMessageKind::Final => 'final',
@@ -52,14 +75,29 @@
                             @unless ($isUser)
                                 <span class="mr-pill {{ $message->kind === \App\Enums\AiMissionMessageKind::Final ? 'good' : '' }}">{{ $message->kind === \App\Enums\AiMissionMessageKind::Plan ? $message->role?->getLabel() : (($message->meta['discussion'] ?? false) ? 'بعد از گفت‌وگو' : $message->kind->getLabel()) }}</span>
                             @endunless
+                            @if ($message->tokens > 0)
+                                <span>{{ $fa(number_format($message->tokens)) }} توکن</span>
+                            @endif
                         </div>
                         <div class="mr-bubble-body">{{ $message->body }}</div>
+                        @if (($message->meta['actions'] ?? 0) > 0)
+                            <span class="mr-pill warn">✅ {{ $fa($message->meta['actions']) }} اقدام برای تأیید شما ساخته شد (کارت «اقدام‌های پیشنهادی تیم»)</span>
+                        @endif
+                        @if ($rateable)
+                            <div class="mr-actions">
+                                <button type="button" class="mr-mini" style="{{ $message->rating === 1 ? 'border-color: var(--mr-good); background: var(--mr-good-soft);' : '' }}" wire:click="rateMessage({{ $message->id }}, 1)" aria-label="جواب خوب بود" aria-pressed="{{ $message->rating === 1 ? 'true' : 'false' }}">👍</button>
+                                <button type="button" class="mr-mini" style="{{ $message->rating === -1 ? 'border-color: var(--mr-bad); background: var(--mr-bad-soft);' : '' }}" wire:click="rateMessage({{ $message->id }}, -1)" aria-label="جواب خوب نبود" aria-pressed="{{ $message->rating === -1 ? 'true' : 'false' }}">👎</button>
+                                @if ($message->kind === \App\Enums\AiMissionMessageKind::Final)
+                                    <button type="button" class="mr-mini" wire:click="pinMessage({{ $message->id }})">📌 ذخیره به‌عنوان تصمیم</button>
+                                @endif
+                            </div>
+                        @endif
                     </div>
                 </div>
             @endforeach
 
             @if ($running)
-                <p class="mr-sub" style="display: flex; align-items: center; gap: 0.5rem;"><span class="mr-spinner" style="border-color: var(--mr-line); border-top-color: var(--mr-accent);"></span> تیم در حال گفت‌وگوست…</p>
+                <p class="mr-sub" style="display: flex; align-items: center; gap: 0.5rem;"><span class="mr-spinner" style="border-color: var(--mr-line); border-top-color: var(--mr-accent);"></span> {{ $working?->profile ? '«'.$working->profile->displayName().'» در حال نوشتن است…' : 'تیم در حال گفت‌وگوست…' }}</p>
             @endif
         </div>
 
@@ -82,6 +120,26 @@
             <span class="sr-only">پیام به تیم</span>
             <textarea id="chat-message" class="mr-input" rows="3" maxlength="{{ \App\Domain\Ai\Missions\MissionChat::MAX_MESSAGE_LENGTH }}" wire:model="chatMessage" placeholder="{{ $hasAnswer ? 'ادامهٔ گفت‌وگو؛ مثلاً: بخش دوم را کوتاه‌تر کن' : 'درخواست یا سناریو را بنویسید…' }}" @disabled($running && ! $stuck)></textarea>
         </label>
+
+        @if ($specialistRoles->isNotEmpty())
+            <div class="mr-threads" aria-label="پرسیدن مستقیم از یک عضو">
+                <span class="mr-sub">مستقیم از یک نفر بپرسید:</span>
+                @foreach ($specialistRoles as $role)
+                    <button type="button" class="mr-mini" wire:click="addMention({{ $role->ai_assistant_profile_id }})" wire:key="mention-{{ $role->id }}">{{ '@'.$role->profile->displayName() }}</button>
+                @endforeach
+            </div>
+        @endif
+
+        <div class="mr-threads" role="radiogroup" aria-label="عمق گفت‌وگو">
+            @foreach ($depthOptions as $value => [$label, $hint])
+                <label class="mr-mini" style="cursor: pointer; {{ $chatDepth === $value ? 'border-color: var(--mr-accent); background: var(--mr-accent-soft);' : '' }}" title="{{ $hint }}">
+                    <input type="radio" id="chat-depth-{{ $value }}" name="chat-depth" value="{{ $value }}" wire:model.live="chatDepth" style="margin-inline-end: 0.3rem;" />
+                    {{ $label }}
+                </label>
+            @endforeach
+            <span class="mr-sub">{{ $depthOptions[$chatDepth][1] ?? '' }}</span>
+        </div>
+
         <div class="mr-row">
             @if ($hasAnswer)
                 <label class="mr-sub" style="display: inline-flex; align-items: center; gap: 0.4rem;">
@@ -97,4 +155,36 @@
             </button>
         </div>
     </div>
+
+    @if ($stats->isNotEmpty())
+        <details>
+            <summary style="cursor: pointer; font-weight: 600; font-size: 0.85rem;">📊 سلامت تیم: هر عضو چقدر خرج کرده و چقدر مفید بوده</summary>
+            <div style="overflow-x: auto; margin-top: 0.5rem;">
+                <table style="width: 100%; border-collapse: collapse; font-size: 0.8rem; min-width: 28rem;">
+                    <thead>
+                        <tr style="text-align: start; color: var(--mr-dim);">
+                            <th scope="col" style="padding: 0.3rem;">عضو</th>
+                            <th scope="col" style="padding: 0.3rem;">پیام</th>
+                            <th scope="col" style="padding: 0.3rem;">توکن</th>
+                            <th scope="col" style="padding: 0.3rem;">میانگین هر پیام</th>
+                            <th scope="col" style="padding: 0.3rem;">👍</th>
+                            <th scope="col" style="padding: 0.3rem;">👎</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach ($stats as $row)
+                            <tr style="border-top: 1px solid var(--mr-line);">
+                                <td style="padding: 0.3rem;">{{ $row['name'] }} <span class="mr-sub">({{ $row['role'] }})</span></td>
+                                <td style="padding: 0.3rem;">{{ $fa($row['messages']) }}</td>
+                                <td style="padding: 0.3rem;">{{ $fa(number_format($row['tokens'])) }}</td>
+                                <td style="padding: 0.3rem;">{{ $fa(number_format($row['average'])) }}</td>
+                                <td style="padding: 0.3rem;">{{ $fa($row['up']) }}</td>
+                                <td style="padding: 0.3rem;">{{ $fa($row['down']) }}</td>
+                            </tr>
+                        @endforeach
+                    </tbody>
+                </table>
+            </div>
+        </details>
+    @endif
 </div>

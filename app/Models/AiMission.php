@@ -86,6 +86,11 @@ class AiMission extends Model
         return $this->hasMany(AiMissionThread::class)->latest('updated_at')->latest('id');
     }
 
+    public function pins(): HasMany
+    {
+        return $this->hasMany(AiMissionPin::class)->orderBy('id');
+    }
+
     public function scopeOwnedBy(Builder $query, User $user): Builder
     {
         return $query->where('created_by', $user->id);

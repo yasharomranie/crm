@@ -301,6 +301,6 @@ class AiMissionChatTest extends TestCase
         Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('openThread', $thread->id)
             ->assertSee('گفت‌وگو با تیم')
             ->assertSee('یک سناریو بنویس')
-            ->assertSee('تیم در حال گفت‌وگوست');
+            ->assertSee('در حال نوشتن است');
     }
 }
