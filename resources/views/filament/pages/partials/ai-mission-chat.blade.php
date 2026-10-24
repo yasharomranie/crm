@@ -50,7 +50,7 @@
                         <div class="mr-bubble-meta">
                             <strong style="color: var(--mr-text);">{{ $isUser ? 'شما' : $message->profile?->displayName() }}</strong>
                             @unless ($isUser)
-                                <span class="mr-pill {{ $message->kind === \App\Enums\AiMissionMessageKind::Final ? 'good' : '' }}">{{ $message->kind === \App\Enums\AiMissionMessageKind::Plan ? $message->role?->getLabel() : $message->kind->getLabel() }}</span>
+                                <span class="mr-pill {{ $message->kind === \App\Enums\AiMissionMessageKind::Final ? 'good' : '' }}">{{ $message->kind === \App\Enums\AiMissionMessageKind::Plan ? $message->role?->getLabel() : (($message->meta['discussion'] ?? false) ? 'بعد از گفت‌وگو' : $message->kind->getLabel()) }}</span>
                             @endunless
                         </div>
                         <div class="mr-bubble-body">{{ $message->body }}</div>
