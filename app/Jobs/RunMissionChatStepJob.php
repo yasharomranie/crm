@@ -36,7 +36,7 @@ class RunMissionChatStepJob implements ShouldQueue
 
         $result = $chat->runStep($thread, $user);
 
-        if ($result['ok'] && ! $result['done']) {
+        if ($result['ok'] && ! $result['done'] && ! ($result['wait'] ?? false)) {
             static::dispatch($this->threadId, $this->userId);
         }
     }

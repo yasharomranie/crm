@@ -49,4 +49,18 @@ return [
 
     'monthly_token_cap' => (int) env('AI_ASSISTANT_MONTHLY_TOKEN_CAP', 0),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Team chat: answer in parallel
+    |--------------------------------------------------------------------------
+    |
+    | When true, the specialists of a team chat answer at the same time (each as
+    | its own queue job) instead of one after another. It only shortens the wait
+    | when two or more queue workers run; with a single worker it changes
+    | nothing. The discussion rounds stay sequential.
+    |
+    */
+
+    'team_chat_parallel' => (bool) env('AI_TEAM_CHAT_PARALLEL', false),
+
 ];

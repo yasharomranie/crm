@@ -12,6 +12,7 @@
         'normal' => ['عادی', 'یک دور بحث بین همکاران'],
         'deep' => ['عمیق', 'اگر منتقد ایراد بگیرد، دور دوم بحث'],
     ];
+    $estimate = app(\App\Domain\Ai\Missions\MissionChatStats::class)->estimate($mission, $chatDepth, (bool) ($hasAnswer && ! $askWholeTeam));
 @endphp
 
 <div class="mr-card mr-stack" style="gap: 0.8rem;" @if ($running) wire:poll.2s @endif>
@@ -73,12 +74,15 @@
                         <div class="mr-bubble-meta">
                             <strong style="color: var(--mr-text);">{{ $isUser ? 'شما' : $message->profile?->displayName() }}</strong>
                             @unless ($isUser)
-                                <span class="mr-pill {{ $message->kind === \App\Enums\AiMissionMessageKind::Final ? 'good' : '' }}">{{ $message->kind === \App\Enums\AiMissionMessageKind::Plan ? $message->role?->getLabel() : (($message->meta['discussion'] ?? false) ? 'بعد از گفت‌وگو' : $message->kind->getLabel()) }}</span>
+                                <span class="mr-pill {{ $message->kind === \App\Enums\AiMissionMessageKind::Final ? 'good' : '' }}">{{ ($message->meta['clarify'] ?? false) ? 'سؤال از شما' : ($message->kind === \App\Enums\AiMissionMessageKind::Plan ? $message->role?->getLabel() : (($message->meta['discussion'] ?? false) ? 'بعد از گفت‌وگو' : $message->kind->getLabel())) }}</span>
                             @endunless
                             @if ($message->tokens > 0)
                                 <span>{{ $fa(number_format($message->tokens)) }} توکن</span>
                             @endif
                         </div>
+                        @if (! empty($message->meta['attachment']))
+                            <span class="mr-pill" title="پیوست یک‌بارمصرف">📎 {{ \Illuminate\Support\Str::limit($message->meta['attachment'], 40, '…') }}</span>
+                        @endif
                         <div class="mr-bubble-body">{{ $message->body }}</div>
                         @if (! empty($message->meta['sources']))
                             <div class="mr-actions">
@@ -88,10 +92,16 @@
                                 @endforeach
                             </div>
                         @endif
+                        @if (! empty($message->meta['decision']))
+                            <div class="mr-actions">
+                                <span class="mr-pill accent" style="white-space: normal;">💡 تصمیم پیشنهادی: {{ $message->meta['decision'] }}</span>
+                                <button type="button" class="mr-mini" wire:click="pinDecision({{ $message->id }})">📌 ذخیره</button>
+                            </div>
+                        @endif
                         @if (($message->meta['actions'] ?? 0) > 0)
                             <span class="mr-pill warn">✅ {{ $fa($message->meta['actions']) }} اقدام برای تأیید شما ساخته شد (کارت «اقدام‌های پیشنهادی تیم»)</span>
                         @endif
-                        @if ($rateable)
+                        @if ($rateable && ! ($message->meta['clarify'] ?? false))
                             <div class="mr-actions">
                                 <button type="button" class="mr-mini" style="{{ $message->rating === 1 ? 'border-color: var(--mr-good); background: var(--mr-good-soft);' : '' }}" wire:click="rateMessage({{ $message->id }}, 1)" aria-label="جواب خوب بود" aria-pressed="{{ $message->rating === 1 ? 'true' : 'false' }}">👍</button>
                                 <button type="button" class="mr-mini" style="{{ $message->rating === -1 ? 'border-color: var(--mr-bad); background: var(--mr-bad-soft);' : '' }}" wire:click="rateMessage({{ $message->id }}, -1)" aria-label="جواب خوب نبود" aria-pressed="{{ $message->rating === -1 ? 'true' : 'false' }}">👎</button>
@@ -130,10 +140,32 @@
     @endif
 
     <div class="mr-stack" style="gap: 0.5rem;">
+        @if (! empty($mission->quick_prompts))
+            <div class="mr-threads" aria-label="پرسش‌های آماده">
+                <span class="mr-sub">پرسش‌های آماده:</span>
+                @foreach ($mission->quick_prompts as $promptIndex => $quickPrompt)
+                    <span style="display: inline-flex; align-items: center; gap: 0.2rem;" wire:key="quick-{{ $promptIndex }}">
+                        <button type="button" class="mr-mini" wire:click="useQuickPrompt({{ $promptIndex }})" title="{{ $quickPrompt }}" @disabled($running && ! $stuck)>{{ \Illuminate\Support\Str::limit($quickPrompt, 28, '…') }}</button>
+                        <button type="button" class="mr-mini" wire:click="removeQuickPrompt({{ $promptIndex }})" aria-label="حذف پرسش آماده">✕</button>
+                    </span>
+                @endforeach
+            </div>
+        @endif
+
         <label class="mr-label">
             <span class="sr-only">پیام به تیم</span>
             <textarea id="chat-message" class="mr-input" rows="3" maxlength="{{ \App\Domain\Ai\Missions\MissionChat::MAX_MESSAGE_LENGTH }}" wire:model="chatMessage" placeholder="{{ $hasAnswer ? 'ادامهٔ گفت‌وگو؛ مثلاً: بخش دوم را کوتاه‌تر کن' : 'درخواست یا سناریو را بنویسید…' }}" @disabled($running && ! $stuck)></textarea>
         </label>
+
+        <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+            <label for="chat-attachment" class="mr-sub">📎 پیوست یک‌بارمصرف:</label>
+            <input type="file" id="chat-attachment" wire:model="chatAttachment" accept=".txt,.md,.csv,.docx,.pdf,.xlsx" />
+            <span class="mr-sub">فقط {{ $fa(number_format(\App\Domain\Ai\Missions\MissionChat::MAX_ATTACHMENT_CHARS)) }} نویسهٔ اول خوانده می‌شود و به کتابخانه اضافه نمی‌شود.</span>
+            <button type="button" class="mr-mini" wire:click="addQuickPrompt">☆ ذخیرهٔ این پرسش به‌عنوان آماده</button>
+        </div>
+        @error('chatAttachment')
+            <span class="mr-err">{{ $message }}</span>
+        @enderror
 
         @if ($specialistRoles->isNotEmpty())
             <div class="mr-threads" aria-label="پرسیدن مستقیم از یک عضو">
@@ -152,6 +184,20 @@
                 </label>
             @endforeach
             <span class="mr-sub">{{ $depthOptions[$chatDepth][1] ?? '' }}</span>
+        </div>
+
+        <p class="mr-sub">
+            @if ($estimate)
+                تخمین مصرف این حالت: حدود {{ $fa(number_format($estimate['tokens'])) }} توکن (میانگین {{ $fa($estimate['samples']) }} گفت‌وگوی قبلی).
+            @else
+                هنوز برای این حالت تخمینی نداریم؛ بعد از چند گفت‌وگو نشان داده می‌شود.
+            @endif
+        </p>
+
+        <div class="mr-row" style="justify-content: flex-start; gap: 0.5rem;">
+            <label for="thread-cap-input" class="mr-sub">سقف هر گفت‌وگو (توکن؛ خالی = بدون سقف):</label>
+            <input type="number" inputmode="numeric" id="thread-cap-input" min="5000" max="2000000" step="1000" class="mr-input" style="width: 8rem; padding: 0.35rem 0.6rem;" wire:model="threadCapInput" />
+            <button type="button" class="mr-btn" wire:click.async="saveThreadCap($wire.threadCapInput)" wire:loading.attr="disabled" wire:target="saveThreadCap">ذخیره</button>
         </div>
 
         <div class="mr-row">
@@ -183,6 +229,7 @@
                             <th scope="col" style="padding: 0.3rem;">میانگین هر پیام</th>
                             <th scope="col" style="padding: 0.3rem;">👍</th>
                             <th scope="col" style="padding: 0.3rem;">👎</th>
+                            <th scope="col" style="padding: 0.3rem;">بهبود</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -194,11 +241,35 @@
                                 <td style="padding: 0.3rem;">{{ $fa(number_format($row['average'])) }}</td>
                                 <td style="padding: 0.3rem;">{{ $fa($row['up']) }}</td>
                                 <td style="padding: 0.3rem;">{{ $fa($row['down']) }}</td>
+                                <td style="padding: 0.3rem;">
+                                    @if ($row['down'] >= 1)
+                                        <button type="button" class="mr-mini" wire:click="suggestDirective({{ $row['role_id'] }})" wire:loading.attr="disabled" wire:target="suggestDirective({{ $row['role_id'] }})">
+                                            <span wire:loading.remove wire:target="suggestDirective({{ $row['role_id'] }})">پیشنهاد دستور بهتر</span>
+                                            <span wire:loading wire:target="suggestDirective({{ $row['role_id'] }})">در حال بررسی…</span>
+                                        </button>
+                                    @endif
+                                </td>
                             </tr>
                         @endforeach
                     </tbody>
                 </table>
             </div>
+            @foreach ($suggestedDirectives as $suggestedRoleId => $suggestion)
+                @php($suggestedRole = $mission->roles->firstWhere('id', $suggestedRoleId))
+                @if ($suggestedRole?->profile)
+                    <div class="mr-note" style="display: block; margin-top: 0.5rem;" wire:key="suggest-{{ $suggestedRoleId }}">
+                        <strong>دستور پیشنهادی برای «{{ $suggestedRole->profile->displayName() }}»:</strong>
+                        <p class="mr-sub" style="white-space: pre-wrap;">{{ $suggestion['directive'] }}</p>
+                        @if (filled($suggestion['reason']))
+                            <p class="mr-sub">دلیل: {{ $suggestion['reason'] }}</p>
+                        @endif
+                        <div class="mr-actions">
+                            <button type="button" class="mr-btn mr-btn-primary" wire:click="applyDirective({{ $suggestedRoleId }})">اعمال کن</button>
+                            <button type="button" class="mr-btn" wire:click="dismissDirective({{ $suggestedRoleId }})">نه، ممنون</button>
+                        </div>
+                    </div>
+                @endif
+            @endforeach
         </details>
     @endif
 </div>
