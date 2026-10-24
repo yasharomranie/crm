@@ -101,7 +101,7 @@ class AiMissionChatTest extends TestCase
             $system = $request->data()['messages'][0]['content'];
             $kind = match (true) {
                 str_contains($system, 'فقط تصمیم بگیر کدام متخصص‌ها') => 'triage',
-                str_contains($system, 'جواب نهایی را مستقیم') => 'final',
+                str_contains($system, 'جواب نهایی را کامل و مستقیم') => 'final',
                 str_contains($system, 'تو منتقد این تیم هستی') => 'critic',
                 default => 'specialist',
             };
