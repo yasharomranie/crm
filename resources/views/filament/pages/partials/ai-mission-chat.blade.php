@@ -80,6 +80,14 @@
                             @endif
                         </div>
                         <div class="mr-bubble-body">{{ $message->body }}</div>
+                        @if (! empty($message->meta['sources']))
+                            <div class="mr-actions">
+                                <span class="mr-sub">منابع:</span>
+                                @foreach ($message->meta['sources'] as $sourceTitle)
+                                    <span class="mr-pill" title="فایلی که از آن استفاده شد">📄 {{ \Illuminate\Support\Str::limit($sourceTitle, 40, '…') }}</span>
+                                @endforeach
+                            </div>
+                        @endif
                         @if (($message->meta['actions'] ?? 0) > 0)
                             <span class="mr-pill warn">✅ {{ $fa($message->meta['actions']) }} اقدام برای تأیید شما ساخته شد (کارت «اقدام‌های پیشنهادی تیم»)</span>
                         @endif
@@ -89,6 +97,12 @@
                                 <button type="button" class="mr-mini" style="{{ $message->rating === -1 ? 'border-color: var(--mr-bad); background: var(--mr-bad-soft);' : '' }}" wire:click="rateMessage({{ $message->id }}, -1)" aria-label="جواب خوب نبود" aria-pressed="{{ $message->rating === -1 ? 'true' : 'false' }}">👎</button>
                                 @if ($message->kind === \App\Enums\AiMissionMessageKind::Final)
                                     <button type="button" class="mr-mini" wire:click="pinMessage({{ $message->id }})">📌 ذخیره به‌عنوان تصمیم</button>
+                                    <button type="button" class="mr-mini" x-data="{ done: false }" x-on:click="navigator.clipboard.writeText($el.dataset.text).then(() => { done = true; setTimeout(() => done = false, 1500) })" data-text="{{ $message->body }}"><span x-show="! done">📋 کپی</span><span x-show="done" x-cloak>کپی شد ✓</span></button>
+                                    <button type="button" class="mr-mini" wire:click="downloadMessage({{ $message->id }})" wire:loading.attr="disabled" wire:target="downloadMessage({{ $message->id }})">⬇️ دانلود (Markdown)</button>
+                                    <button type="button" class="mr-mini" wire:click="extractTasks({{ $message->id }})" wire:loading.attr="disabled" wire:target="extractTasks({{ $message->id }})">
+                                        <span wire:loading.remove wire:target="extractTasks({{ $message->id }})">✅ تبدیل به لیست کارها</span>
+                                        <span wire:loading wire:target="extractTasks({{ $message->id }})">در حال استخراج…</span>
+                                    </button>
                                 @endif
                             </div>
                         @endif

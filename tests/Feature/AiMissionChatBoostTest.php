@@ -15,6 +15,8 @@ use App\Models\AiMissionAction;
 use App\Models\AiMissionMessage;
 use App\Models\AiMissionPin;
 use App\Models\AiMissionRole;
+use App\Models\AiMissionSource;
+use App\Models\AiMissionSourceChunk;
 use App\Models\AiMissionThread;
 use App\Models\AiProvider;
 use App\Models\User;
@@ -297,5 +299,66 @@ class AiMissionChatBoostTest extends TestCase
             ->assertSee('@متخصص شمارهٔ 1')
             ->assertSee('سریع')
             ->assertSee('عمیق');
+    }
+
+    public function test_a_member_that_searched_the_files_gets_source_chips_that_the_final_answer_repeats(): void
+    {
+        ['mission' => $mission] = $this->team(specialists: 1);
+        $source = AiMissionSource::factory()->create(['ai_mission_id' => $mission->id, 'title' => 'استراتژی اشغال', 'content' => 'نرخ اشغال هدف ۷۵ درصد است.']);
+        AiMissionSourceChunk::factory()->create(['ai_mission_source_id' => $source->id, 'position' => 1, 'content' => 'نرخ اشغال هدف ۷۵ درصد است.']);
+        Http::fake(['*/chat/completions' => function (Request $request) {
+            $data = $request->data();
+            $searched = collect($data['messages'])->contains('role', 'tool');
+            $tools = collect($data['tools'] ?? [])->pluck('function.name')->all();
+
+            if (in_array('search_mission_sources', $tools, true) && ! $searched) {
+                return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => null, 'tool_calls' => [['id' => 'call_1', 'type' => 'function', 'function' => ['name' => 'search_mission_sources', 'arguments' => json_encode(['query' => 'نرخ اشغال'], JSON_UNESCAPED_UNICODE)]]]]]]]);
+            }
+
+            return Http::response(['choices' => [['message' => ['role' => 'assistant', 'content' => 'جواب بر پایهٔ فایل']]]]);
+        }]);
+
+        $this->send($mission, 'هدف اشغال چیست؟');
+
+        $answer = AiMissionMessage::where('kind', AiMissionMessageKind::Answer)->sole();
+        $final = AiMissionMessage::where('kind', AiMissionMessageKind::Final)->sole();
+        $this->assertSame(['استراتژی اشغال'], $answer->meta['sources']);
+        $this->assertSame(['استراتژی اشغال'], $final->meta['sources']);
+
+        Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id)->call('openThread', $final->ai_mission_thread_id)
+            ->assertSee('استراتژی اشغال');
+    }
+
+    public function test_a_final_answer_downloads_as_a_markdown_file_and_other_messages_do_not(): void
+    {
+        ['mission' => $mission] = $this->team(specialists: 1);
+        $thread = AiMissionThread::factory()->create(['ai_mission_id' => $mission->id, 'created_by' => $this->admin->id, 'title' => 'سناریوی سه‌شنبه']);
+        AiMissionMessage::factory()->create(['ai_mission_thread_id' => $thread->id, 'kind' => AiMissionMessageKind::User, 'body' => 'یک سناریو بنویس']);
+        $answer = AiMissionMessage::factory()->create(['ai_mission_thread_id' => $thread->id, 'kind' => AiMissionMessageKind::Answer]);
+        $final = AiMissionMessage::factory()->create(['ai_mission_thread_id' => $thread->id, 'kind' => AiMissionMessageKind::Final, 'body' => 'متن کامل جواب', 'meta' => ['sources' => ['استراتژی اشغال']]]);
+        $component = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id);
+
+        $component->call('downloadMessage', $answer->id)->assertNoFileDownloaded();
+        $component->call('downloadMessage', $final->id)->assertFileDownloaded('team-answer-'.$final->id.'.md');
+    }
+
+    public function test_a_final_answer_can_be_turned_into_tasks_waiting_for_approval_once(): void
+    {
+        ['mission' => $mission] = $this->team(specialists: 1);
+        $thread = AiMissionThread::factory()->create(['ai_mission_id' => $mission->id, 'created_by' => $this->admin->id]);
+        $answer = AiMissionMessage::factory()->create(['ai_mission_thread_id' => $thread->id, 'kind' => AiMissionMessageKind::Answer]);
+        $final = AiMissionMessage::factory()->create(['ai_mission_thread_id' => $thread->id, 'kind' => AiMissionMessageKind::Final, 'body' => 'باید با مشتریان سه‌شنبه تماس گرفت.']);
+        $this->fakeChat(['specialist' => 'متن اضافه: [{"tool":"create_task","title":"تماس با مشتریان","priority":"urgent_important","reason":"پر کردن اتاق"}]']);
+        $component = Livewire::test(AiMissionRoom::class)->call('openMission', $mission->id);
+
+        $component->call('extractTasks', $answer->id);
+        $this->assertSame(0, AiMissionAction::count());
+
+        $component->call('extractTasks', $final->id)->call('extractTasks', $final->id);
+
+        $action = AiMissionAction::sole();
+        $this->assertSame(AiMissionActionStatus::Pending, $action->status);
+        $this->assertSame('تماس با مشتریان', $action->arguments['title']);
+        $this->assertSame(20, $thread->refresh()->tokens_used);
     }
 }
