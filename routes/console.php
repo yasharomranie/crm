@@ -8,6 +8,7 @@ use App\Domain\Crm\LeadScorer;
 use App\Domain\Crm\StaleDealAlertService;
 use App\Domain\Crm\TicketSlaBreachService;
 use App\Domain\Crm\WalletExpiryService;
+use App\Domain\DigitalProjects\DigitalProjectAlertService;
 use App\Domain\Hospitality\MorningDigest;
 use App\Domain\Ticketing\GateAnomalyDetector;
 use App\Domain\TripPlanner\TripPlanFollowUp;
@@ -144,6 +145,14 @@ Schedule::call(fn () => app(TripPlanFollowUp::class)->sendDayBeforeReminders())
 Schedule::call(fn () => app(StaleDealAlertService::class)->notifyStaleDeals())
     ->name('crm-stale-deal-digest')
     ->dailyAt('09:00')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
+// Digital projects: one morning digest per owner of the projects with no
+// journal line for a week, a passed review date or an overdue action.
+Schedule::call(fn () => app(DigitalProjectAlertService::class)->notifyAttentionNeeded())
+    ->name('digital-projects-attention-digest')
+    ->dailyAt('09:15')
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 

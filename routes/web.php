@@ -19,6 +19,7 @@ use App\Http\Controllers\CustomerApp\TripPlannerController as CustomerAppTripPla
 use App\Http\Controllers\CustomerApp\WalletController as CustomerAppWalletController;
 use App\Http\Controllers\CustomerApp\WalletTopupController as CustomerAppWalletTopupController;
 use App\Http\Controllers\CustomerAppController;
+use App\Http\Controllers\DigitalProjectPrintController;
 use App\Http\Controllers\DocumentDownloadController;
 use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
@@ -65,6 +66,10 @@ Route::middleware('auth')->group(function () {
         ->name('form-submissions.export-word');
     Route::get('/form-submissions/{submission}/files/{value}', [FormSubmissionFileController::class, 'show'])
         ->name('form-submissions.files.download');
+    Route::get('/digital-projects/weekly-report', [DigitalProjectPrintController::class, 'weekly'])
+        ->name('digital-projects.weekly-report');
+    Route::get('/digital-projects/{project}/print', [DigitalProjectPrintController::class, 'show'])
+        ->name('digital-projects.print');
     Route::get('/reports/print/{token}', [ReportPrintController::class, 'show'])
         ->name('reports.print');
     Route::post('/push-subscriptions', [PushSubscriptionController::class, 'store'])
