@@ -3286,7 +3286,11 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
         <div class="feature-card"><div class="name">جدول گروه‌بندی‌شده</div><div class="desc">سایت‌ها، اینستاگرام، تلگرام، واتس‌اپ، لینکدین و سایر هرکدام یک گروه با تعداد و قابل‌بسته‌شدن‌اند. فیلتر نوع، وضعیت و «بررسی عقب‌افتاده» دارد.</div></div>
         <div class="feature-card"><div class="name">خلاصهٔ بالای جدول</div><div class="desc">کل پروژه‌ها، فعال، نیازمند توجه و بررسی عقب‌افتاده.</div></div>
         <div class="feature-card"><div class="name">وضعیت‌ها</div><div class="desc">برنامه‌ریزی، فعال، نیازمند توجه، متوقف و تمام‌شده. پروژهٔ متوقف یا تمام‌شده هیچ‌وقت «عقب‌افتاده» حساب نمی‌شود.</div></div>
-        <div class="feature-card"><div class="name">بعدی</div><div class="desc">اقدام‌ها، گزارش روزانهٔ آزاد، آمار دستی هر کانال و اعلان پروژه‌های بی‌گزارش در فازهای بعد می‌آید.</div></div>
+        <div class="feature-card"><div class="name">اقدام‌ها</div><div class="desc">هر پروژه فهرست اقدام‌های خودش را دارد (باز، در حال انجام، انجام‌شده) با مسئول و مهلت. اقدام از «وظیفه‌های» سامانه جداست. ستون «اقدام باز» در جدول، اقدام‌های از مهلت گذشته را قرمز نشان می‌دهد.</div></div>
+        <div class="feature-card"><div class="name">گزارش روزانه</div><div class="desc">هر روز یک خط بنویسید چه کردید؛ نوعش کار انجام‌شده، مشکل یا ایده است. از کادر «امروز چه کار کردی؟» بالای جدول، از داخل هر پروژه یا از منوی «گزارش روزانه» ثبت می‌شود. ستون «آخرین گزارش» جدول آخرین خط هر پروژه را نشان می‌دهد.</div></div>
+        <div class="feature-card"><div class="name">تاریخچهٔ وضعیت</div><div class="desc">هر تغییر وضعیت خودکار با زمان و تغییردهنده ثبت می‌شود. با دکمهٔ «تغییر وضعیت» در صفحهٔ پروژه می‌توانید دلیلش را هم بنویسید.</div></div>
+        <div class="feature-card"><div class="name">بدون گزارش بیش از ۷ روز</div><div class="desc">پروژهٔ بازی که یک هفته گزارشی نگرفته در خلاصهٔ بالای جدول شمرده می‌شود و فیلتر جداگانه دارد.</div></div>
+        <div class="feature-card"><div class="name">بعدی</div><div class="desc">آمار دستی هر کانال، چاپ و اکسل و اعلان پروژه‌های بی‌گزارش در فازهای بعد می‌آید.</div></div>
       </div>
       <div class="callout">
         <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
