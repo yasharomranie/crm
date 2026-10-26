@@ -6,6 +6,9 @@ use App\Filament\Resources\DigitalProjects\Pages\CreateDigitalProject;
 use App\Filament\Resources\DigitalProjects\Pages\EditDigitalProject;
 use App\Filament\Resources\DigitalProjects\Pages\ListDigitalProjects;
 use App\Filament\Resources\DigitalProjects\Pages\ViewDigitalProject;
+use App\Filament\Resources\DigitalProjects\RelationManagers\ActionsRelationManager;
+use App\Filament\Resources\DigitalProjects\RelationManagers\LogsRelationManager;
+use App\Filament\Resources\DigitalProjects\RelationManagers\StatusChangesRelationManager;
 use App\Filament\Resources\DigitalProjects\Schemas\DigitalProjectForm;
 use App\Filament\Resources\DigitalProjects\Schemas\DigitalProjectInfolist;
 use App\Filament\Resources\DigitalProjects\Tables\DigitalProjectsTable;
@@ -50,7 +53,9 @@ class DigitalProjectResource extends Resource
     public static function getRelations(): array
     {
         return [
-            //
+            ActionsRelationManager::class,
+            LogsRelationManager::class,
+            StatusChangesRelationManager::class,
         ];
     }
 

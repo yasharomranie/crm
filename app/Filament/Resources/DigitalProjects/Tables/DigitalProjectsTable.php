@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources\DigitalProjects\Tables;
 
+use App\Enums\DigitalProjectActionStatus;
 use App\Enums\DigitalProjectChannel;
 use App\Enums\DigitalProjectStatus;
 use App\Filament\Resources\DigitalProjects\DigitalProjectResource;
@@ -18,12 +19,19 @@ use Filament\Tables\Grouping\Group;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Number;
+use Morilog\Jalali\Jalalian;
 
 class DigitalProjectsTable
 {
     public static function configure(Table $table): Table
     {
         return $table
+            ->modifyQueryUsing(fn (Builder $query) => $query->with('latestLog')->withCount([
+                'actions as open_actions_count' => fn (Builder $actions) => $actions->whereIn('status', DigitalProjectActionStatus::unfinishedValues()),
+                'actions as overdue_actions_count' => fn (Builder $actions) => $actions
+                    ->whereIn('status', DigitalProjectActionStatus::unfinishedValues())
+                    ->whereDate('due_on', '<', today()),
+            ]))
             ->columns([
                 TextColumn::make('name')
                     ->label('پروژه')
@@ -31,6 +39,18 @@ class DigitalProjectsTable
                     ->description(fn (DigitalProject $record) => $record->handle)
                     ->wrap(),
                 TextColumn::make('status')->label('وضعیت')->badge(),
+                TextColumn::make('open_actions_count')
+                    ->label('اقدام باز')
+                    ->formatStateUsing(fn ($state) => Number::toPersian((int) $state))
+                    ->badge()
+                    ->color(fn (DigitalProject $record) => $record->overdue_actions_count > 0 ? 'danger' : ($record->open_actions_count > 0 ? 'warning' : 'gray'))
+                    ->tooltip(fn (DigitalProject $record) => $record->overdue_actions_count > 0 ? Number::toPersian((int) $record->overdue_actions_count).' اقدام از مهلت گذشته' : null),
+                TextColumn::make('latestLog.body')
+                    ->label('آخرین گزارش')
+                    ->limit(60)
+                    ->placeholder('گزارشی ثبت نشده')
+                    ->description(fn (DigitalProject $record) => $record->latestLog ? Jalalian::fromCarbon($record->latestLog->logged_on)->format('Y/m/d') : null)
+                    ->wrap(),
                 TextColumn::make('owner.name')->label('مسئول')->placeholder('—'),
                 TextColumn::make('next_review_at')
                     ->label('بررسی بعدی')
@@ -52,6 +72,10 @@ class DigitalProjectsTable
             ->filters([
                 SelectFilter::make('channel')->label('نوع پروژه')->options(DigitalProjectChannel::class),
                 SelectFilter::make('status')->label('وضعیت')->options(DigitalProjectStatus::class),
+                Filter::make('without_recent_log')
+                    ->label('بدون گزارش بیش از ۷ روز')
+                    ->query(fn (Builder $query) => $query->withoutRecentLog())
+                    ->toggle(),
                 Filter::make('review_overdue')
                     ->label('بررسی عقب‌افتاده')
                     ->query(fn (Builder $query) => $query->reviewOverdue())

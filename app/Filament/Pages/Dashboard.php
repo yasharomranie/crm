@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\DealSourceChart;
 use App\Filament\Widgets\DealWinLossTrendChart;
+use App\Filament\Widgets\DigitalProjectQuickLogWidget;
 use App\Filament\Widgets\DigitalProjectsStatsWidget;
 use App\Filament\Widgets\SalesFunnelChart;
 use App\Filament\Widgets\SalesPipelineStatsOverview;
@@ -55,6 +56,7 @@ class Dashboard extends BaseDashboard
     /** Scoped to the digital-projects list, never the main dashboard. */
     private const DIGITAL_PROJECT_ONLY_WIDGETS = [
         DigitalProjectsStatsWidget::class,
+        DigitalProjectQuickLogWidget::class,
     ];
 
     public function getWidgets(): array
