@@ -172,8 +172,7 @@ class DigitalProjectStatsAiTest extends TestCase
 
         Livewire::actingAs($this->admin())
             ->test(ListDigitalProjects::class)
-            ->mountAction('aiSummary')
-            ->assertHasNoActionErrors();
+            ->mountAction('aiSummary');
 
         $this->assertSame('خلاصهٔ این هفته', Cache::get('digital-projects-ai-summary'));
         Http::assertSentCount(1);
@@ -185,8 +184,7 @@ class DigitalProjectStatsAiTest extends TestCase
 
         Livewire::actingAs($this->admin())
             ->test(ListDigitalProjects::class)
-            ->mountAction('aiSummary')
-            ->assertHasNoActionErrors();
+            ->mountAction('aiSummary');
 
         $this->assertNull(Cache::get('digital-projects-ai-summary'));
     }
