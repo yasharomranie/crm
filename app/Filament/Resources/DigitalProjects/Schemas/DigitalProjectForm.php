@@ -9,6 +9,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Schemas\Components\Utilities\Get;
 use Filament\Schemas\Schema;
 
 class DigitalProjectForm
@@ -21,6 +22,7 @@ class DigitalProjectForm
                     ->label('نوع پروژه')
                     ->options(DigitalProjectChannel::class)
                     ->required()
+                    ->live()
                     ->hintAction(FieldHelp::make('digital-projects.channel')),
                 TextInput::make('name')
                     ->label('نام پروژه')
@@ -31,6 +33,17 @@ class DigitalProjectForm
                     ->label('آدرس یا آیدی')
                     ->maxLength(255)
                     ->hintAction(FieldHelp::make('digital-projects.handle')),
+                Select::make('seo_project_id')
+                    ->label('پروژهٔ سئوی همین سایت')
+                    ->relationship('seoProject', 'name')
+                    ->searchable()
+                    ->preload()
+                    ->visible(function (Get $get): bool {
+                        $channel = $get('channel');
+
+                        return ($channel instanceof DigitalProjectChannel ? $channel : DigitalProjectChannel::tryFrom((string) $channel)) === DigitalProjectChannel::Website;
+                    })
+                    ->hintAction(FieldHelp::make('digital-projects.seo_project_id')),
                 Select::make('status')
                     ->label('وضعیت')
                     ->options(DigitalProjectStatus::class)

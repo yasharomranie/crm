@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Number;
 
 /**
  * One digital asset the organisation runs (a website, an Instagram page, a
@@ -22,7 +23,7 @@ class DigitalProject extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['channel', 'name', 'handle', 'description', 'status', 'owner_id', 'next_review_at', 'created_by'];
+    protected $fillable = ['channel', 'name', 'handle', 'description', 'status', 'owner_id', 'next_review_at', 'created_by', 'seo_project_id'];
 
     protected function casts(): array
     {
@@ -72,6 +73,54 @@ class DigitalProject extends Model
     public function creator(): BelongsTo
     {
         return $this->belongsTo(User::class, 'created_by');
+    }
+
+    /** The SEO project of the same website, whose uptime and certificate checks this project shows. */
+    public function seoProject(): BelongsTo
+    {
+        return $this->belongsTo(SeoProject::class);
+    }
+
+    /** Days left on a certificate before it counts as a site problem. */
+    public const SSL_WARNING_DAYS = 14;
+
+    /**
+     * The one-line state of the linked website: null when nothing is linked
+     * or not checked yet.
+     *
+     * @return array{label: string, color: string}|null
+     */
+    public function siteHealth(): ?array
+    {
+        $check = $this->seoProject?->siteCheck;
+
+        if ($check === null || $check->checked_at === null) {
+            return null;
+        }
+
+        if (! $check->is_up) {
+            return ['label' => 'از دسترس خارج است', 'color' => 'danger'];
+        }
+
+        $daysLeft = $check->sslDaysLeft();
+
+        if ($daysLeft !== null && $daysLeft <= self::SSL_WARNING_DAYS) {
+            return $daysLeft >= 0
+                ? ['label' => 'SSL '.Number::toPersian($daysLeft).' روز دیگر', 'color' => 'warning']
+                : ['label' => 'SSL منقضی شده', 'color' => 'danger'];
+        }
+
+        return ['label' => 'در دسترس', 'color' => 'success'];
+    }
+
+    /** Linked websites that are down or whose certificate is close to expiry. */
+    public function scopeWithSiteProblem(Builder $query): Builder
+    {
+        return $query->whereHas('seoProject.siteCheck', fn (Builder $check) => $check
+            ->whereNotNull('checked_at')
+            ->where(fn (Builder $problem) => $problem
+                ->where('is_up', false)
+                ->orWhere('ssl_expires_at', '<=', now()->addDays(self::SSL_WARNING_DAYS))));
     }
 
     public function actions(): HasMany
