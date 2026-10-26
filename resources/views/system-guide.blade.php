@@ -491,6 +491,7 @@
       <li><a href="#ch-15">وب‌اپ مشتریان (گنجنامه)</a></li>
       <li><a href="#ch-16">تریپ‌پلنر</a></li>
       <li><a href="#ch-offline">استقلال از اینترنت بین‌المللی</a></li>
+      <li><a href="#ch-digital-projects">پروژه‌های دیجیتال</a></li>
     </ol>
   </nav>
 
@@ -3259,6 +3260,39 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
         <div>
           <span class="label">بعد از تغییر .env</span>
           <p>پس از تغییر <code>MAP_TILE_URL</code> یک بار <code>php artisan optimize:clear</code> را اجرا کنید. اگر بستهٔ تصویر ندارید، هیچ کاری لازم نیست؛ فقط زیرِ نقشه در قطعی خالی دیده می‌شود.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ DIGITAL PROJECTS ============ -->
+  <section class="chapter" id="ch-digital-projects">
+    <div class="chapter-head">
+      <div class="chapter-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c3 3.5 3 14.5 0 18M12 3c-3 3.5-3 14.5 0 18"/></svg>
+      </div>
+      <div>
+        <span class="chapter-num">پروژه‌های دیجیتال</span>
+        <h2>پروژه‌های دیجیتال</h2>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="lede">
+        دفتر پروژه‌های دیجیتال مجموعه: هر سایت، صفحهٔ اینستاگرام، کانال تلگرام، صفحهٔ لینکدین یا واتس‌اپ یک پروژه است
+        با شرح، وضعیت، مسئول و تاریخ بررسی بعدی. جدول اصلی پروژه‌ها را بر اساس نوع گروه‌بندی می‌کند.
+        این بخش با «پروژه‌ها» (پروژهٔ بودجه‌دار با فاز) و «پروژه‌های سئو» فرق دارد و جدا نگه داشته شده است.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="name">جدول گروه‌بندی‌شده</div><div class="desc">سایت‌ها، اینستاگرام، تلگرام، واتس‌اپ، لینکدین و سایر هرکدام یک گروه با تعداد و قابل‌بسته‌شدن‌اند. فیلتر نوع، وضعیت و «بررسی عقب‌افتاده» دارد.</div></div>
+        <div class="feature-card"><div class="name">خلاصهٔ بالای جدول</div><div class="desc">کل پروژه‌ها، فعال، نیازمند توجه و بررسی عقب‌افتاده.</div></div>
+        <div class="feature-card"><div class="name">وضعیت‌ها</div><div class="desc">برنامه‌ریزی، فعال، نیازمند توجه، متوقف و تمام‌شده. پروژهٔ متوقف یا تمام‌شده هیچ‌وقت «عقب‌افتاده» حساب نمی‌شود.</div></div>
+        <div class="feature-card"><div class="name">بعدی</div><div class="desc">اقدام‌ها، گزارش روزانهٔ آزاد، آمار دستی هر کانال و اعلان پروژه‌های بی‌گزارش در فازهای بعد می‌آید.</div></div>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div>
+          <span class="label">رمز حساب‌ها را ننویسید</span>
+          <p>در شرح پروژه رمز و کلید دسترسی نگذارید؛ فقط بنویسید رمز در کجا نگهداری می‌شود.</p>
         </div>
       </div>
     </div>

@@ -88,6 +88,7 @@ class AdminPanelProvider extends PanelProvider
                 NavigationGroup::make('ارتباطات داخلی'),
                 NavigationGroup::make('حضور و غیاب'),
                 NavigationGroup::make('وب‌اپ مشتریان'),
+                NavigationGroup::make('پروژه‌های دیجیتال'),
                 NavigationGroup::make('مرکز سئو'),
             ])
             ->discoverResources(in: app_path('Filament/Resources'), for: 'App\Filament\Resources')

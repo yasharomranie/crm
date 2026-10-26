@@ -4,6 +4,7 @@ namespace App\Filament\Pages;
 
 use App\Filament\Widgets\DealSourceChart;
 use App\Filament\Widgets\DealWinLossTrendChart;
+use App\Filament\Widgets\DigitalProjectsStatsWidget;
 use App\Filament\Widgets\SalesFunnelChart;
 use App\Filament\Widgets\SalesPipelineStatsOverview;
 use App\Filament\Widgets\SeoKeywordProfileStatsWidget;
@@ -51,12 +52,18 @@ class Dashboard extends BaseDashboard
         SeoKeywordProfileStatsWidget::class,
     ];
 
+    /** Scoped to the digital-projects list, never the main dashboard. */
+    private const DIGITAL_PROJECT_ONLY_WIDGETS = [
+        DigitalProjectsStatsWidget::class,
+    ];
+
     public function getWidgets(): array
     {
         return array_values(array_diff(
             parent::getWidgets(),
             self::SALES_PIPELINE_ONLY_WIDGETS,
             self::SEO_PAGE_ONLY_WIDGETS,
+            self::DIGITAL_PROJECT_ONLY_WIDGETS,
         ));
     }
 

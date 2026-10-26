@@ -14,6 +14,7 @@ use App\Filament\Resources\Bookings\BookingResource;
 use App\Filament\Resources\CancellationPolicies\CancellationPolicyResource;
 use App\Filament\Resources\ChannelAllotments\ChannelAllotmentResource;
 use App\Filament\Resources\ChargeItems\ChargeItemResource;
+use App\Filament\Resources\DigitalProjects\DigitalProjectResource;
 use App\Filament\Resources\HandoverNotes\HandoverNoteResource;
 use App\Filament\Resources\LostItems\LostItemResource;
 use App\Filament\Resources\PriceRules\PriceRuleResource;
@@ -58,6 +59,7 @@ class PageHelp
         PriceRuleResource::class => 'pricing',
         StayDiscountResource::class => 'pricing',
         BookingPromoCodeResource::class => 'pricing',
+        DigitalProjectResource::class => 'digital-projects',
     ];
 
     /**
