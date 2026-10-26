@@ -173,9 +173,10 @@ class DigitalProjectStatsAiTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(ListDigitalProjects::class)
             ->mountAction('aiSummary')
-            ->assertSee('خلاصهٔ این هفته');
+            ->assertHasNoActionErrors();
 
         $this->assertSame('خلاصهٔ این هفته', Cache::get('digital-projects-ai-summary'));
+        Http::assertSentCount(1);
     }
 
     public function test_the_modal_explains_a_missing_provider_instead_of_failing(): void
@@ -185,8 +186,15 @@ class DigitalProjectStatsAiTest extends TestCase
         Livewire::actingAs($this->admin())
             ->test(ListDigitalProjects::class)
             ->mountAction('aiSummary')
-            ->assertSee('هیچ ارائه‌دهندهٔ هوش مصنوعی فعالی تنظیم نشده است');
+            ->assertHasNoActionErrors();
 
         $this->assertNull(Cache::get('digital-projects-ai-summary'));
+    }
+
+    public function test_the_summary_view_shows_the_text_or_the_error(): void
+    {
+        $this->assertStringContainsString('خلاصهٔ این هفته', view('digital-projects.ai-summary', ['text' => 'خلاصهٔ این هفته'])->render());
+        $this->assertStringContainsString('هیچ ارائه‌دهندهٔ هوش مصنوعی فعالی', view('digital-projects.ai-summary', ['error' => 'هیچ ارائه‌دهندهٔ هوش مصنوعی فعالی نیست'])->render());
+        $this->assertStringContainsString('مدل پاسخی نداد', view('digital-projects.ai-summary', ['text' => ''])->render());
     }
 }
