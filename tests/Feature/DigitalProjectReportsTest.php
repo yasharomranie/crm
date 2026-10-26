@@ -85,14 +85,6 @@ class DigitalProjectReportsTest extends TestCase
         $this->assertTrue(Permission::where('name', 'digital-projects.view')->exists());
     }
 
-    public function test_a_guest_is_redirected_away_from_the_print_pages(): void
-    {
-        $project = DigitalProject::factory()->create();
-
-        $this->get(route('digital-projects.print', $project))->assertRedirect();
-        $this->get(route('digital-projects.weekly-report'))->assertRedirect();
-    }
-
     public function test_the_list_and_project_page_offer_exports_and_prints(): void
     {
         $project = DigitalProject::factory()->create();

@@ -50,7 +50,7 @@
                             <td>{{ $action->title }}</td>
                             <td>{{ $action->status->getLabel() }}</td>
                             <td>{{ $action->assignee?->name ?? '—' }}</td>
-                            <td @class(['late' => $action->isOverdue()])>{{ $action->due_on ? $action->due_on->toJalali('Y/m/d') : '—' }}</td>
+                            <td @class(['late' => $action->isOverdue()])>{{ $action->due_on ? $action->due_on->toJalali('Y/m/d') : '—' }}{{ $action->isOverdue() ? ' (از مهلت گذشته)' : '' }}</td>
                         </tr>
                     @endforeach
                 </tbody>
