@@ -62,6 +62,7 @@ use App\Models\ContractCategory;
 use App\Models\Deal;
 use App\Models\DealAutomationRule;
 use App\Models\Department;
+use App\Models\DigitalProject;
 use App\Models\DiscountCode;
 use App\Models\Document;
 use App\Models\DocumentFolder;
@@ -182,6 +183,8 @@ return [
         'ticketing-discount-codes' => ['model' => DiscountCode::class, 'label' => 'کدهای تخفیف', 'group' => 'گیشه بلیط'],
 
         'external-api-clients' => ['model' => ExternalApiClient::class, 'label' => 'اکانت‌های API خارجی', 'group' => 'زیرساخت سازمانی'],
+
+        'digital-projects' => ['model' => DigitalProject::class, 'label' => 'پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
 
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
         'seo-opportunities' => ['model' => SeoOpportunity::class, 'label' => 'فرصت‌های سئو', 'group' => 'مرکز سئو'],

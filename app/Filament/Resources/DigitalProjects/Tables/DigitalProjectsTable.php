@@ -1,0 +1,72 @@
+<?php
+
+namespace App\Filament\Resources\DigitalProjects\Tables;
+
+use App\Enums\DigitalProjectChannel;
+use App\Enums\DigitalProjectStatus;
+use App\Filament\Resources\DigitalProjects\DigitalProjectResource;
+use App\Models\DigitalProject;
+use Filament\Actions\BulkActionGroup;
+use Filament\Actions\DeleteAction;
+use Filament\Actions\DeleteBulkAction;
+use Filament\Actions\EditAction;
+use Filament\Actions\ViewAction;
+use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
+use Filament\Tables\Filters\SelectFilter;
+use Filament\Tables\Grouping\Group;
+use Filament\Tables\Table;
+use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Number;
+
+class DigitalProjectsTable
+{
+    public static function configure(Table $table): Table
+    {
+        return $table
+            ->columns([
+                TextColumn::make('name')
+                    ->label('پروژه')
+                    ->searchable()
+                    ->description(fn (DigitalProject $record) => $record->handle)
+                    ->wrap(),
+                TextColumn::make('status')->label('وضعیت')->badge(),
+                TextColumn::make('owner.name')->label('مسئول')->placeholder('—'),
+                TextColumn::make('next_review_at')
+                    ->label('بررسی بعدی')
+                    ->jalaliDate('Y/m/d')
+                    ->placeholder('—')
+                    ->color(fn (DigitalProject $record) => $record->isReviewOverdue() ? 'danger' : null)
+                    ->tooltip(fn (DigitalProject $record) => $record->isReviewOverdue() ? 'موعد بررسی گذشته است' : null),
+                TextColumn::make('updated_at')->label('آخرین تغییر')->jalaliDate('Y/m/d')->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->defaultGroup(
+                Group::make('channel')
+                    ->label('نوع پروژه')
+                    ->getTitleFromRecordUsing(fn (DigitalProject $record) => $record->channel->groupTitle().' ('.Number::toPersian(DigitalProject::query()->where('channel', $record->channel->value)->count()).')')
+                    ->orderQueryUsing(fn (Builder $query, string $direction) => $query->orderByRaw(DigitalProjectChannel::orderSql().' '.$direction))
+                    ->collapsible(),
+            )
+            ->groupingSettingsHidden()
+            ->defaultSort('name')
+            ->filters([
+                SelectFilter::make('channel')->label('نوع پروژه')->options(DigitalProjectChannel::class),
+                SelectFilter::make('status')->label('وضعیت')->options(DigitalProjectStatus::class),
+                Filter::make('review_overdue')
+                    ->label('بررسی عقب‌افتاده')
+                    ->query(fn (Builder $query) => $query->reviewOverdue())
+                    ->toggle(),
+            ])
+            ->recordUrl(fn (DigitalProject $record) => DigitalProjectResource::getUrl('view', ['record' => $record]))
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
+}
