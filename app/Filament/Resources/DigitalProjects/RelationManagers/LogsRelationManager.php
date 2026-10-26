@@ -24,6 +24,12 @@ class LogsRelationManager extends RelationManager
 
     protected static ?string $pluralModelLabel = 'گزارش‌ها';
 
+    /** The project page is a view page, where relation managers are read-only unless they say otherwise. */
+    public function isReadOnly(): bool
+    {
+        return false;
+    }
+
     public function form(Schema $schema): Schema
     {
         return $schema
