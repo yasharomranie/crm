@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DigitalProjectChannel;
+use App\Enums\DigitalProjectMetric;
 use App\Enums\DigitalProjectStatus;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
@@ -10,6 +11,8 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
 
 /**
@@ -136,6 +139,56 @@ class DigitalProject extends Model
     public function statusChanges(): HasMany
     {
         return $this->hasMany(DigitalProjectStatusChange::class);
+    }
+
+    public function stats(): HasMany
+    {
+        return $this->hasMany(DigitalProjectStat::class);
+    }
+
+    /**
+     * The newest reading of each hand-entered number and how it moved since the
+     * reading before it.
+     *
+     * @return Collection<string, array{metric: DigitalProjectMetric, value: int, delta: ?int, recorded_on: Carbon}>
+     */
+    public function statTrends(): Collection
+    {
+        return $this->stats
+            ->sortByDesc(fn (DigitalProjectStat $stat) => $stat->recorded_on->format('Ymd').str_pad((string) $stat->id, 12, '0', STR_PAD_LEFT))
+            ->groupBy(fn (DigitalProjectStat $stat) => $stat->metric->value)
+            ->map(function (Collection $readings) {
+                $latest = $readings->first();
+                $before = $readings->get(1);
+
+                return [
+                    'metric' => $latest->metric,
+                    'value' => $latest->value,
+                    'delta' => $before ? $latest->value - $before->value : null,
+                    'recorded_on' => $latest->recorded_on,
+                ];
+            });
+    }
+
+    /** "دنبال‌کننده / عضو ۱٬۲۰۰ (+۴۰)، بازدید ..." or null when nothing was entered. */
+    public function statTrendsText(): ?string
+    {
+        $trends = $this->statTrends();
+
+        if ($trends->isEmpty()) {
+            return null;
+        }
+
+        return $trends->map(function (array $trend): string {
+            $delta = match (true) {
+                $trend['delta'] === null => '',
+                $trend['delta'] > 0 => ' (+'.Number::toPersian(number_format($trend['delta'])).')',
+                $trend['delta'] < 0 => ' (−'.Number::toPersian(number_format(abs($trend['delta']))).')',
+                default => ' (بدون تغییر)',
+            };
+
+            return $trend['metric']->getLabel().' '.Number::toPersian(number_format($trend['value'])).$delta;
+        })->implode('، ');
     }
 
     public function latestLog(): HasOne

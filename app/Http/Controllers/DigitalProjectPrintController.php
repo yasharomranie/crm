@@ -40,6 +40,7 @@ class DigitalProjectPrintController extends Controller
         $projects = DigitalProject::query()
             ->with([
                 'owner',
+                'stats',
                 'logs' => fn ($logs) => $logs->whereDate('logged_on', '>=', $since)->with('author')->orderBy('logged_on')->orderBy('id'),
                 'statusChanges' => fn ($changes) => $changes->where('created_at', '>=', $since)->orderBy('id'),
                 'actions' => fn ($actions) => $actions->whereIn('status', DigitalProjectActionStatus::unfinishedValues())->orderBy('due_on'),
