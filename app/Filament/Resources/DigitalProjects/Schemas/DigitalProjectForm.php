@@ -38,7 +38,11 @@ class DigitalProjectForm
                     ->relationship('seoProject', 'name')
                     ->searchable()
                     ->preload()
-                    ->visible(fn (Get $get): bool => $get('channel') === DigitalProjectChannel::Website->value)
+                    ->visible(function (Get $get): bool {
+                        $channel = $get('channel');
+
+                        return ($channel instanceof DigitalProjectChannel ? $channel : DigitalProjectChannel::tryFrom((string) $channel)) === DigitalProjectChannel::Website;
+                    })
                     ->hintAction(FieldHelp::make('digital-projects.seo_project_id')),
                 Select::make('status')
                     ->label('وضعیت')
