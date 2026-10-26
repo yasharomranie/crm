@@ -105,7 +105,7 @@ class DigitalProjectActivityTest extends TestCase
         Livewire::actingAs($admin)
             ->test(ActionsRelationManager::class, ['ownerRecord' => $project, 'pageClass' => ViewDigitalProject::class])
             ->mountTableAction('create')
-            ->setTableActionData(['title' => 'تمدید گواهی SSL', 'status' => DigitalProjectActionStatus::Open->value, 'due_on' => now()->addDays(3)->toDateString()])
+            ->setTableActionData(['title' => 'تمدید گواهی SSL', 'status' => DigitalProjectActionStatus::Open->value])
             ->callMountedTableAction()
             ->assertHasNoTableActionErrors();
 
@@ -148,13 +148,14 @@ class DigitalProjectActivityTest extends TestCase
         Livewire::actingAs($admin)
             ->test(LogsRelationManager::class, ['ownerRecord' => $project, 'pageClass' => ViewDigitalProject::class])
             ->mountTableAction('create')
-            ->setTableActionData(['logged_on' => today()->toDateString(), 'kind' => DigitalProjectLogKind::Problem->value, 'body' => 'پلاگین کش خطا می‌دهد'])
+            ->setTableActionData(['kind' => DigitalProjectLogKind::Problem->value, 'body' => 'پلاگین کش خطا می‌دهد'])
             ->callMountedTableAction()
             ->assertHasNoTableActionErrors();
 
         $log = $project->logs()->firstOrFail();
 
         $this->assertSame(DigitalProjectLogKind::Problem, $log->kind);
+        $this->assertTrue($log->logged_on->isToday());
         $this->assertSame($admin->id, $log->user_id);
     }
 
