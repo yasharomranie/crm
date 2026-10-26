@@ -27,6 +27,12 @@ class DigitalProjectInfolist
                 TextEntry::make('owner.name')->label('مسئول')->placeholder('—'),
                 TextEntry::make('next_review_at')->label('بررسی بعدی')->jalaliDate('Y/m/d')->placeholder('—'),
             ]),
+            Section::make('آمار کانال')->schema([
+                TextEntry::make('stats_summary')
+                    ->hiddenLabel()
+                    ->state(fn (DigitalProject $record) => $record->statTrendsText())
+                    ->placeholder('هنوز عددی ثبت نشده است؛ از تب «آمار کانال» اضافه کنید.'),
+            ]),
             Section::make('شرح پروژه')->schema([
                 TextEntry::make('description')->hiddenLabel()->placeholder('هنوز شرحی نوشته نشده است.')->extraAttributes(['style' => 'white-space: pre-wrap;']),
             ]),

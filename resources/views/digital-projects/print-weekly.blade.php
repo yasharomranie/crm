@@ -28,6 +28,10 @@
                 <h3>{{ $project->name }} <span class="tag">{{ $project->channel->getLabel() }}</span> <span class="tag">{{ $project->status->getLabel() }}</span></h3>
                 <p class="muted" style="margin:0">مسئول: {{ $project->owner?->name ?? '—' }}</p>
 
+                @if ($project->statTrendsText())
+                    <p style="margin:.25rem 0">آمار: {{ $project->statTrendsText() }}</p>
+                @endif
+
                 @foreach ($project->statusChanges as $change)
                     <p style="margin:.25rem 0">تغییر وضعیت در {{ $change->created_at->toJalali('Y/m/d') }}: {{ $change->from_status?->getLabel() ?? '—' }} ← {{ $change->to_status->getLabel() }}{{ $change->note ? ' ('.$change->note.')' : '' }}</p>
                 @endforeach

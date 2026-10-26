@@ -8,6 +8,7 @@ use App\Filament\Resources\DigitalProjects\Pages\ListDigitalProjects;
 use App\Filament\Resources\DigitalProjects\Pages\ViewDigitalProject;
 use App\Filament\Resources\DigitalProjects\RelationManagers\ActionsRelationManager;
 use App\Filament\Resources\DigitalProjects\RelationManagers\LogsRelationManager;
+use App\Filament\Resources\DigitalProjects\RelationManagers\StatsRelationManager;
 use App\Filament\Resources\DigitalProjects\RelationManagers\StatusChangesRelationManager;
 use App\Filament\Resources\DigitalProjects\Schemas\DigitalProjectForm;
 use App\Filament\Resources\DigitalProjects\Schemas\DigitalProjectInfolist;
@@ -55,6 +56,7 @@ class DigitalProjectResource extends Resource
         return [
             ActionsRelationManager::class,
             LogsRelationManager::class,
+            StatsRelationManager::class,
             StatusChangesRelationManager::class,
         ];
     }
