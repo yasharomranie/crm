@@ -35,6 +35,11 @@ class ViewDigitalProject extends ViewRecord
 
                     Notification::make()->title('وضعیت پروژه ثبت شد.')->success()->send();
                 }),
+            Action::make('print')
+                ->label('چاپ')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->color('gray')
+                ->url(fn (): string => route('digital-projects.print', $this->getRecord()), shouldOpenInNewTab: true),
             EditAction::make(),
         ];
     }

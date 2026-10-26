@@ -6,7 +6,9 @@ use App\Enums\DigitalProjectActionStatus;
 use App\Enums\DigitalProjectChannel;
 use App\Enums\DigitalProjectStatus;
 use App\Filament\Resources\DigitalProjects\DigitalProjectResource;
+use App\Filament\Support\TableExports;
 use App\Models\DigitalProject;
+use Closure;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -60,6 +62,10 @@ class DigitalProjectsTable
                     ->tooltip(fn (DigitalProject $record) => $record->isReviewOverdue() ? 'موعد بررسی گذشته است' : null),
                 TextColumn::make('updated_at')->label('آخرین تغییر')->jalaliDate('Y/m/d')->toggleable(isToggledHiddenByDefault: true),
             ])
+            ->headerActions([
+                TableExports::excel('پروژه‌های-دیجیتال', self::exportColumns()),
+                TableExports::pdf('فهرست پروژه‌های دیجیتال', self::exportColumns()),
+            ])
             ->defaultGroup(
                 Group::make('channel')
                     ->label('نوع پروژه')
@@ -92,5 +98,22 @@ class DigitalProjectsTable
                     DeleteBulkAction::make(),
                 ]),
             ]);
+    }
+
+    /**
+     * @return array<string, Closure(DigitalProject): mixed>
+     */
+    public static function exportColumns(): array
+    {
+        return [
+            'نوع' => fn (DigitalProject $project) => $project->channel->getLabel(),
+            'پروژه' => fn (DigitalProject $project) => $project->name,
+            'آدرس یا آیدی' => fn (DigitalProject $project) => $project->handle,
+            'وضعیت' => fn (DigitalProject $project) => $project->status->getLabel(),
+            'مسئول' => fn (DigitalProject $project) => $project->owner?->name,
+            'اقدام باز' => fn (DigitalProject $project) => Number::toPersian($project->actions()->whereIn('status', DigitalProjectActionStatus::unfinishedValues())->count()),
+            'آخرین گزارش' => fn (DigitalProject $project) => $project->latestLog ? Jalalian::fromCarbon($project->latestLog->logged_on)->format('Y/m/d').' — '.$project->latestLog->body : null,
+            'بررسی بعدی' => fn (DigitalProject $project) => $project->next_review_at ? Jalalian::fromCarbon($project->next_review_at)->format('Y/m/d') : null,
+        ];
     }
 }

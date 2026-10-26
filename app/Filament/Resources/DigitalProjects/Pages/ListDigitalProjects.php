@@ -5,8 +5,10 @@ namespace App\Filament\Resources\DigitalProjects\Pages;
 use App\Filament\Resources\DigitalProjects\DigitalProjectResource;
 use App\Filament\Widgets\DigitalProjectQuickLogWidget;
 use App\Filament\Widgets\DigitalProjectsStatsWidget;
+use Filament\Actions\Action;
 use Filament\Actions\CreateAction;
 use Filament\Resources\Pages\ListRecords;
+use Filament\Support\Icons\Heroicon;
 use Livewire\Attributes\On;
 
 class ListDigitalProjects extends ListRecords
@@ -20,6 +22,11 @@ class ListDigitalProjects extends ListRecords
     protected function getHeaderActions(): array
     {
         return [
+            Action::make('weeklyReport')
+                ->label('گزارش هفتگی (چاپ)')
+                ->icon(Heroicon::OutlinedPrinter)
+                ->color('gray')
+                ->url(fn (): string => route('digital-projects.weekly-report'), shouldOpenInNewTab: true),
             CreateAction::make(),
         ];
     }
