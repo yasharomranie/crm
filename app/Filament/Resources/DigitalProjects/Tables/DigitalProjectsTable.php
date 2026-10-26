@@ -28,7 +28,7 @@ class DigitalProjectsTable
     public static function configure(Table $table): Table
     {
         return $table
-            ->modifyQueryUsing(fn (Builder $query) => $query->with('latestLog')->withCount([
+            ->modifyQueryUsing(fn (Builder $query) => $query->with(['latestLog', 'seoProject.siteCheck'])->withCount([
                 'actions as open_actions_count' => fn (Builder $actions) => $actions->whereIn('status', DigitalProjectActionStatus::unfinishedValues()),
                 'actions as overdue_actions_count' => fn (Builder $actions) => $actions
                     ->whereIn('status', DigitalProjectActionStatus::unfinishedValues())
@@ -41,6 +41,12 @@ class DigitalProjectsTable
                     ->description(fn (DigitalProject $record) => $record->handle)
                     ->wrap(),
                 TextColumn::make('status')->label('وضعیت')->badge(),
+                TextColumn::make('site_health')
+                    ->label('وضعیت سایت')
+                    ->state(fn (DigitalProject $record) => $record->siteHealth()['label'] ?? null)
+                    ->badge()
+                    ->color(fn (DigitalProject $record) => $record->siteHealth()['color'] ?? 'gray')
+                    ->placeholder('—'),
                 TextColumn::make('open_actions_count')
                     ->label('اقدام باز')
                     ->formatStateUsing(fn ($state) => Number::toPersian((int) $state))
@@ -81,6 +87,10 @@ class DigitalProjectsTable
                 Filter::make('without_recent_log')
                     ->label('بدون گزارش بیش از ۷ روز')
                     ->query(fn (Builder $query) => $query->withoutRecentLog())
+                    ->toggle(),
+                Filter::make('site_problem')
+                    ->label('سایت دارای مشکل')
+                    ->query(fn (Builder $query) => $query->withSiteProblem())
                     ->toggle(),
                 Filter::make('review_overdue')
                     ->label('بررسی عقب‌افتاده')

@@ -3,9 +3,13 @@
 namespace App\Models;
 
 use App\Enums\DigitalProjectActionStatus;
+use App\Enums\TaskPriority;
+use App\Enums\TaskStatus;
+use App\Enums\TaskType;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
+use Illuminate\Database\Eloquent\Relations\MorphOne;
 
 /**
  * A concrete follow-up on one digital project ("renew the SSL", "post the
@@ -47,6 +51,30 @@ class DigitalProjectAction extends Model
     public function assignee(): BelongsTo
     {
         return $this->belongsTo(User::class, 'assigned_to');
+    }
+
+    /** The CRM task this action was turned into, if it was. */
+    public function task(): MorphOne
+    {
+        return $this->morphOne(Task::class, 'source');
+    }
+
+    /**
+     * Turns the action into a regular task (same title, details, assignee and
+     * deadline) so it shows up in the team's task lists; once only.
+     */
+    public function convertToTask(?int $assignedBy): Task
+    {
+        return $this->task()->firstOr(fn () => $this->task()->create([
+            'title' => $this->project->name.': '.$this->title,
+            'description' => $this->details,
+            'task_type' => TaskType::Manual,
+            'priority' => TaskPriority::Neither,
+            'status' => TaskStatus::Todo,
+            'assigned_to' => $this->assigned_to,
+            'assigned_by' => $assignedBy,
+            'due_at' => $this->due_on?->endOfDay(),
+        ]));
     }
 
     public function isOverdue(): bool

@@ -14,6 +14,7 @@ use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\Textarea;
 use Filament\Forms\Components\TextInput;
+use Filament\Notifications\Notification;
 use Filament\Resources\RelationManagers\RelationManager;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
@@ -56,6 +57,7 @@ class ActionsRelationManager extends RelationManager
     {
         return $table
             ->recordTitleAttribute('title')
+            ->modifyQueryUsing(fn ($query) => $query->with('task'))
             ->columns([
                 TextColumn::make('title')->label('اقدام')->wrap(),
                 TextColumn::make('status')->label('وضعیت')->badge(),
@@ -65,6 +67,7 @@ class ActionsRelationManager extends RelationManager
                     ->jalaliDate('Y/m/d')
                     ->placeholder('—')
                     ->color(fn (DigitalProjectAction $record) => $record->isOverdue() ? 'danger' : null),
+                TextColumn::make('task.status')->label('وظیفه')->badge()->placeholder('—'),
                 TextColumn::make('completed_at')->label('انجام شد')->jalaliDate('Y/m/d')->placeholder('—')->toggleable(isToggledHiddenByDefault: true),
             ])
             ->defaultSort('id', 'desc')
@@ -78,6 +81,20 @@ class ActionsRelationManager extends RelationManager
                     ->color('success')
                     ->visible(fn (DigitalProjectAction $record) => $record->status !== DigitalProjectActionStatus::Done)
                     ->action(fn (DigitalProjectAction $record) => $record->update(['status' => DigitalProjectActionStatus::Done])),
+                Action::make('toTask')
+                    ->label('تبدیل به وظیفه')
+                    ->icon(Heroicon::OutlinedClipboardDocumentCheck)
+                    ->color('gray')
+                    ->visible(fn (DigitalProjectAction $record) => $record->task === null
+                        && $record->status !== DigitalProjectActionStatus::Done
+                        && auth()->user()?->can('tasks.create'))
+                    ->requiresConfirmation()
+                    ->modalDescription('یک وظیفه با همین عنوان، توضیح، مسئول و مهلت در فهرست وظایف ساخته می‌شود.')
+                    ->action(function (DigitalProjectAction $record): void {
+                        $record->convertToTask(auth()->id());
+
+                        Notification::make()->title('وظیفه ساخته شد.')->success()->send();
+                    }),
                 EditAction::make(),
                 DeleteAction::make(),
             ])

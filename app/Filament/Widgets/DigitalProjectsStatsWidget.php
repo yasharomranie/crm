@@ -34,6 +34,10 @@ class DigitalProjectsStatsWidget extends StatsOverviewWidget
                 ->descriptionIcon(Heroicon::OutlinedClock)
                 ->description('موعد بررسی‌شان گذشته')
                 ->color('danger'),
+            Stat::make('سایت دارای مشکل', Number::toPersian(DigitalProject::query()->withSiteProblem()->count()))
+                ->descriptionIcon(Heroicon::OutlinedServer)
+                ->description('از دسترس خارج یا SSL رو به انقضا')
+                ->color('danger'),
             Stat::make('بدون گزارش بیش از ۷ روز', Number::toPersian(DigitalProject::query()->withoutRecentLog()->count()))
                 ->descriptionIcon(Heroicon::OutlinedPencilSquare)
                 ->description('پروژهٔ بازی که اخیراً گزارشی نگرفته')
