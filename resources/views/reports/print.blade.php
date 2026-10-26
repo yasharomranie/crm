@@ -115,6 +115,7 @@
 
         table.report td {
             font-size: .85rem;
+            white-space: pre-line;
         }
 
         .empty {

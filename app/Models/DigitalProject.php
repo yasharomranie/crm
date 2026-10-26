@@ -2,7 +2,9 @@
 
 namespace App\Models;
 
+use App\Enums\DigitalProjectActionStatus;
 use App\Enums\DigitalProjectChannel;
+use App\Enums\DigitalProjectLogKind;
 use App\Enums\DigitalProjectMetric;
 use App\Enums\DigitalProjectStatus;
 use Illuminate\Database\Eloquent\Builder;
@@ -14,6 +16,7 @@ use Illuminate\Database\Eloquent\Relations\HasOne;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Number;
+use Morilog\Jalali\Jalalian;
 
 /**
  * One digital asset the organisation runs (a website, an Instagram page, a
@@ -205,6 +208,38 @@ class DigitalProject extends Model
             ->whereIn('status', DigitalProjectStatus::openValues())
             ->whereDate('created_at', '<=', $since)
             ->whereDoesntHave('logs', fn (Builder $logs) => $logs->whereDate('logged_on', '>', $since));
+    }
+
+    /**
+     * Everything that was done on the project, newest first: finished actions
+     * and journal lines of the "done" kind, one "Y/m/d — text" line each.
+     *
+     * @return Collection<int, string>
+     */
+    public function doneWorkLines(): Collection
+    {
+        $finished = $this->actions()
+            ->where('status', DigitalProjectActionStatus::Done->value)
+            ->get()
+            ->map(fn (DigitalProjectAction $action) => [
+                'on' => ($action->completed_at ?? $action->updated_at)->copy()->startOfDay(),
+                'order' => $action->completed_at?->timestamp ?? $action->updated_at->timestamp,
+                'text' => $action->title,
+            ]);
+
+        $journal = $this->logs()
+            ->where('kind', DigitalProjectLogKind::Done->value)
+            ->get()
+            ->map(fn (DigitalProjectLog $log) => [
+                'on' => $log->logged_on->copy()->startOfDay(),
+                'order' => $log->logged_on->timestamp + $log->id,
+                'text' => preg_replace('/\s+/u', ' ', $log->body),
+            ]);
+
+        return $finished->concat($journal)
+            ->sortByDesc('order')
+            ->map(fn (array $item) => Jalalian::fromCarbon($item['on'])->format('Y/m/d').' — '.$item['text'])
+            ->values();
     }
 
     /** Projects still being worked on whose review date has passed. */

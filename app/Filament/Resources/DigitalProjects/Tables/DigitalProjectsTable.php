@@ -124,6 +124,11 @@ class DigitalProjectsTable
             'اقدام باز' => fn (DigitalProject $project) => Number::toPersian($project->actions()->whereIn('status', DigitalProjectActionStatus::unfinishedValues())->count()),
             'آخرین گزارش' => fn (DigitalProject $project) => $project->latestLog ? Jalalian::fromCarbon($project->latestLog->logged_on)->format('Y/m/d').' — '.$project->latestLog->body : null,
             'بررسی بعدی' => fn (DigitalProject $project) => $project->next_review_at ? Jalalian::fromCarbon($project->next_review_at)->format('Y/m/d') : null,
+            'همهٔ کارهای انجام‌شده' => function (DigitalProject $project): ?string {
+                $lines = $project->doneWorkLines();
+
+                return $lines->isEmpty() ? null : $lines->implode("\n");
+            },
         ];
     }
 }

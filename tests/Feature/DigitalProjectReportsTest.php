@@ -8,6 +8,7 @@ use App\Enums\DigitalProjectLogKind;
 use App\Enums\DigitalProjectStatus;
 use App\Filament\Resources\DigitalProjects\Pages\ListDigitalProjects;
 use App\Filament\Resources\DigitalProjects\Pages\ViewDigitalProject;
+use App\Filament\Resources\DigitalProjects\Tables\DigitalProjectsTable;
 use App\Models\DigitalProject;
 use App\Models\DigitalProjectAction;
 use App\Models\DigitalProjectLog;
@@ -179,5 +180,34 @@ class DigitalProjectReportsTest extends TestCase
     public function test_the_digest_is_scheduled_every_morning(): void
     {
         $this->artisan('schedule:list')->expectsOutputToContain('digital-projects-attention-digest')->assertSuccessful();
+    }
+
+    public function test_the_export_lists_every_finished_action_and_done_journal_line_newest_first(): void
+    {
+        $project = DigitalProject::factory()->create();
+        DigitalProjectAction::factory()->create(['digital_project_id' => $project->id, 'title' => 'تمدید دامنه', 'status' => DigitalProjectActionStatus::Done, 'completed_at' => now()->subDays(1)]);
+        DigitalProjectAction::factory()->create(['digital_project_id' => $project->id, 'title' => 'اقدام هنوز باز']);
+        DigitalProjectLog::factory()->create(['digital_project_id' => $project->id, 'body' => 'پست جدید گذاشتیم', 'logged_on' => now()->subDays(5)]);
+        DigitalProjectLog::factory()->create(['digital_project_id' => $project->id, 'kind' => DigitalProjectLogKind::Problem, 'body' => 'مشکل کش', 'logged_on' => now()->subDays(2)]);
+        DigitalProjectLog::factory()->count(12)->create(['digital_project_id' => $project->id, 'logged_on' => now()->subDays(30)]);
+
+        $lines = $project->doneWorkLines();
+
+        $this->assertCount(14, $lines);
+        $this->assertStringContainsString('تمدید دامنه', $lines[0]);
+        $this->assertStringContainsString('پست جدید گذاشتیم', $lines[1]);
+        $this->assertStringNotContainsString('اقدام هنوز باز', $lines->implode(' '));
+        $this->assertStringNotContainsString('مشکل کش', $lines->implode(' '));
+    }
+
+    public function test_the_export_has_a_last_column_with_all_done_work(): void
+    {
+        $columns = DigitalProjectsTable::exportColumns();
+        $project = DigitalProject::factory()->create();
+        DigitalProjectLog::factory()->count(3)->create(['digital_project_id' => $project->id]);
+
+        $this->assertSame('همهٔ کارهای انجام‌شده', array_key_last($columns));
+        $this->assertCount(3, explode("\n", $columns['همهٔ کارهای انجام‌شده']($project)));
+        $this->assertNull($columns['همهٔ کارهای انجام‌شده'](DigitalProject::factory()->create()));
     }
 }
