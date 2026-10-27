@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DigitalProjectLogKind;
+use App\Enums\DigitalProjectWorkCategory;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
@@ -12,13 +13,14 @@ class DigitalProjectLog extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['digital_project_id', 'kind', 'body', 'logged_on', 'user_id'];
+    protected $fillable = ['digital_project_id', 'kind', 'body', 'logged_on', 'user_id', 'work_category'];
 
     protected function casts(): array
     {
         return [
             'kind' => DigitalProjectLogKind::class,
             'logged_on' => 'date',
+            'work_category' => DigitalProjectWorkCategory::class,
         ];
     }
 

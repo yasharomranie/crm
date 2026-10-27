@@ -4,6 +4,7 @@ namespace App\Filament\Widgets;
 
 use App\Enums\DigitalProjectLogKind;
 use App\Enums\DigitalProjectStatus;
+use App\Enums\DigitalProjectWorkCategory;
 use App\Models\DigitalProject;
 use App\Models\DigitalProjectLog;
 use Filament\Notifications\Notification;
@@ -24,6 +25,8 @@ class DigitalProjectQuickLogWidget extends Widget
 
     public string $kind = 'done';
 
+    public ?string $workCategory = null;
+
     public string $body = '';
 
     public function save(): void
@@ -31,6 +34,7 @@ class DigitalProjectQuickLogWidget extends Widget
         $this->validate([
             'projectId' => ['required', 'integer', 'exists:digital_projects,id'],
             'kind' => ['required', 'in:'.implode(',', array_column(DigitalProjectLogKind::cases(), 'value'))],
+            'workCategory' => ['nullable', 'in:'.implode(',', array_column(DigitalProjectWorkCategory::cases(), 'value'))],
             'body' => ['required', 'string', 'max:5000'],
         ], [], [
             'projectId' => 'پروژه',
@@ -42,11 +46,12 @@ class DigitalProjectQuickLogWidget extends Widget
             'digital_project_id' => $this->projectId,
             'kind' => $this->kind,
             'body' => $this->body,
+            'work_category' => filled($this->workCategory) ? $this->workCategory : null,
             'logged_on' => today(),
             'user_id' => auth()->id(),
         ]);
 
-        $this->reset('body');
+        $this->reset('body', 'workCategory');
         $this->dispatch('digital-project-log-saved');
 
         Notification::make()->title('گزارش امروز ثبت شد.')->success()->send();
@@ -66,6 +71,7 @@ class DigitalProjectQuickLogWidget extends Widget
         return [
             'projects' => $projects,
             'kinds' => DigitalProjectLogKind::cases(),
+            'categories' => DigitalProjectWorkCategory::cases(),
         ];
     }
 }

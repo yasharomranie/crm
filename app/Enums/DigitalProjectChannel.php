@@ -13,6 +13,9 @@ enum DigitalProjectChannel: string implements HasLabel
     case Website = 'website';
     case Instagram = 'instagram';
     case Telegram = 'telegram';
+    case Bale = 'bale';
+    case Project = 'project';
+    case Outsourced = 'outsourced';
     case Whatsapp = 'whatsapp';
     case Linkedin = 'linkedin';
     case Other = 'other';
@@ -23,9 +26,12 @@ enum DigitalProjectChannel: string implements HasLabel
             self::Website => 'سایت',
             self::Instagram => 'اینستاگرام',
             self::Telegram => 'تلگرام',
+            self::Bale => 'بله',
+            self::Project => 'پروژه',
+            self::Outsourced => 'برون‌سپاری',
             self::Whatsapp => 'واتس‌اپ',
             self::Linkedin => 'لینکدین',
-            self::Other => 'سایر',
+            self::Other => 'متفرقه',
         };
     }
 
@@ -36,9 +42,12 @@ enum DigitalProjectChannel: string implements HasLabel
             self::Website => '🌐 سایت‌ها',
             self::Instagram => '📸 اینستاگرام',
             self::Telegram => '✈️ تلگرام',
+            self::Bale => '🟢 بله',
+            self::Project => '🧩 پروژه‌ها',
+            self::Outsourced => '🤝 برون‌سپاری',
             self::Whatsapp => '💬 واتس‌اپ',
             self::Linkedin => '💼 لینکدین',
-            self::Other => '📁 سایر',
+            self::Other => '📁 متفرقه',
         };
     }
 

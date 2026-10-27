@@ -68,6 +68,10 @@ Route::middleware('auth')->group(function () {
         ->name('form-submissions.files.download');
     Route::get('/digital-projects/weekly-report', [DigitalProjectPrintController::class, 'weekly'])
         ->name('digital-projects.weekly-report');
+    Route::get('/digital-projects/management-report', [DigitalProjectPrintController::class, 'management'])
+        ->name('digital-projects.management-report');
+    Route::get('/digital-projects/management-report/excel', [DigitalProjectPrintController::class, 'managementExcel'])
+        ->name('digital-projects.management-report.excel');
     Route::get('/digital-projects/{project}/print', [DigitalProjectPrintController::class, 'show'])
         ->name('digital-projects.print');
     Route::get('/reports/print/{token}', [ReportPrintController::class, 'show'])

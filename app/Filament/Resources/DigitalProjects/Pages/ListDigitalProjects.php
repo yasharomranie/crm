@@ -50,6 +50,11 @@ class ListDigitalProjects extends ListRecords
                         return view('digital-projects.ai-summary', ['error' => $exception->getMessage()]);
                     }
                 }),
+            Action::make('managementReport')
+                ->label('گزارش مدیریتی (A4 افقی)')
+                ->icon(Heroicon::OutlinedDocumentChartBar)
+                ->color('gray')
+                ->url(fn (): string => route('digital-projects.management-report'), shouldOpenInNewTab: true),
             Action::make('weeklyReport')
                 ->label('گزارش هفتگی (چاپ)')
                 ->icon(Heroicon::OutlinedPrinter)

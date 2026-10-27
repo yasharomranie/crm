@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DigitalProjects\RelationManagers;
 
 use App\Enums\DigitalProjectActionStatus;
+use App\Enums\DigitalProjectWorkCategory;
 use App\Models\DigitalProjectAction;
 use Filament\Actions\Action;
 use Filament\Actions\BulkActionGroup;
@@ -49,6 +50,7 @@ class ActionsRelationManager extends RelationManager
                     ->required(),
                 DatePicker::make('due_on')->jalali()->displayFormat('Y/m/d')->label('مهلت'),
                 Select::make('assigned_to')->label('مسئول')->relationship('assignee', 'name')->searchable()->preload(),
+                Select::make('work_category')->label('نوع کار (برای گزارش مدیریتی)')->options(DigitalProjectWorkCategory::class)->placeholder('—')->helperText('اگر انتخاب کنید، این کار در ستون همان دسته از گزارش هفتگی شمرده می‌شود.'),
                 Textarea::make('details')->label('توضیح')->rows(4)->columnSpanFull(),
             ]);
     }

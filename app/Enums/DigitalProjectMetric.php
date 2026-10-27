@@ -11,6 +11,8 @@ enum DigitalProjectMetric: string implements HasLabel
     case Views = 'views';
     case Visitors = 'visitors';
     case Posts = 'posts';
+    case Stories = 'stories';
+    case Purchases = 'purchases';
 
     public function getLabel(): string
     {
@@ -19,6 +21,8 @@ enum DigitalProjectMetric: string implements HasLabel
             self::Views => 'بازدید',
             self::Visitors => 'بازدیدکنندهٔ سایت',
             self::Posts => 'تعداد پست',
+            self::Stories => 'تعداد استوری',
+            self::Purchases => 'خرید از سایت',
         };
     }
 }
