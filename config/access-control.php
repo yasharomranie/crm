@@ -14,6 +14,7 @@ use App\Filament\Pages\CustomerAppAuthSettings;
 use App\Filament\Pages\CustomerAppGoogleSettings;
 use App\Filament\Pages\CustomerAppNavSettings;
 use App\Filament\Pages\CustomerValueReportPage;
+use App\Filament\Pages\DigitalProjectWeeklyEntry;
 use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Pages\GateScanner;
@@ -226,6 +227,7 @@ return [
                 'act' => 'اقدام (ایجاد تسک و موارد مشابه)',
             ],
         ],
+        'digital-project-weekly-entry' => ['page' => DigitalProjectWeeklyEntry::class, 'label' => 'ورود سریع آمار هفتگی پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
         'messenger' => ['page' => Messenger::class, 'label' => 'پیام‌رسان', 'group' => 'ارتباطات داخلی'],
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],
         'channel-manager-dashboard' => ['page' => ChannelManagerDashboard::class, 'label' => 'داشبورد کانال‌های فروش', 'group' => 'اقامتی و هتلداری'],

@@ -3,6 +3,7 @@
 namespace App\Filament\Support;
 
 use App\Filament\Pages\BookingMessageSettings;
+use App\Filament\Pages\DigitalProjectWeeklyEntry;
 use App\Filament\Pages\HotelReports;
 use App\Filament\Pages\NightAuditPage;
 use App\Filament\Pages\OccupancyCalendarPage;
@@ -62,6 +63,7 @@ class PageHelp
         BookingPromoCodeResource::class => 'pricing',
         DigitalProjectResource::class => 'digital-projects',
         DigitalProjectLogResource::class => 'digital-project-logs',
+        DigitalProjectWeeklyEntry::class => 'digital-project-weekly-entry',
     ];
 
     /**

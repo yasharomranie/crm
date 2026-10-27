@@ -3,6 +3,7 @@
 namespace App\Filament\Resources\DigitalProjects\RelationManagers;
 
 use App\Enums\DigitalProjectLogKind;
+use App\Enums\DigitalProjectWorkCategory;
 use Filament\Actions\CreateAction;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\EditAction;
@@ -36,6 +37,7 @@ class LogsRelationManager extends RelationManager
             ->components([
                 DatePicker::make('logged_on')->jalali()->displayFormat('Y/m/d')->label('تاریخ')->default(today())->required(),
                 Select::make('kind')->label('نوع')->options(DigitalProjectLogKind::class)->default(DigitalProjectLogKind::Done)->required(),
+                Select::make('work_category')->label('نوع کار (برای گزارش مدیریتی)')->options(DigitalProjectWorkCategory::class)->placeholder('—')->helperText('اگر انتخاب کنید، این کار در ستون همان دسته از گزارش هفتگی شمرده می‌شود.'),
                 Textarea::make('body')->label('چه کاری کردید؟')->rows(4)->required()->columnSpanFull(),
             ]);
     }

@@ -3,6 +3,7 @@
 namespace App\Models;
 
 use App\Enums\DigitalProjectActionStatus;
+use App\Enums\DigitalProjectWorkCategory;
 use App\Enums\TaskPriority;
 use App\Enums\TaskStatus;
 use App\Enums\TaskType;
@@ -19,7 +20,7 @@ class DigitalProjectAction extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['digital_project_id', 'title', 'details', 'status', 'due_on', 'assigned_to', 'completed_at', 'created_by'];
+    protected $fillable = ['digital_project_id', 'title', 'details', 'status', 'due_on', 'assigned_to', 'completed_at', 'created_by', 'work_category'];
 
     protected function casts(): array
     {
@@ -27,6 +28,7 @@ class DigitalProjectAction extends Model
             'status' => DigitalProjectActionStatus::class,
             'due_on' => 'date',
             'completed_at' => 'datetime',
+            'work_category' => DigitalProjectWorkCategory::class,
         ];
     }
 

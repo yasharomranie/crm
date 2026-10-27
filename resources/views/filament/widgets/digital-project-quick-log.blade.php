@@ -1,6 +1,6 @@
 <x-filament-widgets::widget>
     <x-filament::section heading="امروز چه کار کردی؟" description="یک خط بنویس تا در گزارش روزانهٔ همان پروژه ثبت شود.">
-        <form wire:submit="save" class="grid gap-3 md:grid-cols-[14rem_10rem_1fr_auto] md:items-start">
+        <form wire:submit="save" class="grid gap-3 md:grid-cols-[14rem_9rem_10rem_1fr_auto] md:items-start">
             <div>
                 <x-filament::input.wrapper :valid="! $errors->has('projectId')">
                     <x-filament::input.select wire:model="projectId" aria-label="پروژه">
@@ -17,6 +17,15 @@
                 <x-filament::input.select wire:model="kind" aria-label="نوع گزارش">
                     @foreach ($kinds as $kind)
                         <option value="{{ $kind->value }}">{{ $kind->getLabel() }}</option>
+                    @endforeach
+                </x-filament::input.select>
+            </x-filament::input.wrapper>
+
+            <x-filament::input.wrapper>
+                <x-filament::input.select wire:model="workCategory" aria-label="نوع کار">
+                    <option value="">نوع کار (اختیاری)</option>
+                    @foreach ($categories as $category)
+                        <option value="{{ $category->value }}">{{ $category->getLabel() }}</option>
                     @endforeach
                 </x-filament::input.select>
             </x-filament::input.wrapper>
