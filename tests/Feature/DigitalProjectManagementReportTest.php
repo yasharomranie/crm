@@ -71,7 +71,7 @@ class DigitalProjectManagementReportTest extends TestCase
 
         $this->assertSame(Carbon::SATURDAY, $start->dayOfWeek);
         $this->assertSame(Carbon::FRIDAY, $end->dayOfWeek);
-        $this->assertSame(6, $start->diffInDays($end));
+        $this->assertSame(6, (int) $start->diffInDays($end));
         $this->assertTrue($start->lte(Carbon::parse('2026-10-28')) && $end->gte(Carbon::parse('2026-10-28')));
     }
 
