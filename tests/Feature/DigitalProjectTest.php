@@ -183,4 +183,18 @@ class DigitalProjectTest extends TestCase
         $this->actingAs($admin)->get(DigitalProjectResource::getUrl('index'))->assertOk()->assertSee('data-page-help="digital-projects"', false);
         $this->actingAs($admin)->get(Dashboard::getUrl())->assertOk()->assertDontSee('بررسی عقب‌افتاده');
     }
+
+    public function test_the_table_shows_every_kind_even_when_one_kind_has_more_than_ten_projects(): void
+    {
+        $sites = DigitalProject::factory()->count(12)->create(['channel' => DigitalProjectChannel::Website]);
+        $instagram = DigitalProject::factory()->create(['channel' => DigitalProjectChannel::Instagram, 'name' => 'پیج اینستاگرام']);
+        $telegram = DigitalProject::factory()->create(['channel' => DigitalProjectChannel::Telegram, 'name' => 'کانال تلگرام']);
+
+        Livewire::actingAs($this->admin())
+            ->test(ListDigitalProjects::class)
+            ->assertCanSeeTableRecords($sites->push($instagram, $telegram))
+            ->assertSee('سایت‌ها (۱۲)')
+            ->assertSee('اینستاگرام (۱)')
+            ->assertSee('تلگرام (۱)');
+    }
 }

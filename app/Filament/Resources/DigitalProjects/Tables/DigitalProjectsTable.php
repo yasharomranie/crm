@@ -80,6 +80,10 @@ class DigitalProjectsTable
                     ->collapsible(),
             )
             ->groupingSettingsHidden()
+            // Groups are cut by page, not by group: with ten rows per page a kind
+            // with more than ten projects would hide every other kind behind "next".
+            ->paginated([25, 50, 100, 'all'])
+            ->defaultPaginationPageOption(100)
             ->defaultSort('name')
             ->filters([
                 SelectFilter::make('channel')->label('نوع پروژه')->options(DigitalProjectChannel::class),
