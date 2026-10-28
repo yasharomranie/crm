@@ -25,6 +25,7 @@ use App\Http\Controllers\FormSubmissionFileController;
 use App\Http\Controllers\FormSubmissionPrintController;
 use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\GuestFeedbackController;
+use App\Http\Controllers\GuideController;
 use App\Http\Controllers\HousekeepingSheetController;
 use App\Http\Controllers\LeadCaptureController;
 use App\Http\Controllers\MapTileController;
@@ -121,6 +122,12 @@ Route::middleware('auth')->group(function () {
 // default guest redirect targets a route named 'login', which doesn't
 // exist in this app (Filament's own is 'filament.admin.auth.login'), so it
 // 500s instead of redirecting - checking manually here sidesteps that.
+// The smart tourism guide's phone-facing endpoints (public; they answer 404 while the guide is switched off).
+Route::prefix('guide')->name('guide.')->group(function () {
+    Route::get('/data.json', [GuideController::class, 'data'])->middleware('throttle:60,1')->name('data');
+    Route::post('/events', [GuideController::class, 'event'])->middleware('throttle:240,1')->name('events');
+});
+
 Route::get('/system-guide', function () {
     return auth()->check()
         ? view('system-guide')
