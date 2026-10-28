@@ -7,6 +7,7 @@ use App\Filament\Pages\Concerns\HasAccessControlledPage;
 use Filament\Pages\Dashboard;
 use Filament\Pages\Page;
 use Filament\Resources\Resource;
+use Illuminate\Foundation\Testing\RefreshDatabase;
 use ReflectionClass;
 use Tests\TestCase;
 
@@ -18,6 +19,8 @@ use Tests\TestCase;
  */
 class AccessControlCoverageTest extends TestCase
 {
+    use RefreshDatabase;
+
     /** Pages that are deliberately open to every signed-in user. */
     private const OPEN_PAGES = [
         'App\\Filament\\Pages\\Dashboard',
