@@ -6,14 +6,22 @@
 // See public/sw.js's own top comment for the caching strategy this mirrors
 // - only the scope and static-path allowlist differ here.
 
-const CACHE_NAME = 'ganjnameh-app-static-v1';
+const CACHE_NAME = 'ganjnameh-app-static-v2';
 const OFFLINE_URL = '/app-offline.html';
 
 const STATIC_PATH_PATTERNS = [
     /^\/build\//,
     /^\/icons\//,
     /^\/customer-app\.webmanifest$/,
+    // The smart guide's engine, model and runtime: large, rarely change, and
+    // needed offline inside the museum.
+    /^\/vendor\/guide\//,
+    /^\/guide\/guide-engine\.js$/,
 ];
+
+// Admin-managed guide data and the scanner page itself: network first (so
+// edits show up), the last good copy when there is no connection.
+const NETWORK_FIRST_PATHS = [/^\/guide\/data\.json$/, /^\/app\/guide$/];
 
 self.addEventListener('install', (event) => {
     event.waitUntil(
@@ -47,6 +55,26 @@ self.addEventListener('fetch', (event) => {
     // Full-page navigations always go to the network first - this app's
     // content is admin-managed and can change any time - and only fall
     // back to the offline shell when there's truly no connection.
+    if (NETWORK_FIRST_PATHS.some((pattern) => pattern.test(url.pathname))) {
+        event.respondWith(
+            caches.open(CACHE_NAME).then(async (cache) => {
+                try {
+                    const response = await fetch(request);
+
+                    if (response.ok) {
+                        cache.put(request, response.clone());
+                    }
+
+                    return response;
+                } catch (error) {
+                    return (await cache.match(request)) ?? (request.mode === 'navigate' ? caches.match(OFFLINE_URL) : Response.error());
+                }
+            }),
+        );
+
+        return;
+    }
+
     if (request.mode === 'navigate') {
         event.respondWith(
             fetch(request).catch(() => caches.match(OFFLINE_URL)),
