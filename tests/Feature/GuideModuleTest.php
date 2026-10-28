@@ -379,7 +379,7 @@ class GuideModuleTest extends TestCase
             ->assertOk()
             ->assertJson(['status' => 'processed']);
 
-        $this->assertSame([0.6, 0.8, 0.0], $image->refresh()->embedding);
+        $this->assertEquals([0.6, 0.8, 0.0], $image->refresh()->embedding);
     }
 
     public function test_an_empty_or_malformed_fingerprint_is_refused(): void
