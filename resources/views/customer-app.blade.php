@@ -176,6 +176,8 @@
         .guide-entry svg { flex: none; }
         .guide-entry strong { display: block; font-size: .95rem; }
         .guide-entry span { font-size: .78rem; opacity: .9; }
+        .guide-entry #guide-prep { display: block; margin-top: .2rem; font-weight: 700; }
+        .guide-entry #guide-prep[hidden] { display: none; }
 
         /* ---------- Banners ---------- */
 
@@ -348,6 +350,7 @@
                     <div>
                         <strong>راهنمای هوشمند</strong>
                         <span>دوربین را روی اثر بگیرید و اطلاعات و ویدیوی آن را ببینید</span>
+                        <span id="guide-prep" hidden></span>
                     </div>
                 </a>
             @endif
@@ -413,6 +416,57 @@
 
     @include('partials.customer-app-pwa-register')
     @include('partials.customer-app-pwa-install-prompt')
+
+    @if ($smartGuideEnabled)
+        <script type="module">
+            // Fetch the recognition model in the background right after the app opens,
+            // so scanning later does not wait for a ~35 MB download.
+            const KEY = 'guide-prefetch-at';
+            const REFRESH_MS = 3 * 24 * 3600 * 1000;
+            const note = document.getElementById('guide-prep');
+
+            const read = () => { try { return Number(localStorage.getItem(KEY)) || 0; } catch (error) { return 0; } };
+            const write = () => { try { localStorage.setItem(KEY, String(Date.now())); } catch (error) { /* private mode */ } };
+            const connection = navigator.connection;
+            const spare = connection && (connection.saveData || /(^|-)2g$/.test(connection.effectiveType ?? ''));
+
+            const start = async () => {
+                if (spare || Date.now() - read() < REFRESH_MS) {
+                    return;
+                }
+                try {
+                    await navigator.serviceWorker?.ready;
+                } catch (error) { /* works without it, just not stored for offline */ }
+                try {
+                    const { prefetchEngine } = await import('/guide/guide-engine.js?v=1');
+                    await prefetchEngine((fraction) => {
+                        if (note && fraction < 1) {
+                            note.hidden = false;
+                            note.textContent = `در حال آماده‌سازی برای اسکن بدون انتظار… ${Math.round(fraction * 100).toLocaleString('fa-IR')}٪`;
+                        }
+                    });
+                    write();
+                    if (note) {
+                        note.hidden = false;
+                        note.textContent = 'آماده برای اسکن بدون انتظار';
+                        setTimeout(() => { note.hidden = true; }, 4000);
+                    }
+                } catch (error) {
+                    if (note) {
+                        note.hidden = true;
+                    }
+                }
+            };
+
+            window.addEventListener('load', () => {
+                if ('requestIdleCallback' in window) {
+                    requestIdleCallback(start, { timeout: 4000 });
+                } else {
+                    setTimeout(start, 2000);
+                }
+            });
+        </script>
+    @endif
 
     <script>
         (function () {

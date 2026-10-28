@@ -11,6 +11,10 @@ const SIZE = 224;
 const MEAN = [0.485, 0.456, 0.406];
 const STD = [0.229, 0.224, 0.225];
 
+const ASSETS = ['ort.wasm.min.mjs', 'ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm', 'dinov2-small-q8.onnx'].map((file) => BASE + file);
+/** Roughly what the files add up to, only to draw a progress figure. */
+const EXPECTED_BYTES = 35000000;
+
 let enginePromise = null;
 let workCanvas = null;
 
@@ -41,6 +45,34 @@ export function loadEngine(onProgress = () => {}) {
     }
 
     return enginePromise;
+}
+
+/**
+ * Downloads the runtime and the model ahead of time (while the visitor is
+ * still browsing the app) so the first scan does not wait. The browser keeps
+ * what it fetched, and the app's service worker stores it for offline use.
+ */
+export async function prefetchEngine(onProgress = () => {}) {
+    let loaded = 0;
+
+    for (const url of ASSETS) {
+        const response = await fetch(url, { cache: 'force-cache' });
+        if (!response.ok || !response.body) {
+            throw new Error('prefetch-failed');
+        }
+
+        const reader = response.body.getReader();
+        for (;;) {
+            const { done, value } = await reader.read();
+            if (done) {
+                break;
+            }
+            loaded += value.length;
+            onProgress(Math.min(loaded / EXPECTED_BYTES, 0.99));
+        }
+    }
+
+    onProgress(1);
 }
 
 function normalise(vector) {
