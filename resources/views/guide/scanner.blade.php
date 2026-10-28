@@ -13,12 +13,11 @@
 
     <style>
         :root {
-            color-scheme: light;
+            color-scheme: dark;
             --orange: #f97316;
             --orange-dark: #c2410c;
-            --orange-soft: #ffedd5;
-            --green: #15803d;
-            --red: #b91c1c;
+            --green: #4ade80;
+            --red: #fca5a5;
             --ink: #1c1917;
             --ink-soft: #57534e;
             --paper: #fff7ed;
@@ -35,137 +34,203 @@
             color: var(--ink);
         }
 
-        .shell {
-            max-width: 30rem;
-            margin: 0 auto;
-            min-height: 100dvh;
-            background: #fff;
-            display: flex;
-            flex-direction: column;
+        .shell { max-width: 32rem; margin: 0 auto; background: #fff; min-height: 100dvh; }
+
+        .stage {
+            position: relative;
+            height: 72dvh;
+            min-height: 22rem;
+            background: #0c0a09;
+            color: #fff;
+            overflow: hidden;
         }
 
-        .topbar {
-            padding: max(1rem, env(safe-area-inset-top)) 1rem .8rem;
-            border-bottom: 1px solid var(--line);
+        .stage video { position: absolute; inset: 0; width: 100%; height: 100%; }
+        #camera { object-fit: cover; }
+        #story { object-fit: contain; background: #000; }
+
+        .stage .shade {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to bottom, rgb(0 0 0 / .55), transparent 28%, transparent 60%, rgb(0 0 0 / .7));
+            pointer-events: none;
+        }
+
+        .top {
+            position: absolute;
+            inset-inline: 0;
+            top: 0;
+            z-index: 3;
+            padding: max(.8rem, env(safe-area-inset-top)) 1rem .6rem;
             display: flex;
             align-items: center;
             gap: .7rem;
         }
+        .top a { color: #fff; text-decoration: none; font-size: 1.2rem; }
+        .top h1 { font-size: .95rem; margin: 0; }
+        .preview-note { font-size: .7rem; background: var(--orange); color: #fff; border-radius: 99px; padding: .15rem .6rem; }
 
-        .topbar a { color: var(--ink-soft); text-decoration: none; }
-        .topbar h1 { font-size: 1rem; margin: 0; }
-
-        .preview-note {
-            background: var(--orange-soft);
-            color: var(--orange-dark);
-            font-size: .8rem;
-            padding: .5rem 1rem;
-        }
-
-        main { flex: 1; padding: 1rem; display: flex; flex-direction: column; gap: 1rem; }
-
-        .viewport {
-            position: relative;
-            aspect-ratio: 1;
-            background: #1c1917;
-            border-radius: 1rem;
-            overflow: hidden;
-            display: grid;
-            place-items: center;
-        }
-
-        .viewport video { width: 100%; height: 100%; object-fit: cover; }
-        .viewport .frame {
+        .reticle {
             position: absolute;
-            inset: 12%;
-            border: 3px solid rgb(255 255 255 / .8);
-            border-radius: 1rem;
+            inset: 20% 14%;
+            z-index: 2;
+            border-radius: 1.2rem;
             pointer-events: none;
+            --c: rgb(255 255 255 / .9);
+            background:
+                linear-gradient(var(--c), var(--c)) top left / 2rem 3px no-repeat,
+                linear-gradient(var(--c), var(--c)) top left / 3px 2rem no-repeat,
+                linear-gradient(var(--c), var(--c)) top right / 2rem 3px no-repeat,
+                linear-gradient(var(--c), var(--c)) top right / 3px 2rem no-repeat,
+                linear-gradient(var(--c), var(--c)) bottom left / 2rem 3px no-repeat,
+                linear-gradient(var(--c), var(--c)) bottom left / 3px 2rem no-repeat,
+                linear-gradient(var(--c), var(--c)) bottom right / 2rem 3px no-repeat,
+                linear-gradient(var(--c), var(--c)) bottom right / 3px 2rem no-repeat;
         }
-        .viewport[data-state="matched"] .frame { border-color: #4ade80; }
-        .viewport .idle { color: #fff; text-align: center; padding: 1.5rem; font-size: .9rem; line-height: 1.9; }
+        .reticle .sweep {
+            position: absolute;
+            inset-inline: 6%;
+            height: 2px;
+            background: linear-gradient(to right, transparent, var(--orange), transparent);
+            animation: sweep 2.2s ease-in-out infinite alternate;
+        }
+        .stage[data-state="matched"] .reticle,
+        .stage[data-state="story"] .reticle { --c: var(--green); }
+        .stage[data-state="matched"] .sweep,
+        .stage[data-state="story"] .sweep { display: none; }
+        @keyframes sweep { from { top: 6%; } to { top: 94%; } }
+
+        .intro, .loading {
+            position: absolute;
+            inset: 0;
+            z-index: 4;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 1rem;
+            padding: 2rem 1.5rem;
+            text-align: center;
+            line-height: 2;
+            font-size: .92rem;
+        }
+        .intro { background: rgb(12 10 9 / .72); }
+        .loading { background: rgb(12 10 9 / .78); font-weight: 700; }
+        .loading small { display: block; font-weight: 400; opacity: .8; }
+
+        .spinner {
+            width: 2.6rem;
+            height: 2.6rem;
+            border: 4px solid rgb(255 255 255 / .25);
+            border-top-color: var(--orange);
+            border-radius: 50%;
+            animation: spin .9s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
 
         .status {
+            position: absolute;
+            inset-inline: 0;
+            bottom: 0;
+            z-index: 3;
+            padding: .8rem 1rem max(1rem, env(safe-area-inset-bottom));
             text-align: center;
             font-weight: 700;
             font-size: 1rem;
-            min-height: 3.2rem;
         }
-        .status small { display: block; font-weight: 400; color: var(--ink-soft); font-size: .82rem; margin-top: .2rem; }
-        .status[data-state="error"], .status[data-state="denied"], .status[data-state="network"] { color: var(--red); }
-        .status[data-state="matched"] { color: var(--green); }
+        .status small { display: block; font-weight: 400; opacity: .85; font-size: .8rem; margin-top: .15rem; }
+        .stage[data-state="matched"] .status, .stage[data-state="story"] .status { color: var(--green); }
+        .stage[data-state="error"] .status, .stage[data-state="denied"] .status, .stage[data-state="network"] .status, .stage[data-state="videoError"] .status { color: var(--red); }
 
-        button.primary {
-            background: var(--orange);
-            color: #fff;
+        .controls {
+            position: absolute;
+            inset-inline: 0;
+            bottom: 0;
+            z-index: 5;
+            padding: .8rem 1rem max(1rem, env(safe-area-inset-bottom));
+            display: flex;
+            gap: .6rem;
+            justify-content: center;
+            background: linear-gradient(to top, rgb(0 0 0 / .7), transparent);
+        }
+
+        button {
+            font: inherit;
             border: 0;
             border-radius: .8rem;
-            padding: .9rem 1rem;
-            font: inherit;
+            padding: .8rem 1.2rem;
+            cursor: pointer;
             font-weight: 700;
-            cursor: pointer;
         }
-        button.primary:focus-visible { outline: 3px solid var(--orange-dark); outline-offset: 2px; }
-        button.secondary {
-            background: #fff;
-            color: var(--orange-dark);
-            border: 1px solid var(--orange);
-            border-radius: .8rem;
-            padding: .7rem 1rem;
-            font: inherit;
-            cursor: pointer;
-        }
+        button:focus-visible { outline: 3px solid #fff; outline-offset: 2px; }
+        button.primary { background: var(--orange); color: #fff; }
+        button.glass { background: rgb(255 255 255 / .18); color: #fff; backdrop-filter: blur(6px); }
+        button.pulse { animation: pulse 1.4s ease-in-out infinite; }
+        @keyframes pulse { 50% { box-shadow: 0 0 0 .5rem rgb(249 115 22 / .35); } }
 
-        .result { border: 1px solid var(--line); border-radius: 1rem; overflow: hidden; }
-        .result img.cover { width: 100%; max-height: 14rem; object-fit: cover; display: block; }
-        .result .body { padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
-        .result h2 { margin: 0; font-size: 1.1rem; }
-        .result .zone { color: var(--orange-dark); font-size: .8rem; }
-        .result p { margin: 0; line-height: 2; font-size: .9rem; color: var(--ink-soft); white-space: pre-line; }
-        .result video { width: 100%; border-radius: .7rem; background: #000; }
+        .sheet { padding: 1.1rem 1rem 3rem; display: flex; flex-direction: column; gap: .7rem; }
+        .sheet h2 { margin: 0; font-size: 1.15rem; }
+        .sheet .zone { color: var(--orange-dark); font-size: .8rem; }
+        .sheet p { margin: 0; line-height: 2; font-size: .92rem; color: var(--ink-soft); white-space: pre-line; }
+        .sheet .others { display: flex; flex-direction: column; gap: .5rem; }
+        .sheet button.secondary { background: #fff; color: var(--orange-dark); border: 1px solid var(--orange); text-align: start; }
+        .sheet .hint { color: var(--ink-soft); font-size: .85rem; }
+        .debug { font-size: .72rem; color: var(--ink-soft); direction: ltr; text-align: center; margin: 0; }
         [hidden] { display: none !important; }
-        .debug { font-size: .75rem; color: var(--ink-soft); text-align: center; direction: ltr; }
+
+        @media (prefers-reduced-motion: reduce) {
+            .reticle .sweep, .spinner, button.pulse { animation: none; }
+        }
     </style>
 </head>
 <body>
 <div class="shell">
-    <header class="topbar">
-        <a href="{{ route('customer-app') }}" aria-label="بازگشت">→</a>
-        <h1>راهنمای هوشمند گردشگری</h1>
-    </header>
+    <div class="stage" id="stage" data-state="ready">
+        <video id="camera" playsinline muted autoplay hidden></video>
+        <video id="story" playsinline preload="auto" hidden></video>
+        <div class="shade"></div>
 
-    @if ($staffPreview)
-        <div class="preview-note">حالت آزمایش: راهنما برای گردشگران هنوز فعال نیست و فقط کارکنان وارد‌شده این صفحه را می‌بینند.</div>
-    @endif
+        <header class="top">
+            <a href="{{ route('customer-app') }}" aria-label="بازگشت">→</a>
+            <h1>راهنمای هوشمند گنجنامه</h1>
+            @if ($staffPreview)
+                <span class="preview-note">حالت آزمایش</span>
+            @endif
+        </header>
 
-    <main>
-        <div class="viewport" id="viewport" data-state="ready">
-            <video id="camera" playsinline muted autoplay hidden></video>
-            <div class="frame" id="frame" hidden></div>
-            <div class="idle" id="idle">دوربین را روی یکی از اشیای موزه بگیرید تا اطلاعات و ویدیوی آن نمایش داده شود.</div>
+        <div class="reticle" id="reticle" hidden><i class="sweep"></i></div>
+
+        <div class="intro" id="intro">
+            <div>دوربین را روی یکی از اشیای موزه بگیرید؛ بعد از شناسایی، داستان آن با ویدیو و صدا شروع می‌شود.</div>
+            <button class="primary" id="start" type="button">شروع اسکن</button>
         </div>
 
-        <div class="status" id="status" data-state="ready" role="status" aria-live="polite">آماده اسکن</div>
+        <div class="loading" id="loading" hidden role="status" aria-live="polite">
+            <div class="spinner" aria-hidden="true"></div>
+            <div id="loadingText">در حال لود کردن داستان…<small id="loadingTitle"></small></div>
+        </div>
 
-        <button class="primary" id="start" type="button">شروع اسکن</button>
-        <p class="debug" id="debug" hidden></p>
+        <div class="status" id="status" role="status" aria-live="polite" data-state="ready"></div>
 
-        <section class="result" id="result" hidden></section>
-        <button class="secondary" id="again" type="button" hidden>اسکن دوباره</button>
-    </main>
+        <div class="controls" id="controls" hidden>
+            <button class="glass" id="sound" type="button">صدا</button>
+            <button class="glass" id="replay" type="button" hidden>پخش دوباره</button>
+            <button class="primary" id="again" type="button">اسکن شیء بعدی</button>
+        </div>
+    </div>
+
+    <section class="sheet" id="sheet" hidden></section>
+    <p class="debug" id="debug" hidden></p>
 </div>
 
 <script type="module">
     import { loadEngine, embed, rank, reportEvent } from '/guide/guide-engine.js?v=1';
 
     const $ = (id) => document.getElementById(id);
-    const viewport = $('viewport');
-    const video = $('camera');
+    const stage = $('stage');
+    const camera = $('camera');
+    const story = $('story');
     const statusBox = $('status');
-    const startButton = $('start');
-    const againButton = $('again');
-    const resultBox = $('result');
-    const debugBox = $('debug');
     const showDebug = @json($staffPreview);
 
     const MESSAGES = {
@@ -173,11 +238,13 @@
         loading: ['در حال آماده‌سازی…', 'بار اول چند ثانیه طول می‌کشد.'],
         scanning: ['در حال شناسایی…', 'دوربین را ثابت نگه دارید.'],
         matched: ['شیء شناسایی شد', ''],
+        story: ['شیء شناسایی شد', ''],
         unmatched: ['شیء شناسایی نشد.', 'لطفاً زاویه دوربین را تغییر دهید.'],
         network: ['خطای اتصال', 'اتصال اینترنت را بررسی کنید و دوباره تلاش کنید.'],
         denied: ['عدم دسترسی به دوربین', 'اجازهٔ استفاده از دوربین را در تنظیمات مرورگر بدهید.'],
         error: ['خطا در شناسایی', 'دوباره تلاش کنید.'],
         empty: ['هنوز شیئی برای شناسایی آماده نیست.', ''],
+        videoError: ['ویدیو بارگذاری نشد', 'اتصال را بررسی کنید و «پخش دوباره» را بزنید.'],
     };
 
     let stream = null;
@@ -187,11 +254,14 @@
     let scanStartedAt = 0;
     let unmatchedReported = false;
     let streak = { id: null, count: 0 };
+    let current = null;
+    let playReported = false;
+    let currentItem = null;
 
     function setState(state) {
         const [title, hint] = MESSAGES[state];
         statusBox.dataset.state = state;
-        viewport.dataset.state = state;
+        stage.dataset.state = state;
         statusBox.replaceChildren(document.createTextNode(title));
         if (hint) {
             const small = document.createElement('small');
@@ -205,8 +275,32 @@
         clearTimeout(timer);
         stream?.getTracks().forEach((track) => track.stop());
         stream = null;
-        video.hidden = true;
-        $('frame').hidden = true;
+        camera.hidden = true;
+        $('reticle').hidden = true;
+    }
+
+    function resetStory() {
+        story.pause();
+        story.removeAttribute('src');
+        story.load();
+        story.hidden = true;
+        $('loading').hidden = true;
+        $('controls').hidden = true;
+        $('replay').hidden = true;
+        $('sheet').hidden = true;
+        playReported = false;
+    }
+
+    /** Opening the sound on the very tap that starts the scan lets the story play with audio later. */
+    function unlockAudio() {
+        try {
+            const Context = window.AudioContext || window.webkitAudioContext;
+            if (Context) {
+                new Context().resume();
+            }
+        } catch (error) {
+            // Audio is a nicety; the story still plays muted if it stays locked.
+        }
     }
 
     async function fetchGuide() {
@@ -223,34 +317,34 @@
     }
 
     async function begin() {
-        resultBox.hidden = true;
-        againButton.hidden = true;
-        startButton.hidden = true;
-        $('idle').hidden = true;
+        unlockAudio();
+        resetStory();
+        $('intro').hidden = true;
         streak = { id: null, count: 0 };
         unmatchedReported = false;
+        current = null;
         setState('loading');
 
         try {
             stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' } }, audio: false });
         } catch (error) {
             setState('denied');
-            startButton.hidden = false;
+            $('intro').hidden = false;
 
             return;
         }
 
-        video.srcObject = stream;
-        video.hidden = false;
-        $('frame').hidden = false;
-        await video.play().catch(() => {});
+        camera.srcObject = stream;
+        camera.hidden = false;
+        $('reticle').hidden = false;
+        await camera.play().catch(() => {});
 
         try {
             await fetchGuide();
         } catch (error) {
             stopCamera();
             setState('network');
-            startButton.hidden = false;
+            $('intro').hidden = false;
 
             return;
         }
@@ -258,7 +352,7 @@
         if (!guide.objects.length) {
             stopCamera();
             setState('empty');
-            startButton.hidden = false;
+            $('intro').hidden = false;
 
             return;
         }
@@ -268,7 +362,7 @@
         } catch (error) {
             stopCamera();
             setState('error');
-            startButton.hidden = false;
+            $('intro').hidden = false;
             reportEvent({ type: 'scan_error' });
 
             return;
@@ -288,13 +382,13 @@
         const { similarity_threshold: threshold, min_margin: margin, frame_interval_ms: interval } = guide.settings;
 
         try {
-            if (video.readyState >= 2 && video.videoWidth > 0) {
-                const vector = await embed(video, video.videoWidth, video.videoHeight);
+            if (camera.readyState >= 2 && camera.videoWidth > 0) {
+                const vector = await embed(camera, camera.videoWidth, camera.videoHeight);
                 const outcome = rank(vector, guide.objects, threshold, margin);
 
                 if (showDebug && outcome.best) {
-                    debugBox.hidden = false;
-                    debugBox.textContent = `${outcome.best.object.slug} ${outcome.best.score.toFixed(3)} gap ${outcome.gap.toFixed(3)}`;
+                    $('debug').hidden = false;
+                    $('debug').textContent = `${outcome.best.object.slug} ${outcome.best.score.toFixed(3)} gap ${outcome.gap.toFixed(3)}`;
                 }
 
                 if (outcome.matched) {
@@ -320,7 +414,7 @@
         } catch (error) {
             stopCamera();
             setState('error');
-            startButton.hidden = false;
+            $('intro').hidden = false;
             reportEvent({ type: 'scan_error' });
 
             return;
@@ -333,87 +427,161 @@
 
     function found(object, score) {
         stopCamera();
+        current = object;
         setState('matched');
-        againButton.hidden = false;
         reportEvent({
             type: 'scan_matched',
             object_id: object.id,
             confidence: Math.max(0, Math.min(1, score)),
             latency_ms: Math.round(performance.now() - scanStartedAt),
         });
-        renderResult(object);
+        renderSheet(object);
+        $('controls').hidden = false;
+
+        if (object.videos.length) {
+            playStory(object.videos[0]);
+        }
     }
 
-    function renderResult(object) {
-        resultBox.replaceChildren();
+    /** Loads the story behind a "loading" curtain, then starts it by itself, with sound when the browser allows. */
+    function playStory(item) {
+        currentItem = item;
+        setState('story');
+        $('loadingTitle').textContent = current?.title ?? '';
+        $('loading').hidden = false;
+        $('replay').hidden = true;
+        story.hidden = true;
+        playReported = false;
 
-        if (object.cover_url) {
-            const cover = document.createElement('img');
-            cover.className = 'cover';
-            cover.src = object.cover_url;
-            cover.alt = object.title;
-            resultBox.append(cover);
+        let settled = false;
+        const finish = () => {
+            if (settled) {
+                return;
+            }
+            settled = true;
+            clearTimeout(giveUp);
+            story.removeEventListener('canplay', onReady);
+            story.removeEventListener('error', onFail);
+        };
+        const onReady = async () => {
+            finish();
+            $('loading').hidden = true;
+            story.hidden = false;
+            story.controls = false;
+            story.muted = false;
+            try {
+                await story.play();
+            } catch (error) {
+                story.muted = true;
+                try {
+                    await story.play();
+                } catch (second) {
+                    story.controls = true;
+                }
+            }
+            updateSound();
+        };
+        const onFail = () => {
+            finish();
+            $('loading').hidden = true;
+            story.hidden = true;
+            setState('videoError');
+            $('replay').hidden = false;
+        };
+        const giveUp = setTimeout(onFail, 15000);
+
+        story.addEventListener('canplay', onReady);
+        story.addEventListener('error', onFail);
+        story.poster = item.poster_url ?? '';
+        story.src = item.url;
+        story.load();
+    }
+
+    function updateSound() {
+        const button = $('sound');
+        button.textContent = story.muted ? 'پخش با صدا' : 'بی‌صدا';
+        button.classList.toggle('pulse', story.muted);
+    }
+
+    story.addEventListener('playing', () => {
+        if (!playReported && current) {
+            playReported = true;
+            reportEvent({ type: 'video_play', object_id: current.id });
         }
+    });
+    story.addEventListener('ended', () => { $('replay').hidden = false; });
 
-        const body = document.createElement('div');
-        body.className = 'body';
+    $('sound').addEventListener('click', () => {
+        story.muted = !story.muted;
+        if (story.paused) {
+            story.play().catch(() => {});
+        }
+        updateSound();
+    });
+    $('replay').addEventListener('click', () => {
+        $('replay').hidden = true;
+        if (!story.src || story.error || stage.dataset.state === 'videoError') {
+            playStory(currentItem);
+
+            return;
+        }
+        story.currentTime = 0;
+        story.play().catch(() => {});
+    });
+
+    function renderSheet(object) {
+        const sheet = $('sheet');
+        sheet.replaceChildren();
 
         const heading = document.createElement('h2');
         heading.textContent = object.title;
-        body.append(heading);
+        sheet.append(heading);
 
         if (object.zone) {
             const zone = document.createElement('span');
             zone.className = 'zone';
             zone.textContent = object.zone;
-            body.append(zone);
+            sheet.append(zone);
         }
 
         if (object.description) {
             const text = document.createElement('p');
             text.textContent = object.description;
-            body.append(text);
+            sheet.append(text);
         }
 
         if (!object.videos.length) {
             const note = document.createElement('p');
+            note.className = 'hint';
             note.textContent = 'برای این شیء هنوز ویدیویی منتشر نشده است.';
-            body.append(note);
+            sheet.append(note);
+        } else if (object.videos.length > 1) {
+            const list = document.createElement('div');
+            list.className = 'others';
+            for (const item of object.videos) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'secondary';
+                button.textContent = `پخش: ${item.title ?? 'ویدیو'}`;
+                button.addEventListener('click', () => playStory(item));
+                list.append(button);
+            }
+            sheet.append(list);
         }
 
-        for (const item of object.videos) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.className = 'secondary';
-            button.textContent = `پخش ویدیو: ${item.title ?? 'معرفی'}`;
-            button.addEventListener('click', () => {
-                const player = document.createElement('video');
-                player.controls = true;
-                player.playsInline = true;
-                player.src = item.url;
-                if (item.poster_url) {
-                    player.poster = item.poster_url;
-                }
-                button.replaceWith(player);
-                player.play().catch(() => {});
-                reportEvent({ type: 'video_play', object_id: object.id });
-            });
-            body.append(button);
-        }
-
-        resultBox.append(body);
-        resultBox.hidden = false;
+        sheet.hidden = false;
     }
 
-    startButton.addEventListener('click', begin);
-    againButton.addEventListener('click', begin);
+    $('start').addEventListener('click', begin);
+    $('again').addEventListener('click', begin);
     document.addEventListener('visibilitychange', () => {
         if (document.hidden && running) {
             stopCamera();
             setState('ready');
-            startButton.hidden = false;
+            $('intro').hidden = false;
         }
     });
+    setState('ready');
 </script>
 
 @include('partials.customer-app-pwa-register')

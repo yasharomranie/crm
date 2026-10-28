@@ -366,6 +366,7 @@ class GuideModuleTest extends TestCase
         $this->get(route('guide.scanner'))
             ->assertOk()
             ->assertSee('شروع اسکن')
+            ->assertSee('در حال لود کردن داستان')
             ->assertDontSee('حالت آزمایش');
     }
 
