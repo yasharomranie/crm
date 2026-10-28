@@ -105,6 +105,8 @@ use App\Models\TaskChecklistTemplate;
 use App\Models\TicketVariant;
 use App\Models\User;
 use App\Models\WaitlistEntry;
+use App\Models\WebAppBanner;
+use App\Models\WebAppSection;
 use App\Models\WorkflowDefinition;
 use App\Models\WorkShift;
 use Spatie\Permission\Models\Role;
@@ -187,6 +189,9 @@ return [
         'external-api-clients' => ['model' => ExternalApiClient::class, 'label' => 'اکانت‌های API خارجی', 'group' => 'زیرساخت سازمانی'],
 
         'digital-projects' => ['model' => DigitalProject::class, 'label' => 'پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
+        'web-app-banners' => ['model' => WebAppBanner::class, 'label' => 'بنرهای تبلیغاتی وب‌اپ', 'group' => 'وب‌اپ مشتریان'],
+        'web-app-sections' => ['model' => WebAppSection::class, 'label' => 'بخش‌های صفحهٔ وب‌اپ', 'group' => 'وب‌اپ مشتریان'],
+
         'digital-project-logs' => ['model' => DigitalProjectLog::class, 'label' => 'گزارش روزانهٔ پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
 
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
