@@ -62,7 +62,10 @@ class VideosRelationManager extends RelationManager
                     ->acceptedFileTypes(['image/jpeg', 'image/png', 'image/webp']),
                 TextInput::make('duration_seconds')->label('مدت (ثانیه)')->numeric()->integer()->minValue(1)->maxValue(36000),
                 Select::make('language')->label('زبان')->options(['fa' => 'فارسی', 'en' => 'انگلیسی', 'ar' => 'عربی'])->default('fa')->required(),
-                Toggle::make('is_published')->label('منتشر شده')->default(false),
+                Toggle::make('is_published')
+                    ->label('منتشر شده')
+                    ->helperText('تا روشن نباشد، گردشگر این ویدیو را نمی‌بیند.')
+                    ->default(true),
             ]);
     }
 
