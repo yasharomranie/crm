@@ -18,6 +18,7 @@ use App\Filament\Pages\DigitalProjectWeeklyEntry;
 use App\Filament\Pages\DocumentArchiveBrowser;
 use App\Filament\Pages\DuplicateGuests;
 use App\Filament\Pages\GateScanner;
+use App\Filament\Pages\GuideSettings;
 use App\Filament\Pages\HotelReports;
 use App\Filament\Pages\Messenger;
 use App\Filament\Pages\MyAttendance;
@@ -77,6 +78,11 @@ use App\Models\Guest;
 use App\Models\GuestFeedback;
 use App\Models\GuestSegment;
 use App\Models\GuestTicket;
+use App\Models\GuideObject;
+use App\Models\GuideReferenceImage;
+use App\Models\GuideSite;
+use App\Models\GuideVideo;
+use App\Models\GuideZone;
 use App\Models\HandoverNote;
 use App\Models\LeadCaptureForm;
 use App\Models\LostItem;
@@ -192,6 +198,12 @@ return [
         'web-app-banners' => ['model' => WebAppBanner::class, 'label' => 'بنرهای تبلیغاتی وب‌اپ', 'group' => 'وب‌اپ مشتریان'],
         'web-app-sections' => ['model' => WebAppSection::class, 'label' => 'بخش‌های صفحهٔ وب‌اپ', 'group' => 'وب‌اپ مشتریان'],
 
+        'guide-sites' => ['model' => GuideSite::class, 'label' => 'مجموعه‌های گردشگری (راهنمای هوشمند)', 'group' => 'راهنمای هوشمند گردشگری'],
+        'guide-zones' => ['model' => GuideZone::class, 'label' => 'فضاها (راهنمای هوشمند)', 'group' => 'راهنمای هوشمند گردشگری'],
+        'guide-objects' => ['model' => GuideObject::class, 'label' => 'اشیای قابل شناسایی', 'group' => 'راهنمای هوشمند گردشگری'],
+        'guide-reference-images' => ['model' => GuideReferenceImage::class, 'label' => 'تصاویر مرجع اشیا', 'group' => 'راهنمای هوشمند گردشگری'],
+        'guide-videos' => ['model' => GuideVideo::class, 'label' => 'ویدیوهای داستان اشیا', 'group' => 'راهنمای هوشمند گردشگری'],
+
         'digital-project-logs' => ['model' => DigitalProjectLog::class, 'label' => 'گزارش روزانهٔ پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
 
         'seo-projects' => ['model' => SeoProject::class, 'label' => 'پروژه‌های سئو', 'group' => 'مرکز سئو'],
@@ -232,6 +244,7 @@ return [
                 'act' => 'اقدام (ایجاد تسک و موارد مشابه)',
             ],
         ],
+        'guide-settings' => ['page' => GuideSettings::class, 'label' => 'تنظیمات راهنمای هوشمند', 'group' => 'راهنمای هوشمند گردشگری'],
         'digital-project-weekly-entry' => ['page' => DigitalProjectWeeklyEntry::class, 'label' => 'ورود سریع آمار هفتگی پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
         'messenger' => ['page' => Messenger::class, 'label' => 'پیام‌رسان', 'group' => 'ارتباطات داخلی'],
         'my-attendance' => ['page' => MyAttendance::class, 'label' => 'حضور و غیاب من', 'group' => 'حضور و غیاب'],

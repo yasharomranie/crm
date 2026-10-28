@@ -492,6 +492,7 @@
       <li><a href="#ch-16">تریپ‌پلنر</a></li>
       <li><a href="#ch-offline">استقلال از اینترنت بین‌المللی</a></li>
       <li><a href="#ch-digital-projects">پروژه‌های دیجیتال</a></li>
+      <li><a href="#ch-smart-guide">راهنمای هوشمند گردشگری (آزمایشی)</a></li>
     </ol>
   </nav>
 
@@ -3306,6 +3307,39 @@ X-Webhook-Signature: hmac_sha256(body, signing_secret)</code></pre>
         <div>
           <span class="label">رمز حساب‌ها را ننویسید</span>
           <p>در شرح پروژه رمز و کلید دسترسی نگذارید؛ فقط بنویسید رمز در کجا نگهداری می‌شود.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ SMART GUIDE ============ -->
+  <section class="chapter" id="ch-smart-guide">
+    <div class="chapter-head">
+      <div class="chapter-icon">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+      </div>
+      <div>
+        <span class="chapter-num">راهنمای هوشمند گردشگری</span>
+        <h2>راهنمای هوشمند گردشگری (آزمایشی)</h2>
+      </div>
+    </div>
+    <div class="chapter-body">
+      <p class="lede">
+        گردشگر دوربین گوشی را به سمت یک اثر (کتیبه، مجسمه، حیوان تاکسیدرمی‌شده...) می‌گیرد، سامانه بدون QR آن را می‌شناسد و داستان ویدیویی‌اش را نشان می‌دهد.
+        این بخش در مرحلهٔ آزمایشی است و تا وقتی در «تنظیمات راهنما» روشنش نکنید، گردشگران هیچ چیزی نمی‌بینند؛ فقط کارکنانِ واردشده می‌توانند آزمایش کنند.
+      </p>
+      <div class="feature-grid">
+        <div class="feature-card"><div class="name">اشیای قابل شناسایی</div><div class="desc">هر شیء عنوان فارسی و انگلیسی، دسته، فضا، توضیح کوتاه، تصویر شاخص، چند تصویر مرجع و ویدیوی داستان دارد. بدون برنامه‌نویسی شیء جدید اضافه می‌شود.</div></div>
+        <div class="feature-card"><div class="name">وضعیت شیء</div><div class="desc">پیش‌نویس (بدون عکس)، در حال پردازش، آماده، ناموفق و غیرفعال. فقط شیء «آماده و فعال» به گوشی گردشگر می‌رسد.</div></div>
+        <div class="feature-card"><div class="name">تصاویر مرجع</div><div class="desc">از هر شیء ۱۰ تا ۲۰ عکس از زاویه‌ها و فاصله‌های مختلف بگیرید (JPG، PNG یا WebP تا ۶ مگابایت). تعداد دقیق را آزمون دقت تعیین می‌کند.</div></div>
+        <div class="feature-card"><div class="name">ویدیو</div><div class="desc">فایل MP4 آپلود کنید یا آدرس ویدیو را بنویسید (CDN یا فضای ابری). فقط ویدیوی «منتشر شده» نمایش داده می‌شود.</div></div>
+        <div class="feature-card"><div class="name">حریم خصوصی</div><div class="desc">تصویر دوربین گردشگر هیچ‌وقت به سرور نمی‌رسد. فقط نتیجه (شناسایی شد/نشد، کدام شیء، شباهت و زمان) به‌صورت ناشناس ثبت می‌شود.</div></div>
+      </div>
+      <div class="callout">
+        <svg viewBox="0 0 24 24" fill="none" stroke-width="1.7" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+        <div>
+          <span class="label">دقت هنوز اندازه‌گیری نشده</span>
+          <p>تا وقتی با عکس‌های واقعی داخل غار آزمون نشود، دقت شناسایی تأییدشده نیست. اسکنر و آزمون دقت در مرحلهٔ بعد اضافه می‌شود.</p>
         </div>
       </div>
     </div>
