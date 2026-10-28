@@ -375,6 +375,12 @@
             body.append(text);
         }
 
+        if (!object.videos.length) {
+            const note = document.createElement('p');
+            note.textContent = 'برای این شیء هنوز ویدیویی منتشر نشده است.';
+            body.append(note);
+        }
+
         for (const item of object.videos) {
             const button = document.createElement('button');
             button.type = 'button';
