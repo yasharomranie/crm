@@ -5,9 +5,11 @@ namespace Tests\Feature;
 use App\Console\Commands\SyncAccessControlPermissions;
 use App\Filament\Pages\AiAssistant;
 use App\Filament\Resources\Departments\DepartmentResource;
+use App\Filament\Resources\Roles\Pages\ManageRoles;
 use App\Models\Department;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Livewire\Livewire;
 use Spatie\Permission\Models\Permission;
 use Spatie\Permission\Models\Role;
 use Tests\TestCase;
@@ -163,5 +165,38 @@ class AccessControlTest extends TestCase
         $this->actingAs($user);
 
         $this->assertSame(3, Department::query()->count());
+    }
+
+    public function test_missing_permissions_are_created_without_touching_the_rest(): void
+    {
+        Permission::where('name', 'like', 'digital-projects.%')->delete();
+        $stale = Permission::create(['name' => 'old-module.view_any', 'guard_name' => 'web']);
+        $before = Permission::count();
+
+        $created = SyncAccessControlPermissions::createMissingPermissions();
+
+        $this->assertSame(6, $created);
+        $this->assertTrue(Permission::where('name', 'digital-projects.view_any')->exists());
+        $this->assertTrue(Permission::whereKey($stale->id)->exists());
+        $this->assertSame($before + 6, Permission::count());
+        $this->assertSame(0, SyncAccessControlPermissions::createMissingPermissions());
+    }
+
+    public function test_opening_the_role_screen_creates_the_permissions_a_new_module_lacks(): void
+    {
+        $admin = User::factory()->create();
+        $admin->assignRole(Role::firstOrCreate(['name' => 'admin']));
+        Permission::where('name', 'like', 'digital-project-weekly-entry.%')->delete();
+        Permission::where('name', 'like', 'web-app-banners.%')->delete();
+
+        Livewire::actingAs($admin)->test(ManageRoles::class);
+
+        $this->assertTrue(Permission::where('name', 'digital-project-weekly-entry.access')->exists());
+        $this->assertTrue(Permission::where('name', 'web-app-banners.view_any')->exists());
+    }
+
+    public function test_the_permission_sync_is_scheduled_daily(): void
+    {
+        $this->artisan('schedule:list')->expectsOutputToContain('access-control-sync')->assertSuccessful();
     }
 }

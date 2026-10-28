@@ -148,6 +148,14 @@ Schedule::call(fn () => app(StaleDealAlertService::class)->notifyStaleDeals())
     ->timezone('Asia/Tehran')
     ->withoutOverlapping();
 
+// Keeps the permission rows in step with config/access-control.php (new
+// modules, removed ones) even when nobody ran access-control:sync by hand.
+Schedule::call($artisan('access-control:sync'))
+    ->name('access-control-sync')
+    ->dailyAt('03:30')
+    ->timezone('Asia/Tehran')
+    ->withoutOverlapping();
+
 // Digital projects: one morning digest per owner of the projects with no
 // journal line for a week, a passed review date or an overdue action.
 Schedule::call(fn () => app(DigitalProjectAlertService::class)->notifyAttentionNeeded())
