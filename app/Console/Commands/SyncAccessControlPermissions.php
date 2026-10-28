@@ -48,9 +48,7 @@ class SyncAccessControlPermissions extends Command
     {
         $names = static::allPermissionNames();
 
-        foreach ($names as $name) {
-            Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
-        }
+        static::createMissingPermissions();
 
         $stale = Permission::whereNotIn('name', $names)->get();
 
@@ -65,6 +63,29 @@ class SyncAccessControlPermissions extends Command
         ));
 
         return self::SUCCESS;
+    }
+
+    /**
+     * Creates the permission rows a module defines but the database lacks,
+     * and touches nothing else. A module added in code has no rows until the
+     * sync runs; the role screen lists a module's checkboxes from those rows,
+     * so without them the module shows no checkboxes at all.
+     *
+     * @return int how many permissions were created
+     */
+    public static function createMissingPermissions(): int
+    {
+        $existing = Permission::query()->where('guard_name', 'web')->pluck('name')->flip();
+        $created = 0;
+
+        foreach (static::allPermissionNames() as $name) {
+            if (! $existing->has($name)) {
+                Permission::firstOrCreate(['name' => $name, 'guard_name' => 'web']);
+                $created++;
+            }
+        }
+
+        return $created;
     }
 
     /**
