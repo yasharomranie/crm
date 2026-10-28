@@ -41,15 +41,17 @@ class GuideObject extends Model
     protected static function booted(): void
     {
         static::creating(function (self $object): void {
+            $object->status ??= GuideObjectStatus::Draft;
+
             if (blank($object->slug)) {
                 $object->slug = (Str::slug((string) $object->title_en) ?: 'object').'-'.Str::lower(Str::random(6));
             }
         });
 
         static::saving(function (self $object): void {
-            if (! $object->is_active) {
+            if ($object->is_active === false) {
                 $object->status = GuideObjectStatus::Disabled;
-            } elseif ($object->isDirty('is_active') && $object->exists) {
+            } elseif ($object->exists && $object->isDirty('is_active')) {
                 $object->status = $object->computedStatus();
                 $object->ready_at = $object->status === GuideObjectStatus::Ready ? ($object->ready_at ?? now()) : null;
             }
@@ -125,7 +127,7 @@ class GuideObject extends Model
     /** Re-derives the status after the reference photos changed; a switched-off object stays disabled. */
     public function refreshStatus(): void
     {
-        if (! $this->is_active) {
+        if ($this->is_active === false) {
             return;
         }
 

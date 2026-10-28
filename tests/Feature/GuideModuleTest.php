@@ -112,7 +112,7 @@ class GuideModuleTest extends TestCase
 
         $this->assertSame(GuideObjectStatus::Failed, $object->refresh()->status);
 
-        $object->referenceImages()->each->delete();
+        $object->referenceImages()->get()->each->delete();
 
         $this->assertSame(GuideObjectStatus::Draft, $object->refresh()->status);
     }

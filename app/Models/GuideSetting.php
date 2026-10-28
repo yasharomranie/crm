@@ -27,6 +27,10 @@ class GuideSetting extends Model
 
     public static function current(): self
     {
-        return static::query()->firstOrCreate(['id' => 1]);
+        $setting = static::query()->firstOrCreate(['id' => 1]);
+
+        // A row just created holds only what was passed in; reload it so the
+        // column defaults (switched off, the starting numbers) are on the model.
+        return $setting->wasRecentlyCreated ? $setting->refresh() : $setting;
     }
 }
