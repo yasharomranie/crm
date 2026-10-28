@@ -1,0 +1,9 @@
+# Types the model runtime needs; some shared hosts do not know .mjs/.wasm/.onnx.
+<IfModule mod_mime.c>
+    AddType text/javascript .mjs
+    AddType application/wasm .wasm
+    AddType application/octet-stream .onnx
+</IfModule>
+<IfModule mod_headers.c>
+    Header set Cache-Control "public, max-age=2592000"
+</IfModule>

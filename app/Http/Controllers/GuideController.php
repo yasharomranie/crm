@@ -7,6 +7,7 @@ use App\Enums\GuideReferenceStatus;
 use App\Models\GuideEvent;
 use App\Models\GuideObject;
 use App\Models\GuideSetting;
+use Illuminate\Contracts\View\View;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Response;
@@ -23,6 +24,14 @@ class GuideController extends Controller
     private function canTest(Request $request): bool
     {
         return (bool) $request->user()?->can('guide-objects.view_any');
+    }
+
+    /** The camera scanner page of the customer app (staff can open it while the guide is off). */
+    public function scanner(Request $request): View
+    {
+        abort_unless(GuideSetting::current()->is_enabled || $this->canTest($request), 404);
+
+        return view('guide.scanner', ['staffPreview' => ! GuideSetting::current()->is_enabled]);
     }
 
     public function data(Request $request): JsonResponse

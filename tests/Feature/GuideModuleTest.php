@@ -347,4 +347,103 @@ class GuideModuleTest extends TestCase
 
         $this->assertTrue(Permission::where('name', 'guide-settings.access')->exists());
     }
+
+    public function test_the_scanner_page_is_closed_to_visitors_while_the_guide_is_off(): void
+    {
+        $this->get(route('guide.scanner'))->assertNotFound();
+
+        $this->actingAs($this->admin())
+            ->get(route('guide.scanner'))
+            ->assertOk()
+            ->assertSee('حالت آزمایش')
+            ->assertSee('شروع اسکن');
+    }
+
+    public function test_the_scanner_page_is_open_to_visitors_once_the_guide_is_on(): void
+    {
+        GuideSetting::current()->update(['is_enabled' => true]);
+
+        $this->get(route('guide.scanner'))
+            ->assertOk()
+            ->assertSee('شروع اسکن')
+            ->assertDontSee('حالت آزمایش');
+    }
+
+    public function test_the_browser_can_store_the_fingerprint_it_made_for_a_photo(): void
+    {
+        $object = GuideObject::factory()->create();
+        $image = GuideReferenceImage::factory()->create(['guide_object_id' => $object->id]);
+
+        $this->actingAs($this->admin())
+            ->postJson(route('guide.enroll.store', $image), ['embedding' => [3, 4, 0]])
+            ->assertOk()
+            ->assertJson(['status' => 'processed']);
+
+        $this->assertSame([0.6, 0.8, 0.0], $image->refresh()->embedding);
+    }
+
+    public function test_an_empty_or_malformed_fingerprint_is_refused(): void
+    {
+        $image = GuideReferenceImage::factory()->create();
+        $admin = $this->admin();
+
+        $this->actingAs($admin)->postJson(route('guide.enroll.store', $image), ['embedding' => []])->assertUnprocessable();
+        $this->actingAs($admin)->postJson(route('guide.enroll.store', $image), ['embedding' => ['x']])->assertUnprocessable();
+        $this->actingAs($admin)->postJson(route('guide.enroll.store', $image), ['embedding' => [0, 0]])->assertUnprocessable();
+
+        $this->assertSame(GuideReferenceStatus::Failed, $image->refresh()->status);
+    }
+
+    public function test_the_browser_can_report_that_a_photo_could_not_be_processed(): void
+    {
+        $image = GuideReferenceImage::factory()->create();
+
+        $this->actingAs($this->admin())
+            ->postJson(route('guide.enroll.failed', $image), ['error' => 'تصویر خراب است'])
+            ->assertOk();
+
+        $this->assertSame(GuideReferenceStatus::Failed, $image->refresh()->status);
+    }
+
+    public function test_the_pending_list_holds_only_unprocessed_photos_unless_all_is_asked(): void
+    {
+        $object = GuideObject::factory()->create();
+        $pending = GuideReferenceImage::factory()->create(['guide_object_id' => $object->id]);
+        $done = GuideReferenceImage::factory()->processed([1.0, 0.0])->create(['guide_object_id' => $object->id]);
+        $admin = $this->admin();
+
+        $ids = fn (array $json) => collect($json['images'])->pluck('id')->all();
+
+        $this->assertSame([$pending->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending'))->assertOk()->json()));
+        $this->assertEqualsCanonicalizing([$pending->id, $done->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending', ['all' => 1]))->json()));
+    }
+
+    public function test_the_staff_tools_need_a_signed_in_user_with_the_right_permission(): void
+    {
+        $image = GuideReferenceImage::factory()->create();
+
+        $this->postJson(route('guide.enroll.store', $image), ['embedding' => [1]])->assertUnauthorized();
+
+        $role = Role::firstOrCreate(['name' => 'limited']);
+        Permission::firstOrCreate(['name' => 'tickets.view_any', 'guard_name' => 'web']);
+        $role->givePermissionTo('tickets.view_any');
+        $limited = User::factory()->create();
+        $limited->assignRole($role);
+
+        $this->actingAs($limited)->get(route('guide.enroll'))->assertForbidden();
+        $this->actingAs($limited)->get(route('guide.accuracy'))->assertForbidden();
+        $this->actingAs($limited)->postJson(route('guide.enroll.store', $image), ['embedding' => [1]])->assertForbidden();
+
+        $this->actingAs($this->admin())->get(route('guide.enroll'))->assertOk()->assertSee('پردازش تصاویر مرجع');
+        $this->actingAs($this->admin())->get(route('guide.accuracy'))->assertOk()->assertSee('آزمون دقت');
+    }
+
+    public function test_the_self_hosted_runtime_and_model_are_shipped_with_the_app(): void
+    {
+        foreach (['ort.wasm.min.mjs', 'ort-wasm-simd-threaded.mjs', 'ort-wasm-simd-threaded.wasm', 'dinov2-small-q8.onnx'] as $file) {
+            $this->assertFileExists(public_path("vendor/guide/{$file}"));
+        }
+
+        $this->assertStringNotContainsString('https://', file_get_contents(public_path('guide/guide-engine.js')));
+    }
 }

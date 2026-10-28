@@ -26,6 +26,7 @@ use App\Http\Controllers\FormSubmissionPrintController;
 use App\Http\Controllers\GateOfflineSyncController;
 use App\Http\Controllers\GuestFeedbackController;
 use App\Http\Controllers\GuideController;
+use App\Http\Controllers\GuideEnrollmentController;
 use App\Http\Controllers\HousekeepingSheetController;
 use App\Http\Controllers\LeadCaptureController;
 use App\Http\Controllers\MapTileController;
@@ -47,6 +48,12 @@ Route::get('/', function () {
 });
 
 Route::middleware('auth')->group(function () {
+    // Staff tools of the smart guide: photo fingerprints are made in this browser, then saved here.
+    Route::get('/guide/enroll', [GuideEnrollmentController::class, 'index'])->name('guide.enroll');
+    Route::get('/guide/enroll/pending.json', [GuideEnrollmentController::class, 'pending'])->name('guide.enroll.pending');
+    Route::post('/guide/enroll/{referenceImage}', [GuideEnrollmentController::class, 'store'])->name('guide.enroll.store');
+    Route::post('/guide/enroll/{referenceImage}/failed', [GuideEnrollmentController::class, 'failed'])->name('guide.enroll.failed');
+    Route::get('/guide/accuracy', [GuideEnrollmentController::class, 'accuracy'])->name('guide.accuracy');
     Route::get('/documents/{document}/download', [DocumentDownloadController::class, 'current'])
         ->name('documents.download');
     Route::get('/document-versions/{version}/download', [DocumentDownloadController::class, 'version'])
@@ -123,6 +130,7 @@ Route::middleware('auth')->group(function () {
 // exist in this app (Filament's own is 'filament.admin.auth.login'), so it
 // 500s instead of redirecting - checking manually here sidesteps that.
 // The smart tourism guide's phone-facing endpoints (public; they answer 404 while the guide is switched off).
+Route::get('/app/guide', [GuideController::class, 'scanner'])->name('guide.scanner');
 Route::prefix('guide')->name('guide.')->group(function () {
     Route::get('/data.json', [GuideController::class, 'data'])->middleware('throttle:60,1')->name('data');
     Route::post('/events', [GuideController::class, 'event'])->middleware('throttle:240,1')->name('events');
