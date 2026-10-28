@@ -160,6 +160,23 @@
             gap: 1.5rem;
         }
 
+        /* ---------- Smart guide entry ---------- */
+
+        .guide-entry {
+            display: flex;
+            align-items: center;
+            gap: .8rem;
+            padding: .9rem 1rem;
+            border-radius: 1rem;
+            background: var(--orange);
+            color: #fff;
+            text-decoration: none;
+        }
+
+        .guide-entry svg { flex: none; }
+        .guide-entry strong { display: block; font-size: .95rem; }
+        .guide-entry span { font-size: .78rem; opacity: .9; }
+
         /* ---------- Banners ---------- */
 
         .banners {
@@ -325,6 +342,16 @@
         @endif
 
         <main class="content has-bottom-nav">
+            @if ($smartGuideEnabled)
+                <a class="guide-entry" href="{{ route('guide.scanner') }}">
+                    <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                    <div>
+                        <strong>راهنمای هوشمند</strong>
+                        <span>دوربین را روی اثر بگیرید و اطلاعات و ویدیوی آن را ببینید</span>
+                    </div>
+                </a>
+            @endif
+
             @if ($banners->isNotEmpty())
                 <div class="banners">
                     @foreach ($banners as $banner)
