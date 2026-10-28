@@ -415,6 +415,7 @@ class GuideModuleTest extends TestCase
         $ids = fn (array $json) => collect($json['images'])->pluck('id')->all();
 
         $this->assertSame([$pending->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending'))->assertOk()->json()));
+        $this->assertStringStartsWith('/', $this->actingAs($admin)->getJson(route('guide.enroll.pending'))->json('images.0.url'));
         $this->assertEqualsCanonicalizing([$pending->id, $done->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending', ['all' => 1]))->json()));
     }
 

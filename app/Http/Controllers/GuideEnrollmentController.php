@@ -35,7 +35,7 @@ class GuideEnrollmentController extends Controller
         return response()->json([
             'images' => $images->map(fn (GuideReferenceImage $image) => [
                 'id' => $image->id,
-                'url' => $image->url(),
+                'url' => parse_url($image->url(), PHP_URL_PATH) ?: $image->url(),
                 'object' => $image->object?->title_fa,
             ])->values(),
         ]);

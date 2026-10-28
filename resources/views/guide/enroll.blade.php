@@ -72,19 +72,24 @@
             list.append(row);
 
             try {
-                const blob = await (await fetch(image.url)).blob();
+                const download = await fetch(image.url);
+                if (!download.ok) {
+                    throw new Error(`دانلود عکس: HTTP ${download.status}`);
+                }
+                const blob = await download.blob();
                 const vector = await embedBlob(blob);
                 const response = await post(`/guide/enroll/${image.id}`, { embedding: Array.from(vector) });
                 if (!response.ok) {
-                    throw new Error('save');
+                    throw new Error(`ذخیره روی سرور: HTTP ${response.status}`);
                 }
                 row.dataset.state = 'done';
                 row.textContent = `${image.object ?? '—'} · تصویر ${image.id}: انجام شد`;
                 done++;
             } catch (error) {
                 row.dataset.state = 'failed';
-                row.textContent = `${image.object ?? '—'} · تصویر ${image.id}: ناموفق`;
-                await post(`/guide/enroll/${image.id}/failed`, { error: 'پردازش تصویر در مرورگر ناموفق بود.' }).catch(() => {});
+                const reason = String(error?.message ?? error).slice(0, 200);
+                row.textContent = `${image.object ?? '—'} · تصویر ${image.id}: ناموفق (${reason})`;
+                await post(`/guide/enroll/${image.id}/failed`, { error: reason }).catch(() => {});
                 failed++;
             }
 
