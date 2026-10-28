@@ -415,6 +415,7 @@ class GuideModuleTest extends TestCase
         $ids = fn (array $json) => collect($json['images'])->pluck('id')->all();
 
         $this->assertSame([$pending->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending'))->assertOk()->json()));
+        $this->assertStringStartsWith('/', $this->actingAs($admin)->getJson(route('guide.enroll.pending'))->json('images.0.url'));
         $this->assertEqualsCanonicalizing([$pending->id, $done->id], $ids($this->actingAs($admin)->getJson(route('guide.enroll.pending', ['all' => 1]))->json()));
     }
 
@@ -445,5 +446,14 @@ class GuideModuleTest extends TestCase
         }
 
         $this->assertStringNotContainsString('https://', file_get_contents(public_path('guide/guide-engine.js')));
+    }
+
+    public function test_the_customer_app_home_links_to_the_scanner_only_while_the_guide_is_on(): void
+    {
+        $this->get(route('customer-app'))->assertOk()->assertDontSee(route('guide.scanner'));
+
+        GuideSetting::current()->update(['is_enabled' => true]);
+
+        $this->get(route('customer-app'))->assertOk()->assertSee(route('guide.scanner'))->assertSee('راهنمای هوشمند');
     }
 }

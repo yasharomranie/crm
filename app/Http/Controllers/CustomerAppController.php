@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\GuideSetting;
 use App\Models\WebAppBanner;
 use App\Models\WebAppSection;
 use Illuminate\Contracts\View\View;
@@ -20,6 +21,7 @@ class CustomerAppController extends Controller
     {
         return view('customer-app', [
             'guest' => Auth::guard('customer')->user(),
+            'smartGuideEnabled' => GuideSetting::current()->is_enabled,
             'banners' => WebAppBanner::where('is_active', true)
                 ->orderBy('sort_order')
                 ->orderBy('id')
