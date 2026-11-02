@@ -890,7 +890,7 @@ trait HasAiAssistantEngine
             $consultants = app(AssistantConsultationService::class)->consultantsForManager($user);
 
             if ($consultants->isNotEmpty()) {
-                $tools[] = $this->toolSchema('consult_custom_assistant', 'Ask one of the user\'s own specialist assistants a question and get its answer (it uses its own knowledge base and read-only lookups). Use when the question falls in a specialist\'s field: '.$consultants->map(fn ($profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.$profile->specialties.')' : ''))->implode('; ').'. Then present the answer to the user under that assistant\'s name; never present it as your own finding.', [
+                $tools[] = $this->toolSchema('consult_custom_assistant', 'Ask one of the user\'s own specialist assistants a question and get its answer (it uses its own knowledge base and read-only lookups). Use when the question falls in a specialist\'s field: '.$consultants->map(fn ($profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.implode('، ', $profile->specialties).')' : ''))->implode('; ').'. Then present the answer to the user under that assistant\'s name; never present it as your own finding.', [
                     'type' => 'object',
                     'properties' => [
                         'assistant_id' => ['type' => 'integer', 'enum' => $consultants->pluck('id')->all(), 'description' => 'Which specialist to ask.'],

@@ -123,7 +123,7 @@ class AssistantConsultationService
 
         $nestedLeft = self::MAX_NESTED_PER_CONSULTATION;
         $nested = [];
-        $directory = $nestedCandidates->map(fn (AiAssistantProfile $profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.$profile->specialties.')' : ''))->implode('؛ ');
+        $directory = $nestedCandidates->map(fn (AiAssistantProfile $profile) => '#'.$profile->id.' «'.$profile->displayName().'»'.(filled($profile->specialties) ? ' ('.implode('، ', $profile->specialties).')' : ''))->implode('؛ ');
 
         $messages = [
             ['role' => 'system', 'content' => $target->basePrompt()."\n\n".($instructions ?? 'دستیار دیگری از تو مشورت می‌خواهد. کوتاه، دقیق و کامل جواب بده.').($nestedCandidates->isNotEmpty() ? "\nاگر بخشی از جواب در تخصص تو نیست می‌توانی با consult_assistant از یکی از اینها بپرسی: {$directory}" : '')],
