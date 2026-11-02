@@ -58,6 +58,25 @@ class AiAssistantManagerConsultTest extends TestCase
         return collect(json_decode(Http::recorded()[$index][0]->body(), true)['tools'] ?? [])->pluck('function.name')->all();
     }
 
+    public function test_a_specialist_with_listed_specialties_does_not_break_the_chat(): void
+    {
+        AiProvider::factory()->active()->create();
+        $user = $this->manager();
+        AiAssistantProfile::factory()->create(['created_by' => $user->id, 'consultable' => true, 'specialties' => ['حقوقی', 'قرارداد']]);
+
+        Http::fake(['*/chat/completions' => Http::response($this->reply('سلام! چطور کمک کنم؟'))]);
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'سلام')
+            ->call('send')
+            ->assertNotNotified('دستیار هوشمند به این پیام پاسخ نداد');
+
+        $tools = collect(json_decode(Http::recorded()[0][0]->body(), true)['tools'] ?? [])->keyBy('function.name');
+
+        $this->assertStringContainsString('(حقوقی، قرارداد)', $tools['consult_custom_assistant']['function']['description']);
+        $this->assertSame('سلام! چطور کمک کنم؟', AiConversation::sole()->messages->last()->content);
+    }
+
     public function test_the_manager_assistant_consults_a_specialist_and_gets_its_answer(): void
     {
         AiProvider::factory()->active()->create();
