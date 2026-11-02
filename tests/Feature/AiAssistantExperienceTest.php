@@ -246,4 +246,19 @@ class AiAssistantExperienceTest extends TestCase
             ->assertSee('سنجاق کردن')
             ->assertSee('آرشیو');
     }
+
+    public function test_an_unexpected_failure_while_answering_is_reported_instead_of_a_page_error(): void
+    {
+        $this->actingAsUserWith();
+        AiProvider::factory()->active()->create();
+        Http::fake(fn () => throw new \LogicException('خرابی آزمایشی'));
+
+        Livewire::test(AiAssistant::class)
+            ->set('body', 'سلام')
+            ->call('send')
+            ->assertHasNoErrors()
+            ->assertNotified('دستیار هوشمند به این پیام پاسخ نداد');
+
+        $this->assertDatabaseHas('activity_log', ['log_name' => 'ai_assistant', 'event' => 'unexpected_error']);
+    }
 }

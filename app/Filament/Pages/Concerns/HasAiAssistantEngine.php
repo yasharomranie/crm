@@ -8,6 +8,7 @@ use App\Domain\Ai\AiSuggestedPrompts;
 use App\Domain\Ai\AiToolAccess;
 use App\Domain\Ai\AiToolRouter;
 use App\Domain\Ai\AssistantConsultationService;
+use App\Domain\Ai\AssistantFailureReporter;
 use App\Domain\Ai\AssistantUsage;
 use App\Domain\Ai\MarkdownTables;
 use App\Domain\Hospitality\RoomInventory;
@@ -339,6 +340,8 @@ trait HasAiAssistantEngine
                 ->body('چند لحظه بعد دوباره تلاش کنید. اگر تکرار شد، از مدیر سیستم بخواهید ارائه‌دهندهٔ هوش مصنوعی را در تنظیمات بررسی کند.')
                 ->danger()
                 ->send();
+        } catch (\Throwable $exception) {
+            AssistantFailureReporter::report($exception);
         } finally {
             $this->isThinking = false;
             $this->setRunState($conversation, null);
