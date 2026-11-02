@@ -162,7 +162,7 @@
                                         <x-filament::icon icon="heroicon-m-wrench-screwdriver" class="mt-0.5 h-4 w-4 shrink-0" />
                                         <span>{{ $block->reason }}</span>
                                     </div>
-                                    <div class="text-xs text-gray-500 dark:text-gray-400">تا {{ $block->ends_on->toJalali('Y/m/d') }}</div>
+                                    <div class="text-xs text-gray-500 dark:text-gray-400">{{ $block->ends_on ? 'تا '.$block->ends_on->toJalali('Y/m/d') : 'تا اطلاع بعدی' }}</div>
                                 @elseif ($next)
                                     <div class="flex items-center gap-1.5 font-medium text-gray-950 dark:text-white">
                                         <x-filament::icon icon="heroicon-m-calendar-days" class="h-4 w-4 shrink-0 text-gray-400" />

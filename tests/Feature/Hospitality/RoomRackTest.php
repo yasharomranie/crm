@@ -81,6 +81,19 @@ class RoomRackTest extends TestCase
         $this->assertSame(1, $counts['departing']);
     }
 
+    public function test_a_unit_blocked_until_further_notice_does_not_break_the_board(): void
+    {
+        $room = $this->room('ویلا بدون پایان');
+        RoomBlock::factory()->create(['room_id' => $room->id, 'starts_on' => today()->subDay()->toDateString(), 'ends_on' => null, 'reason' => 'بازسازی']);
+
+        Livewire::actingAs($this->admin())
+            ->test(RoomRack::class)
+            ->assertOk()
+            ->assertSee('ویلا بدون پایان')
+            ->assertSee('بازسازی')
+            ->assertSee('تا اطلاع بعدی');
+    }
+
     public function test_the_status_chips_and_the_search_narrow_the_board(): void
     {
         $this->room('اتاق تمیز');
