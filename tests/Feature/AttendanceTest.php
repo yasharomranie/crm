@@ -89,6 +89,9 @@ class AttendanceTest extends TestCase
 
     public function test_monthly_summary_aggregates_worked_minutes_and_late_days(): void
     {
+        // Pinned mid-month: "two days ago" must stay inside the month on the 1st and 2nd too.
+        Carbon::setTestNow(today()->startOfMonth()->addDays(14)->setTime(12, 0));
+
         $shift = WorkShift::factory()->create(['start_time' => '09:00:00', 'grace_minutes' => 10]);
         $user = User::factory()->create(['work_shift_id' => $shift->id]);
 

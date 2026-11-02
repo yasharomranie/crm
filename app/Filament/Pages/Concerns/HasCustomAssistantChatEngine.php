@@ -3,6 +3,7 @@
 namespace App\Filament\Pages\Concerns;
 
 use App\Domain\Ai\AssistantConsultationService;
+use App\Domain\Ai\AssistantFailureReporter;
 use App\Domain\Ai\CrmToolCatalog;
 use App\Domain\Ai\DocumentTextExtractor;
 use App\Domain\Ai\KnowledgeNoteExtractor;
@@ -340,6 +341,8 @@ trait HasCustomAssistantChatEngine
             $this->runProfileAgentLoop($conversation, $provider, $profile);
         } catch (AiProviderException $exception) {
             Notification::make()->title($exception->getMessage())->danger()->send();
+        } catch (\Throwable $exception) {
+            AssistantFailureReporter::report($exception);
         }
 
         $this->dispatch('message-sent');
