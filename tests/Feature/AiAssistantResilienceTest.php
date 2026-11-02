@@ -157,4 +157,18 @@ class AiAssistantResilienceTest extends TestCase
                 && ! $messages->contains(fn (array $message) => ($message['content'] ?? null) === 'سؤال 1');
         });
     }
+
+    public function test_a_provider_refusal_shows_its_status_type_and_message(): void
+    {
+        Sleep::fake();
+        $provider = AiProvider::factory()->active()->create();
+        Http::fake(['*' => Http::response(['error' => ['message' => 'openai_error (request id: 123)', 'type' => 'new_api_error', 'code' => 'bad_response_status_code']], 503)]);
+
+        try {
+            $provider->chatCompletion([['role' => 'user', 'content' => 'سلام']]);
+            $this->fail('The refusal should have thrown.');
+        } catch (AiProviderException $exception) {
+            $this->assertStringContainsString('HTTP 503 · new_api_error · bad_response_status_code · openai_error (request id: 123)', $exception->getMessage());
+        }
+    }
 }
