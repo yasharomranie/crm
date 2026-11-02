@@ -7,7 +7,9 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Http\Client\ConnectionException;
 use Illuminate\Http\Client\RequestException;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Str;
 
 /**
  * A connection to any OpenAI-compatible chat completions API - OpenAI
@@ -153,9 +155,7 @@ class AiProvider extends Model
         }
 
         if ($response->failed()) {
-            throw AiProviderException::requestFailed(
-                $response->json('error.message') ?? "HTTP {$response->status()}",
-            );
+            throw AiProviderException::requestFailed(static::describeFailure($response));
         }
 
         $this->lastUsage = $response->json('usage');
@@ -167,6 +167,30 @@ class AiProvider extends Model
         }
 
         return $message;
+    }
+
+    /**
+     * What the provider said when it refused a request, with the HTTP status
+     * and its error type/code, so "openai_error" alone is never all the
+     * manager sees (the status tells a bad key from an unknown model or an
+     * exhausted balance).
+     */
+    private static function describeFailure(Response $response): string
+    {
+        $parts = ["HTTP {$response->status()}"];
+
+        foreach (['error.type', 'error.code'] as $key) {
+            $value = $response->json($key);
+
+            if (is_string($value) || is_int($value)) {
+                $parts[] = (string) $value;
+            }
+        }
+
+        $message = $response->json('error.message');
+        $parts[] = is_string($message) && $message !== '' ? $message : Str::limit(trim(strip_tags($response->body())), 160);
+
+        return implode(' · ', array_values(array_unique(array_filter($parts, fn ($part) => $part !== ''))));
     }
 
     private function isTransientFailure(\Throwable $exception): bool
