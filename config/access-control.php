@@ -41,6 +41,7 @@ use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SeoWpFleet;
 use App\Filament\Pages\ServerErrorLog;
 use App\Filament\Pages\SmsSettings;
+use App\Filament\Pages\TestDataTools;
 use App\Filament\Pages\TicketingReportsPage;
 use App\Filament\Pages\TodayArrivals;
 use App\Filament\Pages\TripPlannerReportPage;
@@ -245,6 +246,7 @@ return [
                 'act' => 'اقدام (ایجاد تسک و موارد مشابه)',
             ],
         ],
+        'test-data-tools' => ['page' => TestDataTools::class, 'label' => 'دادهٔ آزمایشی', 'group' => 'زیرساخت سازمانی'],
         'server-error-log' => ['page' => ServerErrorLog::class, 'label' => 'گزارش خطاهای سرور', 'group' => 'زیرساخت سازمانی'],
         'guide-settings' => ['page' => GuideSettings::class, 'label' => 'تنظیمات راهنمای هوشمند', 'group' => 'راهنمای هوشمند گردشگری'],
         'digital-project-weekly-entry' => ['page' => DigitalProjectWeeklyEntry::class, 'label' => 'ورود سریع آمار هفتگی پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
