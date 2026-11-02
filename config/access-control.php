@@ -39,6 +39,7 @@ use App\Filament\Pages\SeoRankTrackerSettings;
 use App\Filament\Pages\SeoSitemapAnalyzer;
 use App\Filament\Pages\SeoTrafficBreakdown;
 use App\Filament\Pages\SeoWpFleet;
+use App\Filament\Pages\ServerErrorLog;
 use App\Filament\Pages\SmsSettings;
 use App\Filament\Pages\TicketingReportsPage;
 use App\Filament\Pages\TodayArrivals;
@@ -244,6 +245,7 @@ return [
                 'act' => 'اقدام (ایجاد تسک و موارد مشابه)',
             ],
         ],
+        'server-error-log' => ['page' => ServerErrorLog::class, 'label' => 'گزارش خطاهای سرور', 'group' => 'زیرساخت سازمانی'],
         'guide-settings' => ['page' => GuideSettings::class, 'label' => 'تنظیمات راهنمای هوشمند', 'group' => 'راهنمای هوشمند گردشگری'],
         'digital-project-weekly-entry' => ['page' => DigitalProjectWeeklyEntry::class, 'label' => 'ورود سریع آمار هفتگی پروژه‌های دیجیتال', 'group' => 'پروژه‌های دیجیتال'],
         'messenger' => ['page' => Messenger::class, 'label' => 'پیام‌رسان', 'group' => 'ارتباطات داخلی'],
