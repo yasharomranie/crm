@@ -22,7 +22,7 @@ A Persian-first (RTL, Jalali calendar) Laravel 13 + Filament v5 admin system tha
 | 7 | `TEST-LOG.md` | Validation record: what was actually run, what was not |
 | 8 | `OPEN-QUESTIONS.md` | Unresolved questions and who can answer them |
 
-Other docs that already exist (not replaced): root `README.md` (older AI-oriented overview, **partly outdated** — see `OPEN-QUESTIONS.md`), `CLAUDE.md` / `AGENTS.md` (Laravel Boost guidelines), `.ai/rules/*` (project rules), and the in-app guide at `resources/views/system-guide.blade.php` (served at `/system-guide`).
+Other docs that already exist (not replaced): root `README.md` (rewritten 2026-11-06 as a short Persian pointer to this package), `CLAUDE.md` / `AGENTS.md` (Laravel Boost guidelines), `.ai/rules/*` (project rules), and the in-app training centre («مرکز آموزش») at `resources/views/system-guide.blade.php` (served at `/system-guide`) — **update it together with this package after every added capability**.
 
 ## Warning
 Everything here reflects `origin/main` at commit `cc599ca` (PR #250) plus the open PR #251 on the working branch. Evidence labels used throughout: `CONFIRMED` (seen in code/CI/this session), `INFERRED`, `UNKNOWN`, `NOT TESTED`, `NEEDS VERIFICATION`.

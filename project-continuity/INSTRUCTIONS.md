@@ -2,15 +2,17 @@
 
 Labels: **[VERIFIED]** = stated in project files or enforced by tests/CI, or an explicit instruction from the project owner in the working session; **[RECOMMENDED]** = inferred good practice, not mandatory.
 
-## 0. Keep this package current (owner's standing instruction)
-**[VERIFIED — owner instruction, 2026-11-06]** Whenever a feature, fix, module, permission, route, scheduled job, migration, setting or decision is added or changed, update the files in `project-continuity/` **in the same PR**:
+## 0. Keep this package and the training centre current (owner's standing instruction)
+**[VERIFIED — owner instruction, 2026-11-06]** At the end of every added capability - whenever a feature, fix, module, permission, route, scheduled job, migration, setting or decision is added or changed, update the files in `project-continuity/` **in the same PR**:
 - `CONTEXT.md` (modules, architecture, data, config) — if behaviour/structure changed
 - `HANDOFF-<date>.md` — add a new dated handoff when a session ends with meaningful change (keep the previous one; do not rewrite history)
 - `DECISIONS.md` — one entry per non-trivial decision
 - `TEST-LOG.md` — what was actually run and the result (never mark unrun checks as passed)
 - `OPEN-QUESTIONS.md` — add/close questions
 - `DEPLOYMENT.md` — if deploy/ops behaviour changes
-A change is not "done" until these are updated. This rule is also recorded in `.ai/rules/project-continuity.md`.
+- **مرکز آموزش** = the in-app training centre `/system-guide` (`resources/views/system-guide.blade.php`): add/update the Persian chapter or section for the feature, matching the existing style (callouts, feature cards, "how to use" steps).
+- Root `README.md` is now a short pointer to this package; update it only if the entry points change.
+A change is not "done" until both this package and the training centre are updated. This rule is also recorded in `.ai/rules/project-continuity.md`. (Owner instruction 2026-11-06; extended to the training centre the same day. «مرکز آموزش» was interpreted as `/system-guide` because no other training page exists — confirm if the owner meant something else.)
 
 ## 1. Read before editing
 1. `CLAUDE.md` (Laravel Boost guidelines) and `.ai/rules/index.md` → every matching rule file (currently `general.md` and `project-continuity.md`, both `**/*`).

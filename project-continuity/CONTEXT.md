@@ -61,6 +61,9 @@ Counts from `config/access-control.php`.
 **Vendored files:** `public/vendor/guide/{ort.wasm.min.mjs, ort-wasm-simd-threaded.mjs, ort-wasm-simd-threaded.wasm (~11 MB), dinov2-small-q8.onnx (~23 MB), .htaccess (MIME + 30-day cache)}`.
 **State of accuracy:** NOT VERIFIED. Owner reported object recognition working after processing; threshold tuning with real cave photos not done. Risks: low light, similar objects, scale (centre crop only).
 
+## 5b. Training centre
+The in-app user guide at `/system-guide` («راهنمای سامانه FarsiWP», `resources/views/system-guide.blade.php`, assets in `public/system-guide-assets/`) is the owner's «مرکز آموزش» (interpretation, see OPEN-QUESTIONS Q14). It has numbered chapters (`ch-00` … `ch-13`, plus `ch-smart-guide`), a table of contents and callouts/feature cards. **Update it with every new capability.**
+
 ## 6. Access control (see INSTRUCTIONS §4)
 `config/access-control.php` → `SyncAccessControlPermissions` → `DynamicPermissionPolicy`. Guard test `AccessControlCoverageTest`. New modules in the latest work: `guide-*`, `server-error-log` (page), `test-data-tools` (page).
 
